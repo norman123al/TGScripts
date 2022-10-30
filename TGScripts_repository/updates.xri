@@ -13,6 +13,9 @@
          <title>
             TGScripts snapshot - 2022 Oct 30
          </title>
+         <remove>
+            src/scripts/TGScripts
+         </remove>
          <description>
             <p>
                 The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
