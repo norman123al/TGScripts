@@ -15,13 +15,14 @@
          </title>
          <remove>
             src/scripts/TGScripts
+            doc/scripts/BBStarReduction
          </remove>
          <description>
             <p>
-               This update installs an initial snapshot of the TGScripts repository.
+                The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
             </p>
             <p>
-                The repository provides a set of improved Pixinsight scripts form various authors as well as some newly written scripts.
+               BBStarReduction - a script to apply Bill Blanshan's star reduction methods
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
