@@ -71,4 +71,12 @@
       }
   }
 
+\section { \label known_issues Known Issues } {
+   In case you run the script but do not see an effect in star reduction, check the console for the following error message from StarXTerminator:
+
+   \image[float,width:100\%] StarXTerminator_IO_error.png \nf
+
+   To get rid of this error message, start the StarXTerminator process once. You do not have to run StarXTerminator, the process window can be closed again right away. Afterward the error message should not occur anymore until you close Pixinsight.
+   The root cause is unclear, could be that StarXTerminator was not tested for execution from inside a script.
+} % Known Issues
 \make

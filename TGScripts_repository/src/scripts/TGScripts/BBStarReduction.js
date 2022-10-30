@@ -189,7 +189,8 @@ function createStarless(targetView)
    SXT.unscreen = true;
    SXT.overlap = 0.20;
 
-   if (!SXT.executeOn(starlessWindow.mainView, false /*swapFile */))
+
+   if (starlessWindow.mainView.isNull || !SXT.executeOn(starlessWindow.mainView, false /*swapFile */))
    {
       new MessageBox( "Starless image creation failed!", TITLE, StdIcon_Error, StdButton_Cancel ).execute();
       return null;
@@ -203,7 +204,6 @@ function createStarless(targetView)
 // ----------------------------------------------------------------------------
 function transferMethod_V2(strength, starless_id, targetView)
 {
-   Console.writeln("BBstrength: ", strength);
    targetView.beginProcess();
 
    var PM = new PixelMath;
@@ -452,9 +452,9 @@ function createPreview()
 
    if(starlessPrevWindow)
    {
-      for(i = 0; i < xIterations; ++i)
+      for(var i = 0; i < xIterations; ++i)
       {
-         for(j = 0; j < yIterations; ++j)
+         for(var j = 0; j < yIterations; ++j)
          {
             var signatureText = "";
             switch(method)

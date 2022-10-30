@@ -7,7 +7,7 @@
   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
       <package fileName="TGScripts_repository.tar.gz"
-               sha1="c261c00f2e19d66e4540d62e16b176babec83df1"
+               sha1="6a906b5104360d164d69c0b6f6fda101d0728184"
                type="script"
                releaseDate="20221030">
          <title>
