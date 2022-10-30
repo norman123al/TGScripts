@@ -6,7 +6,7 @@
      </p>
   </description>
    <platform os="all" arch="noarch" version="1.0:1.0">
-      <package fileName="TGScripts_20221030.tar.gz"
+      <package fileName="TGScripts_20221030.zip"
                sha1="2E5A27054149EA2BEB7EA09FD9FBF28CF3D83B1E"
                type="script"
                releaseDate="20221030">
