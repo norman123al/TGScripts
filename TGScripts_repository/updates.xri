@@ -7,7 +7,7 @@
   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
       <package fileName="TGScripts_repository.tar.gz"
-               sha1="28410f11d4986c6ba51b38f6a5ee99519b992242"
+               sha1="a7b7d6b05795ea5a6a3ab1e30be90ba038748148"
                type="script"
                releaseDate="20221030">
          <title>
@@ -25,6 +25,9 @@
             </p>
             <p>
                LocalSupportMask - a script to generate a local support mask for Pixinsight's deconvolution process.
+            </p>
+            <p>
+               TGScriptSkeleton - a script skeleton serving as a starting point for Pixinsight java script development.
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.

@@ -1,0 +1,36 @@
+\documentclass PIScriptDoc
+
+\script TGScriptSkeleton
+
+\keywords {
+   script development
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script skeleton for Pixinsight script development.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] TGScriptSkeleton_main_screen.png
+
+    This script skeleton is a starting point for developing Pixinsight java scripts. It provides a simple list box for image selection, the 'new instance' button to store the state of script parameters and the ussual 'Ok' and 'Cancel' buttons for script execution.
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for local support mask generation.
+        }
+    } % target image
+    
+} % Parameter Reference
+\make

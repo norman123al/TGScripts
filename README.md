@@ -19,9 +19,11 @@ Then run an update of Pixinsight system via the 'Check for Updates' menu item.
 !['Check for Updates' menu in Pixinsight](/TGScripts_repository/images/PI_resources_update.png)
 
 ## Contained Pixinsight Scripts
-- BBStarReduction.js - a script to apply Bill Blanshan's star reduction methods (requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/)).
+- **BBStarReduction.js** - a script to apply Bill Blanshan's star reduction methods (requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/)).
 
   Known issues:
   - StarXTerminator might fail with an IO error (see console output) when exectued from the script. To solve this, start the StarXTerminator process manually once. Then the issue is gone until Pixinsight is closed. See also script documentation in Pixinsight.
 
-- LocalSupportMask.js - a script to create a local support mask for Pixinsights Deconvolution process.
+- **LocalSupportMask.js** - a script to create a local support mask for Pixinsights Deconvolution process.
+
+- **TGScriptSkeleton.js** - a script skeleton serving as a starting point for Pixinsight java script development.
