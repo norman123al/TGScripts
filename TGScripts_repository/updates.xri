@@ -7,7 +7,7 @@
   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
       <package fileName="TGScripts_repository.tar.gz"
-               sha1="6a906b5104360d164d69c0b6f6fda101d0728184"
+               sha1="28410f11d4986c6ba51b38f6a5ee99519b992242"
                type="script"
                releaseDate="20221030">
          <title>
@@ -21,7 +21,10 @@
                 The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
             </p>
             <p>
-               BBStarReduction - a script to apply Bill Blanshan's star reduction methods
+               BBStarReduction - a script to apply Bill Blanshan's star reduction methods.
+            </p>
+            <p>
+               LocalSupportMask - a script to generate a local support mask for Pixinsight's deconvolution process.
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.

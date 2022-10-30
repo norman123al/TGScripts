@@ -31,6 +31,10 @@
     This scripts automates the generation of the starless image, let's the user choose which star reduction method to use and has the ability to produce a preview showing the effect of the star reduction parameters.
     The state of the script can be stored as an icon by the "new instance" button and can be used via drag and drop on other images.
 
+}
+
+\section { \label parameter_reference Parameter Reference } {
+
    \definition {
          { \label target_image Target Image } {
             The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for star reduction.
@@ -68,8 +72,8 @@
          \image[float,width:100\%] preview_window.png \nf
          \vs
          A preview of the transfer method. The strength parameter is increased by 0.1 per subframe.
-      }
-  }
+   } % figure
+} % Parameter Reference
 
 \section { \label known_issues Known Issues } {
    In case you run the script but do not see an effect in star reduction, check the console for the following error message from StarXTerminator:

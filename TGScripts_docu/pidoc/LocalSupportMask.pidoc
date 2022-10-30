@@ -1,0 +1,68 @@
+\documentclass PIScriptDoc
+
+\script LocalSupportMask
+
+\keywords {
+   deconvolution, sharpening
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script to create a local support mask for Deconvolution.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] LocalSupportMask_main_screen.png
+
+    The deconvolution process in pixinsight offers the possiblity to provide a so-called local support mask which is essentially a star mask to protect (bright) stars from deconvolution artifacts.
+    This script automates the generation of a local support mask and provides the essential parameters to influence the mask generation. The script assumes that the source image from which the local support mask is generated is a linear, grayscale image.
+    The image is assumed linear because deconvolution is applied before the image is stretched. A mask is best generated from the luminance data, thus the source image should be grayscale.
+    In case the image is detected to be non-linear or RGB, a warning message will pop up, which can eiter be confirmed or canceled. If confirmed, the script will exit. In case the user cancels the warning pop up, the mask will be generated from the specified image.
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for local support mask generation.
+        }
+    } % target image
+    
+    \definition {
+        { \label wavelet_scale Scale } {
+            The 'Scale' parameter specifies the number of wavelet layers for star mask generation.
+        }
+    } % scale
+
+    \definition {
+        { \label large_scale Large Scale } {
+            The 'Large-scale' parameter determines the growth of large scale structures in the star mask.
+        }
+    } % large scale
+
+    \definition {
+        { \label small_scale Small Scale } {
+            The 'Small-scale' parameter determines the growth of small scale structures in the star mask.
+        }
+    } % small scale
+
+    \definition {
+        { \label compensation_scale Compensation } {
+            The 'Compensation' parameter specifies the number of wavelet layers small scale growth compensation.
+        }
+    } % compensation
+
+    \definition {
+        { \label smoothness_scale Smoothness } {
+            The 'Smoothness' parameter determines the smoothness of the mask structures.
+        }
+    } % scale
+} % Parameter Reference
+\make

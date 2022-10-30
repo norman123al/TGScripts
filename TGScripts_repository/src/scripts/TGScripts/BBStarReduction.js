@@ -403,6 +403,7 @@ function DrawSignature( data )
 // ----------------------------------------------------------------------------
 function createPreview()
 {
+   Console.show();
    var t0 = new Date;
 
    var xIterations = 0;
@@ -508,6 +509,7 @@ function createPreview()
 
    var t1 = new Date;
    Console.writeln(format("<end><cbr>createPreview: %.2f s", (t1.getTime() - t0.getTime())/1000));
+   Console.hide();
 }
 
 // ----------------------------------------------------------------------------
