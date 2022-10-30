@@ -24,7 +24,7 @@
 
     \image[float,marginRight:1.25em,marginBottom:0.5em] main_screen.png
 
-    Bill Blanshan published three methods for star reduction in an astronomical image which are so far available as PixelMath expressions: \xref https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J.
+    Bill Blanshan published three methods for star reduction in an astronomical image which are so far available as PixelMath expressions: \xref https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J {BillsStarReductionMethods_V2.xpsm}.
     A prerequisite is a starless image which needs to be created prior and the name of the starless image has to be provided in the PixelMath expressions.
     The PixelMath expressions contain parameters which control the strength of the star reduction. The user has to edit the expression in order to change the parameters.
     
