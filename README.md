@@ -9,4 +9,5 @@ The scripts will be provided in a dedicated subfolder (TG Scripts) of the Pixins
 ![Pixinsight SCRIPT menu with TG Scripts subfolder](/TGScripts_repository/images/PI_script_menu.png)
 
 ## Contained Pixinsight Scripts
-- BBStarReduction.js - a script to apply Bill Blanshan's star reduction methods
+- BBStarReduction.js - a script to apply Bill Blanshan's star reduction methods (requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/)).
+
