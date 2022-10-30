@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xri version="1.0">
+  <description>
+     <p>
+        TGScripts Updates ? Repository for scripts provided by Thorsten Glebe.
+     </p>
+  </description>
+   <platform os="all" arch="noarch" version="1.0:1.0">
+      <package fileName="TGScripts_20221030.tar.gz"
+               sha1="2E5A27054149EA2BEB7EA09FD9FBF28CF3D83B1E"
+               type="script"
+               releaseDate="20221030">
+         <title>
+            TGScripts snapshot - 2022 Oct 30
+         </title>
+         <remove>
+            src/scripts/TGScripts
+         </remove>
+         <description>
+            <p>
+               This update installs an initial snapshot of the TGScripts repository.
+            </p>
+            <p>
+                The repository provides a set of improved Pixinsight scripts form various authors as well as some newly written scripts.
+            </p>
+            <p>
+               Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
+            </p>
+         </description>
+      </package>
+   </platform>
+</xri>
