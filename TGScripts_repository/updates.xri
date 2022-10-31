@@ -7,7 +7,7 @@
   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
       <package fileName="TGScripts_repository.tar.gz"
-               sha1="55ac9f4acaf58c8a4f8dc2f4df855e253c2e03e1"
+               sha1="e246e546a69bbd90f663abfb8867226bfe233569"
                type="script"
                releaseDate="20221031">
          <title>
@@ -21,13 +21,13 @@
                 The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
             </p>
             <p>
-               BBStarReduction - a script to apply Bill Blanshan's star reduction methods.
+               BBStarReduction  - a script to apply Bill Blanshan's star reduction methods.
                <br/>
                LocalSupportMask - a script to generate a local support mask for Pixinsight's deconvolution process.
                <br/>
                TGScriptSkeleton - a script skeleton serving as a starting point for Pixinsight java script development.
                <br/>
-               ColorMaskTG - improved version of the ColorMask script written by Rick Stevenson.
+               ColorMaskTG      - improved version of the ColorMask script written by Rick Stevenson.
                <br/>
             </p>
             <p>

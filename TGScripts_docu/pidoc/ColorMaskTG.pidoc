@@ -22,10 +22,11 @@
 
     \image[float,marginRight:1.25em,marginBottom:0.5em] ColorMaskTG_main_screen.png
 
-    The ColorMask script has been developed in 2017 by Rick Stevenson, however it contained an issue which was investigated and well described by Adam Block in a youtube video on his channel: \xref https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s {PixInsight ColorMask Script: Confusion and Analysis}.
+    The ColorMask script has been developed by Rick Stevenson, however it contained an issue which was investigated and well described by Adam Block in a youtube video on his channel: \xref https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s {PixInsight ColorMask Script: Confusion and Analysis}.
     From his description I could easily figure out the fix which then was published in another video by Adam: \xref https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s {PixInsight ColorMaskScript FIX!}.
+    
     I took the opportunity and played a bit more with the script and saw that it's capabilites were still quite limited so I added more options for mask generation.
-    Now the script has the capability to create masks for almost any kind of processing task.
+    Now the script can create masks for almost any kind of processing task.
 } % description
 
 \section { \label HSI_selection Hue, Intensity and Saturation selection } {
@@ -79,7 +80,7 @@
 
     \definition {
         {\label mask_name Mask Name}{
-            For convenience, a user specified mask name can be provided via the 'Mask Nnme' text field. If unused the script will generate a name for the mask.
+            For convenience, a user specified mask name can be provided via the 'Mask Name' text field. If unused the script will generate a name for the mask.
             \center\image[width:60\%] ColorMaskTG_mask_name.png
         }
     } % mask name

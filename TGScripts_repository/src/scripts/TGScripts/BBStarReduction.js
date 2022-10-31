@@ -503,7 +503,10 @@ function createPreview()
    }
 
    copyWindow.forceClose();
-   starlessPrevWindow.forceClose();
+   if(!starlessPrevWindow.isNull)
+   {  // if gui is closed while previews are processed, starlessPrevWindow might be null
+      starlessPrevWindow.forceClose();
+   }
    prevWindow.fitWindow();
    prevWindow.show();
 
