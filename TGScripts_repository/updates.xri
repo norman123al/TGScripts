@@ -7,9 +7,9 @@
   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
       <package fileName="TGScripts_repository.tar.gz"
-               sha1="a7b7d6b05795ea5a6a3ab1e30be90ba038748148"
+               sha1="a0424d4a1b10c5b8faafe0ea099ce80af3ebd8b8"
                type="script"
-               releaseDate="20221030">
+               releaseDate="20221031">
          <title>
             TGScripts snapshot - 2022 Oct 30
          </title>
@@ -22,12 +22,9 @@
             </p>
             <p>
                BBStarReduction - a script to apply Bill Blanshan's star reduction methods.
-            </p>
-            <p>
                LocalSupportMask - a script to generate a local support mask for Pixinsight's deconvolution process.
-            </p>
-            <p>
                TGScriptSkeleton - a script skeleton serving as a starting point for Pixinsight java script development.
+               ColorMaskTG - improved version of the ColorMask script written by Rick Stevenson.
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.

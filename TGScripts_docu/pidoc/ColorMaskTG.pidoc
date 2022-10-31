@@ -1,0 +1,94 @@
+\documentclass PIScriptDoc
+
+\script ColorMaskTG
+
+\keywords {
+   mask creation
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A mask creation script using the HSI (hue, intensity, saturation) readout space.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] ColorMaskTG_main_screen.png
+
+    The ColorMask script has been developed in 2017 by Rick Stevenson, however it contained an issue which was investigated and well described by Adam Block in a youtube video on his channel: \xref https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s {PixInsight ColorMask Script: Confusion and Analysis}.
+    From his description I could easily figure out the fix which then was published in another video by Adam: \xref https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s {PixInsight ColorMaskScript FIX!}.
+    I took the opportunity and played a bit more with the script and saw that it's capabilites were still quite limited so I added more options for mask generation.
+    Now the script has the capability to create masks for almost any kind of processing task.
+
+    The hue, intensity and saturation range can be best determined by switching the readout data to 'HSI':
+
+    \center\image[float,width:60\%] ColorMaskTG_hsi_readout.png
+
+    Then image cursor can be used to determine the upper and lower bounds of the parameters from the image regions which are subject to mask generation:
+
+    \center\image[float,width:60\%] ColorMaskTG_image_cursor.png
+
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            The target image control allows to choose a main view of an RGB image as a target for mask generation. Only RGB images are accepted for mask creation as other tools exists for mask generation from grayscale images (e.g. HistogramTransformation).
+        }
+    } % target image
+
+    \definition {
+        {\label hue_selection Hue Selection}{
+            \center\image[float,width:60\%] ColorMaskTG_hue_selection.png
+        
+            The hue can be selected either manuall via the image cursor (see description above) or using the push buttons for predifined color ranges. This is the functionality from the original script.
+        }
+    } % hue selection
+
+    \definition {
+        {\label intensity_selection Intensity Selection}{
+            \center\image[float,width:60\%] ColorMaskTG_intensity_selection.png
+        
+            Minimum and Maximum intensity can be selected via the image cursor (I-value) by setting the 'Min Int.' and 'Max Int.' sliders. By default the full range is selected.
+        }
+    } % intensity selection
+
+    \definition {
+        {\label saturation_selection Saturation Selection}{
+            \center\image[float,width:60\%] ColorMaskTG_saturation_selection.png
+        
+            Minimum and Maximum saturation can be selected via the image cursor (S-value) by setting the 'Min Sat.' and 'Max Sat.' sliders. By default the full range is selected.
+        }
+    } % saturation selection
+
+    \definition {
+        {\label mask_modes Mask Modes}{
+            \center\image[float,width:60\%] ColorMaskTG_inv_lightness.png
+        
+            A new mask mode 'Inv. Lightness Mask' was added which is the inversion of the 'Lightness Mask'. This allows to generate masks for dimm parts of the image, where brigher parts are protected. The 'Lightness Mask' mode works the inverse way, protecting dimm parts of the image.
+        }
+    } % mask modes
+
+    \definition {
+        {\label mask_name Mask Name}{
+            \center\image[float,width:60\%] ColorMaskTG_mask_name.png
+        
+            For convenience, a user specified mask name can be provided via the 'Mask Nnme' text field. If unused the script will generate a name for the mask.
+        }
+    } % mask name
+
+    \definition {
+        {\label new_instance New instance button}{
+            A 'new instance' button (triangular button at the bottom left) has been added which can be used to create an icon instance on the Pixinsight desktop which contains the current state of the script. This allows to conveniently integrate the script into an icon set for image processing.
+        }
+    } % new instance
+
+} % Parameter Reference
+\make
