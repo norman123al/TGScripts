@@ -40,7 +40,8 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Hue_Intensity_and_Saturation_selection__">2&emsp;Hue, Intensity and Saturation selection</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">3&emsp;Parameter Reference</a></li>
 </ul>
 </div>
 
@@ -52,21 +53,28 @@
    <div id="Description">
 <img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/ColorMaskTG_main_screen.png" alt=""/>
 <p>The ColorMask script has been developed in 2017 by Rick Stevenson, however it contained an issue which was investigated and well described by Adam Block in a youtube video on his channel: <a href="https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s" title="https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s">PixInsight ColorMask Script: Confusion and Analysis</a>. From his description I could easily figure out the fix which then was published in another video by Adam: <a href="https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s" title="https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s">PixInsight ColorMaskScript FIX!</a>. I took the opportunity and played a bit more with the script and saw that it's capabilites were still quite limited so I added more options for mask generation. Now the script has the capability to create masks for almost any kind of processing task.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Hue_Intensity_and_Saturation_selection__">
+   <h3 class="pidoc_sectionTitle">2&emsp;<a id="HSI_selection"></a>Hue, Intensity and Saturation selection</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Hue_Intensity_and_Saturation_selection', this );">[hide]</p>
+   <div id="Hue_Intensity_and_Saturation_selection">
 <p>The hue, intensity and saturation range can be best determined by switching the readout data to 'HSI':</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_hsi_readout.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_hsi_readout.png" alt=""/>
 </div>
 <p>Then image cursor can be used to determine the upper and lower bounds of the parameters from the image regions which are subject to mask generation:</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_image_cursor.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_image_cursor.png" alt=""/>
 </div>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
+   <h3 class="pidoc_sectionTitle">3&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
    <div id="Parameter_Reference">
 
@@ -85,11 +93,11 @@
 <p><a id="hue_selection"></a> Hue Selection</p>
 </dt>
 <dd>
+<p>The hue can be selected either manuall via the image cursor (see description above) or using the push buttons for predifined color ranges. This is the functionality from the original script.</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_hue_selection.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_hue_selection.png" alt=""/>
 </div>
-<p>The hue can be selected either manuall via the image cursor (see description above) or using the push buttons for predifined color ranges. This is the functionality from the original script.</p>
 </dd>
 </dl>
 
@@ -99,11 +107,11 @@
 <p><a id="intensity_selection"></a> Intensity Selection</p>
 </dt>
 <dd>
+<p>Minimum and Maximum intensity can be selected via the image cursor (I-value) by setting the 'Min Int.' and 'Max Int.' sliders. By default the full range is selected.</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_intensity_selection.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_intensity_selection.png" alt=""/>
 </div>
-<p>Minimum and Maximum intensity can be selected via the image cursor (I-value) by setting the 'Min Int.' and 'Max Int.' sliders. By default the full range is selected.</p>
 </dd>
 </dl>
 
@@ -113,11 +121,11 @@
 <p><a id="saturation_selection"></a> Saturation Selection</p>
 </dt>
 <dd>
+<p>Minimum and Maximum saturation can be selected via the image cursor (S-value) by setting the 'Min Sat.' and 'Max Sat.' sliders. By default the full range is selected.</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_saturation_selection.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_saturation_selection.png" alt=""/>
 </div>
-<p>Minimum and Maximum saturation can be selected via the image cursor (S-value) by setting the 'Min Sat.' and 'Max Sat.' sliders. By default the full range is selected.</p>
 </dd>
 </dl>
 
@@ -127,11 +135,11 @@
 <p><a id="mask_modes"></a> Mask Modes</p>
 </dt>
 <dd>
+<p>A new mask mode 'Inv. Lightness Mask' was added which is the inversion of the 'Lightness Mask'. This allows to generate masks for dimm parts of the image, where brigher parts are protected. The 'Lightness Mask' mode works the inverse way, protecting dimm parts of the image.</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_inv_lightness.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_inv_lightness.png" alt=""/>
 </div>
-<p>A new mask mode 'Inv. Lightness Mask' was added which is the inversion of the 'Lightness Mask'. This allows to generate masks for dimm parts of the image, where brigher parts are protected. The 'Lightness Mask' mode works the inverse way, protecting dimm parts of the image.</p>
 </dd>
 </dl>
 
@@ -141,11 +149,11 @@
 <p><a id="mask_name"></a> Mask Name</p>
 </dt>
 <dd>
+<p>For convenience, a user specified mask name can be provided via the 'Mask Nnme' text field. If unused the script will generate a name for the mask.</p>
 
 <div style="text-align:center;">
-<img style="float:left;width:60%;" src="images/ColorMaskTG_mask_name.png" alt=""/>
+<img style="width:60%;" src="images/ColorMaskTG_mask_name.png" alt=""/>
 </div>
-<p>For convenience, a user specified mask name can be provided via the 'Mask Nnme' text field. If unused the script will generate a name for the mask.</p>
 </dd>
 </dl>
 
@@ -169,7 +177,7 @@
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 13:21:57 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 13:40:07 UTC</p>
 </div>
 <br/>
 <br/>

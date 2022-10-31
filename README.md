@@ -34,4 +34,4 @@ This repository contains both new scripts written by me and existing scripts whi
 - **TGScriptSkeleton.js** - a script skeleton serving as a starting point for Pixinsight java script development.
 
 ### Modified Pixinsight Scripts
-- **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with improved mask generation capabilities.
+- **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with additonal mask generation capabilities.

@@ -26,16 +26,17 @@
     From his description I could easily figure out the fix which then was published in another video by Adam: \xref https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s {PixInsight ColorMaskScript FIX!}.
     I took the opportunity and played a bit more with the script and saw that it's capabilites were still quite limited so I added more options for mask generation.
     Now the script has the capability to create masks for almost any kind of processing task.
+} % description
 
+\section { \label HSI_selection Hue, Intensity and Saturation selection } {
     The hue, intensity and saturation range can be best determined by switching the readout data to 'HSI':
 
-    \center\image[float,width:60\%] ColorMaskTG_hsi_readout.png
+    \center\image[width:60\%] ColorMaskTG_hsi_readout.png
 
     Then image cursor can be used to determine the upper and lower bounds of the parameters from the image regions which are subject to mask generation:
 
-    \center\image[float,width:60\%] ColorMaskTG_image_cursor.png
-
-} % description
+    \center\image[width:60\%] ColorMaskTG_image_cursor.png
+}
 
 \section { \label parameter_reference Parameter Reference } {
     \definition {
@@ -46,41 +47,40 @@
 
     \definition {
         {\label hue_selection Hue Selection}{
-            \center\image[float,width:60\%] ColorMaskTG_hue_selection.png
-        
             The hue can be selected either manuall via the image cursor (see description above) or using the push buttons for predifined color ranges. This is the functionality from the original script.
+
+            \center\image[width:60\%] ColorMaskTG_hue_selection.png        
         }
     } % hue selection
 
     \definition {
         {\label intensity_selection Intensity Selection}{
-            \center\image[float,width:60\%] ColorMaskTG_intensity_selection.png
-        
             Minimum and Maximum intensity can be selected via the image cursor (I-value) by setting the 'Min Int.' and 'Max Int.' sliders. By default the full range is selected.
+
+            \center\image[width:60\%] ColorMaskTG_intensity_selection.png
         }
     } % intensity selection
 
     \definition {
         {\label saturation_selection Saturation Selection}{
-            \center\image[float,width:60\%] ColorMaskTG_saturation_selection.png
-        
             Minimum and Maximum saturation can be selected via the image cursor (S-value) by setting the 'Min Sat.' and 'Max Sat.' sliders. By default the full range is selected.
+
+            \center\image[width:60\%] ColorMaskTG_saturation_selection.png
         }
     } % saturation selection
 
     \definition {
         {\label mask_modes Mask Modes}{
-            \center\image[float,width:60\%] ColorMaskTG_inv_lightness.png
-        
             A new mask mode 'Inv. Lightness Mask' was added which is the inversion of the 'Lightness Mask'. This allows to generate masks for dimm parts of the image, where brigher parts are protected. The 'Lightness Mask' mode works the inverse way, protecting dimm parts of the image.
+
+            \center\image[width:60\%] ColorMaskTG_inv_lightness.png
         }
     } % mask modes
 
     \definition {
         {\label mask_name Mask Name}{
-            \center\image[float,width:60\%] ColorMaskTG_mask_name.png
-        
             For convenience, a user specified mask name can be provided via the 'Mask Nnme' text field. If unused the script will generate a name for the mask.
+            \center\image[width:60\%] ColorMaskTG_mask_name.png
         }
     } % mask name
 
