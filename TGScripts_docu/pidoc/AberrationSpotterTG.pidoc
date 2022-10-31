@@ -1,0 +1,72 @@
+\documentclass PIScriptDoc
+
+\script AberrationSpotterTG
+
+\keywords {
+   script development, David Serrano
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script for inspecting the corners and the center of an image.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] AberrationSpotterTG_main_screen.png
+
+    The AberrationSpotter script written by David Serrano is a useful tool, however seems not to play well with images produced by modern sensors with huge pixel counts.
+    The maximum panel width and height could only be set up to 512 px which is quite small if e.g. a 60 MP full frame sensor is used.
+
+    This script allows to choose panel sizes of up to 2048{\times}2048 px.
+    In addition the "new instance" button was added which allows to save the script settings in a Pixinsight desktop icon and thus can be used in a process icon workflow.
+
+    Furthermore, some internal code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.   
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            No target image selection is provided by the script. It works on the currently active window.
+        }
+    } % target image
+
+    \definition {
+        { \label horizontal_size Horizontal Size } {
+            The horizontal size control sets the width of the panels in pixels.
+        }
+    } % horizontal size
+
+    \definition {
+        { \label vertical_size Vertical Size } {
+            The vertical size control sets the height of the panels in pixels.
+        }
+    } % vertical size
+
+    \definition {
+        { \label separation_size Separation Size } {
+            The separation size control specifies the distance bewteen the panels in percent of the minimum of panel width and height.
+        }
+    } % separation size
+
+    \definition {
+        { \label background_brightness Background Brightness } {
+            The background brightness control allows to specify the grayscale of the separation pixels between 0 = black and 1 = white.
+        }
+    } % background brightness
+
+    \definition {
+        { \label show_center Show Center } {
+            The 'Show center' tickbox enables or disables the center panel.
+        }
+    } % background brightness
+
+} % Parameter Reference
+\make

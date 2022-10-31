@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="6c4c43ce55b0b58bfd825ddae1436cf2d691bb7e" type="script" releaseDate="20221031">
+      <package fileName="TGScripts_repository.tar.gz" sha1="43641599cc81567c80001c67c127311a65543681" type="script" releaseDate="20221031">
          <title>
             TGScripts snapshot - 2022 Oct 30
          </title>
@@ -32,7 +32,9 @@
                <br/>
                AberrationInspectorTG - improved version of the AberrationInspector written by Mike Schuster.
                <br/>
-               ColorMaskTG      - improved version of the ColorMask script written by Rick Stevenson.
+               AberrationSpotterTG   - improved version of the AberrationSpotter written by David Serrano.
+               <br/>
+               ColorMaskTG           - improved version of the ColorMask script written by Rick Stevenson.
                <br/>
             </p>
             <p>

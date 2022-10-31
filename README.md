@@ -34,5 +34,6 @@ This repository contains both new scripts written by me and existing scripts whi
 - **TGScriptSkeleton.js** - a script skeleton serving as a starting point for Pixinsight java script development.
 
 ### Modified Pixinsight Scripts
-- **AberrationInspectorTG.js** - an improved version of the AberrationInspector script written by Mike Schuster. Added support for larger panel sizes and for icon set integration via "new instance" button.
-- **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with additonal mask generation capabilities.
+- **AberrationInspectorTG.js** - an improved version of the AberrationInspector script written by Mike Schuster. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
+- **AberrationSpotterTG.js** - an improved version of the AberrationSpotter script written by David Serrano. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
+- **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with additonal mask generation capabilities. Added Pixinsight documentation.
