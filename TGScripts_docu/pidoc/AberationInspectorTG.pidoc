@@ -1,0 +1,66 @@
+\documentclass PIScriptDoc
+
+\script AberrationInspectorTG
+
+\keywords {
+   script development, Mike Schuster
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script for inspecting the corners and the center of an image.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] AberrationInspectorTG_main_screen.png
+
+    The AberrationInspector script written by Mike Schuster is a useful tool, however seems not to play well with images produced by modern sensors with huge pixel counts.
+    The maximum panel size could only be set up to 512 px which is quite small if e.g. a 60 MP full frame sensor is used.
+
+    This script allows to choose panel sizes of up to 2048{\times}2048 px.
+    In addition the "new instance" button was added which allows to save the script settings in a Pixinsight desktop icon and thus can be used in a process icon workflow.
+
+    Furthermore, some internal code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.   
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            The target image control allows to choose a main view of an image as a target for inspection.
+        }
+    } % target image
+
+    \definition {
+        { \label mosaic_size Mosaic Size } {
+            The mosaic size control allows to choose the number of panels to be created in the n{\times}n mosaic.
+        }
+    } % mosaic size
+
+    \definition {
+        { \label panel_size Panel Size } {
+            The panel size control specifies the width and heigth of a panel in pixels.
+        }
+    } % panel size
+
+    \definition {
+        { \label separation_size Separation Size } {
+            The separation size control specifies distance bewteen the panels in pixels.
+        }
+    } % separation size
+
+    \definition {
+        { \label separation_color Separation Color } {
+            The separation color control allows to alter the color of the separation pixels.
+        }
+    } % separation color
+
+} % Parameter Reference
+\make
