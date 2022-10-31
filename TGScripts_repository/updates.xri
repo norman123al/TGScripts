@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <xri version="1.0">
-  <description>
-     <p>
+   <description>
+      <p>
         TGScripts Updates ? Repository for scripts provided by Thorsten Glebe.
      </p>
-  </description>
+   </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz"
-               sha1="8ffd225293ccfd99d7fe2f175b24153fcdeccaf3"
-               type="script"
-               releaseDate="20221031">
+      <package fileName="TGScripts_repository.tar.gz" sha1="291c1bf0e1f6abcfb401daa91b81529d14941333" type="script" releaseDate="20221031">
          <title>
             TGScripts snapshot - 2022 Oct 30
          </title>
@@ -21,9 +18,9 @@
                 The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
             </p>
             <p>
-               BBStarReduction  - a script to apply Bill Blanshan's star reduction methods.
+               BBStarReduction  - a script to apply Bill Blanshan&apos;s star reduction methods.
                <br/>
-               LocalSupportMask - a script to generate a local support mask for Pixinsight's deconvolution process.
+               LocalSupportMask - a script to generate a local support mask for Pixinsight&apos;s deconvolution process.
                <br/>
                TGScriptSkeleton - a script skeleton serving as a starting point for Pixinsight java script development.
                <br/>
@@ -37,3 +34,4 @@
       </package>
    </platform>
 </xri>
+<Signature developerId="1834508897953837" timestamp="2022-10-31T17:22:05.611Z" encoding="Base64">ahYCJq9d//fKsChm1MY5+fEADE733/aGB/LuJkB+BVgzQohBDLix79AyR0G95gl4+nEeRmxsRXezxIzsJBn3DA==</Signature>
