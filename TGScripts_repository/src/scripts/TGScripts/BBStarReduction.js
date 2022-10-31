@@ -39,6 +39,8 @@
 #define MAX_ITERATIONS          3
 #define PREV_SEPARATOR_WIDTH    3
 #define SIGNATURE_FONT_SIZE     32
+#define MIN_IMAGE_WIDTH         256
+#define MIN_IMAGE_HEIGHT        256
 
 #feature-id    BBStarReduction : TG Scripts > BBStarReduction
 
@@ -578,21 +580,6 @@ function doWork()
 // ----------------------------------------------------------------------------
 // exclude other previews from preview ViewList
 // ----------------------------------------------------------------------------
-function excludeViews(vList)
-{
-   var images = ImageWindow.windows;
-   for ( var i in images )
-   {
-      var view = images[i].mainView;
-      if (view.isMainView && view.id != data.view_id)
-      {
-         for( var j in images[i].previews )
-         {
-            vList.remove(images[i].previews[j]);
-         }
-      }
-   }
-}
 
 // ----------------------------------------------------------------------------
 // ScriptDialog
@@ -631,8 +618,22 @@ function ScriptDialog()
    this.targetImageViewList = new ViewList( this );
    with( this.targetImageViewList )
    {
+      excludeViews = function(vList)
+      {
+         var windows = ImageWindow.windows;
+         for ( var i in windows )
+         {
+            var view = windows[i].mainView;
+            if(view.image.width < MIN_IMAGE_WIDTH || view.image.height < MIN_IMAGE_HEIGHT)
+            {
+               vList.remove(view);
+            }
+         }
+      }
+
       scaledMinWidth = 200;
       getMainViews();
+      excludeViews(this.targetImageViewList);
       if ( data.targetView )
       {
          currentView = data.targetView;
@@ -853,6 +854,33 @@ function ScriptDialog()
    this.previewViewList = new ViewList( this );
    with( this.previewViewList )
    {
+      excludeViews = function(vList)
+      {
+         var images = ImageWindow.windows;
+         for ( var i in images )
+         {
+            var view = images[i].mainView;
+            if (view.isMainView && view.id != data.view_id)
+            {
+               for( var j in images[i].previews )
+               {
+                  vList.remove(images[i].previews[j]);
+               }
+            }
+            else
+            {  // throw out images which are too small
+               for( var j in images[i].previews )
+               {
+                  var prevImg = images[i].previews[j].image;
+                  if(prevImg.width < MIN_IMAGE_WIDTH || prevImg.height < MIN_IMAGE_HEIGHT)
+                  {
+                     vList.remove(images[i].previews[j]);
+                  }
+               }
+            }
+         }
+      }
+
       scaledMinWidth = 200;
       getPreviews();
       excludeViews(this.previewViewList);

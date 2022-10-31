@@ -3,10 +3,10 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | BBStarReduction</title>
-   <meta name="keywords" content="star reduction" />
+   <meta name="keywords" content="star reduction, StarXTerminator, Bill Blanshan" />
    <meta name="author" content="Thorsten Glebe" />
    <meta name="description" content="A script to apply Bill Blanshan's star reduction methods.
-Note: the script requires StarXTerminator to be installed." />
+Note: the script requires StarXTerminator to be installed and therefore the minimal required image size is 256x256 pixel. Please make sure StarXTerminator is set up properly and an AI is chosen before running this script." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
@@ -31,10 +31,10 @@ Note: the script requires StarXTerminator to be installed." />
 
 <div id="brief">
 <p>A script to apply Bill Blanshan's star reduction methods.</p>
-<p><strong>Note:</strong> the script requires StarXTerminator to be installed. <a href="#__contents__">[more]</a></p></div>
+<p><strong>Note:</strong> the script requires StarXTerminator to be installed and therefore the minimal required image size is 256x256 pixel. Please make sure StarXTerminator is set up properly and an AI is chosen before running this script. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> star reduction</p>
+<p><strong>Keywords:</strong> star reduction, StarXTerminator, Bill Blanshan</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -55,7 +55,7 @@ Note: the script requires StarXTerminator to be installed." />
    <div id="Description">
 <img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/main_screen.png" alt=""/>
 <p>Bill Blanshan published three methods for star reduction in an astronomical image which are so far available as PixelMath expressions: <a href="https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J" title="https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J">BillsStarReductionMethods_V2.xpsm</a>. A prerequisite is a starless image which needs to be created prior and the name of the starless image has to be provided in the PixelMath expressions. The PixelMath expressions contain parameters which control the strength of the star reduction. The user has to edit the expressions in order to change the parameters.</p>
-<p>This scripts automates the generation of the starless image, let's the user choose which star reduction method to use and has the ability to produce a preview showing the effect of the star reduction parameters. The state of the script can be stored as an icon by the &quot;new instance&quot; button and can be used via drag and drop on other images.</p>
+<p>This script automates the generation of the starless image, let the user choose which star reduction method to use and has the ability to produce a preview showing the effect of the star reduction parameters. The state of the script can be stored as an icon by the &quot;new instance&quot; button and can be used via drag and drop on other images.</p>
    </div>
 </div>
 
@@ -69,7 +69,7 @@ Note: the script requires StarXTerminator to be installed." />
 <p><a id="target_image"></a> Target Image</p>
 </dt>
 <dd>
-<p>The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for star reduction.</p>
+<p>The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for star reduction. Only views with an image size of at least 256x256 px are listed.</p>
 </dd>
 </dl>
 
@@ -80,6 +80,7 @@ Note: the script requires StarXTerminator to be installed." />
 </dt>
 <dd>
 <p>This method is controlled by a single parameter <strong>Strength</strong>. In the original PixelMath methods this parameter is called <strong>S</strong> and ranges from 0.5 to 0. The lower S the stronger the star reduction. In this script the <strong>Strength</strong> parameter ranges from 0 to 1 with the canonical behavior of increasing star reduction with increased strength.</p>
+<p>This method does not use the <strong>Iterations</strong> and <strong>Mode</strong> parameter and therefore the respective controls are deactivated if this method is chosen.</p>
 </dd>
 </dl>
 
@@ -89,7 +90,7 @@ Note: the script requires StarXTerminator to be installed." />
 <p><a id="halo_method"></a> Halo Method</p>
 </dt>
 <dd>
-<p>The halo method is also controlled by the <strong>Strength</strong> parameter, similar to the <a href="#transfer_method">transfer method</a>. The star reduction effect increases with increasing parameter values.</p>
+<p>The halo method is also controlled by the <strong>Strength</strong> parameter, similar to the <a href="#transfer_method">transfer method</a>. The star reduction effect increases with increasing parameter value.</p>
 </dd>
 </dl>
 
@@ -100,17 +101,17 @@ Note: the script requires StarXTerminator to be installed." />
 </dt>
 <dd>
 <p>The star method is a combination of several methods and is controlled by two parameters: <strong>Iterations</strong> and <strong>Mode</strong>. The star reduction effect increases with the number of iterations. The mode is self explanatory.</p>
+<p>This method does not use the <strong>Stregth</strong> parameter and therefore the Strength control is deactivated if this method is selected.</p>
 </dd>
 </dl>
 
-<p>The controls for 'Strength', 'Iterations' and 'Mode' are only active when the appropriate star reduction method is active.</p>
 
 <dl class="pidoc_list">
 <dt>
 <p><a id="preview_settings"></a> Preview Settings</p>
 </dt>
 <dd>
-<p>In case the selected <a href="#target_image">Target Iiew</a> window contains previews, this control will allow to choose a preview image. By hitting the 'Create Preview' push button an image will be generated which contains 9 frames with varying star reduction settings, depending on the chosen method.</p>
+<p>In case the selected <a href="#target_image">Target View</a> window contains previews, this control will allow to choose a preview image. Only previews are listed which have a size of at least 256x256 px. By hitting the 'Create Preview' push button an image will be generated which contains 9 frames with varying star reduction settings, depending on the chosen method.</p>
 </dd>
 </dl>
 
@@ -136,7 +137,7 @@ Note: the script requires StarXTerminator to be installed." />
 <p>In case you run the script but do not see an effect in star reduction, check the console for the following error message from StarXTerminator:</p>
 <img style="float:left;width:100%;" src="images/StarXTerminator_IO_error.png" alt=""/>
 <p><br class="pidoc_clearfix"/></p>
-<p>To get rid of this error message, start the StarXTerminator process once. You do not have to run StarXTerminator, the process window can be closed again right away. Afterward the error message should not occur anymore until you close Pixinsight. The root cause is unclear, could be that StarXTerminator was not tested for execution from inside a script.</p>
+<p>To get rid of this error message, start the StarXTerminator process once. You do not have to run StarXTerminator, the process window can be closed again right away. Afterward the error message should not occur anymore until you close Pixinsight. The root cause is unclear, but under investigation by the author of StarXTerminator.</p>
    </div>
 </div>
 
@@ -147,7 +148,7 @@ Note: the script requires StarXTerminator to be installed." />
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-30 22:19:14 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 16:52:41 UTC</p>
 </div>
 <br/>
 <br/>
