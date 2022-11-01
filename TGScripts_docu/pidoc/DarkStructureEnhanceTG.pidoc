@@ -1,0 +1,70 @@
+\documentclass PIScriptDoc
+
+\script DarkStructureEnhanceTG
+
+\keywords {
+   contrast enhancement, Carlos Sonnenstein, Oriol Lehmkuhl
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script to enhance dark structures in an image.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] DarkStructureEnhanceTG_main_screen.png
+
+    The DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl is a useful tool for enhancing dark structures in an astronomical image.
+    
+    This is a slightly modified version of the original script.
+    The "new instance" button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.
+    The default "Amount" for dark structure enhancement has been reduced slightly as the default seems to produce a too strong effect in most cases.
+    
+    As the effect of dark structure enhancement seems to be better with linear data, a warning pop up window is shown in case the target view selected is recognized as non-linear.
+    In case the warning message is confirmed, the script will continue.
+
+    Furthermore, minor code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_image Target Image } {
+            The target image control allows to choose a main view as a target for dark structure enhancement.
+        }
+    } % target image
+
+    \definition {
+        { \label layers Layers To Remove } {
+            This parameter specifies the number of wavelet layers to remove for mask generation. The higher the number the larger the selected structures will be.
+            The "Extract mask" checkbox, if set, will bring up the resulting mask.
+        }
+    } % layers to remove
+
+    \definition {
+        { \label scaling_function Scaling Function } {
+            The scaling function can be selected for the underlying ATrousWaveletTransformV1 operation.
+        }
+    } % star mask
+
+    \definition {
+        { \label amount Amount } {
+            The 'Amount' slider controls the strenght of the effect.
+        }
+    } % amount
+
+    \definition {
+        { \label iterations Iterations } {
+            The effect might be applied multiple times, if 'Iterations' is chosen larger than 1.
+        }
+    } % iterations
+
+} % Parameter Reference
+\make
