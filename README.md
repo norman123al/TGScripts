@@ -39,18 +39,12 @@ This repository contains both new scripts written by me and existing scripts whi
 - **AberrationSpotterTG.js** - an improved version of the AberrationSpotter script written by David Serrano. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
 - **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with additonal mask generation capabilities. Added Pixinsight documentation.
 - **CSTG.js** - a slightly modified version of the CS script written by Hartmut V. Bornemann. Added a "new instance" button and Pixinsight documentation.
-<p align="center">
-  <img src="./TGScripts_repository/doc/scripts/CSTG/images/CSTG_main_screen.png" title="DeconvolutionPreviewTG main screen" width="80%" />
-</p>
+  <img align="center" src="./TGScripts_repository/doc/scripts/CSTG/images/CSTG_main_screen.png" title="DeconvolutionPreviewTG main screen" width="80%" />
 - **DarkStructureEnhanceTG.js** - a slightly modified version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl. Added a "new instance" button and Pixinsight documentation.
-<detail>
 <p align="center">
-  <img src="./TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/images/DarkStructureEnhanceTG_main_screen.png" title="DarkStructureEnahnceTG main screen" width="80%" />
+  <img src="./TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/images/DarkStructureEnhanceTG_main_screen.png" title="DarkStructureEnahnceTG main screen" width="25%" />
 </p>
-</detail>
 - **DeconvolutionPreviewTG.js** - an improved version of the DeconvolutionPreview script written by Juan M. Gómez. The script works now on image previews instead of main views, deconvolution parameters are provided and a "new instance" button as well as Pixinsight documentation was added.
-<detail>
 <p align="center">
-  <img src="./TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen" width="80%" />
+  <img src="./TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen" width="25%" />
 </p>
-</detail>
