@@ -37,4 +37,4 @@ This repository contains both new scripts written by me and existing scripts whi
 - **AberrationInspectorTG.js** - an improved version of the AberrationInspector script written by Mike Schuster. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
 - **AberrationSpotterTG.js** - an improved version of the AberrationSpotter script written by David Serrano. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
 - **ColorMaskTG.js** - an improved version of the ColorMask script written by Rick Stevenson with additonal mask generation capabilities. Added Pixinsight documentation.
-- **CSTG.js** - a slightly modified version of the CS script written by Hartmut V. Bornemann. Added a "new instance" butten and Pixinsight documentation.
+- **CSTG.js** - a slightly modified version of the CS script written by Hartmut V. Bornemann. Added a "new instance" button and Pixinsight documentation.
