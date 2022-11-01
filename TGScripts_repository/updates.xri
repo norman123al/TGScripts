@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="5145f8d797e2ab1ec8cf43b9cbefafe507fe52c0" type="script" releaseDate="20221031">
+      <package fileName="TGScripts_repository.tar.gz" sha1="7d79b5569741a198457b544f03875e8324c8741e" type="script" releaseDate="20221031">
          <title>
             TGScripts snapshot - 2022 Oct 30
          </title>
@@ -36,9 +36,11 @@
                <br/>
                ColorMaskTG            - improved version of the ColorMask script written by Rick Stevenson.
                <br/>
-               CSTG                   - slightly modified version of the CS script written by Hartmut V. Bornemann
+               CSTG                   - slightly modified version of the CS script written by Hartmut V. Bornemann.
                <br/>
-               DarkStructureEnhanceTG - improved version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl
+               DarkStructureEnhanceTG - improved version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl.
+               <br/>
+               DeconvolutionPreviewTG - improved version of the DeconvolutionPreview script written by Juan M. Gómez.
                <br/>
             </p>
             <p>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | DeconvolutionPreviewTG</title>
+   <meta name="keywords" content="deconvolution, PSF, Juan M. Gómez" />
+   <meta name="author" content="Thorsten Glebe" />
+   <meta name="description" content="A script to evaluate deconvolution using a synthetic PSF." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>DeconvolutionPreviewTG</h1>
+
+<div id="authors">
+<p>By Thorsten Glebe</p>
+</div>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>A script to evaluate deconvolution using a synthetic PSF. <a href="#__contents__">[more]</a></p></div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> deconvolution, PSF, Juan M. Gómez</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a>
+<ul>
+<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_PSF_Sigma_Parameters__">2.1&emsp;PSF Sigma Parameters</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_PSF_Shape_Parameters__">2.2&emsp;PSF Shape Parameters</a></li>
+<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_Decon_Parmeters__">2.3&emsp;Decon Parmeters</a></li>
+</ul>
+</li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/DeconvolutionPreviewTG_main_screen.png" alt=""/>
+<p>The DeconvolutionPreview script written by Juan M. Gómez is a useful tool for finding the optimal settings for a synthetical PSF function for Pixinsights deconvolution process.</p>
+<p>This is an improved version of the original script. The &quot;new instance&quot; button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets. For images produced by modern, huge sensors, e.g. full frame sensors of up to 60 MP image size this script seems not to play well anymore. The generated preview is huge and the image details relevant for investigations are barely visible. The script was crashing the Pixinsight process when an autostretch was applied to the resulting preview image.</p>
+<p>Therefore, this script works now on image previews instead of the main view. The user can define the region of interest by creating a preview and then run this script on the image preview. The crash was fixed and in addition some relevant deconvolution parameters are exposed in the script GUI as well. The script checks if the selected preview is in linear state and if not, issues a warning message box. In case the warning message is confirmed, the script continues the processing.</p>
+<p>Furthermore, code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Parameter_Reference__">
+   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
+   <div id="Parameter_Reference">
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="target_preview"></a> Target Preview</p>
+</dt>
+<dd>
+<p>The target preview image control allows to choose a preview of a main view for the deconvolution preview generation.</p>
+</dd>
+</dl>
+
+<div class="pidoc_subsection" id="__Parameter_Reference_:_PSF_Sigma_Parameters__">
+   <h4 class="pidoc_subsectionTitle">2.1&emsp;<a id="psf_sigma"></a>PSF Sigma Parameters</h4>
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="psf_sigma_step_size"></a> Step Size</p>
+</dt>
+<dd>
+<p>Increment of the PSF sigma size per step.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="sigma_start"></a> PSF Sigma start</p>
+</dt>
+<dd>
+<p>Start of the PSF sigma value range.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="sigma_iterations"></a> Iterations</p>
+</dt>
+<dd>
+<p>Number of iterations for PSF sigma increment.</p>
+</dd>
+</dl>
+
+</div>
+
+<div class="pidoc_subsection" id="__Parameter_Reference_:_PSF_Shape_Parameters__">
+   <h4 class="pidoc_subsectionTitle">2.2&emsp;<a id="psf_shape"></a>PSF Shape Parameters</h4>
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="psf_shape_step_size"></a> Step Size</p>
+</dt>
+<dd>
+<p>Increment of the PSF shape size per step.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="shape_start"></a> PSF Shape start</p>
+</dt>
+<dd>
+<p>Start of the PSF shape value range.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="shape_iterations"></a> Iterations</p>
+</dt>
+<dd>
+<p>Number of iterations for PSF shape increment.</p>
+</dd>
+</dl>
+
+</div>
+
+<div class="pidoc_subsection" id="__Parameter_Reference_:_Decon_Parmeters__">
+   <h4 class="pidoc_subsectionTitle">2.3&emsp;<a id="decon_parameters"></a>Decon Parmeters</h4>
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="decon_iterations"></a> Decon Iterations</p>
+</dt>
+<dd>
+<p>Number of deconvolution iterations.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="global_dark"></a> Global Dark</p>
+</dt>
+<dd>
+<p>Global dark value for deringing.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="local_support"></a> Local Support Mask</p>
+</dt>
+<dd>
+<p>A local support mask can be specified for the deringing and protection of stars.</p>
+</dd>
+</dl>
+
+</div>
+
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="copyright">
+   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+</div>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-01 14:50:37 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>

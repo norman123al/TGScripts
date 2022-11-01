@@ -1,0 +1,107 @@
+\documentclass PIScriptDoc
+
+\script DeconvolutionPreviewTG
+
+\keywords {
+   deconvolution, PSF, Juan M. Gómez
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script to evaluate deconvolution using a synthetic PSF.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] DeconvolutionPreviewTG_main_screen.png
+
+    The DeconvolutionPreview script written by Juan M. Gómez is a useful tool for finding the optimal settings for a synthetical PSF function for Pixinsights deconvolution process.
+    
+    This is an improved version of the original script.
+    The "new instance" button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.
+    For images produced by modern, huge sensors, e.g. full frame sensors of up to 60 MP image size this script seems not to play well anymore.
+    The generated preview is huge and the image details relevant for investigations are barely visible. The script was crashing the Pixinsight process when an autostretch was applied to the resulting preview image.
+
+    Therefore, this script works now on image previews instead of the main view. The user can define the region of interest by creating a preview and then run this script on the image preview.
+    The crash was fixed and in addition some relevant deconvolution parameters are exposed in the script GUI as well. The script checks if the selected preview is in linear state and if not, issues a warning message box.
+    In case the warning message is confirmed, the script continues the processing.
+
+    Furthermore, code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.
+} % description
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label target_preview Target Preview } {
+            The target preview image control allows to choose a preview of a main view for the deconvolution preview generation.
+        }
+    } % target preview image
+
+\subsection{ \label psf_sigma PSF Sigma Parameters } {
+        \definition {
+            { \label psf_sigma_step_size Step Size } {
+                Increment of the PSF sigma size per step.
+            }
+        } % step size
+
+        \definition {
+            { \label sigma_start PSF Sigma start } {
+                Start of the PSF sigma value range.
+            }
+        } % sigma start
+
+        \definition {
+            { \label sigma_iterations Iterations } {
+                Number of iterations for PSF sigma increment.
+            }
+        } % iterations
+    } % subsection
+
+\subsection{ \label psf_shape PSF Shape Parameters } {
+        \definition {
+            { \label psf_shape_step_size Step Size } {
+                Increment of the PSF shape size per step.
+            }
+        } % step size
+
+        \definition {
+            { \label shape_start PSF Shape start } {
+                Start of the PSF shape value range.
+            }
+        } % shape start
+
+        \definition {
+            { \label shape_iterations Iterations } {
+                Number of iterations for PSF shape increment.
+            }
+        } % iterations
+    } % subsection
+
+\subsection{ \label decon_parameters Decon Parmeters } {
+        \definition {
+            { \label decon_iterations Decon Iterations } {
+                Number of deconvolution iterations.
+            }
+        } % decon iterations
+
+        \definition {
+            { \label global_dark Global Dark } {
+                Global dark value for deringing.
+            }
+        } % global dark
+
+        \definition {
+            { \label local_support Local Support Mask } {
+                A local support mask can be specified for the deringing and protection of stars.
+            }
+        } % local support mask
+    } % subsection
+
+} % Parameter Reference
+\make
