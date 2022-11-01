@@ -10,6 +10,7 @@ The scripts will be provided in a dedicated subfolder (TG Scripts) of the Pixins
 
 ![Pixinsight SCRIPT menu with TG Scripts subfolder](/TGScripts_repository/images/PI_script_menu.png)
 
+
 In order to add this repository to the Pixinsight update system, go to 'Manage Repositories' in the RESOURCES -> Updates menu
 
 !['Manage Repositories' menu in Pixinsight](/TGScripts_repository/images/PI_resources_repo.png)
@@ -41,5 +42,5 @@ This repository contains both new scripts written by me and existing scripts whi
 - **DarkStructureEnhanceTG.js** - a slightly modified version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl. Added a "new instance" button and Pixinsight documentation.
 - **DeconvolutionPreviewTG.js** - an improved version of the DeconvolutionPreview script written by Juan M. Gómez. The script works now on image previews instead of main views, deconvolution parameters are provided and a "new instance" button as well as Pixinsight documentation was added.
 <p align="center">
-  <img src="./TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen">
+  <img src="./TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen" />
 </p>
