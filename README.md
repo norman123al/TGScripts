@@ -29,7 +29,7 @@ This repository contains both new scripts written by me and existing scripts whi
   Known issues:
   - StarXTerminator might fail with an IO error (see console output) when exectued from the script. To solve this, start the StarXTerminator process manually once. Then the issue is gone until Pixinsight is closed. See also script documentation in Pixinsight.
 
-- **LocalSupportMask.js** - a script to create a local support mask for Pixinsights Deconvolution process.
+- **LocalSupportMask.js** - a script to create a local support mask for Pixinsight's deconvolution process.
 
 - **TGScriptSkeleton.js** - a script skeleton serving as a starting point for Pixinsight java script development.
 
