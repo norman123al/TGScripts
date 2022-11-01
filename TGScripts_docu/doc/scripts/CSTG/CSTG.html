@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | CSTG</title>
+   <meta name="keywords" content="narrowband, continuum subtraction, Hartmut V. Bornemann" />
+   <meta name="author" content="Thorsten Glebe" />
+   <meta name="description" content="A script to subtract the continuum radiation from a narrowband image." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>CSTG</h1>
+
+<div id="authors">
+<p>By Thorsten Glebe</p>
+</div>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>A script to subtract the continuum radiation from a narrowband image. <a href="#__contents__">[more]</a></p></div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> narrowband, continuum subtraction, Hartmut V. Bornemann</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
+<li class="pidoc_tocItem"><a href="#__Info_Section__">2&emsp;Info Section</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">3&emsp;Parameter Reference</a></li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/CSTG_main_screen.png" alt=""/>
+<p>The CS script written by Hartmut V. Bornemann is a useful tool if narrowband data should be combined with broadband data.</p>
+<p>This is a slightly modified version of the original script. The &quot;new instance&quot; button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.</p>
+<p>Furthermore, minor code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Info_Section__">
+   <h3 class="pidoc_sectionTitle">2&emsp;<a id="info_section"></a>Info Section</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Info_Section', this );">[hide]</p>
+   <div id="Info_Section">
+<p>The info button opens a new window which contains the documentation for the script:</p>
+
+<div style="text-align:center;">
+<img style="width:80%;" src="images/CSTG_info.png" alt=""/>
+</div>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Parameter_Reference__">
+   <h3 class="pidoc_sectionTitle">3&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
+   <div id="Parameter_Reference">
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="nb_image"></a> Narrowband Image</p>
+</dt>
+<dd>
+<p>View selection for the narrowband image. Only grayscale main views can be selected.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="bb_image"></a> Broadband Image</p>
+</dt>
+<dd>
+<p>View selection for the broadband image. Only main views can be selected. When an RGB image is selected, the radio buttons for the channel selection can be used to indicate for which of the R,G,B channels the continuum subtraction should be performed.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="sm_image"></a> Starmask Image</p>
+</dt>
+<dd>
+<p>An optional starmask can be selected with the 'Starmask image:' view selection.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="blackness_level"></a> Blackness Level</p>
+</dt>
+<dd>
+<p>The resulting blackness can be adjusted with this slider.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="noise_reduction"></a> Noise Reduction</p>
+</dt>
+<dd>
+<p>The noise reduction check box allows to perform some noise reduction on the resulting subtracted image on the first wavelet layer.</p>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="plot_curves"></a> Plot Curves</p>
+</dt>
+<dd>
+<p>The 'Plot curves' check box activates the output of a graph which shows the normalized data as a function of the mue parameter.</p>
+
+<div style="text-align:center;">
+<img style="width:80%;" src="images/CSTG_plot.png" alt=""/>
+</div>
+</dd>
+</dl>
+
+
+<dl class="pidoc_list">
+<dt>
+<p><a id="execute_subtraction"></a> Execute Subtraction</p>
+</dt>
+<dd>
+<p>The 'Execute subraction' push button becomes active as soon as a broadband and narrowband view was selected. A progress indicator right next to the button shows the progress of the computation.</p>
+</dd>
+</dl>
+
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="copyright">
+   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+</div>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-01 09:19:11 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>

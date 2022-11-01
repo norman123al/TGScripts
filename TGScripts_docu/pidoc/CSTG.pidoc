@@ -1,0 +1,83 @@
+\documentclass PIScriptDoc
+
+\script CSTG
+
+\keywords {
+   narrowband, continuum subtraction, Hartmut V. Bornemann
+}
+
+\author {
+   Thorsten Glebe
+}
+
+\copyright {
+   2022 Dr. Thorsten Glebe
+}
+
+\brief {
+   A script to subtract the continuum radiation from a narrowband image.
+}
+
+\description {
+
+    \image[float,marginRight:1.25em,marginBottom:0.5em] CSTG_main_screen.png
+
+    The CS script written by Hartmut V. Bornemann is a useful tool if narrowband data should be combined with broadband data.
+    
+    This is a slightly modified version of the original script.
+    The "new instance" button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.
+
+    Furthermore, minor code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.
+} % description
+
+\section { \label info_section Info Section } {
+    The info button opens a new window which contains the documentation for the script:
+        \center\image[width:80\%] CSTG_info.png
+}
+
+\section { \label parameter_reference Parameter Reference } {
+    \definition {
+        { \label nb_image Narrowband Image } {
+            View selection for the narrowband image. Only grayscale main views can be selected.
+        }
+    } % nb image
+
+    \definition {
+        { \label bb_image Broadband Image } {
+            View selection for the broadband image. Only main views can be selected. When an RGB image is selected, the radio buttons for the channel selection can be used to indicate for which of the R,G,B channels the continuum subtraction should be performed.
+        }
+    } % bb image
+
+    \definition {
+        { \label sm_image Starmask Image } {
+            An optional starmask can be selected with the 'Starmask image:' view selection.
+        }
+    } % star mask
+
+    \definition {
+        { \label blackness_level Blackness Level } {
+            The resulting blackness can be adjusted with this slider.
+        }
+    } % blackness level
+
+    \definition {
+        { \label noise_reduction Noise Reduction } {
+            The noise reduction check box allows to perform some noise reduction on the resulting subtracted image on the first wavelet layer.
+        }
+    } % noise reduction
+
+    \definition {
+        { \label plot_curves Plot Curves } {
+            The 'Plot curves' check box activates the output of a graph which shows the normalized data as a function of the mue parameter.
+            \center\image[width:80\%] CSTG_plot.png
+        }
+    } % plot curves
+
+    \definition {
+        { \label execute_subtraction Execute Subtraction } {
+            The 'Execute subraction' push button becomes active as soon as a broadband and narrowband view was selected. A progress indicator right next to the button shows the progress of the computation.
+        }
+    } % execute subraction
+
+} % Parameter Reference
+\make
