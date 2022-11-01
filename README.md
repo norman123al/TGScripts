@@ -29,10 +29,19 @@ This repository contains both new scripts written by me and existing scripts whi
 
   Known issues:
   - StarXTerminator might fail with an IO error (see console output) when exectued from the script. To solve this, start the StarXTerminator process manually once. Then the issue is gone until Pixinsight is closed. See also script documentation in Pixinsight.
+<p align="center">
+  <img src="./TGScripts_repository/doc/scripts/BBStarReduction/images/BBStarReduction_main_screen.png" title="BBStarReduction main screen" />
+</p>
 
 - **LocalSupportMask.js** - a script to create a local support mask for Pixinsight's deconvolution process.
+<p align="center">
+  <img src="./TGScripts_repository/doc/scripts/LocalSupportMask/images/LocalSupportMask_main_screen.png" title="LocalSupportMask main screen" />
+</p>
 
 - **TGScriptSkeleton.js** - a script skeleton serving as a starting point for Pixinsight java script development.
+<p align="center">
+  <img src="./TGScripts_repository/doc/scripts/TGScriptSkeleton/images/TGScriptSkeleton_main_screen.png" title="TGScriptSkeleton main screen" />
+</p>
 
 ### Modified Pixinsight Scripts
 - **AberrationInspectorTG.js** - an improved version of the AberrationInspector script written by Mike Schuster. Added support for larger panel sizes and for icon set integration via "new instance" button. Added Pixinsight documentation.
