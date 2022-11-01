@@ -83,7 +83,7 @@
         } % iterations
     } % subsection
 
-\subsection{ \label decon_parameters Decon Parmeters } {
+\subsection{ \label decon_parameters Decon Parameters } {
         \definition {
             { \label decon_iterations Decon Iterations } {
                 Number of deconvolution iterations.
