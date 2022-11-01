@@ -7,8 +7,7 @@ Use at your own risk.
 Feel free to visit my astrophoto gallery on [Astrobin](https://www.astrobin.com/users/norman123al/). 
 
 The scripts will be provided in a dedicated subfolder (TG Scripts) of the Pixinsights SCRIPTS menu.
-
-![Pixinsight SCRIPT menu with TG Scripts subfolder](/TGScripts_repository/images/PI_script_menu.png)
+![Pixinsight SCRIPT menu with TG Scripts subfolder](/TGScripts_repository/images/PI_script_menu.png){:style="float: right;margin-right: 7px;margin-top: 7px;"}
 
 In order to add this repository to the Pixinsight update system, go to 'Manage Repositories' in the RESOURCES -> Updates menu
 
