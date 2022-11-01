@@ -40,6 +40,6 @@ This repository contains both new scripts written by me and existing scripts whi
 - **CSTG.js** - a slightly modified version of the CS script written by Hartmut V. Bornemann. Added a "new instance" button and Pixinsight documentation.
 - **DarkStructureEnhanceTG.js** - a slightly modified version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl. Added a "new instance" button and Pixinsight documentation.
 - **DeconvolutionPreviewTG.js** - an improved version of the DeconvolutionPreview script written by Juan M. Gómez. The script works now on image previews instead of main views, deconvolution parameters are provided and a "new instance" button as well as Pixinsight documentation was added.
-<details>
-![DeconvolueiontPreviewTG main screen](/TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png)
-</details>
+<p align="center">
+  <img src="/TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen">
+</p>
