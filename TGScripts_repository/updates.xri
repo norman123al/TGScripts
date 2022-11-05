@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="526cc85e81ee598c51a61a2cc67f702bc9923b5b" type="script" releaseDate="20221031">
+      <package fileName="TGScripts_repository.tar.gz" sha1="2c3346c5bf1315026ffe1151a8b4d96b2d532d38" type="script" releaseDate="20221106">
          <title>
-            TGScripts snapshot - 2022 Oct 30
+            TGScripts snapshot - 2022 Nov 06
          </title>
          <remove>
             src/scripts/TGScripts

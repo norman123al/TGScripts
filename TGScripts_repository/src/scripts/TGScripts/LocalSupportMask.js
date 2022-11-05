@@ -1,5 +1,5 @@
 /*
-   LocalSupportMask v1.0
+   LocalSupportMask v1.1
 
    A script for generating local support mask for deconvolution.
 
@@ -17,6 +17,16 @@
    You should have received a copy of the GNU General Public License along with
    this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/*
+   Change history:
+   v1.0
+      initial version
+   v1.1
+      added reset button
+      added overlay preview option
+      changed mask creation default settings
+*/
 #include <pjsr/Sizer.jsh>
 #include <pjsr/FrameStyle.jsh>
 #include <pjsr/NumericControl.jsh>
@@ -25,16 +35,19 @@
 #include <pjsr/StdIcon.jsh>
 #include <pjsr/UndoFlag.jsh>
 
-#define VERSION   "1.0"
+#include "lib/TGScriptsLib.js"
+
+#define VERSION   "1.1"
 #define TITLE     "LocalSupportMask"
 
-#define DEBUG                 false
-#define MASK_NAME             "local_support_mask"
-#define DEFAULT_SCALE         5
-#define DEFAULT_LARGE_SCALE   1
-#define DEFAULT_SMALL_SCALE   3
-#define DEFAULT_COMPENSATION  1
-#define DEFAULT_SMOOTHNESS    12
+#define MASK_NAME                "local_support_mask"
+#define STRENGTH_SLIDER_RANGE    100
+#define DEFAULT_STRENGTH         0.5
+#define DEFAULT_SCALE            5
+#define DEFAULT_LARGE_SCALE      0
+#define DEFAULT_SMALL_SCALE      1
+#define DEFAULT_COMPENSATION     2
+#define DEFAULT_SMOOTHNESS       10
 
 #feature-id    LocalSupportMask : TG Scripts > LocalSupportMask
 
@@ -44,13 +57,28 @@
 //------------ LocalSupportMaskData --------------
 function LocalSupportMaskData()
 {
+   this.dialog       = null;
    this.targetView   = null;
    this.view_id      = "";
+   this.strength     = DEFAULT_STRENGTH;
    this.scale        = DEFAULT_SCALE;
    this.large_scale  = DEFAULT_LARGE_SCALE;
    this.small_scale  = DEFAULT_SMALL_SCALE;
    this.compensation = DEFAULT_COMPENSATION;
    this.smoothness   = DEFAULT_SMOOTHNESS;
+   this.isPreview    = false;
+
+   this.reset = function()
+   {
+      this.view_id      = "";
+      this.strength     = DEFAULT_STRENGTH;
+      this.scale        = DEFAULT_SCALE;
+      this.large_scale  = DEFAULT_LARGE_SCALE;
+      this.small_scale  = DEFAULT_SMALL_SCALE;
+      this.compensation = DEFAULT_COMPENSATION;
+      this.smoothness   = DEFAULT_SMOOTHNESS;
+      this.isPreview    = false;
+   }
 
    /*
     * Save parameters in process icon.
@@ -58,6 +86,7 @@ function LocalSupportMaskData()
    this.exportParameters = function()
    {
       Parameters.set("view_id"     , this.view_id);
+      Parameters.set("strength"    , this.strength);
       Parameters.set("scale"       , this.scale);
       Parameters.set("large_scale" , this.large_scale);
       Parameters.set("small_scale" , this.small_scale);
@@ -82,6 +111,8 @@ function LocalSupportMaskData()
             }
          }
       }
+      if (Parameters.has("strength"))
+         this.strength = Parameters.getReal("strength");
       if (Parameters.has("scale"))
          this.scale = Parameters.getInteger("scale");
       if (Parameters.has("large_scale"))
@@ -101,6 +132,8 @@ var data = new LocalSupportMaskData;
 // --- do the actual work ---
 function doWork()
 {
+   Console.show();
+
    var view = data.targetView;
    view.beginProcess(UndoFlag_NoSwapFile);
 
@@ -121,62 +154,9 @@ function doWork()
          return;
    }
 
-   // Pick an unused name for the mask
-   var MaskName = null;
-   if (ImageWindow.windowById(MASK_NAME).isNull)
-   {
-      MaskName = MASK_NAME;
-   }
-   else
-   {
-      for (var n = 1 ; n <= 99 ; n++)
-      {
-         if (ImageWindow.windowById(MASK_NAME + n).isNull) {
-             MaskName = MASK_NAME + n;
-             break;
-         }
-      }
-      if (MaskName == null)
-      {
-         (new MessageBox("Couldn't find a unique mask name. Bailing out.",
-            TITLE, StdIcon_Error, StdButton_Ok)).execute();
-         return;
-      }
-   }
-
-   // PM expression to clone target view
-   var PM = new PixelMath;
-
-   PM.expression = "$T";
-   PM.expression1 = "";
-   PM.expression2 = "";
-   PM.expression3 = "";
-   PM.useSingleExpression = true;
-   PM.symbols = "";
-   PM.generateOutput = true;
-   PM.singleThreaded = false;
-   PM.use64BitWorkingImage = false;
-   PM.rescale = true;
-   PM.rescaleLower = 0;
-   PM.rescaleUpper = 1;
-   PM.truncate = true;
-   PM.truncateLower = 0;
-   PM.truncateUpper = 1;
-   PM.createNewImage = true;
-   PM.showNewImage = true;
-   PM.newImageId = MaskName;
-   PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.Gray;
-   PM.newImageSampleFormat = PixelMath.prototype.f32;
-
-   if (!PM.executeOn(data.targetView, false /*swapFile */) || ImageWindow.windowById(MaskName).mainView.isNull)
-   {
-      console.writeln("Mask creation failed in function doWork");
-      new MessageBox( "Mask creation failed!", "LocalSupportMask Script", StdIcon_Error, StdButton_Cancel ).execute();
-      return;
-   }
-
-   var targetView = ImageWindow.windowById(MaskName).mainView;
+   let MaskName = uniqueViewId(MASK_NAME);
+   var LocalSupportMaskWindow = createImageCopyWindow( MaskName, view.image );
+   var targetView = LocalSupportMaskWindow.mainView;
 
    var MLT = new MultiscaleLinearTransform;
    MLT.layers = [ // enabled, biasEnabled, bias, noiseReductionEnabled, noiseReductionThreshold, noiseReductionAmount, noiseReductionIterations
@@ -249,33 +229,33 @@ function doWork()
 
    HT.executeOn(targetView, false /*swapFile */);
 
-   // execute StarMask
    var SM = new StarMask;
-   SM.shadowsClipping = 0.00000;
-   SM.midtonesBalance = 0.50000;
-   SM.highlightsClipping = 1.00000;
-   SM.waveletLayers = data.scale;
-   SM.structureContours = false;
-   SM.noiseThreshold = 0.10000;
-   SM.aggregateStructures = true;
-   SM.binarizeStructures = true;
-   SM.largeScaleGrowth = data.large_scale;
-   SM.smallScaleGrowth = data.small_scale;
-   SM.growthCompensation = data.compensation;
-   SM.smoothness = data.smoothness;
-   SM.invert = false;
-   SM.truncation = 1.00000;
-   SM.limit = 1.00000;
-   SM.mode = StarMask.prototype.StarMask;
+   SM.shadowsClipping     = 0.20000;
+   SM.midtonesBalance     = data.strength;
+   SM.highlightsClipping  = 1.00000;
+   SM.waveletLayers       = data.scale;
+   SM.structureContours   = false;
+   SM.noiseThreshold      = 0.20000;
+   SM.aggregateStructures = false;
+   SM.binarizeStructures  = true;
+   SM.largeScaleGrowth    = data.large_scale;
+   SM.smallScaleGrowth    = data.small_scale;
+   SM.growthCompensation  = data.compensation;
+   SM.smoothness          = data.smoothness;
+   SM.invert              = false;
+   SM.truncation          = 1.00000;
+   SM.limit               = 1.00000;
+   SM.mode                = data.isPreview ? StarMask.prototype.StarMaskOverlay : StarMask.prototype.StarMask;
 
    SM.executeOn(targetView, false /*swapFile */);
-   ImageWindow.windowById(MaskName).forceClose();
+   LocalSupportMaskWindow.forceClose();
 
    // change name of star mask
    var starmaskView = ImageWindow.activeWindow.currentView;
    starmaskView.id = MaskName;
 
    view.endProcess();
+   Console.hide();
 }
 
 //------------ LocalSupportMaskDialog --------------
@@ -284,6 +264,7 @@ function LocalSupportMaskDialog()
    this.__base__ = Dialog;
    this.__base__();
 
+   data.dialog = this;
    var fontWidth  = this.font.width("M");
    var labelWidth = 13*fontWidth;
 
@@ -345,6 +326,23 @@ function LocalSupportMaskDialog()
       add( this.targetImage_Label );
       add( this.targetImage_ViewList, 100 );
       addStretch();
+   }
+
+   // -------------------------------------------------------------------------
+   this.strengthControl = new NumericControl(this);
+   with( this.strengthControl )
+   {
+      label.text = "Strength:";
+      label.minWidth = labelWidth;
+      slider.setRange(0, STRENGTH_SLIDER_RANGE);
+      slider.minWidth = 0;
+      setRange(0.0, 1);
+      setPrecision(2);
+      setValue(1 - data.strength);
+
+      toolTip = "<p>Star reduction strength</p>";
+
+      onValueUpdated = function(value) { data.strength = 1 - value; }
    }
 
    // -------------------------------------------------------------------------
@@ -493,6 +491,32 @@ function LocalSupportMaskDialog()
    }
 
    // -------------------------------------------------------------------------
+   this.paramGroupBox = new GroupBox( this );
+   with( this.paramGroupBox )
+   {
+      title = "Local Support Mask Settings";
+      sizer = new VerticalSizer;
+      sizer.margin = 6;
+      sizer.spacing = 4;
+      sizer.add( this.strengthControl );
+      sizer.add( this.scale_Sizer );
+      sizer.add( this.large_scale_Sizer );
+      sizer.add( this.small_scale_Sizer );
+      sizer.add( this.compensation_Sizer );
+      sizer.add( this.smoothness_Sizer );
+   }
+
+   // -------------------------------------------------------------------------
+   this.previewChexBox = new CheckBox(this);
+   with( this.previewChexBox )
+   {
+      text    = "Create Overlay Preview";
+      toolTip = "<p>Create overlay preview for local support mask.</p>";
+
+      onCheck = function() { data.isPreview = true; }
+   }
+
+   // -------------------------------------------------------------------------
    this.newInstance_Button = new ToolButton(this);
    with( this.newInstance_Button )
    {
@@ -526,6 +550,25 @@ function LocalSupportMaskDialog()
       onClick = () => { this.cancel(); };
    }
 
+   this.reset_Button = new ToolButton(this);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = function()
+      {
+         data.reset();
+         data.dialog.strengthControl.setValue(1 - data.strength);
+         data.dialog.scale_SpinBox.value        = data.scale;
+         data.dialog.large_scale_SpinBox.value  = data.large_scale;
+         data.dialog.small_scale_SpinBox.value  = data.small_scale;
+         data.dialog.compensation_SpinBox.value = data.compensation;
+         data.dialog.smoothness_SpinBox.value   = data.smoothness;
+         data.dialog.previewChexBox.checked     = false;
+      }
+   }
+
    this.buttons_Sizer = new HorizontalSizer;
    with( this.buttons_Sizer )
    {
@@ -534,6 +577,7 @@ function LocalSupportMaskDialog()
       addStretch();
       add(this.ok_Button);
       add(this.cancel_Button);
+      add(this.reset_Button);
    }
 
    // --- dialog layout ---
@@ -545,11 +589,11 @@ function LocalSupportMaskDialog()
       add( this.helpLabel );
       addSpacing( 4 );
       add( this.targetImage_Sizer );
-      add( this.scale_Sizer );
-      add( this.large_scale_Sizer );
-      add( this.small_scale_Sizer );
-      add( this.compensation_Sizer );
-      add( this.smoothness_Sizer );
+      addSpacing(4);
+      add( this.paramGroupBox );
+      addSpacing(4);
+      add(this.previewChexBox);
+      addSpacing(4);
       add( this.buttons_Sizer );
    }
 
