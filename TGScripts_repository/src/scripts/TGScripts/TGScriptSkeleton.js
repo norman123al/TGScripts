@@ -1,5 +1,5 @@
 /*
-   TGScriptSkeleton v1.0
+   TGScriptSkeleton v1.1
 
    A script for generating local support mask for deconvolution.
 
@@ -17,6 +17,15 @@
    You should have received a copy of the GNU General Public License along with
    this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+
+/*
+   Change history:
+   v1.0
+      initial version
+   v1.1
+      added reset button
+*/
+
 #include <pjsr/Sizer.jsh>
 #include <pjsr/FrameStyle.jsh>
 #include <pjsr/NumericControl.jsh>
@@ -25,7 +34,9 @@
 #include <pjsr/StdIcon.jsh>
 #include <pjsr/UndoFlag.jsh>
 
-#define VERSION   "1.0"
+#include "lib/TGScriptsLib.js"
+
+#define VERSION   "1.1"
 #define TITLE     "TGScriptSkeleton"
 
 #feature-id    TGScriptSkeleton : TG Scripts > TGScriptSkeleton
@@ -36,6 +47,7 @@
 //------------ ScriptData --------------
 function ScriptData()
 {
+   this.dialog     = null;
    this.targetView = null;
    this.view_id    = "";
 
@@ -66,6 +78,11 @@ function ScriptData()
       }
    }
 
+   this.reset = function()
+   {
+      this.targetView   = null;
+      this.view_id      = "";
+   }
 }
 
 var data = new ScriptData;
@@ -105,6 +122,7 @@ function ScriptDialog()
    this.__base__ = Dialog;
    this.__base__();
 
+   data.dialog = this;
    var fontWidth  = this.font.width("M");
 
    // --- help box ---
@@ -182,24 +200,41 @@ function ScriptDialog()
       }
    }
 
-   this.ok_Button = new PushButton(this);
+   this.ok_Button = new ToolButton(this);
    with( this.ok_Button )
    {
-      text = " OK ";
-      icon = scaledResource( ":/icons/ok.png" );
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
 
       // () => maintains the context!
       onClick = () => { this.ok(); }
    }
 
-   this.cancel_Button = new PushButton(this);
+   this.cancel_Button = new ToolButton(this);
    with( this.cancel_Button )
    {
-      text = " Cancel ";
-      icon = scaledResource( ":/icons/cancel.png" );
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
 
       // () => maintains the context!
       onClick = () => { this.cancel(); }
+   }
+
+   this.reset_Button = new ToolButton(this);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = function()
+      {
+         if(data.dialog.targetImage_ViewList.currentView)
+         {
+            data.dialog.targetImage_ViewList.remove(data.dialog.targetImage_ViewList.currentView);
+            data.dialog.targetImage_ViewList.getAll();
+         }
+         data.reset();
+      }
    }
 
    this.buttons_Sizer = new HorizontalSizer;
@@ -210,6 +245,7 @@ function ScriptDialog()
       addStretch();
       add(this.ok_Button);
       add(this.cancel_Button);
+      add(this.reset_Button);
    }
 
    // --- dialog layout ---
