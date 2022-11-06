@@ -101,6 +101,12 @@
                 A local support mask can be specified for the deringing and protection of stars.
             }
         } % local support mask
+
+        \definition {
+            { \label local_amount Local Amount } {
+                The strength of the local support mask can be set by this parameter.
+            }
+        } % local support mask
     } % subsection
 
 } % Parameter Reference

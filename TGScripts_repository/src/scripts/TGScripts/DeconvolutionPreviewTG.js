@@ -33,12 +33,18 @@
 /*
    Modified 2022 by Thorsten Glebe
 
-   1. add "new instance" button to store parameters in icon
-   2. added deconvolution parameters in GUI
-   3. fixed crash issue when autostretching final preview image
-   4. added support for greyscale images
-   5. updated feature info
-   6. change operation mode to work on previews only to speed up preview generation
+   Change history:
+   v2.0
+      1. add "new instance" button to store parameters in icon
+      2. added deconvolution parameters in GUI
+      3. fixed crash issue when autostretching final preview image
+      4. added support for greyscale images
+      5. updated feature info
+      6. change operation mode to work on previews only to speed up preview generation
+   v2.1
+      1. provide GUI reset button
+      2. add 'Local amount' slider for local support mask
+      3. change ok and cancel buttons to tool buttons
 
 */
 #feature-id   DeconvolutionPreviewTG : TG Scripts > DeconvolutionPreviewTG
@@ -63,30 +69,61 @@
 #include <pjsr/StdCursor.jsh>
 #include <pjsr/UndoFlag.jsh>
 #include <pjsr/NumericControl.jsh>
-#include <pjsr/SampleType.jsh>
-#include <pjsr/ColorSpace.jsh>
 
-#define VERSION "2.0"
+#include "lib/TGScriptsLib.js"
+
+#define VERSION "2.1"
 #define TITLE "DeconvolutionPreviewTG"
+
+#define DEFAULT_GAUSSIAN_START      1.50;
+#define DEFAULT_GAUSSIAN_AMOUNT     0.50;
+#define DEFAULT_GAUSSIAN_ITERATIONS 3;
+#define DEFAULT_SHAPE_START         2.00;
+#define DEFAULT_SHAPE_AMOUNT        0.50;
+#define DEFAULT_SHAPE_ITERATIONS    3;
+#define DEFAULT_DECON_ITERATIONS    30;
+#define DEFAULT_GLOBAL_DARK         0.0010;
+#define DEFAULT_LOCALSUPPORT_AMOUNT 0.7;
 
 // ----------------------------------------------------------------------------
 
 function DeconvolutionPreviewData()
 {
+   this.dialog               = null;
    this.targetPreview        = null;
-   this.GaussianStart        = 1.50;
-   this.GaussianAmount       = 0.50;
-   this.GaussianIterations   = 3;
-   this.ShapeStart           = 2.00;
-   this.ShapeAmount          = 0.50;
-   this.ShapeIterations      = 3;
-   this.deconiterations      = 30;
-   this.globaldark           = 0.0010;
+   this.GaussianStart        = DEFAULT_GAUSSIAN_START;
+   this.GaussianAmount       = DEFAULT_GAUSSIAN_AMOUNT;
+   this.GaussianIterations   = DEFAULT_GAUSSIAN_ITERATIONS;
+   this.ShapeStart           = DEFAULT_SHAPE_START;
+   this.ShapeAmount          = DEFAULT_SHAPE_AMOUNT;
+   this.ShapeIterations      = DEFAULT_SHAPE_ITERATIONS;
+   this.deconiterations      = DEFAULT_DECON_ITERATIONS;
+   this.globaldark           = DEFAULT_GLOBAL_DARK;
    this.localsupportmaskView = null;
+   this.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
    this.prevWindow           = null;  // window of the preview
    this.lsmprevWindow        = null;  // window of local support mask matching preview
    this.prev_id              = "";
    this.lsm_id               = "";
+
+   this.reset = function()
+   {
+      this.targetPreview        = null;
+      this.GaussianStart        = DEFAULT_GAUSSIAN_START;
+      this.GaussianAmount       = DEFAULT_GAUSSIAN_AMOUNT;
+      this.GaussianIterations   = DEFAULT_GAUSSIAN_ITERATIONS;
+      this.ShapeStart           = DEFAULT_SHAPE_START;
+      this.ShapeAmount          = DEFAULT_SHAPE_AMOUNT;
+      this.ShapeIterations      = DEFAULT_SHAPE_ITERATIONS;
+      this.deconiterations      = DEFAULT_DECON_ITERATIONS;
+      this.globaldark           = DEFAULT_GLOBAL_DARK;
+      this.localsupportmaskView = null;
+      this.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
+      this.prevWindow           = null;  // window of the preview
+      this.lsmprevWindow        = null;  // window of local support mask matching preview
+      this.prev_id              = "";
+      this.lsm_id               = "";
+   }
 
    /*
     * Save parameters in process icon.
@@ -101,6 +138,7 @@ function DeconvolutionPreviewData()
       Parameters.set("ShapeIterations"     , this.ShapeIterations);
       Parameters.set("deconiterations"     , this.deconiterations);
       Parameters.set("globaldark"          , this.globaldark);
+      Parameters.set("localsupportamount"  , this.localsupportamount);
       Parameters.set("prev_id"             , this.prev_id);
       Parameters.set("lsm_id"              , this.lsm_id);
    }
@@ -126,6 +164,8 @@ function DeconvolutionPreviewData()
          this.deconiterations = Parameters.getInteger("deconiterations");
       if (Parameters.has("globaldark"))
          this.globaldark = Parameters.getReal("globaldark");
+      if (Parameters.has("localsupportamount"))
+         this.localsupportamount = Parameters.getReal("localsupportamount");
       if (Parameters.has("prev_id"))
       {
          this.prev_id = Parameters.getString("prev_id");
@@ -162,44 +202,36 @@ function DeconvolutionPreviewData()
 
 var data = new DeconvolutionPreviewData;
 
-// ----------------------------------------------------------------------------
-// Returns a main view id of a view.
-function mainViewIdOfView(view)
+// -----------------------------------------------------------------------------
+function toggleAllControls( bEnable )
 {
-   return view.isMainView ? view.id : view.window.mainView.id + "_" + view.id;
+   data.dialog.GaussianStart_NC.enabled          = bEnable;
+   data.dialog.GaussianAmount_NC.enabled         = bEnable;
+   data.dialog.Gaussianiter_SpinBox.enabled      = bEnable;
+   data.dialog.ShapeStart_NC.enabled             = bEnable;
+   data.dialog.ShapeAmount_NC.enabled            = bEnable;
+   data.dialog.Shapeiter_SpinBox.enabled         = bEnable;
+   data.dialog.Deconiter_SpinBox.enabled         = bEnable;
+   data.dialog.globaldark_Control.enabled        = bEnable;
+   data.dialog.localsupportmask_ViewList.enabled = bEnable;
+   if(!bEnable)
+      data.dialog.localSupportAmountControl.enabled = bEnable;
 }
 
-// ----------------------------------------------------------------------------
-// Returns a unique view id with the given base id prefix.
-function uniqueViewId(baseId)
+function disableAllControls()
 {
-   var id = baseId;
-   for (var i = 1; !View.viewById(id).isNull; ++i)
-   {
-      id = baseId + format("%02d", i);
-   }
-   return id;
+   toggleAllControls(false);
 }
 
-// ----------------------------------------------------------------------------
-// Creates an image window with the given parameters.
-function createImageWindow(width, height, viewId, baseImage)
+function enableAllControls()
 {
-   return new ImageWindow(
-      width,
-      height,
-      baseImage.numberOfChannels,
-      baseImage.bitsPerSample,
-      baseImage.sampleType == SampleType_Real,
-      baseImage.colorSpace != ColorSpace_Gray,
-      viewId
-   );
+   toggleAllControls(true);
 }
 
 // ----------------------------------------------------------------------------
 function createImageWindowOfView(view)
 {
-   var imageWindow = createImageWindow(view.image.width, view.image.height, uniqueViewId(mainViewIdOfView(view)), view.image);
+   var imageWindow = createRawImageWindow(uniqueViewId(mainViewIdOfView(view)), view.image);
 
    imageWindow.mainView.beginProcess(UndoFlag_NoSwapFile);
 
@@ -261,12 +293,16 @@ function doDeconvolutionPreview( data )
       {
          with ( copy_img.mainView )
          {
-             beginProcess( UndoFlag_NoSwapFile );
-             image.apply( v.image );
-             doDeconvolution( copy_img.mainView,
-                              data.GaussianStart + data.GaussianAmount*j,
-                              data.ShapeStart + data.ShapeAmount*i );
-             endProcess();
+            beginProcess( UndoFlag_NoSwapFile );
+            image.apply( v.image );
+            var GaussianSigma = data.GaussianStart + data.GaussianAmount*j;
+            var GaussianShape = data.ShapeStart + data.ShapeAmount*i;
+            doDeconvolution( copy_img.mainView, GaussianSigma, GaussianShape);
+
+            var signature_data = new DrawSignatureData( copy_img.mainView, "Sigma:" + GaussianSigma + " Shape: " + GaussianShape );
+            DrawSignature( signature_data );
+
+            endProcess();
          }
 
          with ( preview_img.mainView )
@@ -296,6 +332,18 @@ function DrawSignature( data )
    font.pixelSize = data.fontSize;
    // Calculate a reasonable inner margin in pixels
    var innerMargin = Math.round( font.pixelSize/5 );
+
+   // grow font size
+   var expectedwidth = Math.floor(0.3 * image.width);
+   var currwidth = (font.width( data.text ) + 2*innerMargin);
+   while(currwidth < expectedwidth)
+   {
+      font.pixelSize++;
+      innerMargin = Math.round( font.pixelSize/5 );
+      currwidth = (font.width( data.text ) + 2*innerMargin);
+   }
+   data.fontSize = font.pixelSize;
+
    // Calculate the sizes of our drawing box
    var width = font.width( data.text ) + 2*innerMargin;
    var height = font.ascent + font.descent + 2*innerMargin;
@@ -357,10 +405,9 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
          deringingSupport = true;
          deringingSupportViewId = data.lsmprevWindow.mainView.id;
       }
-      deringingSupportAmount = 0.70;
+      deringingSupportAmount = data.localsupportamount;
 
       toLuminance = true;
-      linear = false;
       psfMode = Deconvolution.prototype.Parametric;
       psfSigma = GaussianSigma;
       psfShape = GaussianShape;
@@ -391,14 +438,13 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
       ];
    }
    p.executeOn( ParsedView );
-
-   var signature_data = new DrawSignatureData( ParsedView, "Sigma:" + GaussianSigma + " Shape: " + GaussianShape );
-   DrawSignature( signature_data );
 }
 
 // ----------------------------------------------------------------------------
 function doWork(data)
 {
+   Console.show();
+
    // Check if image is non-linear
    var median = data.targetPreview.computeOrFetchProperty( "Median" ).at(0);
    if (median > 0.01)
@@ -406,7 +452,10 @@ function doWork(data)
       console.writeln( format( "<end><cbr>The median is: %.5f", median ) );
       var msg = new MessageBox( "Image seems to be non-linear, continue?", TITLE, StdIcon_Error, StdButton_Ok, StdButton_Cancel );
       if(msg.execute() == StdButton_Cancel)
+      {
+         Console.hide();
          return;
+      }
    }
 
    generateImagesFromPreview(data);
@@ -416,6 +465,8 @@ function doWork(data)
    {
       data.lsmprevWindow.forceClose();
    }
+
+   Console.hide();
 }
 
 // ----------------------------------------------------------------------------
@@ -424,6 +475,7 @@ function DeconvolutionPreviewDialog()
    this.__base__ = Dialog;
    this.__base__();
 
+   data.dialog = this;
    var emWidth = this.font.width( 'M' );
    var labelWidth1 = this.font.width( "PSF Gaussian Start:" + 'T' );
 
@@ -443,6 +495,7 @@ function DeconvolutionPreviewDialog()
          + "<p>Copyright &copy; 2009 Juan M. Gómez (Pixinsight user) / 2022 Thorsten Glebe</p>";
    }
 
+   // -------------------------------------------------------------------------
    // target preview view list
    this.targetPreview_Label = new Label( this );
    with ( this.targetPreview_Label )
@@ -456,8 +509,7 @@ function DeconvolutionPreviewDialog()
    with ( this.targetPreview_ViewList )
    {
       scaledMinWidth = 200;
-//      currentView = data.targetView;
-      getPreviews(); // include previews only
+      getPreviews();
       if ( data.targetPreview )
          currentView = data.targetPreview;
 
@@ -469,11 +521,13 @@ function DeconvolutionPreviewDialog()
          {
             data.targetPreview = view;
             data.prev_id       = view.fullId;
-//            mainViewIdOfView(view);
+            enableAllControls();
          }
          else
          {
+            data.targetPreview = null;
             data.prev_id = "";
+            disableAllControls();
          }
       }
    }
@@ -486,10 +540,12 @@ function DeconvolutionPreviewDialog()
       add( this.targetPreview_ViewList, 100 );
    }
 
+   // -------------------------------------------------------------------------
    // PSF Gaussian parameters
    this.GaussianStart_NC = new NumericControl( this );
    with ( this.GaussianStart_NC )
    {
+      enabled = data.targetPreview != null;
       label.text = "PSF Sigma start:";
       label.minWidth = labelWidth1;
       setRange( 0.10, 9.99 );
@@ -507,6 +563,7 @@ function DeconvolutionPreviewDialog()
    this.GaussianAmount_NC = new NumericControl( this );
    with ( this.GaussianAmount_NC )
    {
+      enabled = data.targetPreview != null;
       label.text = "Step size:";
       label.minWidth = labelWidth1;
       setRange( 0.25, 6.00 );
@@ -521,6 +578,7 @@ function DeconvolutionPreviewDialog()
       }
    }
 
+   // -------------------------------------------------------------------------
    this.Gaussianiter_Label = new Label( this );
    with ( this.Gaussianiter_Label )
    {
@@ -532,6 +590,7 @@ function DeconvolutionPreviewDialog()
    this.Gaussianiter_SpinBox = new SpinBox( this );
    with ( this.Gaussianiter_SpinBox )
    {
+      enabled = data.targetPreview != null;
       minValue = 1;
       maxValue = 10;
       value = data.GaussianIterations;
@@ -551,6 +610,7 @@ function DeconvolutionPreviewDialog()
       addStretch();
    }
 
+   // -------------------------------------------------------------------------
    this.GaussianParGroupBox = new GroupBox( this );
    with ( this.GaussianParGroupBox )
    {
@@ -566,10 +626,12 @@ function DeconvolutionPreviewDialog()
       }
    }
 
+   // -------------------------------------------------------------------------
    // PSF Shape parameters
    this.ShapeStart_NC = new NumericControl( this );
    with ( this.ShapeStart_NC )
    {
+      enabled = data.targetPreview != null;
       label.text = "PSF Shape start:";
       label.minWidth = labelWidth1;
       setRange( 0.10, 9.99 );
@@ -584,9 +646,11 @@ function DeconvolutionPreviewDialog()
       }
    }
 
+   // -------------------------------------------------------------------------
    this.ShapeAmount_NC = new NumericControl( this );
    with ( this.ShapeAmount_NC )
    {
+      enabled = data.targetPreview != null;
       label.text = "Step size:";
       label.minWidth = labelWidth1;
       setRange( 0.10, 9.99 );
@@ -601,6 +665,7 @@ function DeconvolutionPreviewDialog()
       }
    }
 
+   // -------------------------------------------------------------------------
    this.Shapeiter_Label = new Label( this );
    with ( this.Shapeiter_Label )
    {
@@ -612,6 +677,7 @@ function DeconvolutionPreviewDialog()
    this.Shapeiter_SpinBox = new SpinBox( this );
    with ( this.Shapeiter_SpinBox )
    {
+      enabled = data.targetPreview != null;
       minValue = 1;
       maxValue = 10;
       value = data.ShapeIterations;
@@ -631,6 +697,7 @@ function DeconvolutionPreviewDialog()
       addStretch();
    }
 
+   // -------------------------------------------------------------------------
    this.ShapeParGroupBox = new GroupBox( this );
    with ( this.ShapeParGroupBox )
    {
@@ -646,6 +713,7 @@ function DeconvolutionPreviewDialog()
       }
    }
 
+   // -------------------------------------------------------------------------
    // iterations parameter
    this.Deconiter_Label = new Label( this );
    with ( this.Deconiter_Label )
@@ -658,6 +726,7 @@ function DeconvolutionPreviewDialog()
    this.Deconiter_SpinBox = new SpinBox( this );
    with ( this.Deconiter_SpinBox )
    {
+      enabled = data.targetPreview != null;
       minValue = 1;
       maxValue = 59;
       value = data.deconiterations;
@@ -677,10 +746,12 @@ function DeconvolutionPreviewDialog()
       addStretch();
    }
 
+   // -------------------------------------------------------------------------
    // global dark numeric control
    this.globaldark_Control = new NumericControl(this);
    with( this.globaldark_Control )
    {
+      enabled = data.targetPreview != null;
       label.text = "Global dark: ";
       label.minWidth = labelWidth1;
 //      slider.setRange(0, sliderMaxValue);
@@ -695,6 +766,7 @@ function DeconvolutionPreviewDialog()
       toolTip = "<p>Global deringing regularization strength.</p>";
    }
 
+   // -------------------------------------------------------------------------
    // local support mask selector
    this.localsupportmask_Label = new Label( this );
    with (this.localsupportmask_Label )
@@ -707,6 +779,7 @@ function DeconvolutionPreviewDialog()
    this.localsupportmask_ViewList = new ViewList( this );
    with ( this.localsupportmask_ViewList )
    {
+      enabled = data.targetPreview != null;
       scaledMinWidth = 200;
       getMainViews(); // include main views only, no previews
       if ( data.localsupportmaskView )
@@ -720,10 +793,15 @@ function DeconvolutionPreviewDialog()
          {
             data.localsupportmaskView = view;
             data.lsm_id = view.id;
+            data.dialog.localSupportAmountControl.enabled = true;
          }
          else
          {
+            data.localsupportmaskView = null;
+            data.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
             data.lsm_id = "";
+            data.dialog.localSupportAmountControl.enabled = false;
+            data.dialog.localSupportAmountControl.setValue(data.localsupportamount);
          }
       }
    }
@@ -737,6 +815,27 @@ function DeconvolutionPreviewDialog()
       addStretch();
    }
 
+   // -------------------------------------------------------------------------
+   this.localSupportAmountControl = new NumericControl( this );
+   with ( this.localSupportAmountControl )
+   {
+      enabled = data.localsupportmaskView != null;
+      enabled = data.prev_id != "";
+      label.text = "Local amount:";
+      label.minWidth = labelWidth1;
+      setRange( 0, 1);
+      slider.setRange( 0, 100 );
+      slider.scaledMinWidth = 25;
+      setPrecision( 2 );
+      setValue( data.localsupportamount );
+      toolTip = "<p>Strength of local support mask.</p>";
+      onValueUpdated = function ( value )
+      {
+         data.localsupportamount = value;
+      }
+   }
+
+   // -------------------------------------------------------------------------
    // Decon group box
    this.DeconParGroupBox = new GroupBox( this );
    with ( this.DeconParGroupBox )
@@ -750,9 +849,11 @@ function DeconvolutionPreviewDialog()
          add( this.Deconiter_Sizer );
          add( this.globaldark_Control );
          add( this.localsupportmask_Sizer );
+         add( this.localSupportAmountControl );
       }
    }
 
+   // -------------------------------------------------------------------------
    // usual control buttons
    this.newInstance_Button = new ToolButton(this);
    with( this.newInstance_Button )
@@ -769,34 +870,84 @@ function DeconvolutionPreviewDialog()
       }
    }
 
-   this.ok_Button = new PushButton( this );
+   this.apply_Button = new ToolButton( this );
+   with ( this.apply_Button )
+   {
+      icon = scaledResource( ":/process-interface/apply.png" );
+      toolTip = "Apply current settings to preview";
+
+      onClick = () => {
+         if(data.targetPreview)
+         {
+            Console.show();
+            doDeconvolution(data.targetPreview, data.GaussianAmount, data.ShapeAmount);
+            Console.hide();
+            this.cancel();
+         }
+      }
+   }
+
+
+   this.ok_Button = new ToolButton( this );
    with ( this.ok_Button )
    {
-      text = "OK";
-      cursor = new Cursor( StdCursor_Checkmark );
-      icon = scaledResource( ":/icons/ok.png" );
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
 
       onClick = () => { this.ok(); }
    }
 
-   this.cancel_Button = new PushButton( this );
+   this.cancel_Button = new ToolButton( this );
    with ( this.cancel_Button )
    {
-      text = "Cancel";
-      cursor = new Cursor( StdCursor_Crossmark );
-      icon = scaledResource( ":/icons/cancel.png" );
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
 
       onClick = () => { this.cancel(); }
+   }
+
+   this.reset_Button = new ToolButton(this);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = function()
+      {
+         if(data.dialog.targetPreview_ViewList.currentView)
+         {
+            data.dialog.targetPreview_ViewList.remove(data.dialog.targetPreview_ViewList.currentView);
+            data.dialog.targetPreview_ViewList.getPreviews();
+         }
+         if(data.dialog.localsupportmask_ViewList.currentView)
+         {
+            data.dialog.localsupportmask_ViewList.remove(data.dialog.localsupportmask_ViewList.currentView);
+            data.dialog.localsupportmask_ViewList.getMainViews();
+         }
+         data.reset();
+         data.dialog.GaussianStart_NC.setValue(data.GaussianStart);
+         data.dialog.GaussianAmount_NC.setValue(data.GaussianAmount);
+         data.dialog.Gaussianiter_SpinBox.value = data.GaussianIterations;
+         data.dialog.ShapeStart_NC.setValue(data.ShapeStart);
+         data.dialog.ShapeAmount_NC.setValue(data.ShapeAmount);
+         data.dialog.Shapeiter_SpinBox.value = data.ShapeIterations;
+         data.dialog.Deconiter_SpinBox.value = data.deconiterations;
+         data.dialog.globaldark_Control.setValue(data.globaldark);
+         data.dialog.localSupportAmountControl.setValue(data.localsupportamount);
+         disableAllControls();
+      }
    }
 
    this.buttons_Sizer = new HorizontalSizer;
    with ( this.buttons_Sizer )
    {
       spacing = 4;
-      add(this.newInstance_Button);
+      add( this.newInstance_Button );
+      add( this.apply_Button );
       addStretch();
       add( this.ok_Button );
       add( this.cancel_Button );
+      add( this.reset_Button );
    }
 
    this.sizer = new VerticalSizer;
@@ -829,8 +980,31 @@ function main()
 {
    Console.hide();
 
-   if (Parameters.isGlobalTarget || Parameters.isViewTarget) {
+   if (Parameters.isViewTarget)
+   {
       data.importParameters();
+      if(Parameters.targetView.isPreview)
+      {
+         data.targetPreview = Parameters.targetView;
+         data.prev_id       = Parameters.targetView.id;
+         doWork(data);
+      }
+      return;
+   }
+   else
+   {
+      data.importParameters();
+      if(!data.targetView)
+      {
+         // Get access to the active image window
+         var window = ImageWindow.activeWindow;
+
+         if (!window.isNull && window.currentView.isPreview)
+         {
+            data.targetView = window.currentView;
+            data.view_id    = window.currentView.id;
+         }
+      }
    }
 
    var dialog = new DeconvolutionPreviewDialog();

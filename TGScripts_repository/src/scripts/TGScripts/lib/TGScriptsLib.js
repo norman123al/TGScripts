@@ -22,16 +22,22 @@
 #include <pjsr/SampleType.jsh>
 
 // ----------------------------------------------------------------------------
+// Returns a main view id of a view.
+// ----------------------------------------------------------------------------
+function mainViewIdOfView(view)
+{
+   return view.isMainView ? view.id : view.window.mainView.id + "_" + view.id;
+}
+
+// ----------------------------------------------------------------------------
 // Returns a unique view id with the given base id prefix.
 // ----------------------------------------------------------------------------
 function uniqueViewId(baseId)
 {
    var id = baseId;
-   var i = 1;
-   while(!View.viewById(id).isNull)
+   for (var i = 1; !View.viewById(id).isNull; ++i)
    {
       id = baseId + format("%02d", i);
-      ++i;
    }
    return id;
 }
@@ -70,3 +76,4 @@ function createImageCopyWindow(viewId, baseImage)
 
    return window;
 }
+

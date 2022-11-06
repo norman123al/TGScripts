@@ -26,7 +26,9 @@
       added reset button
       added overlay preview option
       changed mask creation default settings
+      enable/disable controls
 */
+
 #include <pjsr/Sizer.jsh>
 #include <pjsr/FrameStyle.jsh>
 #include <pjsr/NumericControl.jsh>
@@ -70,6 +72,7 @@ function LocalSupportMaskData()
 
    this.reset = function()
    {
+      this.targetView   = null;
       this.view_id      = "";
       this.strength     = DEFAULT_STRENGTH;
       this.scale        = DEFAULT_SCALE;
@@ -92,6 +95,7 @@ function LocalSupportMaskData()
       Parameters.set("small_scale" , this.small_scale);
       Parameters.set("compensation", this.compensation);
       Parameters.set("smoothness"  , this.smoothness);
+      Parameters.set("isPreview"   , this.isPreview);
    }
 
    /*
@@ -123,13 +127,37 @@ function LocalSupportMaskData()
          this.compensation = Parameters.getInteger("compensation");
       if (Parameters.has("smoothness"))
          this.smoothness = Parameters.getInteger("smoothness");
+      if (Parameters.has("isPreview"))
+         this.isPreview = Parameters.getBoolean("isPreview");
    }
 
 }
 
 var data = new LocalSupportMaskData;
 
-// --- do the actual work ---
+// -----------------------------------------------------------------------------
+function toggleAllControls( bEnable )
+{
+   data.dialog.strengthControl.enabled      = bEnable;
+   data.dialog.scale_SpinBox.enabled        = bEnable;
+   data.dialog.large_scale_SpinBox.enabled  = bEnable;
+   data.dialog.small_scale_SpinBox.enabled  = bEnable;
+   data.dialog.compensation_SpinBox.enabled = bEnable;
+   data.dialog.smoothness_SpinBox.enabled   = bEnable;
+   data.dialog.previewChexBox.enabled       = bEnable;
+}
+
+function disableAllControls()
+{
+   toggleAllControls(false);
+}
+
+function enableAllControls()
+{
+   toggleAllControls(true);
+}
+
+// -----------------------------------------------------------------------------
 function doWork()
 {
    Console.show();
@@ -258,7 +286,7 @@ function doWork()
    Console.hide();
 }
 
-//------------ LocalSupportMaskDialog --------------
+// -----------------------------------------------------------------------------
 function LocalSupportMaskDialog()
 {
    this.__base__ = Dialog;
@@ -296,7 +324,7 @@ function LocalSupportMaskDialog()
    with( this.targetImage_ViewList )
    {
       scaledMinWidth = 200;
-      getMainViews(); // include main views only
+      getMainViews();
       if ( data.targetView )
       {
          currentView = data.targetView;
@@ -311,10 +339,13 @@ function LocalSupportMaskDialog()
          {
             data.targetView = view;
             data.view_id    = view.id;
+            enableAllControls();
          }
          else
          {
+            data.targetView = null;
             data.view_id = "";
+            disableAllControls();
          }
       }
    }
@@ -332,6 +363,7 @@ function LocalSupportMaskDialog()
    this.strengthControl = new NumericControl(this);
    with( this.strengthControl )
    {
+      enabled = data.targetView != null
       label.text = "Strength:";
       label.minWidth = labelWidth;
       slider.setRange(0, STRENGTH_SLIDER_RANGE);
@@ -357,6 +389,7 @@ function LocalSupportMaskDialog()
    this.scale_SpinBox = new SpinBox( this );
    with( this.scale_SpinBox )
    {
+      enabled = data.targetView != null
       minValue = 2;
       maxValue = 12;
       value = data.scale;
@@ -386,6 +419,7 @@ function LocalSupportMaskDialog()
    this.large_scale_SpinBox = new SpinBox( this );
    with( this.large_scale_SpinBox )
    {
+      enabled = data.targetView != null
       minValue = 0;
       maxValue = 15;
       value = data.large_scale;
@@ -397,6 +431,7 @@ function LocalSupportMaskDialog()
    this.large_scale_Sizer = new HorizontalSizer;
    with( this.large_scale_Sizer )
    {
+      enabled = data.targetView != null
       spacing = 4;
       add( this.large_scale_Label );
       add( this.large_scale_SpinBox );
@@ -415,6 +450,7 @@ function LocalSupportMaskDialog()
    this.small_scale_SpinBox = new SpinBox( this );
    with( this.small_scale_SpinBox )
    {
+      enabled = data.targetView != null
       minValue = 0;
       maxValue = 15;
       value = data.small_scale;
@@ -426,6 +462,7 @@ function LocalSupportMaskDialog()
    this.small_scale_Sizer = new HorizontalSizer;
    with( this.small_scale_Sizer )
    {
+      enabled = data.targetView != null
       spacing = 4;
       add( this.small_scale_Label );
       add( this.small_scale_SpinBox );
@@ -444,6 +481,7 @@ function LocalSupportMaskDialog()
    this.compensation_SpinBox = new SpinBox( this );
    with( this.compensation_SpinBox )
    {
+      enabled = data.targetView != null
       minValue = 0;
       maxValue = 4;
       value = data.compensation;
@@ -473,6 +511,7 @@ function LocalSupportMaskDialog()
    this.smoothness_SpinBox = new SpinBox( this );
    with( this.smoothness_SpinBox )
    {
+      enabled = data.targetView != null
       minValue = 0;
       maxValue = 40;
       value = data.smoothness;
@@ -510,6 +549,7 @@ function LocalSupportMaskDialog()
    this.previewChexBox = new CheckBox(this);
    with( this.previewChexBox )
    {
+      enabled = data.targetView != null
       text    = "Create Overlay Preview";
       toolTip = "<p>Create overlay preview for local support mask.</p>";
 
@@ -532,20 +572,20 @@ function LocalSupportMaskDialog()
       }
    }
 
-   this.ok_Button = new PushButton(this);
+   this.ok_Button = new ToolButton(this);
    with( this.ok_Button )
    {
-      text = " OK ";
-      icon = scaledResource( ":/icons/ok.png" );
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
 
       onClick = () => { this.ok(); };
    }
 
-   this.cancel_Button = new PushButton(this);
+   this.cancel_Button = new ToolButton(this);
    with( this.cancel_Button )
    {
-      text = " Cancel ";
-      icon = scaledResource( ":/icons/cancel.png" );
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
 
       onClick = () => { this.cancel(); };
    }
@@ -558,14 +598,20 @@ function LocalSupportMaskDialog()
 
       onMousePress = function()
       {
+         if(data.dialog.targetImage_ViewList.currentView)
+         {
+            data.dialog.targetImage_ViewList.remove(data.dialog.targetImage_ViewList.currentView);
+            data.dialog.targetImage_ViewList.getMainViews();
+         }
          data.reset();
          data.dialog.strengthControl.setValue(1 - data.strength);
-         data.dialog.scale_SpinBox.value        = data.scale;
-         data.dialog.large_scale_SpinBox.value  = data.large_scale;
-         data.dialog.small_scale_SpinBox.value  = data.small_scale;
-         data.dialog.compensation_SpinBox.value = data.compensation;
-         data.dialog.smoothness_SpinBox.value   = data.smoothness;
-         data.dialog.previewChexBox.checked     = false;
+         data.dialog.scale_SpinBox.value          = data.scale;
+         data.dialog.large_scale_SpinBox.value    = data.large_scale;
+         data.dialog.small_scale_SpinBox.value    = data.small_scale;
+         data.dialog.compensation_SpinBox.value   = data.compensation;
+         data.dialog.smoothness_SpinBox.value     = data.smoothness;
+         data.dialog.previewChexBox.checked       = false;
+         disableAllControls();
       }
    }
 
