@@ -22,7 +22,7 @@
 
 \description {
 
-    \image[float,marginRight:1.25em,marginBottom:0.5em] main_screen.png
+    \image[float,marginRight:1.25em,marginBottom:0.5em] BBStarReduction_main_screen.png
 
     Bill Blanshan published three methods for star reduction in an astronomical image which are so far available as PixelMath expressions: \xref https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J {BillsStarReductionMethods_V2.xpsm}.
     A prerequisite is a starless image which needs to be created prior and the name of the starless image has to be provided in the PixelMath expressions.
@@ -61,21 +61,14 @@
       }
    } % star method
 
-   \definition {
-      { \label preview_settings Preview Settings } {
-         In case the selected \lref target_image {Target View} window contains previews, this control will allow to choose a preview image. Only previews are listed which have a size of at least 256x256 px. By hitting the 'Create Preview' push button an image will be generated which contains 9 frames with varying star reduction settings, depending on the chosen method.
-      }
-   } % preview settings
-
- \figure[numbered:fig_preview_1] {
-
-         \figtag \s { Preview Window Example }
-         \vs
-         \image[float,width:100\%] preview_window.png \nf
-         \vs
-         A preview of the transfer method. The strength parameter is increased by 0.1 per subframe.
-   } % figure
 } % Parameter Reference
+
+\section { \label preview Preview Star Reduction} {
+   In case the selected \lref target_image {Target View} window contains previews, one of it's previews can be selected from which a series of star reduction images are produced, with varying strength of star reduction. The used parameters are drawn as a signature in each subframe.
+   The following image shows a sample preview output window.
+
+   \center\image[float,width:100\%] BBStarReduction_preview.png
+}
 
 \section { \label known_issues Known Issues } {
    In case you run the script but do not see an effect in star reduction, check the console for the following error message from StarXTerminator:

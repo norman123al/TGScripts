@@ -1,5 +1,5 @@
 /*
-   BBStarReduction v1.0
+   BBStarReduction v1.1
 
    A script for Bill Blanshan's star reduction methods.
 
@@ -17,17 +17,29 @@
    You should have received a copy of the GNU General Public License along with
    this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include <pjsr/ColorSpace.jsh>
+
+/*
+   Change history:
+   v1.0
+      initial version
+   v1.1
+      reset button added
+      enable / disable controls added
+      simplified preview interface
+      bug fixes, code cleanup
+*/
+
 #include <pjsr/Sizer.jsh>
 #include <pjsr/FrameStyle.jsh>
 #include <pjsr/NumericControl.jsh>
 #include <pjsr/TextAlign.jsh>
-#include <pjsr/SampleType.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
 #include <pjsr/UndoFlag.jsh>
 
-#define VERSION   "1.0"
+#include "lib/TGScriptsLib.js"
+
+#define VERSION   "1.1"
 #define TITLE     "BBStarReduction"
 
 #define METHOD_transfer 0
@@ -36,6 +48,9 @@
 
 #define STRENGTH_SLIDER_RANGE   100
 #define DEFAULT_STRENGTH_SLIDER 0.5
+#define DEFAULT_METHOD          METHOD_transfer
+#define DEFAULT_ITERATIONS      1
+#define DEFAULT_MODE            2
 #define MAX_ITERATIONS          3
 #define PREV_SEPARATOR_WIDTH    3
 #define SIGNATURE_FONT_SIZE     32
@@ -57,11 +72,23 @@ function ScriptData()
    this.targetView = null;
    this.preview    = null;
    this.view_id    = "";
-   this.method     = METHOD_transfer;
+   this.method     = DEFAULT_METHOD;
    this.strength   = convertToStrength(DEFAULT_STRENGTH_SLIDER);
-   this.iterations = 1;
-   this.mode       = 2;
+   this.iterations = DEFAULT_ITERATIONS;
+   this.mode       = DEFAULT_MODE;
    this.preview_id = "";
+
+   this.reset = function()
+   {
+      this.targetView = null;
+      this.preview    = null;
+      this.view_id    = "";
+      this.method     = DEFAULT_METHOD;
+      this.strength   = convertToStrength(DEFAULT_STRENGTH_SLIDER);
+      this.iterations = DEFAULT_ITERATIONS;
+      this.mode       = DEFAULT_MODE;
+      this.preview_id = "";
+   }
 
    // Save parameters in process icon.
    this.exportParameters = function()
@@ -113,6 +140,30 @@ function ScriptData()
 
 var data = new ScriptData;
 
+// -----------------------------------------------------------------------------
+// enable/disable controls
+// ----------------------------------------------------------------------------
+function toggleAllControls( bEnable )
+{
+   data.dialog.transferMethodRadioButton.enabled = bEnable;
+   data.dialog.haloMethodRadioButton.enabled     = bEnable;
+   data.dialog.starMethodRadioButton.enabled     = bEnable;
+   data.dialog.strengthControl.enabled           = bEnable;
+   data.dialog.iterationsSpinBox.enabled         = bEnable;
+   data.dialog.modeComboBox.enabled              = bEnable;
+   data.dialog.previewViewList.enabled           = bEnable;
+}
+
+function disableAllControls()
+{
+   toggleAllControls(false);
+}
+
+function enableAllControls()
+{
+   toggleAllControls(true);
+}
+
 // ----------------------------------------------------------------------------
 // mode array
 // ----------------------------------------------------------------------------
@@ -129,54 +180,6 @@ function convertToStrength(value)
 function convertToValue(strength)
 {
    return (0.5 - strength) * 2;
-}
-
-// ----------------------------------------------------------------------------
-// Returns a unique view id with the given base id prefix.
-// ----------------------------------------------------------------------------
-function uniqueViewId(baseId)
-{
-   var id = baseId;
-   for (var i = 1; !View.viewById(id).isNull; ++i)
-   {
-      id = baseId + format("%02d", i);
-   }
-   return id;
-}
-
-// ----------------------------------------------------------------------------
-// Creates an image window with the given parameters.
-// ----------------------------------------------------------------------------
-function createRawImageWindow(viewId, baseImage)
-{
-   var window = new ImageWindow(
-      baseImage.width,
-      baseImage.height,
-      baseImage.numberOfChannels,
-      baseImage.bitsPerSample,
-      baseImage.sampleType == SampleType_Real,
-      baseImage.colorSpace != ColorSpace_Gray,
-      viewId
-   );
-
-   return window;
-}
-
-// ----------------------------------------------------------------------------
-// Creates a copy of a window as separate window instance.
-// ----------------------------------------------------------------------------
-function createImageCopyWindow(viewId, baseImage)
-{
-   var window = createRawImageWindow(viewId, baseImage);
-
-   // copy content of provided image into new image
-   window.mainView.beginProcess(UndoFlag_NoSwapFile);
-   window.mainView.image.selectedPoint = new Point(0, 0);
-   window.mainView.image.apply(baseImage);
-   window.mainView.image.resetSelections();
-   window.mainView.endProcess();
-
-   return window;
 }
 
 // ----------------------------------------------------------------------------
@@ -376,7 +379,6 @@ function DrawSignature( data )
 
    // Calculate the sizes of our drawing box
    var width = font.width( data.text ) + 2*innerMargin;
-
    var height = font.ascent + font.descent + 2*innerMargin;
    // Create a bitmap where we'll perform all of our drawing work
    var bmp = new Bitmap( width, height );
@@ -405,9 +407,6 @@ function DrawSignature( data )
 // ----------------------------------------------------------------------------
 function createPreview()
 {
-   Console.show();
-   var t0 = new Date;
-
    var xIterations = 0;
    var yIterations = 0;
    var method      = data.method;
@@ -502,19 +501,16 @@ function createPreview()
             }
          }
       }
+
+      if(!starlessPrevWindow.isNull)
+      {  // if gui is closed while previews are processed, starlessPrevWindow might be null
+         starlessPrevWindow.forceClose();
+      }
    }
 
    copyWindow.forceClose();
-   if(!starlessPrevWindow.isNull)
-   {  // if gui is closed while previews are processed, starlessPrevWindow might be null
-      starlessPrevWindow.forceClose();
-   }
    prevWindow.fitWindow();
    prevWindow.show();
-
-   var t1 = new Date;
-   Console.writeln(format("<end><cbr>createPreview: %.2f s", (t1.getTime() - t0.getTime())/1000));
-   Console.hide();
 }
 
 // ----------------------------------------------------------------------------
@@ -557,7 +553,7 @@ function doWork()
    Console.show();
    var t0 = new Date;
 
-   //------ real work happens here ---------
+   //------ real work starts here ---------
 
    // Check if image is non-linear
    var median = data.targetView.computeOrFetchProperty( "Median" ).at(0);
@@ -569,12 +565,66 @@ function doWork()
          return;
    }
 
-   doStarReduction(data.method, data.strength, data.iterations, data.mode + 1, data.targetView);
+   if(data.preview_id != "")
+   {
+      var image = data.preview.image;
+      if(image.width <= 512 || image.height <= 512)
+      {
+         Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least 512x512)", image.width, image.height ) );
+         var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
+         msg.execute();
+         return;
+      }
+      createPreview();
+   }
+   else
+   {
+      var image = data.targetView.image;
+      if(image.width <= 512 || image.height <= 512)
+      {
+         Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least 512x512)", image.width, image.height ) );
+         var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
+         msg.execute();
+         return;
+      }
+      doStarReduction(data.method, data.strength, data.iterations, data.mode + 1, data.targetView);
+   }
 
    //------ real work end -----------------
 
    var t1 = new Date;
    Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
+   Console.hide();
+}
+
+// ----------------------------------------------------------------------------
+// exclude previews
+// ----------------------------------------------------------------------------
+function excludePreviews(vList)
+{
+   var images = ImageWindow.windows;
+   for ( var i in images )
+   {
+      var view = images[i].mainView;
+      if (view.isMainView && view.id != data.view_id)
+      {
+         for( var j in images[i].previews )
+         {
+            vList.remove(images[i].previews[j]);
+         }
+      }
+      else
+      {  // throw out images which are too small
+         for( var j in images[i].previews )
+         {
+            var prevImg = images[i].previews[j].image;
+            if(prevImg.width < MIN_IMAGE_WIDTH || prevImg.height < MIN_IMAGE_HEIGHT)
+            {
+               vList.remove(images[i].previews[j]);
+            }
+         }
+      }
+   }
 }
 
 // ----------------------------------------------------------------------------
@@ -586,7 +636,7 @@ function ScriptDialog()
    this.__base__();
 
    data.dialog = this;
-   var labelWidth  = 12 * this.font.width("M");
+   var labelWidth  = 9 * this.font.width("M");
 
    // -------------------------------------------------------------------------
    this.helpLabel = new Label( this );
@@ -646,6 +696,7 @@ function ScriptDialog()
             data.preview    = null;
             data.view_id    = view.id;
             data.preview_id = "";
+            enableAllControls();
          }
          else
          {
@@ -653,11 +704,12 @@ function ScriptDialog()
             data.preview    = null;
             data.view_id = "";
             data.preview_id = "";
+            disableAllControls();
          }
 
          // update preview ViewList
          data.dialog.previewViewList.getPreviews();
-         excludeViews(data.dialog.previewViewList);
+         excludePreviews(data.dialog.previewViewList);
       }
    }
 
@@ -673,6 +725,7 @@ function ScriptDialog()
    this.transferMethodRadioButton = new RadioButton(this);
    with( this.transferMethodRadioButton )
    {
+      enabled = data.targetView != null
       text = "Transfer method";
       checked = data.method == METHOD_transfer;
       toolTip = "<p>Star reduction with transfer method.</p>";
@@ -685,8 +738,6 @@ function ScriptDialog()
             data.dialog.strengthControl.enabled   = true;
             data.dialog.iterationsSpinBox.enabled = false;
             data.dialog.modeComboBox.enabled      = false;
-            if(data.dialog.previewButton.enabled)
-               data.dialog.prevStrengthStepSizeControl.enabled = true;
          }
       }
    }
@@ -694,6 +745,7 @@ function ScriptDialog()
    this.haloMethodRadioButton = new RadioButton(this);
    with( this.haloMethodRadioButton )
    {
+      enabled = data.targetView != null
       text = "Halo method";
       checked = data.method == METHOD_halo;
       toolTip = "<p>Star reduction with halo method.</p>";
@@ -706,8 +758,6 @@ function ScriptDialog()
             data.dialog.strengthControl.enabled   = true;
             data.dialog.iterationsSpinBox.enabled = false;
             data.dialog.modeComboBox.enabled      = false;
-            if(data.dialog.previewButton.enabled)
-               data.dialog.prevStrengthStepSizeControl.enabled = true;
          }
       }
    }
@@ -715,6 +765,7 @@ function ScriptDialog()
    this.starMethodRadioButton = new RadioButton(this);
    with( this.starMethodRadioButton )
    {
+      enabled = data.targetView != null
       text = "Star method";
       checked = data.method == METHOD_star;
       toolTip = "<p>Star reduction with star method.</p>";
@@ -748,7 +799,7 @@ function ScriptDialog()
    this.strengthControl = new NumericControl(this);
    with( this.strengthControl )
    {
-      enabled = (data.method == METHOD_transfer || data.method == METHOD_halo);
+      enabled = data.targetView != null && (data.method == METHOD_transfer || data.method == METHOD_halo);
       label.text = "Strength:";
       label.minWidth = labelWidth;
       slider.setRange(0, STRENGTH_SLIDER_RANGE);
@@ -774,7 +825,7 @@ function ScriptDialog()
    this.iterationsSpinBox = new SpinBox( this );
    with( this.iterationsSpinBox )
    {
-      enabled = (data.method == METHOD_star);
+      enabled = data.targetView != null && (data.method == METHOD_star);
       minValue = 1;
       maxValue = MAX_ITERATIONS;
       value = data.iterations;
@@ -805,7 +856,7 @@ function ScriptDialog()
    this.modeComboBox = new ComboBox( this );
    with( this.modeComboBox )
    {
-      enabled = (data.method == METHOD_star);
+      enabled = data.targetView != null && (data.method == METHOD_star);
       addItem(modeArray[0]);
       addItem(modeArray[1]);
       addItem(modeArray[2]);
@@ -850,36 +901,11 @@ function ScriptDialog()
    this.previewViewList = new ViewList( this );
    with( this.previewViewList )
    {
-      excludeViews = function(vList)
-      {
-         var images = ImageWindow.windows;
-         for ( var i in images )
-         {
-            var view = images[i].mainView;
-            if (view.isMainView && view.id != data.view_id)
-            {
-               for( var j in images[i].previews )
-               {
-                  vList.remove(images[i].previews[j]);
-               }
-            }
-            else
-            {  // throw out images which are too small
-               for( var j in images[i].previews )
-               {
-                  var prevImg = images[i].previews[j].image;
-                  if(prevImg.width < MIN_IMAGE_WIDTH || prevImg.height < MIN_IMAGE_HEIGHT)
-                  {
-                     vList.remove(images[i].previews[j]);
-                  }
-               }
-            }
-         }
-      }
+      enabled = data.targetView != null;
 
       scaledMinWidth = 200;
       getPreviews();
-      excludeViews(this.previewViewList);
+      excludePreviews(this.previewViewList);
       if(data.preview)
          currentView = data.preview;
 
@@ -891,13 +917,11 @@ function ScriptDialog()
          {
             data.preview    = view;
             data.preview_id = view.id;
-            data.dialog.previewButton.enabled = true;
          }
          else
          {
             data.preview    = null;
             data.preview_id = "";
-            data.dialog.previewButton.enabled = false;
          }
       }
    }
@@ -911,27 +935,14 @@ function ScriptDialog()
    }
 
    // -------------------------------------------------------------------------
-   this.previewButton = new PushButton(this);
-   with( this.previewButton )
-   {
-      enabled = (data.preview != null);
-      text    = "Create Preview";
-      toolTip = "<p>Create preview window for selected star reduction method.</p>";
-
-      onClick = function() { createPreview(); }
-   }
-
-   // -------------------------------------------------------------------------
    this.previewGroupBox = new GroupBox( this );
    with( this.previewGroupBox )
    {
-      title = "Preview Settings";
+      title = "Preview Star Reduction";
       sizer = new VerticalSizer;
       sizer.margin = 6;
       sizer.spacing = 4;
       sizer.add(this.previewSizer);
-      sizer.addSpacing(4);
-      sizer.add(this.previewButton);
    }
 
    // -------------------------------------------------------------------------
@@ -950,22 +961,53 @@ function ScriptDialog()
       }
    }
 
-   this.okButton = new PushButton(this);
+   this.okButton = new ToolButton(this);
    with( this.okButton )
    {
-      text = " OK ";
-      icon = scaledResource( ":/icons/ok.png" );
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
 
       onClick = () => { this.ok(); }
    }
 
-   this.cancelButton = new PushButton(this);
+   this.cancelButton = new ToolButton(this);
    with( this.cancelButton )
    {
-      text = " Cancel ";
-      icon = scaledResource( ":/icons/cancel.png" );
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
 
       onClick = () => { this.cancel(); }
+   }
+
+   this.reset_Button = new ToolButton(this);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = function()
+      {
+         if(data.dialog.targetImageViewList.currentView)
+         {
+            data.dialog.targetImageViewList.remove(data.dialog.targetImageViewList.currentView);
+            data.dialog.targetImageViewList.getMainViews();
+            excludeViews(data.dialog.targetImageViewList);
+         }
+         if(data.dialog.previewViewList.currentView)
+         {
+            data.dialog.previewViewList.remove(data.dialog.previewViewList.currentView);
+            data.dialog.previewViewList.getPreviews();
+            excludePreviews(data.dialog.previewViewList);
+         }
+         data.reset();
+         data.dialog.transferMethodRadioButton.checked = data.method == METHOD_transfer;
+         data.dialog.haloMethodRadioButton.checked     = data.method == METHOD_halo;
+         data.dialog.starMethodRadioButton.checked     = data.method == METHOD_star;
+         data.dialog.strengthControl.setValue(convertToValue(data.strength));
+         data.dialog.iterationsSpinBox.value           = data.iterations;
+         data.dialog.modeComboBox.currentItem          = data.mode;
+         disableAllControls();
+      }
    }
 
    this.buttonsSizer = new HorizontalSizer;
@@ -976,6 +1018,7 @@ function ScriptDialog()
       addStretch();
       add(this.okButton);
       add(this.cancelButton);
+      add(this.reset_Button);
    }
 
    // -------------------------------------------------------------------------
