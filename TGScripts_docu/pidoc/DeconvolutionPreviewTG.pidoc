@@ -32,6 +32,7 @@
     Therefore, this script works now on image previews instead of the main view. The user can define the region of interest by creating a preview and then run this script on the image preview.
     The crash was fixed and in addition some relevant deconvolution parameters are exposed in the script GUI as well. The script checks if the selected preview is in linear state and if not, issues a warning message box.
     In case the warning message is confirmed, the script continues the processing.
+    The "apply" button can be used to run the deconvolution with the current settings on the selected preview. This allows a comparison to the unchanged image via the preview undo/redo functionality of Pixinsight.
 
     Furthermore, code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.
 } % description

@@ -820,7 +820,6 @@ function DeconvolutionPreviewDialog()
    with ( this.localSupportAmountControl )
    {
       enabled = data.localsupportmaskView != null;
-      enabled = data.prev_id != "";
       label.text = "Local amount:";
       label.minWidth = labelWidth1;
       setRange( 0, 1);
@@ -1001,8 +1000,8 @@ function main()
 
          if (!window.isNull && window.currentView.isPreview)
          {
-            data.targetView = window.currentView;
-            data.view_id    = window.currentView.id;
+            data.targetPreview = window.currentView;
+            data.prev_id       = window.currentView.id;
          }
       }
    }
