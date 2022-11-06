@@ -45,8 +45,11 @@
       1. provide GUI reset button
       2. add 'Local amount' slider for local support mask
       3. change ok and cancel buttons to tool buttons
-
+      4. add "reset" button
+      5. GUI control enable/disable
+      6. bug fixing
 */
+
 #feature-id   DeconvolutionPreviewTG : TG Scripts > DeconvolutionPreviewTG
 
 #feature-info  A script for assisted deconvolution.<br/>\
@@ -173,6 +176,7 @@ function DeconvolutionPreviewData()
          {
             var arrow = this.prev_id.indexOf ("->");
             var parent_id = this.prev_id.substring (0, arrow);
+            Console.writeln("parent_id: ", parent_id);
             var pwindow = ImageWindow.windowById(parent_id);
             if(!pwindow.isNull)
             {
@@ -985,7 +989,7 @@ function main()
       if(Parameters.targetView.isPreview)
       {
          data.targetPreview = Parameters.targetView;
-         data.prev_id       = Parameters.targetView.id;
+         data.prev_id       = Parameters.targetView.fullId;
          doWork(data);
       }
       return;
@@ -1001,7 +1005,7 @@ function main()
          if (!window.isNull && window.currentView.isPreview)
          {
             data.targetPreview = window.currentView;
-            data.prev_id       = window.currentView.id;
+            data.prev_id       = window.currentView.fullId;
          }
       }
    }
