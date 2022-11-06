@@ -6,12 +6,20 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="ae0253db17adfd968125f9791288a0a413fddb8c" type="script" releaseDate="20221106">
+      <package fileName="TGScripts_repository.tar.gz" sha1="231720472855403412fcbd10cb069574619fd845" type="script" releaseDate="20221106">
          <title>
             TGScripts snapshot - 2022 Nov 06
          </title>
          <remove>
             src/scripts/TGScripts
+            doc/scripts/AberrationInspectorTG
+            doc/scripts/AberrationSpotterTG
+            doc/scripts/BBStarReduction
+            doc/scripts/ColorMaskTG
+            doc/scripts/DarkStructureEnhanceTG
+            doc/scripts/DeconvolutionPreviewTG
+            doc/scripts/LocalSupportMask
+            doc/scripts/TGScriptSkeleton
          </remove>
          <description>
             <p>
