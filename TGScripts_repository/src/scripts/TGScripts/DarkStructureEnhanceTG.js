@@ -23,12 +23,17 @@
 */
 
 /*
-   DarkStructureEnhanceTG v2.0
-
+   DarkStructureEnhanceTG
    Modified by Thorsten Glebe, October 2022
-   1. added "new instance" icon to store state of GUI
-   2. reduce default of 'Amount' to 0.3
-   3. minor refactorings
+
+   Change history:
+   v2.0
+      1. added "new instance" icon to store state of GUI
+      2. reduce default of 'Amount' to 0.3
+      3. minor refactorings
+   v2.1
+      1. add "reset" button
+      2. enable/disable controls
 */
 
 #include <pjsr/Sizer.jsh>
@@ -54,13 +59,14 @@
 
 #define nStarMask 6
 
-#define VERSION "2.0"
+#define VERSION "2.1"
 
 #define TITLE "DarkStructureEnhanceTG"
 
 //------------ DarkMaskLayersData --------------
 function DarkMaskLayersData()
 {
+   this.dialog          = null;
    this.targetView      = null;
    this.view_id         = "";
    this.numberOfLayers  = 8;
@@ -70,6 +76,19 @@ function DarkMaskLayersData()
    this.median          = 0.65;
    this.iterations      = 1;
    this.viewMask        = false;
+
+   this.reset = function()
+   {
+      this.targetView      = null;
+      this.view_id         = "";
+      this.numberOfLayers  = 8;
+      this.scalingFunction = 1;
+      this.extractResidual = true;
+      this.toLumi          = false;
+      this.median          = 0.65;
+      this.iterations      = 1;
+      this.viewMask        = false;
+   }
 
    /*
     * Save parameters in process icon.
@@ -122,7 +141,27 @@ function DarkMaskLayersData()
 
 var data = new DarkMaskLayersData;
 
-//------------ ScalingFunction --------------
+// -----------------------------------------------------------------------------
+function toggleAllControls( bEnable )
+{
+   data.dialog.numberOfLayers_SpinBox.enabled   = bEnable;
+   data.dialog.extractResidual_CheckBox.enabled = bEnable;
+   data.dialog.scalingFunction_ComboBox.enabled = bEnable;
+   data.dialog.median_NC.enabled                = bEnable;
+   data.dialog.iter_SpinBox.enabled             = bEnable;
+}
+
+function disableAllControls()
+{
+   toggleAllControls(false);
+}
+
+function enableAllControls()
+{
+   toggleAllControls(true);
+}
+
+// -----------------------------------------------------------------------------
 function ScalingFunction( kernel, name , size )
 {
     this.kernel = kernel;
@@ -146,7 +185,7 @@ scalingFunctions[1] = new ScalingFunction(
      1/256, 1/64, 3/128, 1/64, 1/256 ],
    "5x5 B3 Spline", 5 );
 
-//------------ doAuxiliarImage --------------
+// -----------------------------------------------------------------------------
 function doAuxiliarImage(data) {
 
     var view = data.targetView;
@@ -196,10 +235,11 @@ function doAuxiliarImage(data) {
     wavlets.executeOn(maskView, false/*swapFile*/ );
 
     return mask;
-};
+}
 
-//------------ doMask --------------
-function doMask( data ) {
+// -----------------------------------------------------------------------------
+function doMask( data )
+{
     var view = data.targetView;
     var mask = new ImageWindow(
             view.image.width,
@@ -240,7 +280,8 @@ function doMask( data ) {
 
     var id = auxMask.mainView.id;
 
-    with (pm) {
+    with (pm)
+    {
         expression  = "$T -"+id;
         useSingleExpression = true;
         use64BitWorkingImage = false;
@@ -262,7 +303,8 @@ function doMask( data ) {
     // wavlets
 
     var auxLayers = new Array(data.numberOfLayers);
-    for(var i=0;i<data.numberOfLayers;++i) {
+    for(var i=0;i<data.numberOfLayers;++i)
+    {
         auxLayers[i] = [false, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
     }
     auxLayers[data.numberOfLayers] = [true, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
@@ -318,7 +360,8 @@ function doMask( data ) {
 
     // Convert to gray
 
-    if(view.image.colorSpace != ColorSpace_Gray) {
+    if(view.image.colorSpace != ColorSpace_Gray)
+    {
         var toGray = new ConvertToGrayscale;
         toGray.executeOn( maskView, false/*swapFile*/ );
     }
@@ -360,7 +403,7 @@ function doMask( data ) {
     return mask;
 }
 
-//------------ doDark --------------
+// -----------------------------------------------------------------------------
 function doDark()
 {
       // Check if image is non-linear
@@ -387,7 +430,8 @@ function doDark()
 
     var pc = new ProcessContainer;
 
-    for(var i=0;i<data.iterations;++i) {
+    for(var i=0;i<data.iterations;++i)
+    {
         pc.add(hist);
         pc.setMask(i,mask,false/*invert*/);
     }
@@ -404,12 +448,13 @@ function doDark()
       mask.forceClose();
 }
 
-//------------ DarkMaskLayersDialog --------------
+// -----------------------------------------------------------------------------
 function DarkMaskLayersDialog()
 {
    this.__base__ = Dialog;
    this.__base__();
 
+   data.dialog = this;
    var emWidth = this.font.width( 'M' );
    var labelWidth1 = this.font.width( "Layers to remove:" + 'T' );
 
@@ -459,10 +504,13 @@ function DarkMaskLayersDialog()
          {
             data.targetView = view;
             data.view_id    = view.id;
+            enableAllControls();
          }
          else
          {
-            data.view_id = "";
+            data.targetView = null;
+            data.view_id    = "";
+            disableAllControls();
          }
       }
    }
@@ -488,6 +536,7 @@ function DarkMaskLayersDialog()
    this.numberOfLayers_SpinBox = new SpinBox( this );
    with( this.numberOfLayers_SpinBox )
    {
+      enabled = data.targetView != null;
       minValue = 5;
       maxValue = 12;
       value = data.numberOfLayers;
@@ -500,6 +549,7 @@ function DarkMaskLayersDialog()
    this.extractResidual_CheckBox = new CheckBox( this );
    with( this.extractResidual_CheckBox )
    {
+      enabled = data.targetView != null;
       text = "Extract mask";
       checked = data.viewMask;
 
@@ -532,6 +582,7 @@ function DarkMaskLayersDialog()
    this.scalingFunction_ComboBox = new ComboBox( this );
    with( this.scalingFunction_ComboBox )
    {
+      enabled = data.targetView != null;
       for ( var i = 0; i < scalingFunctions.length; ++i )
          addItem( scalingFunctions[i].name );
       currentItem = data.scalingFunction;
@@ -566,6 +617,7 @@ function DarkMaskLayersDialog()
    this.median_NC = new NumericControl (this);
    with ( this.median_NC )
    {
+      enabled = data.targetView != null;
       label.text = "Amount:";
       label.minWidth = labelWidth1;
       setRange (0.0, 0.99);
@@ -590,6 +642,7 @@ function DarkMaskLayersDialog()
    this.iter_SpinBox = new SpinBox( this );
    with( this.iter_SpinBox )
    {
+      enabled = data.targetView != null;
       minValue = 1;
       maxValue = 10;
       value = data.iterations;
@@ -637,22 +690,45 @@ function DarkMaskLayersDialog()
       }
    }
 
-   this.ok_Button = new PushButton( this );
+   this.ok_Button = new ToolButton( this );
    with( this.ok_Button )
    {
-      text = "OK";
-      icon = scaledResource( ":/icons/ok.png" );
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
 
       onClick = () => { this.ok(); }
    }
 
-   this.cancel_Button = new PushButton( this );
+   this.cancel_Button = new ToolButton( this );
    with( this.cancel_Button )
    {
-      text = "Cancel";
-      icon = scaledResource( ":/icons/cancel.png" );
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
 
       onClick = () => { this.cancel(); }
+   }
+
+   this.reset_Button = new ToolButton(this);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = function()
+      {
+         if(data.dialog.targetImage_ViewList.currentView)
+         {
+            data.dialog.targetImage_ViewList.remove(data.dialog.targetImage_ViewList.currentView);
+            data.dialog.targetImage_ViewList.getMainViews();
+         }
+         data.reset();
+         data.dialog.numberOfLayers_SpinBox.value         = data.numberOfLayers;
+         data.dialog.extractResidual_CheckBox.checked     = data.viewMask;
+         data.dialog.scalingFunction_ComboBox.currentItem = data.scalingFunction;
+         data.dialog.median_NC.setValue((data.median-0.5)*2);
+         data.dialog.iter_SpinBox.value                   = data.iterations;
+         disableAllControls();
+      }
    }
 
    this.buttons_Sizer = new HorizontalSizer;
@@ -663,6 +739,7 @@ function DarkMaskLayersDialog()
       addStretch();
       add( this.ok_Button );
       add( this.cancel_Button );
+      add( this.reset_Button );
    }
 
    //---------------------------------------------------------------------------
