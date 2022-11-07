@@ -67,4 +67,11 @@
     } % iterations
 
 } % Parameter Reference
+
+\section { \label preview Preview Dark Structure Enhance} {
+   In case the selected \lref target_image {Target View} window contains previews, one of it's previews can be selected from which a series of dark structure enhanced images are produced, with varying strength of dark structure enhancement. The used parameter values are drawn as a signature in each subframe.
+   The following image shows a sample preview output window.
+
+   \center\image[float,width:100\%] DarkStructureEnhanceTG_preview.png
+}
 \make

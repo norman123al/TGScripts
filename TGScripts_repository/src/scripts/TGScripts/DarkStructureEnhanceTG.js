@@ -34,6 +34,9 @@
    v2.1
       1. add "reset" button
       2. enable/disable controls
+   v2.2
+      1. added preview
+      2. code refactoring
 */
 
 #include <pjsr/Sizer.jsh>
@@ -41,10 +44,10 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/SampleType.jsh>
 #include <pjsr/UndoFlag.jsh>
-#include <pjsr/ColorSpace.jsh>
 #include <pjsr/NumericControl.jsh>
+
+#include "lib/TGScriptsLib.js"
 
 #feature-id    DarkStructureEnhanceTG : TG Scripts > DarkStructureEnhanceTG
 
@@ -59,9 +62,16 @@
 
 #define nStarMask 6
 
-#define VERSION "2.1"
-
+#define VERSION "2.2"
 #define TITLE "DarkStructureEnhanceTG"
+
+#define DEFAULT_LAYERS       8
+#define DEFAULT_SCALING      1
+#define DEFAULT_MEDIAN       0.65
+#define DEFAULT_ITERATIONS   1
+#define LAYERS_TO_REMOVE_MIN 5
+#define LAYERS_TO_REMOVE_MAX 12
+#define PREV_SEPARATOR_WIDTH 3
 
 //------------ DarkMaskLayersData --------------
 function DarkMaskLayersData()
@@ -69,24 +79,28 @@ function DarkMaskLayersData()
    this.dialog          = null;
    this.targetView      = null;
    this.view_id         = "";
-   this.numberOfLayers  = 8;
-   this.scalingFunction = 1;
+   this.preview         = null;
+   this.preview_id      = "";
+   this.numberOfLayers  = DEFAULT_LAYERS;
+   this.scalingFunction = DEFAULT_SCALING;
    this.extractResidual = true;
    this.toLumi          = false;
-   this.median          = 0.65;
-   this.iterations      = 1;
+   this.median          = DEFAULT_MEDIAN;
+   this.iterations      = DEFAULT_ITERATIONS;
    this.viewMask        = false;
 
    this.reset = function()
    {
       this.targetView      = null;
       this.view_id         = "";
-      this.numberOfLayers  = 8;
-      this.scalingFunction = 1;
+      this.preview         = null;
+      this.preview_id      = "";
+      this.numberOfLayers  = DEFAULT_LAYERS;
+      this.scalingFunction = DEFAULT_SCALING;
       this.extractResidual = true;
       this.toLumi          = false;
-      this.median          = 0.65;
-      this.iterations      = 1;
+      this.median          = DEFAULT_MEDIAN;
+      this.iterations      = DEFAULT_ITERATIONS;
       this.viewMask        = false;
    }
 
@@ -96,6 +110,7 @@ function DarkMaskLayersData()
    this.exportParameters = function()
    {
       Parameters.set("view_id"        , data.view_id);
+      Parameters.set("preview_id"     , data.preview_id);
       Parameters.set("numberOfLayers" , data.numberOfLayers);
       Parameters.set("scalingFunction", data.scalingFunction);
       Parameters.set("extractResidual", data.extractResidual);
@@ -120,6 +135,17 @@ function DarkMaskLayersData()
             {
                this.targetView = window.mainView;
             }
+         }
+      }
+      if (this.targetView && Parameters.has("preview_id"))
+      {
+         this.preview_id = Parameters.getString("preview_id");
+         var window = ImageWindow.windowById(this.view_id);
+         for( i in window.previews )
+         {
+            var preview = window.previews[i];
+            if(preview.id == this.preview_id)
+               this.preview = preview;
          }
       }
       if(Parameters.has("numberOfLayers"))
@@ -149,6 +175,7 @@ function toggleAllControls( bEnable )
    data.dialog.scalingFunction_ComboBox.enabled = bEnable;
    data.dialog.median_NC.enabled                = bEnable;
    data.dialog.iter_SpinBox.enabled             = bEnable;
+   data.dialog.previewViewList.enabled          = bEnable;
 }
 
 function disableAllControls()
@@ -162,11 +189,22 @@ function enableAllControls()
 }
 
 // -----------------------------------------------------------------------------
+function convertMedianToValue(median)
+{
+   return (median-0.5)*2
+}
+
+function convertValueToMedian(value)
+{
+   return (0.5*value)+0.5;
+}
+
+// -----------------------------------------------------------------------------
 function ScalingFunction( kernel, name , size )
 {
     this.kernel = kernel;
-    this.name = name;
-    this.size = size;
+    this.name   = name;
+    this.size   = size;
 }
 
 var scalingFunctions = new Array;
@@ -186,227 +224,310 @@ scalingFunctions[1] = new ScalingFunction(
    "5x5 B3 Spline", 5 );
 
 // -----------------------------------------------------------------------------
-function doAuxiliarImage(data) {
-
-    var view = data.targetView;
-    var mask = new ImageWindow(view.image.width,
-            view.image.height,
-            view.image.numberOfChannels,
-            view.image.bitsPerSample,
-            view.image.sampleType == SampleType_Real,
-            view.image.colorSpace != ColorSpace_Gray,
-            "Mask");
-    var maskView = mask.mainView;
-
-    // copy data
-    maskView.beginProcess(UndoFlag_NoSwapFile);
-    maskView.image.apply(view.image);
-    maskView.endProcess();
-
-    // do awt
-
-    var auxLayers = new Array(nStarMask);
-    for(var i=0;i<nStarMask;++i) {
-        auxLayers[i] = [true, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, true, 1.0, 0.02000];
-    }
-    auxLayers[nStarMask] = [false, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
-
-    var wavlets = new ATrousWaveletTransformV1;
-    with ( wavlets )
-    {
-        version = 257;
-        layers = auxLayers;
-        scaleDelta = 0;
-        scalingFunctionData = scalingFunctions[data.scalingFunction].kernel;
-        scalingFunctionKernelSize = scalingFunctions[data.scalingFunction].size;
-        scalingFunctionName = scalingFunctions[data.scalingFunction].name;
-        largeScaleFunction = NoFunction;
-        curveBreakPoint = 0.75;
-        noiseThresholdingAmount = 0.00;
-        noiseThreshold = 3.00;
-        lowRange = 0.000;
-        highRange = 0.000;
-        previewMode = Disabled;
-        previewLayer = 0;
-        toLuminance = true;
-        toChrominance = true;
-        linear = false;
-    }
-    wavlets.executeOn(maskView, false/*swapFile*/ );
-
-    return mask;
+function doWaveletTransform(auxLayers, view)
+{
+   var wavlets = new ATrousWaveletTransformV1;
+   with ( wavlets )
+   {
+       version                   = 257;
+       layers                    = auxLayers;
+       scaleDelta                = 0;
+       scalingFunctionData       = scalingFunctions[data.scalingFunction].kernel;
+       scalingFunctionKernelSize = scalingFunctions[data.scalingFunction].size;
+       scalingFunctionName       = scalingFunctions[data.scalingFunction].name;
+       largeScaleFunction        = NoFunction;
+       curveBreakPoint           = 0.75;
+       noiseThresholdingAmount   = 0.00;
+       noiseThreshold            = 3.00;
+       lowRange                  = 0.000;
+       highRange                 = 0.000;
+       previewMode               = Disabled;
+       previewLayer              = 0;
+       toLuminance               = true;
+       toChrominance             = true;
+       linear                    = false;
+   }
+   wavlets.executeOn(view, false/*swapFile*/ );
 }
 
 // -----------------------------------------------------------------------------
-function doMask( data )
+function doAuxiliarImage( image )
 {
-    var view = data.targetView;
-    var mask = new ImageWindow(
-            view.image.width,
-            view.image.height,
-            view.image.numberOfChannels,
-            view.image.bitsPerSample,
-            view.image.sampleType == SampleType_Real,
-            view.image.colorSpace != ColorSpace_Gray,
-            "Mask");
-    var maskView = mask.mainView;
+   var mask = createImageCopyWindow("Mask", image);
+   var maskView = mask.mainView;
 
-    // copy data
-    maskView.beginProcess(UndoFlag_NoSwapFile);
-    maskView.image.apply(view.image);
-    maskView.endProcess();
+   // do awt
+   var auxLayers = new Array(nStarMask);
+   for(var i=0; i < nStarMask; ++i)
+   {
+       auxLayers[i] = [true, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, true, 1.0, 0.02000];
+   }
+   auxLayers[nStarMask] = [false, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
 
-    // RBGWorking space
+   doWaveletTransform(auxLayers, maskView);
 
-    var rgb = new RGBWorkingSpace;
-    with (rgb)
-    {
-        channels = // Y, x, y
-            [
-            [0.333333, 0.648431, 0.330856],
-            [0.333333, 0.321152, 0.597871],
-            [0.333333, 0.155886, 0.066044]];
-        gamma = 2.20;
-        sRGBGamma = true;
-        applyGlobalRGBWS = false;
-    }
-    rgb.executeOn(maskView, false/*swapFile*/ );
-
-    // Anti deringing: Carlos Paranoia :D
-
-    var auxMask = doAuxiliarImage(data);
-
-    var pm = new PixelMath;
-
-    var id = auxMask.mainView.id;
-
-    with (pm)
-    {
-        expression  = "$T -"+id;
-        useSingleExpression = true;
-        use64BitWorkingImage = false;
-        rescale = false;
-        rescaleLower = 0.0000000000;
-        rescaleUpper = 1.0000000000;
-        truncate = true;
-        truncateLower = 0.0000000000;
-        truncateUpper = 1.0000000000;
-        createNewImage = false;
-    }
-
-    pm.executeOn( maskView, false/*swapFile*/ );
-
-    //auxMask.show();
-
-    auxMask.forceClose();
-
-    // wavlets
-
-    var auxLayers = new Array(data.numberOfLayers);
-    for(var i=0;i<data.numberOfLayers;++i)
-    {
-        auxLayers[i] = [false, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
-    }
-    auxLayers[data.numberOfLayers] = [true, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
-
-    var wavlets = new ATrousWaveletTransformV1;
-    with ( wavlets )
-    {
-        version = 257;
-        layers = auxLayers;
-        scaleDelta = 0;
-        scalingFunctionData = scalingFunctions[data.scalingFunction].kernel;
-        scalingFunctionKernelSize = scalingFunctions[data.scalingFunction].size;
-        scalingFunctionName = scalingFunctions[data.scalingFunction].name;
-        largeScaleFunction = NoFunction;
-        curveBreakPoint = 0.75;
-        noiseThresholdingAmount = 0.00;
-        noiseThreshold = 3.00;
-        lowRange = 0.000;
-        highRange = 0.000;
-        previewMode = Disabled;
-        previewLayer = 0;
-        toLuminance = true;
-        toChrominance = true;
-        linear = false;
-    }
-    wavlets.executeOn( maskView, false/*swapFile*/ );
-
-    // Pixel Math
-
-    var pm = new PixelMath;
-    with ( pm )
-    {
-        expression = maskView.id+"-"+view.id;
-        expression1 = "";
-        expression2 = "";
-        useSingleExpression = true;
-        variables = "";
-        use64BitWorkingImage = false;
-        rescale = false;
-        rescaleLower = 0.0000000000;
-        rescaleUpper = 1.0000000000;
-        truncate = true;
-        truncateLower = 0.0000000000;
-        truncateUpper = 1.0000000000;
-        createNewImage = false;
-        newImageId = "";
-        newImageWidth = 0;
-        newImageHeight = 0;
-        newImageColorSpace = SameAsTarget;
-        newImageSampleFormat = SameAsTarget;
-    }
-    pm.executeOn( maskView, false/*swapFile*/ );
-
-    // Convert to gray
-
-    if(view.image.colorSpace != ColorSpace_Gray)
-    {
-        var toGray = new ConvertToGrayscale;
-        toGray.executeOn( maskView, false/*swapFile*/ );
-    }
-
-    // Rescale
-
-    var rescale = new Rescale;
-    with ( rescale )
-    {
-        mode = RGBK;
-    }
-    rescale.executeOn( maskView, false/*swapFile*/ );
-
-    // Noise reduction
-
-    var nr = new ATrousWaveletTransformV1;
-    with ( nr )
-    {
-        version = 257;
-        layers = // enabled, biasEnabled, structureDetectionThreshold, structureDetectionRange, bias, noiseReductionEnabled, noiseReductionFilter, noiseReductionAmount, noiseReductionIterations, noiseReductionKernelSize, noiseReductionProtectSignificant, deringingEnabled, deringingAmount, deringingThreshold
-            [
-            [false, true, 1.00, 3.00, 0.000, false, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
-            [true, true, 1.00, 3.00, 0.000, true, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
-            [true, true, 1.00, 3.00, 0.000, false, Recursive, 0.50, 2, 5, false, false, 0.50, 0.02000]];
-        scaleDelta = 0;
-        scalingFunctionData = [
-            0.292893,0.5,0.292893,
-            0.5,1,0.5,
-            0.292893,0.5,0.292893];
-        scalingFunctionKernelSize = 3;
-        scalingFunctionName = "3x3 Linear Interpolation";
-        largeScaleFunction = NoFunction;
-        toLuminance = true;
-        toChrominance = false;
-        linear = false;
-    }
-    nr.executeOn( maskView, false/*swapFile*/ );
-
-    return mask;
+   return mask;
 }
 
 // -----------------------------------------------------------------------------
-function doDark()
+function doMask( image, view_id, numberOfLayers )
 {
-      // Check if image is non-linear
+   var mask = createImageCopyWindow("Mask", image);
+   var maskView = mask.mainView;
+
+   // RBGWorking space
+   var rgb = new RGBWorkingSpace;
+   with (rgb)
+   {
+       channels = // Y, x, y
+           [
+           [0.333333, 0.648431, 0.330856],
+           [0.333333, 0.321152, 0.597871],
+           [0.333333, 0.155886, 0.066044]];
+       gamma = 2.20;
+       sRGBGamma = true;
+       applyGlobalRGBWS = false;
+   }
+   rgb.executeOn(maskView, false/*swapFile*/ );
+
+   // Anti deringing: Carlos Paranoia :D
+   var auxMask = doAuxiliarImage(image);
+   var id = auxMask.mainView.id;
+
+   var pm = new PixelMath;
+   with (pm)
+   {
+       expression  = "$T -"+id;
+       useSingleExpression = true;
+       use64BitWorkingImage = false;
+       rescale = false;
+       rescaleLower = 0.0000000000;
+       rescaleUpper = 1.0000000000;
+       truncate = true;
+       truncateLower = 0.0000000000;
+       truncateUpper = 1.0000000000;
+       createNewImage = false;
+   }
+   pm.executeOn( maskView, false/*swapFile*/ );
+
+   //auxMask.show();
+
+   auxMask.forceClose();
+
+   // wavlets
+   var auxLayers = new Array(numberOfLayers);
+   for(var i=0; i < numberOfLayers; ++i)
+   {
+       auxLayers[i] = [false, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
+   }
+   auxLayers[numberOfLayers] = [true, true, 1.00, 3.00, 0.000, false, 0, 0.50, 2, 5, false, false, 0.50, 0.02000];
+
+   doWaveletTransform(auxLayers, maskView);
+
+   // Pixel Math
+   var pm = new PixelMath;
+   with ( pm )
+   {
+       expression = maskView.id+"-"+view_id;
+       expression1 = "";
+       expression2 = "";
+       useSingleExpression = true;
+       variables = "";
+       use64BitWorkingImage = false;
+       rescale = false;
+       rescaleLower = 0.0000000000;
+       rescaleUpper = 1.0000000000;
+       truncate = true;
+       truncateLower = 0.0000000000;
+       truncateUpper = 1.0000000000;
+       createNewImage = false;
+       newImageId = "";
+       newImageWidth = 0;
+       newImageHeight = 0;
+       newImageColorSpace = SameAsTarget;
+       newImageSampleFormat = SameAsTarget;
+   }
+   pm.executeOn( maskView, false/*swapFile*/ );
+
+   // Convert to gray
+   if(image.colorSpace != ColorSpace_Gray)
+   {
+       var toGray = new ConvertToGrayscale;
+       toGray.executeOn( maskView, false/*swapFile*/ );
+   }
+
+   // Rescale
+   var rescale = new Rescale;
+   with ( rescale )
+   {
+       mode = RGBK;
+   }
+   rescale.executeOn( maskView, false/*swapFile*/ );
+
+   // Noise reduction
+   var nr = new ATrousWaveletTransformV1;
+   with ( nr )
+   {
+       version = 257;
+       layers = // enabled, biasEnabled, structureDetectionThreshold, structureDetectionRange, bias, noiseReductionEnabled, noiseReductionFilter, noiseReductionAmount, noiseReductionIterations, noiseReductionKernelSize, noiseReductionProtectSignificant, deringingEnabled, deringingAmount, deringingThreshold
+           [
+           [false, true, 1.00, 3.00, 0.000, false, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
+           [true, true, 1.00, 3.00, 0.000, true, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
+           [true, true, 1.00, 3.00, 0.000, false, Recursive, 0.50, 2, 5, false, false, 0.50, 0.02000]];
+       scaleDelta                = 0;
+       scalingFunctionData       = scalingFunctions[0].kernel;
+       scalingFunctionKernelSize = scalingFunctions[0].size;
+       scalingFunctionName       = scalingFunctions[0].name;
+       largeScaleFunction        = NoFunction;
+       toLuminance               = true;
+       toChrominance             = false;
+       linear                    = false;
+   }
+   nr.executeOn( maskView, false/*swapFile*/ );
+
+   return mask;
+}
+
+// -----------------------------------------------------------------------------
+function doDarkStructureEnhance(view, median, numberOfLayers)
+{
+   var hist = new HistogramTransformation;
+
+   hist.H = [
+     [0, 0.5,   1, 0, 1], // R
+     [0, 0.5,   1, 0, 1], // G
+     [0, 0.5,   1, 0, 1], // B
+     [0, median,1, 0, 1], // RGB
+     [0, 0.5,   1, 0, 1], // Alpha
+     ];
+
+   var mask = doMask(view.image, view.id, numberOfLayers);
+
+   var pc = new ProcessContainer;
+
+   for(var i=0; i < data.iterations; ++i)
+   {
+     pc.add(hist);
+     pc.setMask(i, mask,false/*invert*/);
+   }
+
+   view.beginProcess();
+   pc.executeOn( view, false/*swapFile*/ );
+   view.endProcess();
+
+   mask.removeMaskReferences();
+
+   if ( data.viewMask )
+      mask.show();
+   else
+      mask.forceClose();
+
+}
+
+// ----------------------------------------------------------------------------
+// createPreview
+// ----------------------------------------------------------------------------
+function createPreview()
+{
+   var layers  = [];
+   var amounts = [];
+   var numberOfLayers = data.numberOfLayers;
+   var currentAmount  = convertMedianToValue(data.median);
+
+   // set layers
+   if(numberOfLayers == LAYERS_TO_REMOVE_MIN)
+   {
+      layers = [numberOfLayers, numberOfLayers+1, numberOfLayers+2];
+   }
+   else if(numberOfLayers == LAYERS_TO_REMOVE_MAX)
+   {
+      layers = [numberOfLayers-2, numberOfLayers-1, numberOfLayers];
+   }
+   else
+   {
+      layers = [numberOfLayers-1, numberOfLayers, numberOfLayers+1];
+   }
+
+   // set amounts
+   if(currentAmount < 0.1)
+   {
+      amounts = [currentAmount, currentAmount+0.1, currentAmount+0.2];
+   }
+   else if(currentAmount > 0.9)
+   {
+      amounts = [currentAmount-0.2, currentAmount-0.1, currentAmount];
+   }
+   else
+   {
+      amounts = [currentAmount-0.1, currentAmount, currentAmount+0.1];
+   }
+
+   var prevImage  = data.preview.image;
+   var xWidth = prevImage.width  * layers.length  + PREV_SEPARATOR_WIDTH * (layers.length  + 1);
+   var yWidth = prevImage.height * amounts.length + PREV_SEPARATOR_WIDTH * (amounts.length + 1);
+   var pvid = uniqueViewId("DarkStructureEnhanceTGPreview");
+
+   var prevWindow = new ImageWindow(
+      xWidth,
+      yWidth,
+      prevImage.numberOfChannels,
+      prevImage.bitsPerSample,
+      prevImage.sampleType == SampleType_Real,
+      prevImage.colorSpace != ColorSpace_Gray,
+      pvid
+   );
+
+   var copyWindow = createRawImageWindow(uniqueViewId("DarkStructureEnhanceTGCopy"), prevImage);
+
+   for(var i = 0; i < layers.length; ++i)
+   {
+      for(var j = 0; j < amounts.length; ++j)
+      {
+         var signatureText = "Layers: " + layers[i] + " amount: " + Math.round(amounts[j]*100)/100;
+
+         // refresh copy of preview
+         with( copyWindow.mainView )
+         {
+            beginProcess( UndoFlag_NoSwapFile );
+            image.apply( prevImage );
+            endProcess();
+         }
+
+         // process preview copy
+         doDarkStructureEnhance(copyWindow.mainView, convertValueToMedian(amounts[j]), layers[i]);
+
+         // draw current settings into copy
+         with( copyWindow.mainView )
+         {
+            beginProcess( UndoFlag_NoSwapFile );
+            var signature_data = new DrawSignatureData( copyWindow.mainView, signatureText );
+            DrawSignature( signature_data );
+            endProcess();
+         }
+
+         // place preview copy in preview window
+         with ( prevWindow.mainView )
+         {
+            beginProcess( UndoFlag_NoSwapFile );
+            image.selectedPoint = new Point( prevImage.width  * i + i * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH,
+                                             prevImage.height * j + j * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH );
+            image.apply( copyWindow.mainView.image );
+            endProcess();
+         }
+      }
+   }
+
+   copyWindow.forceClose();
+   prevWindow.fitWindow();
+   prevWindow.show();
+}
+
+// -----------------------------------------------------------------------------
+// do work
+// -----------------------------------------------------------------------------
+function doWork()
+{
+   // Check if image is non-linear
    var median = data.targetView.computeOrFetchProperty( "Median" ).at(0);
    if (median > 0.01)
    {
@@ -416,36 +537,24 @@ function doDark()
          return;
    }
 
-    var hist = new HistogramTransformation;
+   Console.show();
+   var t0 = new Date;
 
-    hist.H = [
-        [0, 0.5,        1, 0, 1], // R
-        [0, 0.5,        1, 0, 1], // G
-        [0, 0.5,        1, 0, 1], // B
-        [0, data.median,1, 0, 1], // RGB
-        [0, 0.5,        1, 0, 1], // Alpha
-        ];
-
-    var mask = doMask(data);
-
-    var pc = new ProcessContainer;
-
-    for(var i=0;i<data.iterations;++i)
-    {
-        pc.add(hist);
-        pc.setMask(i,mask,false/*invert*/);
-    }
-
-    data.targetView.beginProcess();
-    pc.executeOn( data.targetView, false/*swapFile*/ );
-    data.targetView.endProcess();
-
-   mask.removeMaskReferences();
-
-   if ( data.viewMask )
-      mask.show();
+   //------ real work starts here ---------
+   if(data.preview_id != "")
+   {
+      createPreview();
+   }
    else
-      mask.forceClose();
+   {
+      doDarkStructureEnhance(data.targetView, data.median, data.numberOfLayers);
+   }
+
+   //------ real work end -----------------
+
+   var t1 = new Date;
+   Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
+   Console.hide();
 }
 
 // -----------------------------------------------------------------------------
@@ -456,7 +565,7 @@ function DarkMaskLayersDialog()
 
    data.dialog = this;
    var emWidth = this.font.width( 'M' );
-   var labelWidth1 = this.font.width( "Layers to remove:" + 'T' );
+   var labelWidth = this.font.width( "Layers to remove:" + 'T' );
 
    //---------------------------------------------------------------------------
    this.helpLabel = new Label( this );
@@ -480,7 +589,7 @@ function DarkMaskLayersDialog()
    this.targetImage_Label = new Label( this );
    with( this.targetImage_Label )
    {
-      minWidth = labelWidth1 + this.logicalPixelsToPhysical( 6+1 ); // align with labels inside group boxes below
+      minWidth = labelWidth + this.logicalPixelsToPhysical( 6+1 ); // align with labels inside group boxes below
       text = "Target image:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -512,6 +621,10 @@ function DarkMaskLayersDialog()
             data.view_id    = "";
             disableAllControls();
          }
+
+         // update preview ViewList
+         data.dialog.previewViewList.getPreviews();
+         excludePreviews(data.dialog.previewViewList, data.view_id);
       }
    }
 
@@ -528,7 +641,7 @@ function DarkMaskLayersDialog()
    this.numberOfLayers_Label = new Label( this );
    with( this.numberOfLayers_Label )
    {
-      minWidth = labelWidth1;
+      minWidth = labelWidth;
       text = "Layers to remove:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -537,8 +650,8 @@ function DarkMaskLayersDialog()
    with( this.numberOfLayers_SpinBox )
    {
       enabled = data.targetView != null;
-      minValue = 5;
-      maxValue = 12;
+      minValue = LAYERS_TO_REMOVE_MIN;
+      maxValue = LAYERS_TO_REMOVE_MAX;
       value = data.numberOfLayers;
 
       toolTip = this.numberOfLayers_Label.toolTip = "<b>Number of wavelet layers that will be removed to build an enhancement mask.</b>";
@@ -574,7 +687,7 @@ function DarkMaskLayersDialog()
    this.scalingFunction_Label = new Label( this );
    with( this.scalingFunction_Label )
    {
-      minWidth = labelWidth1;
+      minWidth = labelWidth;
       text = "Scaling function:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -619,22 +732,22 @@ function DarkMaskLayersDialog()
    {
       enabled = data.targetView != null;
       label.text = "Amount:";
-      label.minWidth = labelWidth1;
+      label.minWidth = labelWidth;
       setRange (0.0, 0.99);
       slider.setRange (0, 1000);
       slider.scaledMinWidth = 250;
       setPrecision (2);
-      setValue ((data.median-0.5)*2);
+      setValue (convertMedianToValue(data.median));
 
       toolTip = "<p>DSE intensity for each iteration.</p>";
 
-      onValueUpdated = function (value) { data.median = (0.5*value)+0.5; };
+      onValueUpdated = function (value) { data.median = convertValueToMedian(value); };
    }
 
    this.iter_Label = new Label( this );
    with( this.iter_Label )
    {
-      minWidth = labelWidth1;
+      minWidth = labelWidth;
       text = "Iterations:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -673,7 +786,64 @@ function DarkMaskLayersDialog()
       sizer.add( this.iter_Sizer );
    }
 
-    // usual control buttons
+   // -------------------------------------------------------------------------
+   this.previewLabel = new Label( this );
+   with( this.previewLabel )
+   {
+      minWidth = labelWidth;
+      text = "Preview:";
+      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+   }
+
+   this.previewViewList = new ViewList( this );
+   with( this.previewViewList )
+   {
+      enabled = data.targetView != null;
+
+      scaledMinWidth = 200;
+      getPreviews();
+      excludePreviews(this.previewViewList, data.view_id);
+      if(data.preview)
+         currentView = data.preview;
+
+      toolTip = this.previewLabel.toolTip = "Select the target preview.";
+
+      onViewSelected = function( view )
+      {
+         if(view.id)
+         {
+            data.preview    = view;
+            data.preview_id = view.id;
+         }
+         else
+         {
+            data.preview    = null;
+            data.preview_id = "";
+         }
+      }
+   }
+
+   this.previewSizer = new HorizontalSizer;
+   with( this.previewSizer )
+   {
+      spacing = 4;
+      add(this.previewLabel);
+      add(this.previewViewList, 100);
+   }
+
+   // -------------------------------------------------------------------------
+   this.previewGroupBox = new GroupBox( this );
+   with( this.previewGroupBox )
+   {
+      title = "Preview Dark Structure Enhance";
+      sizer = new VerticalSizer;
+      sizer.margin = 6;
+      sizer.spacing = 4;
+      sizer.add(this.previewSizer);
+   }
+
+   // -------------------------------------------------------------------------
+   // usual control buttons
    this.newInstance_Button = new ToolButton(this);
    with( this.newInstance_Button )
    {
@@ -725,7 +895,7 @@ function DarkMaskLayersDialog()
          data.dialog.numberOfLayers_SpinBox.value         = data.numberOfLayers;
          data.dialog.extractResidual_CheckBox.checked     = data.viewMask;
          data.dialog.scalingFunction_ComboBox.currentItem = data.scalingFunction;
-         data.dialog.median_NC.setValue((data.median-0.5)*2);
+         data.dialog.median_NC.setValue(convertMedianToValue(data.median));
          data.dialog.iter_SpinBox.value                   = data.iterations;
          disableAllControls();
       }
@@ -751,8 +921,12 @@ function DarkMaskLayersDialog()
       add( this.helpLabel );
       addSpacing( 4 );
       add( this.targetImage_Sizer );
+      addSpacing( 4 );
       add( this.dmParGroupBox);
+      addSpacing( 4 );
       add( this.dseParGroupBox);
+      addSpacing( 4 );
+      add( this.previewGroupBox );
       addSpacing( 4 );
       add( this.buttons_Sizer );
    }
@@ -776,7 +950,7 @@ function main()
       data.importParameters();
       data.targetView = Parameters.targetView;
       data.view_id    = Parameters.targetView.id;
-      doDark();
+      doWork();
       return;
    }
    else
@@ -812,7 +986,7 @@ function main()
       break;
    }
 
-   doDark();
+   doWork();
 }
 
 main();

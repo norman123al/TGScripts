@@ -338,71 +338,6 @@ function starMethod_V2(iterations, mode, starless_id, targetView)
 }
 
 // ----------------------------------------------------------------------------
-// signature data
-// ----------------------------------------------------------------------------
-function DrawSignatureData( targetView, text )
-{
-   this.targetView = targetView;
-   this.text       = text;
-   this.fontFace   = "Helvetica";
-   this.fontSize   = 12; // px
-   this.bold       = true;
-   this.italic     = false;
-   this.stretch    = 100;
-   this.textColor  = 0xffff7f00;
-   this.bkgColor   = 0x80000000;
-   this.margin     = 2;
-}
-
-// ----------------------------------------------------------------------------
-// draw signature
-// ----------------------------------------------------------------------------
-function DrawSignature( data )
-{
-   var image = data.targetView.image;
-   // Create the font
-   var font = new Font( data.fontFace );
-   font.pixelSize = data.fontSize;
-   // Calculate a reasonable inner margin in pixels
-   var innerMargin = Math.round( font.pixelSize/5 );
-
-   // grow font size
-   var expectedwidth = Math.floor(0.2 * image.width);
-   var currwidth = (font.width( data.text ) + 2*innerMargin);
-   while(currwidth < expectedwidth)
-   {
-      font.pixelSize++;
-      innerMargin = Math.round( font.pixelSize/5 );
-      currwidth = (font.width( data.text ) + 2*innerMargin);
-   }
-   data.fontSize = font.pixelSize;
-
-   // Calculate the sizes of our drawing box
-   var width = font.width( data.text ) + 2*innerMargin;
-   var height = font.ascent + font.descent + 2*innerMargin;
-   // Create a bitmap where we'll perform all of our drawing work
-   var bmp = new Bitmap( width, height );
-   // Fill the bitmap with the background color
-   bmp.fill( 0x80000000 );
-   // Create a graphics context for the working bitmap
-   var G = new Graphics( bmp );
-
-   // Select the required drawing tools: font and pen.
-   G.font = font;
-   G.pen = new Pen( data.textColor );
-   G.transparentBackground = true; // draw text with transparent bkg
-   G.textAntialiasing = true;
-
-   // Now draw the signature
-   G.drawText( innerMargin, height - font.descent - innerMargin, data.text );
-
-   // Finished drawing
-   G.end();
-   image.selectedPoint = new Point( data.margin, image.height - data.margin - height );
-   image.blend( bmp );
-}
-
-// ----------------------------------------------------------------------------
 // createPreview
 // ----------------------------------------------------------------------------
 function createPreview()
@@ -546,15 +481,25 @@ function doStarReduction(method, strength, iterations, mode, targetView)
 }
 
 // ----------------------------------------------------------------------------
+// check if window has minimum size for StarXTerminator
+// ----------------------------------------------------------------------------
+function check_window(image)
+{
+   if(image.width <= MIN_IMAGE_WIDTH || image.height <= MIN_IMAGE_HEIGHT)
+   {
+      Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least %ix%i)", image.width, image.height, MIN_IMAGE_WIDTH, MIN_IMAGE_HEIGHT ) );
+      var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
+      msg.execute();
+      return false;
+   }
+   return true;
+}
+
+// ----------------------------------------------------------------------------
 // do the work
 // ----------------------------------------------------------------------------
 function doWork()
 {
-   Console.show();
-   var t0 = new Date;
-
-   //------ real work starts here ---------
-
    // Check if image is non-linear
    var median = data.targetView.computeOrFetchProperty( "Median" ).at(0);
    if (median <= 0.01)
@@ -565,29 +510,20 @@ function doWork()
          return;
    }
 
+   Console.show();
+   var t0 = new Date;
+
+   //------ real work starts here ---------
+
    if(data.preview_id != "")
    {
-      var image = data.preview.image;
-      if(image.width <= 512 || image.height <= 512)
-      {
-         Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least 512x512)", image.width, image.height ) );
-         var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
-         msg.execute();
-         return;
-      }
-      createPreview();
+      if(check_window(data.preview.image))
+         createPreview();
    }
    else
    {
-      var image = data.targetView.image;
-      if(image.width <= 512 || image.height <= 512)
-      {
-         Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least 512x512)", image.width, image.height ) );
-         var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
-         msg.execute();
-         return;
-      }
-      doStarReduction(data.method, data.strength, data.iterations, data.mode + 1, data.targetView);
+      if(check_window(data.targetView.image))
+         doStarReduction(data.method, data.strength, data.iterations, data.mode + 1, data.targetView);
    }
 
    //------ real work end -----------------
@@ -600,7 +536,7 @@ function doWork()
 // ----------------------------------------------------------------------------
 // exclude previews
 // ----------------------------------------------------------------------------
-function excludePreviews(vList)
+function excludePreviewsBySize(vList)
 {
    var images = ImageWindow.windows;
    for ( var i in images )
@@ -709,7 +645,7 @@ function ScriptDialog()
 
          // update preview ViewList
          data.dialog.previewViewList.getPreviews();
-         excludePreviews(data.dialog.previewViewList);
+         excludePreviewsBySize(data.dialog.previewViewList);
       }
    }
 
@@ -905,7 +841,7 @@ function ScriptDialog()
 
       scaledMinWidth = 200;
       getPreviews();
-      excludePreviews(this.previewViewList);
+      excludePreviewsBySize(this.previewViewList);
       if(data.preview)
          currentView = data.preview;
 
@@ -997,7 +933,7 @@ function ScriptDialog()
          {
             data.dialog.previewViewList.remove(data.dialog.previewViewList.currentView);
             data.dialog.previewViewList.getPreviews();
-            excludePreviews(data.dialog.previewViewList);
+            excludePreviewsBySize(data.dialog.previewViewList);
          }
          data.reset();
          data.dialog.transferMethodRadioButton.checked = data.method == METHOD_transfer;

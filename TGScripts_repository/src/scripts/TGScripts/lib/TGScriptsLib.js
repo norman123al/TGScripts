@@ -77,3 +77,86 @@ function createImageCopyWindow(viewId, baseImage)
    return window;
 }
 
+// ----------------------------------------------------------------------------
+// excludePreviews: keep only previews belonging to specified main view
+// ----------------------------------------------------------------------------
+function excludePreviews(vList, main_view_id)
+{
+   var images = ImageWindow.windows;
+   for ( var i in images )
+   {
+      var view = images[i].mainView;
+      if (view.isMainView && view.id != main_view_id)
+      {
+         for( var j in images[i].previews )
+         {
+            vList.remove(images[i].previews[j]);
+         }
+      }
+   }
+}
+
+// ----------------------------------------------------------------------------
+// signature data
+// ----------------------------------------------------------------------------
+function DrawSignatureData( targetView, text )
+{
+   this.targetView = targetView;
+   this.text       = text;
+   this.fontFace   = "Helvetica";
+   this.fontSize   = 12; // px
+   this.bold       = true;
+   this.italic     = false;
+   this.stretch    = 100;
+   this.textColor  = 0xffff7f00;
+   this.bkgColor   = 0x80000000;
+   this.margin     = 2;
+}
+
+// ----------------------------------------------------------------------------
+// draw signature
+// ----------------------------------------------------------------------------
+function DrawSignature( data )
+{
+   var image = data.targetView.image;
+   // Create the font
+   var font = new Font( data.fontFace );
+   font.pixelSize = data.fontSize;
+   // Calculate a reasonable inner margin in pixels
+   var innerMargin = Math.round( font.pixelSize/5 );
+
+   // grow font size
+   var expectedwidth = Math.floor(0.25 * image.width);
+   var currwidth = (font.width( data.text ) + 2*innerMargin);
+   while(currwidth < expectedwidth)
+   {
+      font.pixelSize++;
+      innerMargin = Math.round( font.pixelSize/5 );
+      currwidth = (font.width( data.text ) + 2*innerMargin);
+   }
+   data.fontSize = font.pixelSize;
+
+   // Calculate the sizes of our drawing box
+   var width = font.width( data.text ) + 2*innerMargin;
+   var height = font.ascent + font.descent + 2*innerMargin;
+   // Create a bitmap where we'll perform all of our drawing work
+   var bmp = new Bitmap( width, height );
+   // Fill the bitmap with the background color
+   bmp.fill( 0x80000000 );
+   // Create a graphics context for the working bitmap
+   var G = new Graphics( bmp );
+
+   // Select the required drawing tools: font and pen.
+   G.font = font;
+   G.pen = new Pen( data.textColor );
+   G.transparentBackground = true; // draw text with transparent bkg
+   G.textAntialiasing = true;
+
+   // Now draw the signature
+   G.drawText( innerMargin, height - font.descent - innerMargin, data.text );
+
+   // Finished drawing
+   G.end();
+   image.selectedPoint = new Point( data.margin, image.height - data.margin - height );
+   image.blend( bmp );
+}
