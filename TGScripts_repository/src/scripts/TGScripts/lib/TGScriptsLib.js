@@ -151,29 +151,24 @@ function excludePreviews(vList, main_view_id)
 // ----------------------------------------------------------------------------
 function excludePreviewsBySize(vList, currentViewId)
 {
-   Console.writeln("currentViewid: ", currentViewId);
    var images = ImageWindow.windows;
    for ( var i in images )
    {
       var view = images[i].mainView;
       if (view.isMainView && view.id != currentViewId)
       {
-         Console.writeln("mainView: ", view.id);
          for( var j in images[i].previews )
          {
-            Console.writeln("remove preview: ", images[i].previews[j].id);
             vList.remove(images[i].previews[j]);
          }
       }
       else
       {  // throw out images which are too small
-         Console.writeln("mainView: ", view.id);
          for( var j in images[i].previews )
          {
             var prevImg = images[i].previews[j].image;
             if(prevImg.width < MIN_IMAGE_WIDTH || prevImg.height < MIN_IMAGE_HEIGHT)
             {
-               Console.writeln("remove preview (too small): ", images[i].previews[j].id);
                vList.remove(images[i].previews[j]);
             }
          }
