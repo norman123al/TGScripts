@@ -76,7 +76,8 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/UndoFlag.jsh>
+
+#include "lib/TGScriptsLib.js"
 
 #define VERSION   "2.0"
 #define TITLE     "ColorMaskTG"
@@ -232,24 +233,29 @@ function doWork()
 
    // Pick an unused name for the mask
    var MaskName = null;
-   if(data.maskName) { // take given mask name
+   if(data.maskName)
+   { // take given mask name
       MaskName = data.maskName;
    }
-   else { // construct a mask name
+   else
+   { // construct a mask name
       if (ImageWindow.windowById(name + CM_SUFF + data.maskSuff).isNull)
          MaskName = name + CM_SUFF + data.maskSuff;
-      else {
-         for (var n = 1 ; n <= 99 ; n++) {
-            if (ImageWindow.windowById(name + CM_SUFF + data.maskSuff + n).isNull) {
+      else
+      {
+         for (var n = 1 ; n <= 99 ; n++)
+         {
+            if (ImageWindow.windowById(name + CM_SUFF + data.maskSuff + n).isNull)
+            {
                MaskName = name + CM_SUFF + data.maskSuff + n;
                break;
             }
          }
       }
-      if (MaskName == null) {
-            (new MessageBox("Couldn't find a unique mask name. Bailing out.",
-                  TITLE, StdIcon_Error, StdButton_Ok)).execute();
-            return;
+      if (MaskName == null)
+      {
+         errorMessageOk("Couldn't find a unique mask name. Bailing out.", TITLE);
+         return;
       }
    }
 
@@ -449,45 +455,9 @@ function getAllMainViews()
 }
 
 // -------------------------------------------------------------------------
-function getKeyString(window, keyName)
-{
-   //
-   // search key keyName
-   //
-   for (var i in window.keywords)
-   {
-      with (window.keywords[i])
-      {
-         if (name == keyName)
-         {
-            var s = strippedValue;
-            return s;
-         }
-      }
-   }
-   return null;
-}
-
-// -------------------------------------------------------------------------
 function excludeViews(vList)
 {
-   var all = getAllMainViews();
-
-   for (var i in all)
-   {
-      var v = all[i];
-      if (v.image.isGrayscale)
-      {
-         vList.remove(v);
-         continue;
-      }
-      var t = getKeyString(v.window, "EMISSION");
-      if (t == 'T')
-      {
-         vList.remove(v);
-         continue;
-      }
-   }
+   excludeMainViewsByColor(vList, true /*excludeMono*/);
 }
 
 /*
@@ -1024,17 +994,14 @@ function main()
       // A view must be selected.
       if ( !data.targetView )
       {
-         var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;
       }
 
       // Only works on a colour image, duh!
-      if (data.targetView.image.numberOfChannels != 3)
+      if (data.targetView.image.isGrayscale)
       {
-         (new MessageBox("You must supply an RGB color image.",
-               TITLE, StdIcon_Error, StdButton_Ok)).execute();
+         errorMessageOk("You must supply an RGB color image.", TITLE);
          continue;
       }
 

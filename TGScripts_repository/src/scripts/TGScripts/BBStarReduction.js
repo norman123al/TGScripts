@@ -35,7 +35,6 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/UndoFlag.jsh>
 
 #include "lib/TGScriptsLib.js"
 
@@ -54,8 +53,6 @@
 #define MAX_ITERATIONS          3
 #define PREV_SEPARATOR_WIDTH    3
 #define SIGNATURE_FONT_SIZE     32
-#define MIN_IMAGE_WIDTH         256
-#define MIN_IMAGE_HEIGHT        256
 
 #feature-id    BBStarReduction : TG Scripts > BBStarReduction
 
@@ -194,10 +191,9 @@ function createStarless(targetView)
    SXT.unscreen = true;
    SXT.overlap = 0.20;
 
-
    if (starlessWindow.mainView.isNull || !SXT.executeOn(starlessWindow.mainView, false /*swapFile */))
    {
-      new MessageBox( "Starless image creation failed!", TITLE, StdIcon_Error, StdButton_Cancel ).execute();
+      errorMessageOk("Starless image creation failed!", TITLE);
       return null;
    }
 
@@ -534,36 +530,6 @@ function doWork()
 }
 
 // ----------------------------------------------------------------------------
-// exclude previews
-// ----------------------------------------------------------------------------
-function excludePreviewsBySize(vList)
-{
-   var images = ImageWindow.windows;
-   for ( var i in images )
-   {
-      var view = images[i].mainView;
-      if (view.isMainView && view.id != data.view_id)
-      {
-         for( var j in images[i].previews )
-         {
-            vList.remove(images[i].previews[j]);
-         }
-      }
-      else
-      {  // throw out images which are too small
-         for( var j in images[i].previews )
-         {
-            var prevImg = images[i].previews[j].image;
-            if(prevImg.width < MIN_IMAGE_WIDTH || prevImg.height < MIN_IMAGE_HEIGHT)
-            {
-               vList.remove(images[i].previews[j]);
-            }
-         }
-      }
-   }
-}
-
-// ----------------------------------------------------------------------------
 // ScriptDialog
 // ----------------------------------------------------------------------------
 function ScriptDialog()
@@ -600,7 +566,7 @@ function ScriptDialog()
    this.targetImageViewList = new ViewList( this );
    with( this.targetImageViewList )
    {
-      excludeViews = function(vList)
+      var excludeViews = function(vList)
       {
          var windows = ImageWindow.windows;
          for ( var i in windows )
@@ -645,7 +611,7 @@ function ScriptDialog()
 
          // update preview ViewList
          data.dialog.previewViewList.getPreviews();
-         excludePreviewsBySize(data.dialog.previewViewList);
+         excludePreviewsBySize(data.dialog.previewViewList, data.view_id);
       }
    }
 
@@ -841,7 +807,7 @@ function ScriptDialog()
 
       scaledMinWidth = 200;
       getPreviews();
-      excludePreviewsBySize(this.previewViewList);
+      excludePreviewsBySize(this.previewViewList, data.view_id);
       if(data.preview)
          currentView = data.preview;
 
@@ -933,7 +899,7 @@ function ScriptDialog()
          {
             data.dialog.previewViewList.remove(data.dialog.previewViewList.currentView);
             data.dialog.previewViewList.getPreviews();
-            excludePreviewsBySize(data.dialog.previewViewList);
+            excludePreviewsBySize(data.dialog.previewViewList, data.view_id);
          }
          data.reset();
          data.dialog.transferMethodRadioButton.checked = data.method == METHOD_transfer;
@@ -1023,9 +989,7 @@ function main()
       // A view must be selected.
       if ( !data.targetView )
       {
-         var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;
       }
 

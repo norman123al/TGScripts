@@ -73,3 +73,5 @@ This repository contains both new scripts written by me and existing scripts whi
 <p align="center">
   <img src="./TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.png" title="DeconvolutionPreviewTG main screen" />
 </p>
+
+- **EmissionLineIntegrationTG.js** - an improved version of the EmissionLineIntegration script written by Hartmut V. Bornemann. Performance improvement, minor bug fixing, code refactoring (work in progress).

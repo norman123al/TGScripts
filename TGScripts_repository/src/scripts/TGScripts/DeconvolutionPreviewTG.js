@@ -70,7 +70,6 @@
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
 #include <pjsr/StdCursor.jsh>
-#include <pjsr/UndoFlag.jsh>
 #include <pjsr/NumericControl.jsh>
 
 #include "lib/TGScriptsLib.js"
@@ -323,69 +322,9 @@ function doDeconvolutionPreview( data )
    copy_img.forceClose();
    copy_img = null;
 
+   applySTF(preview_img.mainView);
    preview_img.show();
    preview_img.zoomToFit();
-}
-
-// ----------------------------------------------------------------------------
-function DrawSignature( data )
-{
-   var image = data.targetView.image;
-   // Create the font
-   var font = new Font( data.fontFace );
-   font.pixelSize = data.fontSize;
-   // Calculate a reasonable inner margin in pixels
-   var innerMargin = Math.round( font.pixelSize/5 );
-
-   // grow font size
-   var expectedwidth = Math.floor(0.3 * image.width);
-   var currwidth = (font.width( data.text ) + 2*innerMargin);
-   while(currwidth < expectedwidth)
-   {
-      font.pixelSize++;
-      innerMargin = Math.round( font.pixelSize/5 );
-      currwidth = (font.width( data.text ) + 2*innerMargin);
-   }
-   data.fontSize = font.pixelSize;
-
-   // Calculate the sizes of our drawing box
-   var width = font.width( data.text ) + 2*innerMargin;
-   var height = font.ascent + font.descent + 2*innerMargin;
-   // Create a bitmap where we'll perform all of our drawing work
-   var bmp = new Bitmap( width, height );
-   // Fill the bitmap with the background color
-   bmp.fill( 0x80000000 );
-   // Create a graphics context for the working bitmap
-   var G = new Graphics( bmp );
-
-   // Select the required drawing tools: font and pen.
-   G.font = font;
-   G.pen = new Pen( data.textColor );
-   G.transparentBackground = true; // draw text with transparent bkg
-   G.textAntialiasing = true;
-
-   // Now draw the signature
-   G.drawText( innerMargin, height - font.descent - innerMargin, data.text );
-
-   // Finished drawing
-   G.end();
-   image.selectedPoint = new Point( data.margin, image.height - data.margin - height );
-   image.blend( bmp );
-}
-
-// ----------------------------------------------------------------------------
-function DrawSignatureData( cView, text )
-{
-   this.targetView = cView;
-   this.text       = text;
-   this.fontFace   = "Helvetica";
-   this.fontSize   = 14; // px
-   this.bold       = true;
-   this.italic     = false;
-   this.stretch    = 100;
-   this.textColor  = 0xffff7f00;
-   this.bkgColor   = 0x80000000;
-   this.margin     = 2;
 }
 
 // ----------------------------------------------------------------------------
@@ -449,18 +388,9 @@ function doWork(data)
 {
    Console.show();
 
-   // Check if image is non-linear
-   var median = data.targetPreview.computeOrFetchProperty( "Median" ).at(0);
-   if (median > 0.01)
-   {
-      console.writeln( format( "<end><cbr>The median is: %.5f", median ) );
-      var msg = new MessageBox( "Image seems to be non-linear, continue?", TITLE, StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
-      {
-         Console.hide();
-         return;
-      }
-   }
+   // Check if image is linear
+   if(data.targetPreview.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+      return;
 
    generateImagesFromPreview(data);
    doDeconvolutionPreview( data );
@@ -1019,9 +949,7 @@ function main()
       // A view must be selected.
       if ( !data.targetPreview )
       {
-         var msg = new MessageBox( "You must select a preview to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;
       }
 

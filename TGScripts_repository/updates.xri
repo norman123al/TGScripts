@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="37811e9d1ba6f30d1c64ab427609c0b2ee9f81f3" type="script" releaseDate="20221106">
+      <package fileName="TGScripts_repository.tar.gz" sha1="ec7694ac09e8d2aab2e09ece5c2135d6db8909c9" type="script" releaseDate="20221106">
          <title>
             TGScripts snapshot - 2022 Nov 06
          </title>
@@ -50,6 +50,8 @@
                <br/>
                DeconvolutionPreviewTG - improved version of the DeconvolutionPreview script written by Juan M. Gómez.
                <br/>
+               EmissionLineIntegrationTG - improved version of the EmissionLineIntegration script written by Hartmut V. Bornemann (work in progress).
+               <br/>
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -58,3 +60,4 @@
       </package>
    </platform>
 </xri>
+<Signature developerId="tglebe" timestamp="2022-11-13T23:17:03.711Z" encoding="Base64">/s1n11KQ443eDXdmZTXKbqn8sBPVSe5md0x0ifCv7POreiLw09wZW2KVLVJa/yFgjMv6H/M+CfBEN6SNxBDdDQ==</Signature>

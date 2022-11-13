@@ -32,7 +32,6 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/UndoFlag.jsh>
 
 #include "lib/TGScriptsLib.js"
 
@@ -99,14 +98,8 @@ function doWork()
    //------ real work happens here ---------
 
    // Check if image is non-linear
-   var median = data.targetPreview.computeOrFetchProperty( "Median" ).at(0);
-   if (median > 0.01)
-   {
-      Console.writeln( format( "<end><cbr>The median is: %.5f", median ) );
-      var msg = new MessageBox( "Image seems to be non-linear, continue?", "LocalSupportMask Script", StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
-         return;
-   }
+   if(data.targetView.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+      return;
 
    Console.writeln("targetView: ", data.view_id);
    //------ real work end -----------------
@@ -305,9 +298,7 @@ function main()
       // A view must be selected.
       if ( !data.targetView )
       {
-         var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;
       }
 

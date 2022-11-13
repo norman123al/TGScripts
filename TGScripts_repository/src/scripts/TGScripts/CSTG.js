@@ -25,8 +25,6 @@
    CSTG.js v2.0
 
    Modified 2022 by Thorsten Glebe (based on CS.js version 1.2.1)
-   1. added "new instance" button which stores state of the GUI
-   2. minor code refactorings
 
    This program is free software: you can redistribute it and/or modify it
    under the terms of the GNU General Public License as published by the
@@ -39,6 +37,13 @@
 
    You should have received a copy of the GNU General Public License along with
    this program.  If not, see <http://www.gnu.org/licenses/>.
+
+   Change history:
+   v2.0
+      1. added "new instance" button which stores state of the GUI
+      2. minor code refactorings
+   v2.1
+      1. increase step size to speed up calculation by factor 3, mu result changes by ~1% only, no difference in results visible
 */
 
 #feature-id    CSTG : TG Scripts > CSTG
@@ -74,8 +79,15 @@
 #define SCRIPTNAME "CSTG"
 #define VERSION "2.0"
 
+// original step size
+//#define DEFAULT_STEP_SIZE 0.00025
+
+// new step size, faster execution, slightly less accurate mu
+#define DEFAULT_STEP_SIZE 0.001
+
 function CSData()
 {
+   this.dialog     = null;
 	this.cancel     = false;
 	this.nb 		    = null; // narrowband view
 	this.bb 		    = null; // broadband view
@@ -178,12 +190,12 @@ function ContinuumSubtraction(dlg)
            //return 0;
       if (this.nb == null || this.bb == null)
       {
-         message("Narrowband and/or broadband view not set");
+         errorMessageOk("Narrowband and/or broadband view not set", TITLE);
          return false;
       }
-      if (this.nb == this.bb.id)
+      if (this.nb.id == this.bb.id)
       {
-         message("Narrowband and broadband must be different");
+         errorMessageOk("Narrowband and broadband must be different", TITLE);
          return false;
       }
       //
@@ -191,19 +203,19 @@ function ContinuumSubtraction(dlg)
       //
       if (!this.nb.image.bounds.isEqualTo(this.bb.image.bounds))
       {
-         message("Narrowband and broadband have different geometry");
+         errorMessageOk("Narrowband and broadband have different geometry", TITLE);
          return false;
       }
       if (this.mask != null)
       {
-         if (this.nb == this.mask.id || this.bb == this.mask.id)
+         if (this.nb.id == this.mask.id || this.bb.id == this.mask.id)
          {
-            message("The mask must be different to narrowband and broadband");
+            errorMessageOk("The mask must be different to narrowband and broadband", TITLE);
             return false;
          }
          if (!this.nb.image.bounds.isEqualTo(this.mask.image.bounds))
          {
-            message("Narrowband and broadband have different geometry");
+            errorMessageOk("Narrowband and broadband have different geometry", TITLE);
             return false;
          }
          if (this.maskFlags == null)
@@ -251,7 +263,7 @@ function ContinuumSubtraction(dlg)
       var beginWith = Math.min(this.nb.image.median(), bbMedian)
                     / Math.max(this.nb.image.median(), bbMedian) * 0.5;
 
-      var stepSize = 0.00025;
+      var stepSize = DEFAULT_STEP_SIZE;
 
       Console.writeln("Start with mue......." + beginWith);
       Console.writeln("Increment............" + stepSize);
@@ -549,12 +561,6 @@ function ContinuumSubtraction(dlg)
          //if (dxy[i][0] > m1) break;
       }
       return {mue:mue, xy:xy, dxy:dxy, xyy:xyy};
-   }
-
-   function message(txt)
-   {
-      var bx = new MessageBox(txt, "Error");
-      bx.execute();
    }
 
 	function subtract(nb, bb, rbb, mask, mue, channel)
@@ -1276,7 +1282,6 @@ function ContinuumSubtraction(dlg)
 //
 // +++ End of object ContinuumSubtraction() +++
 
-
 function infoDialog()
 {
    this.__base__ = Dialog;
@@ -1333,10 +1338,10 @@ function infoDialog()
 
    this.setScaledMinSize(600, 400);
 
-   this.windowTitle = "CS - Info";
+   this.windowTitle = SCRIPTNAME + " - Info";
 
-	this.adjustToContents();
- 	this.userResizable = true;
+//	this.adjustToContents();
+// 	this.userResizable = true;
    processEvents();
    this.bringToFront();
 }
@@ -1346,6 +1351,8 @@ function showDialog()
    // Add all properties and methods of the core Dialog object to this object.
    this.__base__ = Dialog;
    this.__base__();
+
+   data.dialog = this;
 
    var dlg 					= this;
 
@@ -1410,13 +1417,17 @@ function showDialog()
 
    // execute button
    this.execButton = new PushButton( this );
-   with ( this.execButton ) {
+   with ( this.execButton )
+   {
       icon = this.scaledResource(":/icons/ok.png");
       text = "Execute Subtraction";
       enabled = data.enabled;
 
       onPress = function()
       {
+         Console.show();
+         var t0 = new Date;
+
          dlg.execButton.enabled = false;
          dlg.lblTick.text = "Prep";
 
@@ -1432,8 +1443,12 @@ function showDialog()
 
          View.viewById( cs.csImage.id ).window.show();
 
-			dlg.lblTick.text = "Ready";
-			dlg.delay.start();
+         // reset progress indicator
+         data.dialog.lblTick.text = "Ready";
+         data.dialog.delay.start();
+
+         var t1 = new Date;
+         Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
       }
    }
 
@@ -1764,8 +1779,8 @@ function showDialog()
    }
    this.windowTitle = SCRIPTNAME + " " + VERSION;
 
-   this.adjustToContents();
-   this.userResizable = false;
+//   this.adjustToContents();
+//   this.userResizable = false;
 
    var labelWidth = this.cancelButton.frameRect.width * 0.75;
    this.lblTick.text = "Idle";
@@ -2134,7 +2149,7 @@ function main()
 
    Console.abortEnabled = true;
 	var dialog = new showDialog();
-	dialog.execute();
+   dialog.execute();
 }
 
 main();

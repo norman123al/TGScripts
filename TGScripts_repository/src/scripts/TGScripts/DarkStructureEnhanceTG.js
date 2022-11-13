@@ -44,7 +44,6 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/UndoFlag.jsh>
 #include <pjsr/NumericControl.jsh>
 
 #include "lib/TGScriptsLib.js"
@@ -518,6 +517,7 @@ function createPreview()
    }
 
    copyWindow.forceClose();
+   applySTF(prevWindow.mainView);
    prevWindow.fitWindow();
    prevWindow.show();
 }
@@ -527,15 +527,9 @@ function createPreview()
 // -----------------------------------------------------------------------------
 function doWork()
 {
-   // Check if image is non-linear
-   var median = data.targetView.computeOrFetchProperty( "Median" ).at(0);
-   if (median > 0.01)
-   {
-      console.writeln( format( "<end><cbr>The median is: %.5f", median ) );
-      var msg = new MessageBox( "Image seems to be non-linear, continue?", TITLE, StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
-         return;
-   }
+   // Check if image is linear
+   if(data.targetView.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+      return;
 
    Console.show();
    var t0 = new Date;
@@ -977,9 +971,7 @@ function main()
       // A view must be selected.
       if ( !data.targetView )
       {
-         var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;
       }
 

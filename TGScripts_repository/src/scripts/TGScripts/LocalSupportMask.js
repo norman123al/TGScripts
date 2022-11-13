@@ -35,7 +35,6 @@
 #include <pjsr/TextAlign.jsh>
 #include <pjsr/StdButton.jsh>
 #include <pjsr/StdIcon.jsh>
-#include <pjsr/UndoFlag.jsh>
 
 #include "lib/TGScriptsLib.js"
 
@@ -166,21 +165,12 @@ function doWork()
    view.beginProcess(UndoFlag_NoSwapFile);
 
    // Check if image is grey scale
-   if(view.image.isColor)
-   {
-      var msg = new MessageBox( "Image is not a grey scale image, continue?", "LocalSupportMask Script", StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
-         return;
-   }
+   if(view.image.isColor && errorMessageOkCancel("Image is not a grey scale image, continue?", TITLE))
+      return;
 
-   // Check if image is non-linear
-   var median = view.computeOrFetchProperty( "Median" ).at(0);
-   if (median > 0.01)
-   {
-      var msg = new MessageBox( "Image seems to be non-linear, continue?", "LocalSupportMask Script", StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
-         return;
-   }
+   // Check if image is linear
+   if(view.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+      return;
 
    let MaskName = uniqueViewId(MASK_NAME);
    var LocalSupportMaskWindow = createImageCopyWindow( MaskName, view.image );
@@ -431,7 +421,6 @@ function LocalSupportMaskDialog()
    this.large_scale_Sizer = new HorizontalSizer;
    with( this.large_scale_Sizer )
    {
-      enabled = data.targetView != null
       spacing = 4;
       add( this.large_scale_Label );
       add( this.large_scale_SpinBox );
@@ -689,9 +678,7 @@ function main()
       // A view must be selected.
       if ( !data.targetView )
       {
-         var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
-         msg.execute();
+         errorMessage("You must select a view to apply this script.", TITLE);
          continue;
       }
 
