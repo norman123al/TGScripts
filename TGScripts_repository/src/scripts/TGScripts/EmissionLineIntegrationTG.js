@@ -1380,7 +1380,7 @@ function main()
    var window = ImageWindow.activeWindow;
    if ( window.isNull )
    {
-      errorMessageOk( "No active image" );
+      errorMessageOk( "No active image", TITLE );
    }
    else
    {
