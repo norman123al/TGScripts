@@ -25,6 +25,11 @@
 #define MIN_IMAGE_WIDTH         256
 #define MIN_IMAGE_HEIGHT        256
 
+// Shadows clipping point in (normalized) MAD units from the median.
+#define SHADOWS_CLIP -2.80
+// Target mean background in the [0,1] range.
+#define TARGET_BKG    0.25
+
 // ----------------------------------------------------------------------------
 // error message popup window, ok button
 // ----------------------------------------------------------------------------
@@ -333,17 +338,208 @@ function extractChannels(view, newBaseName)
 }
 
 // ----------------------------------------------------------------------------
-// applySTF
+// STF Auto Stretch routine for all kind of images
 // ----------------------------------------------------------------------------
-function applySTF(view)
+function ApplyAutoSTF( view, shadowsClipping, targetBackground, rgbLinked )
 {
-   var P = new ScreenTransferFunction;
-   P.STF = [ // c0, c1, m, r0, r1
-   [0.00042, 1.00000, 0.00198, 0.00000, 1.00000],
-   [0.00042, 1.00000, 0.00198, 0.00000, 1.00000],
-   [0.00042, 1.00000, 0.00198, 0.00000, 1.00000],
-   [0.00000, 1.00000, 0.50000, 0.00000, 1.00000]
-   ];
-   P.interaction = ScreenTransferFunction.prototype.SeparateChannels;
-   P.executeOn(view);
+   var stf = new ScreenTransferFunction;
+
+   var n = view.image.isColor ? 3 : 1;
+
+   var median = view.computeOrFetchProperty( "Median" );
+
+   var mad = view.computeOrFetchProperty( "MAD" );
+   mad.mul( 1.4826 ); // coherent with a normal distribution
+
+   if ( rgbLinked )
+   {
+      /*
+       * Try to find how many channels look as channels of an inverted image.
+       * We know a channel has been inverted because the main histogram peak is
+       * located over the right-hand half of the histogram. Seems simplistic
+       * but this is consistent with astronomical images.
+       */
+      var invertedChannels = 0;
+      for ( var c = 0; c < n; ++c )
+         if ( median.at( c ) > 0.5 )
+            ++invertedChannels;
+
+      if ( invertedChannels < n )
+      {
+         /*
+          * Noninverted image
+          */
+         var c0 = 0, m = 0;
+         for ( var c = 0; c < n; ++c )
+         {
+            if ( 1 + mad.at( c ) != 1 )
+               c0 += median.at( c ) + shadowsClipping * mad.at( c );
+            m  += median.at( c );
+         }
+         c0 = Math.range( c0/n, 0.0, 1.0 );
+         m = Math.mtf( targetBackground, m/n - c0 );
+
+         stf.STF = [ // c0, c1, m, r0, r1
+                     [c0, 1, m, 0, 1],
+                     [c0, 1, m, 0, 1],
+                     [c0, 1, m, 0, 1],
+                     [0, 1, 0.5, 0, 1] ];
+      }
+      else
+      {
+         /*
+          * Inverted image
+          */
+         var c1 = 0, m = 0;
+         for ( var c = 0; c < n; ++c )
+         {
+            m  += median.at( c );
+            if ( 1 + mad.at( c ) != 1 )
+               c1 += median.at( c ) - shadowsClipping * mad.at( c );
+            else
+               c1 += 1;
+         }
+         c1 = Math.range( c1/n, 0.0, 1.0 );
+         m = Math.mtf( c1 - m/n, targetBackground );
+
+         stf.STF = [ // c0, c1, m, r0, r1
+                     [0, c1, m, 0, 1],
+                     [0, c1, m, 0, 1],
+                     [0, c1, m, 0, 1],
+                     [0, 1, 0.5, 0, 1] ];
+      }
+   }
+   else
+   {
+      /*
+       * Unlinked RGB channnels: Compute automatic stretch functions for
+       * individual RGB channels separately.
+       */
+      var A = [ // c0, c1, m, r0, r1
+               [0, 1, 0.5, 0, 1],
+               [0, 1, 0.5, 0, 1],
+               [0, 1, 0.5, 0, 1],
+               [0, 1, 0.5, 0, 1] ];
+
+      for ( var c = 0; c < n; ++c )
+      {
+         if ( median.at( c ) < 0.5 )
+         {
+            /*
+             * Noninverted channel
+             */
+            var c0 = (1 + mad.at( c ) != 1) ? Math.range( median.at( c ) + shadowsClipping * mad.at( c ), 0.0, 1.0 ) : 0.0;
+            var m  = Math.mtf( targetBackground, median.at( c ) - c0 );
+            A[c] = [c0, 1, m, 0, 1];
+         }
+         else
+         {
+            /*
+             * Inverted channel
+             */
+            var c1 = (1 + mad.at( c ) != 1) ? Math.range( median.at( c ) - shadowsClipping * mad.at( c ), 0.0, 1.0 ) : 1.0;
+            var m  = Math.mtf( c1 - median.at( c ), targetBackground );
+            A[c] = [0, c1, m, 0, 1];
+         }
+      }
+
+      stf.STF = A;
+   }
+
+/*
+   Console.writeln( "<end><cbr/><br/><b>", view.fullId, "</b>:" );
+   for ( var c = 0; c < n; ++c )
+   {
+      Console.writeln( "channel #", c );
+      Console.writeln( format( "c0 = %.6f", stf.STF[c][0] ) );
+      Console.writeln( format( "m  = %.6f", stf.STF[c][2] ) );
+      Console.writeln( format( "c1 = %.6f", stf.STF[c][1] ) );
+   }
+*/
+
+   stf.executeOn( view );
+
+   console.writeln( "<end><cbr/><br/>" );
+};
+
+// ----------------------------------------------------------------------------
+// applySTFHT - return permanently streched image
+// ----------------------------------------------------------------------------
+function applySTFHT( img, stf )
+{
+   var HT = new HistogramTransformation;
+   if (img.isColor)
+   {
+      HT.H = [	[stf[0][1], stf[0][0], stf[0][2], stf[0][3], stf[0][4]],
+               [stf[1][1], stf[1][0], stf[1][2], stf[1][3], stf[1][4]],
+               [stf[2][1], stf[2][0], stf[2][2], stf[2][3], stf[2][4]],
+               [ 0, 0.5, 1, 0, 1]
+             ];
+   }
+   else
+   {
+      HT.H = [	[ 0, 0.5, 1, 0, 1],
+               [ 0, 0.5, 1, 0, 1],
+               [ 0, 0.5, 1, 0, 1],
+               [stf[0][1], stf[0][0], stf[0][2], stf[0][3], stf[0][4]]
+             ];
+   }
+
+   //console.writeln("R/K: ",  stf[0][0], ",", stf[0][1], ",", stf[0][2], ",", stf[0][3], ",", stf[0][4]);
+   //console.writeln("G  : ",  stf[1][0], ",", stf[1][1], ",", stf[1][2], ",", stf[1][3], ",", stf[1][4]);
+   //console.writeln("B  : ",  stf[2][0], ",", stf[2][1], ",", stf[2][2], ",", stf[2][3], ",", stf[2][4]);
+   //console.writeln("L  : ",  stf[3][0], ",", stf[3][1], ",", stf[3][2], ",", stf[3][3], ",", stf[3][4]);
+   //console.writeln("width: ", img.width, " height: ", img.height, " , channels: " , img.numberOfChannels, " , bitsperpixel: ", img.bitsPerSample, " , sample: ", img.sampleType, " ,is color: ", img.isColor);
+
+   var wtmp = new ImageWindow( img.width, img.height, img.numberOfChannels, img.bitsPerSample, img.sampleType == SampleType_Real, img.isColor, uniqueViewId("tmpSTFWindow") );
+   var v = wtmp.mainView;
+   v.beginProcess( UndoFlag_NoSwapFile );
+   v.image.assign( img );
+   v.endProcess();
+   // permanent strecht by HistogramTransformation
+   HT.executeOn( v, false ); // no swap file
+
+   // return image copy, throw away window
+   var image=v.image;
+   var result=new Image(image.width, image.height, image.numberOfChannels, image.colorSpace, image.bitsPerSample, image.sampleType);
+   result.assign(v.image);
+
+   wtmp.forceClose();
+   return result;
+}
+
+// ----------------------------------------------------------------------------
+// hasSTF - true if an STF is set
+// ----------------------------------------------------------------------------
+function hasSTF(view)
+{
+   var A = [ // c0, c1, m, r0, r1
+               [0.5, 0, 1, 0, 1],
+               [0.5, 0, 1, 0, 1],
+               [0.5, 0, 1, 0, 1],
+               [0.5, 0, 1, 0, 1]
+          ];
+
+   var isInitialSTF = true;
+   for(var i = 0; i < 4; ++i)
+   {
+      for(var j = 0; j < 5; ++j)
+      {
+         if(A[i][j] != view.stf[i][j])
+         {
+            isInitialSTF = false;
+            break;
+         }
+      }
+   }
+
+   return !isInitialSTF;
+}
+
+// ----------------------------------------------------------------------------
+// assume image is stretched if median is > 0.01 (works for astro images)
+// ----------------------------------------------------------------------------
+function isStretched(view)
+{
+   return view.image.median() > 0.01
 }

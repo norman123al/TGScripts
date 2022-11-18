@@ -867,7 +867,7 @@ function ScriptDialog()
    with( this.okButton )
    {
       icon = scaledResource( ":/process-interface/execute.png" );
-      toolTip = "Execute script";
+      toolTip = "If a preview is selected, generate preview window. Deselect preview to execute star reduction on target image.";
 
       onClick = () => { this.ok(); }
    }
@@ -885,7 +885,7 @@ function ScriptDialog()
    with( this.reset_Button )
    {
       icon = scaledResource( ":/process-interface/reset.png" );
-      toolTip = "Reset to defaults";
+      toolTip = "Reset script to defaults";
 
       onMousePress = function()
       {

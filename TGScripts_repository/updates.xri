@@ -2,13 +2,13 @@
 <xri version="1.0">
    <description>
       <p>
-        TGScripts Updates ? Repository for scripts provided by Thorsten Glebe.
+        TGScripts Updates ? Repository for Pixinsight scripts provided by Thorsten Glebe.
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="e53b5f5daa55c2a90bb69afad6b3db3ccc005a89" type="script" releaseDate="20221114">
+      <package fileName="TGScripts_repository.tar.gz" sha1="f8978eec053e63146f5fb3eb3a651e52816208f1" type="script" releaseDate="20221118">
          <title>
-            TGScripts snapshot - 2022 Nov 14
+            TGScripts snapshot - 2022 Nov 18
          </title>
          <remove>
             src/scripts/TGScripts
@@ -26,32 +26,11 @@
                 The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
             </p>
             <p>
-               New scripts:
+               Updates:
                <br/>
-               BBStarReduction  - a script to apply Bill Blanshan&apos;s star reduction methods.
+               Bug fixes, code refactorings.
                <br/>
-               LocalSupportMask - a script to generate a local support mask for Pixinsight&apos;s deconvolution process.
-               <br/>
-               TGScriptSkeleton - a script skeleton serving as a starting point for Pixinsight java script development.
-               <br/>
-            </p>
-            <p>
-               Modified Pixinsight scripts:
-               <br/>
-               AberrationInspectorTG  - improved version of the AberrationInspector written by Mike Schuster.
-               <br/>
-               AberrationSpotterTG    - improved version of the AberrationSpotter written by David Serrano.
-               <br/>
-               ColorMaskTG            - improved version of the ColorMask script written by Rick Stevenson.
-               <br/>
-               CSTG                   - slightly modified version of the CS script written by Hartmut V. Bornemann.
-               <br/>
-               DarkStructureEnhanceTG - improved version of the DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl.
-               <br/>
-               DeconvolutionPreviewTG - improved version of the DeconvolutionPreview script written by Juan M. Gómez.
-               <br/>
-               EmissionLineIntegrationTG - improved version of the EmissionLineIntegration script written by Hartmut V. Bornemann (work in progress).
-               <br/>
+               Enhanced TGScriptSkeleton.js
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -60,4 +39,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-11-14T00:15:19.401Z" encoding="Base64">MIy/jnBoYSqsvllpX4wrqFN+coDX4y32ONCmH4nt+dA4k8rQe9yBiRVa8v8oJkgVey8rnBbixtAzVFVh0oDyCg==</Signature>
+<Signature developerId="tglebe" timestamp="2022-11-18T22:08:20.507Z" encoding="Base64">GGvgQspVwNTXhQGwAo+oZuWxs0bwlH3sWFz7BGs4b42Zoth3cCXu/TExuqfapfPhJc5tKL+wHtx1mwsQls2rDA==</Signature>

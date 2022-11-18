@@ -322,9 +322,9 @@ function doDeconvolutionPreview( data )
    copy_img.forceClose();
    copy_img = null;
 
-   applySTF(preview_img.mainView);
-   preview_img.show();
+   ApplyAutoSTF(preview_img.mainView, SHADOWS_CLIP, TARGET_BKG, true /*linked*/);
    preview_img.zoomToFit();
+   preview_img.show();
 }
 
 // ----------------------------------------------------------------------------
@@ -389,7 +389,7 @@ function doWork(data)
    Console.show();
 
    // Check if image is linear
-   if(data.targetPreview.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+   if(isStretched(data.targetPreview) > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
       return;
 
    generateImagesFromPreview(data);

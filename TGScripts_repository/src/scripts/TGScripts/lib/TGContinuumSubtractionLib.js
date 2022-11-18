@@ -133,14 +133,19 @@ function copyViewChannel(view, channel)
 // ----------------------------------------------------------------------------
 function linearViewToBMP(view)
 {
-   Console.writeln('  linearViewToBMP  ' + view.id);
+   Console.writeln("linearViewToBMP", view.id);
  	var nlinName = getNewName(view, "_preview");
+   Console.writeln("linearViewToBMP copy view", view.id);
 	var viewCopy = copyView(view, nlinName);
+   Console.writeln("linearViewToBMP apply auto stf", view.id);
    ApplyAutoSTF( viewCopy,
 						DEFAULT_AUTOSTRETCH_SCLIP,
 						DEFAULT_AUTOSTRETCH_TBGND,
 						DEFAULT_AUTOSTRETCH_CLINK );
+
+   Console.writeln("linearViewToBMP apply histogram", view.id);
 	ApplyHistogram(viewCopy);
+   Console.writeln("linearViewToBMP render bmp", view.id);
    var bmp  = viewCopy.image.render();
    viewCopy.window.forceClose();
 	return bmp;
@@ -394,13 +399,185 @@ function poly(coeffs, x)
     return total;
 }
 
+// ----------------------------------------------------------------------------
+// plotter
+// ----------------------------------------------------------------------------
+function plotter(curves, mue, nbId, bbId, csId, smId)
+{
+   // fetch the program from temp
+   //
+   var GNUPlot = gnuplotExecutable()
+
+   if (GNUPlot == "")
+   {
+      Console.writeln("GNUPlot program file missing");
+      return;
+   }
+
+   nbId = nbId.replaceAll('_', "\\\\\\\_");
+   bbId = bbId.replaceAll('_', "\\\\\\\_");
+   csId = csId.replaceAll('_', "\\\\\\\_");
+   if (smId != "") smId = smId.replaceAll('_', "\\\\\\\_");
+   var mueStr = "mue = " + mue.toFixed(6);
+
+   var scriptPath = tempFile("gbnuScript", "plt");
+   var imagePath  = tempFile("image", "svg");
+   var outputPath = tempFile("output", "txt");
+   var dataPath   = tempFile("cs_data", "csv");
+   //
+   // generate data file
+   //
+   var a = [];
+   var t = 0.01;	// 1%
+
+   for (var i in curves)
+   {
+      t = 0;
+      a.push(curves[i].x.toFixed(8) + '\t' +
+             curves[i].y.toFixed(8) + '\t' +
+             curves[i].slope.toFixed(8));
+   }
+   File.writeTextFile(dataPath, a.join('\n') );
+
+   var minx = curves[0].x;
+   var maxx = curves[curves.length - 1].x;
+   var cent = (minx + maxx) / 2;
+
+   // write GNUPlot script
+
+   var script = [];
+   script.push("set terminal svg size 600,500 enhanced background rgb 'white' font \"Helvetica,10\"");
+   script.push("set output \"" + imagePath + "\"");
+   var title =" set title font \"Times Bold, 20\" enhanced \"Continuum Subtraction";
+   title += "\\n{/*0.8 Narrowband: " + nbId + '}';
+   title += "\\n{/*0.8 Broadband: " + bbId + '}';
+   if (smId != "")
+      title += "\\n{/*0.8 Starmask: " + smId + '}';
+   else
+      title += "\\n{/*0.8 No mask" + smId + '}';
+   title += "\\n{/*0.8 Subtracted: " + csId + '}';
+   title += '\"';
+   script.push(title);
+   script.push("set xlabel \"" + mueStr + "\" font \"Courier, 12\"");
+   script.push("set ylabel \"Normalized data\" font \"Helvetica, 12\"");
+   script.push("set style line 1 lc rgb 'black' lt 1 lw 1 dashtype 0");
+   script.push("set style line 2 lc rgb 'black' lt 1 lw 1 dashtype 1");
+   script.push("set style line 3 lc rgb 'grey' lt 0 lw 1 dashtype '-'");
+   script.push("set grid back ls 3");
+
+   script.push("set key left top");
+
+   script.push("set arrow 1 from " + mue.toString() + ",0 to " +
+      mue.toString() + ",1 nohead filled back lw 1");
+
+   if (mue < cent)
+      script.push("set key right top");
+   else
+      script.push("set key left top");
+   script.push("plot \"" + dataPath + "\"  using 1:2 title 'Blackness' with lines ls 1, \\");
+   script.push(" \"" + dataPath + "\"  using 1:3 title '1st Deviation' with lines ls 2");
+   script.push("quit");
+
+   File.writeTextFile( scriptPath, script.join('\n'));
+
+   var P = new ExternalProcess();
+   with (P)
+   {
+      workingDirectory = File.systemTempDirectory;
+
+      redirectStandardInput( scriptPath );
+      redirectStandardOutput( outputPath );
+
+      onStarted = function()
+      {
+         Console.writeln("Start " + GNUPlot);
+      }
+
+      onError = function( errorCode )
+      {
+         Console.writeln("Fehler# " + errorCode);
+      }
+
+      onFinished = function( exitCode, exitStatus )
+      {
+         Console.writeln("End Exit code " + exitCode + '\t' +
+                         ", Status " + exitStatus);
+      }
+
+      start(GNUPlot);
+      waitForFinished();
+   }
+
+   var txt = File.readTextFile( outputPath );
+
+   Console.writeln(txt);
+   Console.flush();
+   Console.writeln("imagepath: ", imagePath);
+
+   // load image
+   if (File.exists(imagePath))
+   {
+      try
+      {
+         var bm = new Bitmap(imagePath);
+         var window = new ImageWindow(bm.width, bm.height, 3, 32, true, true, PLOTVIEW);
+         window.mainView.beginProcess(UndoFlag_NoSwapFile);
+         window.mainView.image.blend( bm );
+         window.mainView.endProcess();
+         window.show();
+      }
+      catch (ex)
+      {
+         Console.writeln("Image load error: " + ex);
+      }
+      File.remove( imagePath );
+   }
+
+   File.remove( scriptPath );
+   File.remove( outputPath );
+   File.remove( dataPath );
+
+   function tempFile(name, ext)
+   {
+      var workingDir = File.systemTempDirectory;
+      workingDir = workingDir.replaceAll('\\', '/');
+      if (!workingDir.endsWith('/')) workingDir += '/';
+      var filename = "";
+      var index = 0;
+      while (true)
+      {
+         if (index == 0)
+            filename = workingDir + name + '.' + ext;
+         else
+            filename = workingDir + name + index.toString() + '.' + ext;
+         if (!File.exists(filename)) break;
+         index += 1;
+      }
+      return filename;
+   }
+
+   function gnuplotExecutable()
+   {
+      var gnu = File.systemTempDirectory + "/gnuplot.exe";
+      if (File.exists(gnu)) return gnu;
+      var f = File.currentWorkingDirectory;
+      if (!f.endsWith("/bin")) f += "/bin";
+      f += "/gnuplot.exe";
+      if (File.exists(f))
+      {
+         File.copyFile( gnu, f );
+         return gnu;
+      }
+      return "";  // not found
+   }
+}
 
 // ----------------------------------------------------------------------------
 // csNRGB manages the channels, mask and mainview modification
 // ----------------------------------------------------------------------------
 function csNRGB(mainView, dialog)
 {
-	Console.writeln("mainView " + mainView.id);
+	Console.writeln("mainView: ", mainView.id);
 	this.applied 	= false;
 	this.copyName	= getNewName(mainView, "_copy");
 	this.mainCopy	= copyView( mainView, this.copyName);
@@ -415,8 +592,11 @@ function csNRGB(mainView, dialog)
 	this.channels	= [null, null, null];
 	this.bitmap 	= linearViewToBMP(this.mainView);
    this.rect      = mainView.image.selectedRect;
-	setDisposal(this.mainCopy, true);
 
+   Console.writeln("setDisposal");
+   setDisposal(this.mainCopy, true);
+
+   Console.writeln("rect: ", this.rect);
 	this.rgbPixels	= [];
 	for (var i = 0; i < 3; i++)
 	{
@@ -424,11 +604,14 @@ function csNRGB(mainView, dialog)
       this.mainView.image.getSamples(a, this.rect, i);
       this.rgbPixels.push( new Float32Array(a) );
 	}
-	var  b  			= new ArrayBuffer(this.pixCount);
+
+   Console.writeln("mask flags");
+   var  b  			= new ArrayBuffer(this.pixCount);
 	this.maskFlags	= new Int8Array(b);		// mask map with 1
 	for (var j = 0; j < this.pixCount; j++)
       this.maskFlags[j] = 1;
 
+   Console.writeln("extract channels");
 	this.channels	= extractChannels(mainView, TEMPVIEW);
 	for (var i in this.channels)
 	{
@@ -437,6 +620,7 @@ function csNRGB(mainView, dialog)
 		this.channels[i].window.hide();
 		setDisposal(this.channels[i], true);
 	}
+   Console.writeln("channels extracted, disposals set");
 
    // -------------------------------------------------------------------------
    // apply

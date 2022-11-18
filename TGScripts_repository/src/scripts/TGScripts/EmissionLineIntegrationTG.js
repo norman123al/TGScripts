@@ -909,12 +909,13 @@ function ImageView(parent, dialog)
 
    var frame   = parent;
 
+/*
    var prnt = frame;
    while (prnt.parent != null)
    {
       prnt = prnt.parent;
    }
-
+*/
    var bitmap = null;
    var scaledImage = null;
 
@@ -970,133 +971,6 @@ function ImageView(parent, dialog)
 ImageView.prototype = new Frame();
 
 // ----------------------------------------------------------------------------
-// STF Auto Stretch routine
-// ----------------------------------------------------------------------------
-function ApplyAutoSTF( view, shadowsClipping, targetBackground, rgbLinked )
-{
-   var stf = new ScreenTransferFunction;
-
-   var n = view.image.isColor ? 3 : 1;
-
-   var median = view.computeOrFetchProperty( "Median" );
-
-   var mad = view.computeOrFetchProperty( "MAD" );
-   mad.mul( 1.4826 ); // coherent with a normal distribution
-
-   if ( rgbLinked )
-   {
-      /*
-       * Try to find how many channels look as channels of an inverted image.
-       * We know a channel has been inverted because the main histogram peak is
-       * located over the right-hand half of the histogram. Seems simplistic
-       * but this is consistent with astronomical images.
-       */
-      var invertedChannels = 0;
-      for ( var c = 0; c < n; ++c )
-         if ( median.at( c ) > 0.5 )
-            ++invertedChannels;
-
-      if ( invertedChannels < n )
-      {
-         /*
-          * Noninverted image
-          */
-         var c0 = 0, m = 0;
-         for ( var c = 0; c < n; ++c )
-         {
-            if ( 1 + mad.at( c ) != 1 )
-               c0 += median.at( c ) + shadowsClipping * mad.at( c );
-            m  += median.at( c );
-         }
-         c0 = Math.range( c0/n, 0.0, 1.0 );
-         m = Math.mtf( targetBackground, m/n - c0 );
-
-         stf.STF = [ // c0, c1, m, r0, r1
-                     [c0, 1, m, 0, 1],
-                     [c0, 1, m, 0, 1],
-                     [c0, 1, m, 0, 1],
-                     [0, 1, 0.5, 0, 1] ];
-      }
-      else
-      {
-         /*
-          * Inverted image
-          */
-         var c1 = 0, m = 0;
-         for ( var c = 0; c < n; ++c )
-         {
-            m  += median.at( c );
-            if ( 1 + mad.at( c ) != 1 )
-               c1 += median.at( c ) - shadowsClipping * mad.at( c );
-            else
-               c1 += 1;
-         }
-         c1 = Math.range( c1/n, 0.0, 1.0 );
-         m = Math.mtf( c1 - m/n, targetBackground );
-
-         stf.STF = [ // c0, c1, m, r0, r1
-                     [0, c1, m, 0, 1],
-                     [0, c1, m, 0, 1],
-                     [0, c1, m, 0, 1],
-                     [0, 1, 0.5, 0, 1] ];
-      }
-   }
-   else
-   {
-      /*
-       * Unlinked RGB channnels: Compute automatic stretch functions for
-       * individual RGB channels separately.
-       */
-      var A = [ // c0, c1, m, r0, r1
-               [0, 1, 0.5, 0, 1],
-               [0, 1, 0.5, 0, 1],
-               [0, 1, 0.5, 0, 1],
-               [0, 1, 0.5, 0, 1] ];
-
-      for ( var c = 0; c < n; ++c )
-      {
-         if ( median.at( c ) < 0.5 )
-         {
-            /*
-             * Noninverted channel
-             */
-            var c0 = (1 + mad.at( c ) != 1) ? Math.range( median.at( c ) + shadowsClipping * mad.at( c ), 0.0, 1.0 ) : 0.0;
-            var m  = Math.mtf( targetBackground, median.at( c ) - c0 );
-            A[c] = [c0, 1, m, 0, 1];
-         }
-         else
-         {
-            /*
-             * Inverted channel
-             */
-            var c1 = (1 + mad.at( c ) != 1) ? Math.range( median.at( c ) - shadowsClipping * mad.at( c ), 0.0, 1.0 ) : 1.0;
-            var m  = Math.mtf( c1 - median.at( c ), targetBackground );
-            A[c] = [0, c1, m, 0, 1];
-         }
-      }
-
-      stf.STF = A;
-   }
-
-	var t = false;
-	if (t)
-	{
-		console.writeln( "<end><cbr/><br/><b>", view.fullId, "</b>:" );
-		for ( var c = 0; c < n; ++c )
-		{
-			console.writeln( "channel #", c );
-			console.writeln( format( "c0 = %.6f", stf.STF[c][0] ) );
-			console.writeln( format( "m  = %.6f", stf.STF[c][2] ) );
-			console.writeln( format( "c1 = %.6f", stf.STF[c][1] ) );
-		}
-	}
-
-   stf.executeOn( view );
-
-   if (t) console.writeln( "<end><cbr/><br/>" );
-}
-
-// ----------------------------------------------------------------------------
 // ApplyHistogram
 // ----------------------------------------------------------------------------
 function ApplyHistogram(view)
@@ -1138,179 +1012,6 @@ function ApplyHistogram(view)
 	var HT = new HistogramTransformation;
 	HT.H = H;
 	HT.executeOn(view);
-}
-
-// ----------------------------------------------------------------------------
-// plotter
-// ----------------------------------------------------------------------------
-function plotter(curves, mue, nbId, bbId, csId, smId)
-{
-   // fetch the program from temp
-   //
-   var GNUPlot = gnuplotExecutable()
-
-   if (GNUPlot == "")
-   {
-      Console.writeln("GNUPlot program file missing");
-      return;
-   }
-
-   nbId = nbId.replaceAll('_', "\\\\\\\_");
-   bbId = bbId.replaceAll('_', "\\\\\\\_");
-   csId = csId.replaceAll('_', "\\\\\\\_");
-   if (smId != "") smId = smId.replaceAll('_', "\\\\\\\_");
-   var mueStr = "mue = " + mue.toFixed(6);
-
-   var scriptPath = tempFile("gbnuScript", "plt");
-   var imagePath  = tempFile("image", "svg");
-   var outputPath = tempFile("output", "txt");
-   var dataPath   = tempFile("cs_data", "csv");
-   //
-   // generate data file
-   //
-   var a = [];
-   var t = 0.01;	// 1%
-
-   for (var i in curves)
-   {
-      t = 0;
-      a.push(curves[i].x.toFixed(8) + '\t' +
-             curves[i].y.toFixed(8) + '\t' +
-             curves[i].slope.toFixed(8));
-   }
-   File.writeTextFile(dataPath, a.join('\n') );
-
-   var minx = curves[0].x;
-   var maxx = curves[curves.length - 1].x;
-   var cent = (minx + maxx) / 2;
-
-   // write GNUPlot script
-
-   var script = [];
-   script.push("set terminal svg size 600,500 enhanced background rgb 'white' font \"Helvetica,10\"");
-   script.push("set output \"" + imagePath + "\"");
-   var title =" set title font \"Times Bold, 20\" enhanced \"Continuum Subtraction";
-   title += "\\n{/*0.8 Narrowband: " + nbId + '}';
-   title += "\\n{/*0.8 Broadband: " + bbId + '}';
-   if (smId != "")
-      title += "\\n{/*0.8 Starmask: " + smId + '}';
-   else
-      title += "\\n{/*0.8 No mask" + smId + '}';
-   title += "\\n{/*0.8 Subtracted: " + csId + '}';
-   title += '\"';
-   script.push(title);
-   script.push("set xlabel \"" + mueStr + "\" font \"Courier, 12\"");
-   script.push("set ylabel \"Normalized data\" font \"Helvetica, 12\"");
-   script.push("set style line 1 lc rgb 'black' lt 1 lw 1 dashtype 0");
-   script.push("set style line 2 lc rgb 'black' lt 1 lw 1 dashtype 1");
-   script.push("set style line 3 lc rgb 'grey' lt 0 lw 1 dashtype '-'");
-   script.push("set grid back ls 3");
-
-   script.push("set key left top");
-
-   script.push("set arrow 1 from " + mue.toString() + ",0 to " +
-      mue.toString() + ",1 nohead filled back lw 1");
-
-   if (mue < cent)
-      script.push("set key right top");
-   else
-      script.push("set key left top");
-   script.push("plot \"" + dataPath + "\"  using 1:2 title 'Blackness' with lines ls 1, \\");
-   script.push(" \"" + dataPath + "\"  using 1:3 title '1st Deviation' with lines ls 2");
-   script.push("quit");
-
-   File.writeTextFile( scriptPath, script.join('\n'));
-
-   var P = new ExternalProcess();
-   with (P)
-   {
-      workingDirectory = File.systemTempDirectory;
-
-      redirectStandardInput( scriptPath );
-      redirectStandardOutput( outputPath );
-
-      onStarted = function()
-      {
-         Console.writeln("Start " + GNUPlot);
-      }
-
-      onError = function( errorCode )
-      {
-         Console.writeln("Fehler# " + errorCode);
-      }
-
-      onFinished = function( exitCode, exitStatus )
-      {
-         Console.writeln("End Exit code " + exitCode + '\t' +
-                         ", Status " + exitStatus);
-      }
-
-      start(GNUPlot);
-      waitForFinished();
-   }
-
-   var txt = File.readTextFile( outputPath );
-
-   Console.writeln(txt);
-   Console.flush();
-   Console.writeln("imagepath: ", imagePath);
-
-   // load image
-   if (File.exists(imagePath))
-   {
-      try
-      {
-         var bm = new Bitmap(imagePath);
-         var window = new ImageWindow(bm.width, bm.height, 3, 32, true, true, PLOTVIEW);
-         window.mainView.beginProcess(UndoFlag_NoSwapFile);
-         window.mainView.image.blend( bm );
-         window.mainView.endProcess();
-         window.show();
-      }
-      catch (ex)
-      {
-         Console.writeln("Image load error: " + ex);
-      }
-      File.remove( imagePath );
-   }
-
-   File.remove( scriptPath );
-   File.remove( outputPath );
-   File.remove( dataPath );
-
-   function tempFile(name, ext)
-   {
-      var workingDir = File.systemTempDirectory;
-      workingDir = workingDir.replaceAll('\\', '/');
-      if (!workingDir.endsWith('/')) workingDir += '/';
-      var filename = "";
-      var index = 0;
-      while (true)
-      {
-         if (index == 0)
-            filename = workingDir + name + '.' + ext;
-         else
-            filename = workingDir + name + index.toString() + '.' + ext;
-         if (!File.exists(filename)) break;
-         index += 1;
-      }
-      return filename;
-   }
-
-   function gnuplotExecutable()
-   {
-      var gnu = File.systemTempDirectory + "/gnuplot.exe";
-      if (File.exists(gnu)) return gnu;
-      var f = File.currentWorkingDirectory;
-      if (!f.endsWith("/bin")) f += "/bin";
-      f += "/gnuplot.exe";
-      if (File.exists(f))
-      {
-         File.copyFile( gnu, f );
-         return gnu;
-      }
-      return "";  // not found
-   }
 }
 
 // ----------------------------------------------------------------------------
@@ -1362,11 +1063,6 @@ function houseKeeping()
 
 
 showDialog.prototype = new Dialog;
-
-String.prototype.replaceAll = function(search, replacement) {
-    var target = this;
-    return target.split(search).join(replacement);
-}
 
 //////////////////////////////////////////////////////////////////////////////
 //

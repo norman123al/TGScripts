@@ -22,13 +22,13 @@
 
     \image[float,marginRight:1.25em,marginBottom:0.5em] TGScriptSkeleton_main_screen.png
 
-    This script skeleton is a starting point for developing Pixinsight java scripts. It provides a simple list box for image selection, the 'new instance' button to store the state of script parameters and the usual 'Ok' and 'Cancel' buttons for script execution.
+    This script skeleton is a starting point for developing Pixinsight java scripts. It provides a simple list box for image selection with a preview of the selected image. The 'new instance' button allows to store the state of script parameters, the 'Reset' button resets the GUI state to default and the usual 'Ok' and 'Cancel' buttons execute or exit the script.
 } % description
 
 \section { \label parameter_reference Parameter Reference } {
     \definition {
         { \label target_image Target Image } {
-            The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for further processing.
+            The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for further processing. In case of linear images the script performs a stretch for display reasons. In case the image is already auto-stretched, the available STF settings are used. Otherwise an auto-stretch will be performed. In case of auto-stretch on a color image, the 'Use linked STF stretch' checkbox will be enabled to allow selecting a linked stretch. The unlinked stretch is the default.
         }
     } % target image
     

@@ -1,5 +1,5 @@
 /*
-   TGScriptSkeleton v1.1
+   TGScriptSkeleton v1.2
 
    A script for generating local support mask for deconvolution.
 
@@ -24,6 +24,8 @@
       initial version
    v1.1
       added reset button
+   v1.2
+      added image selector preview
 */
 
 #include <pjsr/Sizer.jsh>
@@ -35,32 +37,44 @@
 
 #include "lib/TGScriptsLib.js"
 
-#define VERSION   "1.1"
+#define VERSION   "1.2"
 #define TITLE     "TGScriptSkeleton"
+
+// Largest dimension of the image preview in pixels.
+#define PREVIEW_SIZE 400
+#define SPACING      4
+#define MARGIN       8
+
+// basename
+#define BASENAME "TGScriptImg"
 
 #feature-id    TGScriptSkeleton : TG Scripts > TGScriptSkeleton
 
 #feature-info A script skeleton to create scripts from.<br/>\
    Copyright &copy; 2022 Thorsten Glebe. All Rights Reserved.
 
-//------------ ScriptData --------------
+// ----------------------------------------------------------------------------
+// ScriptData
+// ----------------------------------------------------------------------------
 function ScriptData()
 {
-   this.dialog     = null;
-   this.targetView = null;
-   this.view_id    = "";
+   this.dialog       = null;
+   this.targetView   = null;
+   this.view_id      = "";
+   this.previewView  = null;
+   this.previewImage = null;
+   this.rgbLinked    = true;
 
-   /*
-    * Save parameters in process icon.
-    */
+   // Save parameters in process icon
+   // -------------------------------------------------------------------------
    this.exportParameters = function()
    {
-      Parameters.set("view_id"     , this.view_id);
+      Parameters.set("view_id"  , this.view_id);
+      Parameters.set("rgbLinked", this.rgbLinked);
    }
 
-   /*
-    * Restore saved parameters.
-    */
+   // Restore saved parameters
+   // -------------------------------------------------------------------------
    this.importParameters = function()
    {
       if (Parameters.has("view_id"))
@@ -75,6 +89,8 @@ function ScriptData()
             }
          }
       }
+      if(Parameters.has("rgbLinked"))
+         this.rgbLinked = Parameters.getBoolean("rgbLinked");
    }
 
    this.reset = function()
@@ -86,22 +102,23 @@ function ScriptData()
 
 var data = new ScriptData;
 
-/*
- * do the work
- */
+// ----------------------------------------------------------------------------
+// doWork
+// ----------------------------------------------------------------------------
 function doWork()
 {
    Console.show();
    var t0 = new Date;
    data.targetView.beginProcess(UndoFlag_NoSwapFile);
 
-   //------ real work happens here ---------
-
    // Check if image is non-linear
    if(data.targetView.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
       return;
 
    Console.writeln("targetView: ", data.view_id);
+
+   //------ real work happens here ---------
+
    //------ real work end -----------------
 
    data.targetView.endProcess();
@@ -109,14 +126,16 @@ function doWork()
    Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
 }
 
-//------------ ScriptDialog --------------
+// ----------------------------------------------------------------------------
+// ScriptDialog
+// ----------------------------------------------------------------------------
 function ScriptDialog()
 {
    this.__base__ = Dialog;
    this.__base__();
 
    data.dialog = this;
-   var fontWidth  = this.font.width("M");
+   var labelWidth = 9 * this.font.width("M");
 
    // --- help box ---
    this.helpLabel = new Label( this );
@@ -132,11 +151,80 @@ function ScriptDialog()
          + "<p>Copyright &copy; 2022 Thorsten Glebe</p>";
    }
 
-   // --- target image selector ---
+   // -------------------------------------------------------------------------
+   this.ScrollControl = new Control( this );
+
+   this.ScrollControl.updateView = function()
+   {
+      var width, height;
+
+      if(data.targetView == null)
+      {
+         width  = 0;
+         height = 0;
+      }
+      else
+      {
+         var stf = data.targetView.stf;
+         if(isStretched(data.targetView))
+         {
+            data.previewImage = data.targetView.image;
+         }
+         else
+         {
+            if(hasSTF(data.targetView))
+            {
+               data.previewImage = applySTFHT(data.targetView.image, data.targetView.stf);
+            }
+            else
+            {
+               // copy view
+               data.previewView = copyView(data.targetView, uniqueViewId(BASENAME));
+               // STF stretch on copied view
+               ApplyAutoSTF(data.previewView, SHADOWS_CLIP, TARGET_BKG, data.rgbLinked);
+               data.previewImage = applySTFHT(data.previewView.image, data.previewView.stf);
+               data.previewView.window.forceClose();
+            }
+         }
+
+         var imageWidth  = data.previewImage.width;
+         var imageHeight = data.previewImage.height;
+         if ( imageWidth > imageHeight )
+         {
+            width  = PREVIEW_SIZE;
+            height = PREVIEW_SIZE*imageHeight/imageWidth;
+         }
+         else
+         {
+            width  = PREVIEW_SIZE*imageWidth/imageHeight;
+            height = PREVIEW_SIZE;
+         }
+      }
+
+      this.setFixedSize( width, height );
+      data.dialog.update();
+      data.dialog.adjustToContents();
+   }
+
+   this.ScrollControl.onPaint = function()
+   {
+      if(data.previewImage != null)
+      {
+         var G = new Graphics( this );
+         G.drawScaledBitmap( this.boundsRect, data.previewImage.render() );
+         G.end();
+      }
+      else
+      {
+         Console.writeln("targetView is null");
+      }
+   }
+
+   // -------------------------------------------------------------------------
    this.targetImage_Label = new Label( this );
    with( this.targetImage_Label )
    {
-      minWidth = 10*fontWidth;
+      minWidth = labelWidth;
       text = "Target image:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -166,18 +254,53 @@ function ScriptDialog()
             data.targetView = null;
             data.view_id = "";
          }
+
+         data.dialog.linkedSTFCheckBox.updateCheckBox();
+         data.dialog.ScrollControl.updateView();
       }
    }
 
    this.targetImage_Sizer = new HorizontalSizer;
    with( this.targetImage_Sizer )
    {
-      spacing = 4;
+      spacing = SPACING;
       add( this.targetImage_Label );
       add( this.targetImage_ViewList, 100 );
    }
 
-   // --- buttons ---
+   // -------------------------------------------------------------------------
+   this.linkedSTFCheckBox = new CheckBox(this);
+   with( this.linkedSTFCheckBox )
+   {
+      text    = "Use linked STF stretch";
+      toolTip = "<p>If set, linked STF stretch is used. Unset to stretch each channel individually.</p>";
+      checked = data.rgbLinked;
+
+      onClick = (checked) => { data.rgbLinked = checked; data.dialog.ScrollControl.updateView(); }
+   }
+
+   this.linkedSTFCheckBox.updateCheckBox = function()
+   {
+      if(data.targetView == null || data.targetView.image.isGrayscale || isStretched(data.targetView) || hasSTF(data.targetView))
+         this.enabled = false;
+      else
+         this.enabled = true;
+   }
+
+   // -------------------------------------------------------------------------
+   this.paramGroupBox = new GroupBox( this );
+   with( this.paramGroupBox )
+   {
+      title = "Target View Selection";
+      sizer = new VerticalSizer;
+      sizer.margin  = MARGIN;
+      sizer.spacing = SPACING;
+      sizer.add( this.targetImage_Sizer );
+      sizer.add( this.linkedSTFCheckBox );
+   }
+
+   // buttons
+   // -------------------------------------------------------------------------
    this.newInstance_Button = new ToolButton(this);
    with( this.newInstance_Button )
    {
@@ -199,7 +322,6 @@ function ScriptDialog()
       icon = scaledResource( ":/process-interface/execute.png" );
       toolTip = "Execute script";
 
-      // () => maintains the context!
       onClick = () => { this.ok(); }
    }
 
@@ -209,7 +331,6 @@ function ScriptDialog()
       icon = scaledResource( ":/process-interface/cancel.png" );
       toolTip = "Cancel script";
 
-      // () => maintains the context!
       onClick = () => { this.cancel(); }
    }
 
@@ -233,7 +354,7 @@ function ScriptDialog()
    this.buttons_Sizer = new HorizontalSizer;
    with( this.buttons_Sizer )
    {
-      spacing = 6;
+      spacing = SPACING;
       add(this.newInstance_Button);
       addStretch();
       add(this.ok_Button);
@@ -241,31 +362,38 @@ function ScriptDialog()
       add(this.reset_Button);
    }
 
-   // --- dialog layout ---
+   // dialog layout
+   // -------------------------------------------------------------------------
    this.sizer = new VerticalSizer;
    with( this.sizer )
    {
-      margin = 8;
-      spacing = 6;
+      margin = MARGIN;
+      spacing = SPACING;
       add( this.helpLabel );
-      addSpacing( 4 );
-      add( this.targetImage_Sizer );
+      addSpacing( SPACING );
+      add( this.ScrollControl, 100 );
+      addSpacing( SPACING );
+      add( this.paramGroupBox );
+      addSpacing( SPACING );
       add( this.buttons_Sizer );
    }
 
    this.windowTitle = TITLE;
+   this.setScaledFixedWidth(PREVIEW_SIZE + 2*MARGIN);
+   //this.setScaledMinSize(600, 400);
+   // this.setFixedSize(); // this prevents main window to scale
    this.adjustToContents();
-   this.setFixedSize();
-}
+} // ScriptDialog
 
 // Our dialog inherits all properties and methods from the core Dialog object.
 ScriptDialog.prototype = new Dialog;
 
-//------------ main --------------
+// ----------------------------------------------------------------------------
+// main
+// ----------------------------------------------------------------------------
 function main()
 {
    Console.hide();
-
    if (Parameters.isViewTarget)
    {
       data.importParameters();
@@ -290,6 +418,11 @@ function main()
    }
 
    var dialog = new ScriptDialog();
+
+   // initialize dialog
+   dialog.linkedSTFCheckBox.updateCheckBox();
+   dialog.ScrollControl.updateView();
+   //   dialog.userResizable = false;
    for ( ;; )
    {
       if ( !dialog.execute() )

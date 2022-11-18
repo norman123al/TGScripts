@@ -542,7 +542,7 @@ function LocalSupportMaskDialog()
       text    = "Create Overlay Preview";
       toolTip = "<p>Create overlay preview for local support mask.</p>";
 
-      onCheck = function() { data.isPreview = true; }
+      onClick = function(checked) { data.isPreview = checked; }
    }
 
    // -------------------------------------------------------------------------

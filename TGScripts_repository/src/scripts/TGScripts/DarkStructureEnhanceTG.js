@@ -517,8 +517,8 @@ function createPreview()
    }
 
    copyWindow.forceClose();
-   applySTF(prevWindow.mainView);
-   prevWindow.fitWindow();
+   ApplyAutoSTF(prevWindow.mainView, SHADOWS_CLIP, TARGET_BKG, true /*linked*/);
+   prevWindow.zoomToFit();
    prevWindow.show();
 }
 
@@ -528,7 +528,7 @@ function createPreview()
 function doWork()
 {
    // Check if image is linear
-   if(data.targetView.image.median() > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+   if(isStretched(data.targetView) && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
       return;
 
    Console.show();
@@ -858,7 +858,7 @@ function DarkMaskLayersDialog()
    with( this.ok_Button )
    {
       icon = scaledResource( ":/process-interface/execute.png" );
-      toolTip = "Execute script";
+      toolTip = "If preview is selected, generate preview window. Deselect preview to apply script on target image.";
 
       onClick = () => { this.ok(); }
    }
