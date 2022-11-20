@@ -95,7 +95,8 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
          rgbLinked = Parameters.getBoolean("rgbLinked");
 
       // update ViewList control
-      this.targetImage_ViewList.currentView = targetView;
+      if(targetView)
+         this.targetImage_ViewList.currentView = targetView;
    }
 
    // -------------------------------------------------------------------------
