@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="4e928cb8df000c66d4f86100bb26e273ea0d1826" type="script" releaseDate="20221120">
+      <package fileName="TGScripts_repository.tar.gz" sha1="3ba43451b099af51953c47406d781dd62323d33c" type="script" releaseDate="20221120">
          <title>
             TGScripts snapshot - 2022 Nov 20
          </title>
@@ -39,4 +39,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-11-20T13:09:13.512Z" encoding="Base64">H3QF1EftT3krzrPSDVwkAi2y2LCttbHC6qdlmReFP+ATqdTeEc62ysb/iaxc12VQjc6Iu3glyBFEkOfUBo5mBg==</Signature>
+<Signature developerId="tglebe" timestamp="2022-11-20T13:14:27.728Z" encoding="Base64">hcAe/RaUZgthO59hZ4HoiUa+/Sn2nreqmeH7O2UmZT8M9r2h0GcRsvfs0kNYv7FI/tKCXpwL5REJEVBxagXuDA==</Signature>
