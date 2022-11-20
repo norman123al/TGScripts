@@ -22,7 +22,7 @@
 
     \image[float,marginRight:1.25em,marginBottom:0.5em] TGScriptSkeleton_main_screen.png
 
-    This script skeleton is a starting point for developing Pixinsight java scripts. It provides a simple list box for image selection with a preview of the selected image. The 'new instance' button allows to store the state of script parameters, the 'Reset' button resets the GUI state to default and the usual 'Ok' and 'Cancel' buttons execute or exit the script.
+    This script skeleton is a starting point for developing Pixinsight java scripts. It provides a simple list box for image selection with a preview of the selected image. The 'new instance' button allows to store the state of script parameters in a process icon. The 'Reset' button resets the GUI state to default, the documentation button shows this page and the usual 'Ok' and 'Cancel' buttons execute or exit the script.
 } % description
 
 \section { \label parameter_reference Parameter Reference } {
