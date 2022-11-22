@@ -20,6 +20,7 @@
 
 #include <pjsr/Sizer.jsh>
 #include <pjsr/SectionBar.jsh>
+#include <pjsr/FrameStyle.jsh>
 
 #include "TGScriptsLib.js"
 
@@ -166,6 +167,13 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
       }
    }
 
+   this.ScrollControl_Sizer = new HorizontalSizer;
+   with( this.ScrollControl_Sizer )
+   {
+      spacing = SPACING;
+      add( this.ScrollControl );
+   }
+
    // -------------------------------------------------------------------------
    this.targetImage_Label = new Label( dialog );
    with( this.targetImage_Label )
@@ -220,6 +228,7 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
 
    this.linkedSTFCheckBox.updateCheckBox = function()
    {
+      checked = rgbLinked;
       if(targetView == null || targetView.image.isGrayscale || isStretched(targetView) || hasSTF(targetView))
          this.enabled = false;
       else
@@ -241,20 +250,14 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
    this.imageSection = new Control(dialog);
    with (this.imageSection)
    {
-      sizer = new HorizontalSizer;
+      sizer = new VerticalSizer;
       with (sizer)
       {
+         margin  = MARGIN;
          spacing = SPACING;
-         this.imageSectionVSizer = new VerticalSizer;
-         with (this.imageSectionVSizer)
-         {
-            margin  = MARGIN;
-            spacing = SPACING;
-            add( this.paramVSizer );
-            addSpacing( SPACING );
-            add(this.ScrollControl);
-         }
-         add(this.imageSectionVSizer);
+         add( this.paramVSizer );
+         addSpacing( SPACING );
+         add(this.ScrollControl_Sizer);
       }
    }
 
@@ -289,12 +292,114 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
       rgbLinked    = false;
    }
 
+   // -------------------------------------------------------------------------
    // register elements to this sizer
-   margin  = MARGIN;
-   spacing = SPACING;
+   this.margin  = MARGIN;
+   this.spacing = SPACING;
    this.add( this.imageSectionBar );
    this.add( this.imageSection );
 
 } // TargetViewSelector
 
 TargetViewSelector.prototype = new VerticalSizer();
+
+// ----------------------------------------------------------------------------
+// ToolButtonBar
+// ----------------------------------------------------------------------------
+function ToolButtonBar(dialog, scriptname)
+{
+   this.__base__ = HorizontalSizer;
+  	this.__base__();
+
+   // -------------------------------------------------------------------------
+   this.newInstance_Button = new ToolButton(dialog);
+   with( this.newInstance_Button )
+   {
+      icon = scaledResource(":/process-interface/new-instance.png");
+      toolTip = "New Instance";
+
+      onMousePress = function()
+      {
+         dialog.exportParameters();
+         dialog.newInstance();
+      }
+   }
+
+   // -------------------------------------------------------------------------
+   this.ok_Button = new ToolButton(dialog);
+   with( this.ok_Button )
+   {
+      icon = scaledResource( ":/process-interface/execute.png" );
+      toolTip = "Execute script";
+
+      onClick = () => { dialog.ok(); }
+   }
+
+   // -------------------------------------------------------------------------
+   this.cancel_Button = new ToolButton(dialog);
+   with( this.cancel_Button )
+   {
+      icon = scaledResource( ":/process-interface/cancel.png" );
+      toolTip = "Cancel script";
+
+      onClick = () => { dialog.cancel(); }
+   }
+
+   // -------------------------------------------------------------------------
+   this.documentationButton = new ToolButton(dialog);
+   with( this.documentationButton )
+   {
+      icon = scaledResource( ":/process-interface/browse-documentation.png" );
+      toolTip = "<p>Show script documentaion.</p>";
+
+      onClick = () => { Dialog.browseScriptDocumentation(scriptname); }
+   }
+
+   // -------------------------------------------------------------------------
+   this.reset_Button = new ToolButton(dialog);
+   with( this.reset_Button )
+   {
+      icon = scaledResource( ":/process-interface/reset.png" );
+      toolTip = "Reset to defaults";
+
+      onMousePress = () =>
+      {
+         dialog.resetControl();
+      }
+   }
+
+   // register elements to this sizer
+   // -------------------------------------------------------------------------
+   this.spacing = SPACING;
+   this.add(this.newInstance_Button);
+   this.addStretch();
+   this.add(this.ok_Button);
+   this.add(this.cancel_Button);
+   this.add(this.documentationButton);
+   this.add(this.reset_Button);
+}
+
+ToolButtonBar.prototype = new HorizontalSizer();
+
+// ----------------------------------------------------------------------------
+// HelpAndCopyrightLabel
+// ----------------------------------------------------------------------------
+function HelpAndCopyrightLabel(dialog, maxheight, scriptname, version, description)
+{
+   this.__base__ = Label;
+  	this.__base__(dialog);
+
+   var versionspec = "<b>" + scriptname + " v" + version + "</b> &mdash;"
+   var copyright   = "<p>Copyright &copy; 2022 Thorsten Glebe</p>";
+
+   // set label properties
+   // -------------------------------------------------------------------------
+   this.frameStyle   = FrameStyle_Box;
+   this.margin       = MARGIN;
+   this.wordWrapping = true;
+   this.useRichText  = true;
+   this.maxHeight    = maxheight; // fixed height to avoid funny jumping of controls
+   this.text = "<p>" + versionspec + " " + description + copyright + "</p>";
+}
+
+HelpAndCopyrightLabel.prototype = new Label();

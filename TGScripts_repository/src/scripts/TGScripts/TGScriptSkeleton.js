@@ -32,16 +32,15 @@
       refactoring: introduce TargetViewSelector object
 */
 
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/StdIcon.jsh>
+//#include <pjsr/NumericControl.jsh>
+//#include <pjsr/TextAlign.jsh>
+//#include <pjsr/StdButton.jsh>
+//#include <pjsr/StdIcon.jsh>
 
 #include "lib/TGDialogLib.js"
 
-#define VERSION   "1.3"
-#define TITLE     "TGScriptSkeleton"
+#define VERSION    "1.3"
+#define SCRIPTNAME "TGScriptSkeleton"
 
 #feature-id    TGScriptSkeleton : TG Scripts > TGScriptSkeleton
 
@@ -72,7 +71,7 @@ function doWork()
    var t0 = new Date;
 
    // Check if image is non-linear
-   if(isStretched(data.targetView) && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
+   if(isStretched(data.targetView) && errorMessageOkCancel("Image seems to be non-linear, continue?", SCRIPTNAME))
       return;
 
    Console.writeln("targetView: ", data.targetView.id);
@@ -98,21 +97,11 @@ function ScriptDialog()
    var labelWidth = 9 * this.font.width("M");
 
    // --- help box ---
-   this.helpLabel = new Label( this );
-   with( this.helpLabel )
-   {
-      frameStyle   = FrameStyle_Box;
-      margin       = MARGIN;
-      wordWrapping = true;
-      useRichText  = true;
-      maxHeight    = 108; // fixed height
-      text =
-         "<p><b>" + TITLE + " v" + VERSION + "</b> &mdash; An empty script consisting "
-         + "of target view selection with preview image including auto-stretch functionality. "
-         + "The buttons include the 'new instance' button to save the script state as an icon "
-         + "plus ok, cancel, reset and documentation tool button.</p>"
-         + "<p>Copyright &copy; 2022 Thorsten Glebe</p>";
-   }
+   var helptext = "An empty script consisting of target view selection with "
+      + "preview image including auto-stretch functionality. The buttons include "
+      + "the 'new instance' button to save the script state as an icon plus ok, "
+      + "cancel, reset and documentation tool button."
+   this.helpLabel = new HelpAndCopyrightLabel(this, 108, SCRIPTNAME, VERSION, helptext );
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
@@ -132,71 +121,16 @@ function ScriptDialog()
       this.targetViewSelector.importParameters();
    }
 
+   // resetControl
+   // -------------------------------------------------------------------------
+   this.resetControl = function()
+   {
+      this.targetViewSelector.resetControl();
+   }
+
    // buttons
    // -------------------------------------------------------------------------
-   this.newInstance_Button = new ToolButton(this);
-   with( this.newInstance_Button )
-   {
-      icon = scaledResource(":/process-interface/new-instance.png");
-      toolTip = "New Instance";
-
-      onMousePress = function()
-      {
-         this.dialog.exportParameters();
-         this.dialog.newInstance();
-      }
-   }
-
-   this.ok_Button = new ToolButton(this);
-   with( this.ok_Button )
-   {
-      icon = scaledResource( ":/process-interface/execute.png" );
-      toolTip = "Execute script";
-
-      onClick = () => { this.ok(); }
-   }
-
-   this.cancel_Button = new ToolButton(this);
-   with( this.cancel_Button )
-   {
-      icon = scaledResource( ":/process-interface/cancel.png" );
-      toolTip = "Cancel script";
-
-      onClick = () => { this.cancel(); }
-   }
-
-   this.documentationButton = new ToolButton(this);
-   with( this.documentationButton )
-   {
-      icon = this.scaledResource( ":/process-interface/browse-documentation.png" );
-      toolTip = "<p>Show script documentaion.</p>";
-
-      onClick = () => { Dialog.browseScriptDocumentation( "TGScriptSkeleton" ); }
-   }
-
-   this.reset_Button = new ToolButton(this);
-   with( this.reset_Button )
-   {
-      icon = scaledResource( ":/process-interface/reset.png" );
-      toolTip = "Reset to defaults";
-
-      onMousePress = () =>
-      {
-         this.targetViewSelector.resetControl();
-      }
-   }
-
-   this.buttons_Sizer = new HorizontalSizer;
-   with( this.buttons_Sizer )
-   {
-      spacing = SPACING;
-      add(this.newInstance_Button);
-      addStretch();
-      add(this.ok_Button);
-      add(this.cancel_Button);
-      add(this.documentationButton);
-      add(this.reset_Button);
-   }
+   this.toolButtonBar = new ToolButtonBar(this, SCRIPTNAME);
 
    // dialog layout
    // -------------------------------------------------------------------------
@@ -209,10 +143,10 @@ function ScriptDialog()
       addSpacing( SPACING );
       add( this.targetViewSelector );
       addSpacing( SPACING );
-      add( this.buttons_Sizer );
+      add( this.toolButtonBar );
    }
 
-   this.windowTitle = TITLE;
+   this.windowTitle = SCRIPTNAME;
    this.setFixedWidth(PREVIEW_SIZE + 2*MARGIN);
 //   this.setScaledMinSize(PREVIEW_SIZE, PREVIEW_SIZE);
    // this.setFixedSize(); // this prevents main window to scale
