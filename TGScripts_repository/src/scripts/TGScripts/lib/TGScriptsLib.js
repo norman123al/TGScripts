@@ -21,9 +21,14 @@
 #include <pjsr/ColorSpace.jsh>
 #include <pjsr/SampleType.jsh>
 #include <pjsr/UndoFlag.jsh>
+#include <pjsr/StdIcon.jsh>
+#include <pjsr/PropertyType.jsh>
+#include <pjsr/PropertyAttribute.jsh>
 
 #define MIN_IMAGE_WIDTH         256
 #define MIN_IMAGE_HEIGHT        256
+#define TMP_STF_WINDOW_NAME     "tmpSTFWindow"
+#define SNR_PROPERTY_KEY        "TGScript:SNR"
 
 // Shadows clipping point in (normalized) MAD units from the median.
 #define SHADOWS_CLIP -2.80
@@ -485,16 +490,17 @@ function applySTFHT( img, stf )
              ];
    }
 
-   //console.writeln("R/K: ",  stf[0][0], ",", stf[0][1], ",", stf[0][2], ",", stf[0][3], ",", stf[0][4]);
-   //console.writeln("G  : ",  stf[1][0], ",", stf[1][1], ",", stf[1][2], ",", stf[1][3], ",", stf[1][4]);
-   //console.writeln("B  : ",  stf[2][0], ",", stf[2][1], ",", stf[2][2], ",", stf[2][3], ",", stf[2][4]);
-   //console.writeln("L  : ",  stf[3][0], ",", stf[3][1], ",", stf[3][2], ",", stf[3][3], ",", stf[3][4]);
-   //console.writeln("width: ", img.width, " height: ", img.height, " , channels: " , img.numberOfChannels, " , bitsperpixel: ", img.bitsPerSample, " , sample: ", img.sampleType, " ,is color: ", img.isColor);
+   //Console.writeln("R/K: ",  stf[0][0], ",", stf[0][1], ",", stf[0][2], ",", stf[0][3], ",", stf[0][4]);
+   //Console.writeln("G  : ",  stf[1][0], ",", stf[1][1], ",", stf[1][2], ",", stf[1][3], ",", stf[1][4]);
+   //Console.writeln("B  : ",  stf[2][0], ",", stf[2][1], ",", stf[2][2], ",", stf[2][3], ",", stf[2][4]);
+   //Console.writeln("L  : ",  stf[3][0], ",", stf[3][1], ",", stf[3][2], ",", stf[3][3], ",", stf[3][4]);
+   //Console.writeln("width: ", img.width, " height: ", img.height, " , channels: " , img.numberOfChannels, " , bitsperpixel: ", img.bitsPerSample, " , sample: ", img.sampleType, " ,is color: ", img.isColor);
 
-   var wtmp = new ImageWindow( img.width, img.height, img.numberOfChannels, img.bitsPerSample, img.sampleType == SampleType_Real, img.isColor, uniqueViewId("tmpSTFWindow") );
+   var wtmp = new ImageWindow( img.width, img.height, img.numberOfChannels, img.bitsPerSample, img.sampleType == SampleType_Real, img.isColor, uniqueViewId(TMP_STF_WINDOW_NAME) );
    var v = wtmp.mainView;
    v.beginProcess( UndoFlag_NoSwapFile );
    v.image.assign( img );
+   v.image.resetSelections();
    v.endProcess();
    // permanent strecht by HistogramTransformation
    HT.executeOn( v, false ); // no swap file
@@ -542,4 +548,105 @@ function hasSTF(view)
 function isStretched(view)
 {
    return view.image.median() > 0.01
+}
+
+/**
+ * Estimation of the standard deviation of the noise, assuming a Gaussian
+ * noise distribution.
+ *
+ * - Use MRS noise evaluation when the algorithm converges for 4 >= J >= 2
+ *
+ * - Use k-sigma noise evaluation when either MRS doesn't converge or the
+ *   length of the noise pixels set is below a 1% of the image area.
+ *
+ * - Automatically iterate to find the highest layer where noise can be
+ *   successfully evaluated, in the [1,3] range.
+ *
+ * Returned noise estimates are scaled by the Sn robust scale estimator of
+ * Rousseeuw and Croux.
+ *
+ * Copyright (C) 2017-2020 Pleiades Astrophoto. All Rights Reserved.
+ * Written by Juan Conejero (PTeam)
+ *
+ * Modified by Thorsten Glebe 2022
+*/
+function ScaledNoiseEvaluation( image, scale )
+{
+   if ( 1 + scale == 1 )
+      throw Error( "Zero or insignificant data." );
+
+   let a, n = 4, m = 0.01*image.selectedRect.area;
+   var i = 0;
+   for ( ;; )
+   {
+      ++i;
+      a = image.noiseMRS( n ); // expensive computation
+
+      if ( a[1] >= m )
+         break;
+      if ( --n == 1 )
+      {
+         console.writeln( "<end><cbr>** Warning: No convergence in MRS noise evaluation routine - using k-sigma noise estimate." );
+         a = image.noiseKSigma();
+         break;
+      }
+   }
+
+   this.sigma = a[0]/scale; // estimated scaled stddev of Gaussian noise
+   this.count = a[1];       // number of pixels in the noisy pixels set
+   this.layers = n;         // number of layers used for noise evaluation
+}
+
+// ----------------------------------------------------------------------------
+// calculateAndStoreNoise
+// ----------------------------------------------------------------------------
+function calculateAndStoreNoise(view, bForceCalculation)
+{
+   if(!bForceCalculation && view.hasProperty(SNR_PROPERTY_KEY))
+   {
+      return;
+   }
+
+   Console.show();
+   Console.abortEnabled = true;
+
+   //   Console.writeln( "<end><cbr><br>Ch |   noise   |  count(%) | layers |" );
+   //   Console.writeln(               "---+-----------+-----------+--------+" );
+
+   Console.writeln("Calculating scaled noise standard deviation");
+   Console.flush();
+
+   var noiseArray = [];
+   var Sn = view.computeOrFetchProperty("Sn");
+   var image = view.image;
+   for ( let c = 0; c < image.numberOfChannels; ++c )
+   {
+      Console.writeln(format("channel %i ...", c));
+      Console.flush();
+
+      var scale = Sn.at(c);
+      if(scale == 0)
+      {  // recompute only if needed
+         Console.writeln("compute Sn, channel ", c);
+         Console.flush();
+         image.selectedChannel = c;
+         scale = image.Sn(); // this is expensive
+      }
+
+      let E = new ScaledNoiseEvaluation( image, scale );
+      noiseArray.push(E.sigma);
+      //      Console.writeln( format( "%2d | <b>%.3e</b> |  %6.2f   |    %d   |", c, E.sigma, 100*E.count/image.selectedRect.area, E.layers ) );
+      //      Console.flush();
+   }
+   //   Console.writeln(               "---+-----------+-----------+--------+" );
+   image.resetSelections();
+
+   var vector = new Vector(noiseArray);
+   var ret = view.setPropertyValue(SNR_PROPERTY_KEY, vector, PropertyType_Auto, PropertyAttribute_Storable);
+   if(!ret)
+   {
+      throw Error( "Gailed to store SNR as property!" );
+   }
+
+   Console.hide();
 }

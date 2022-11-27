@@ -4,10 +4,10 @@ PixInsight XML Code Signature Format - XSGN version 1.0
 Created with PixInsight software - https://pixinsight.com/
 -->
 <xsgn version="1.0" xmlns="http://www.pixinsight.com/xsgn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.pixinsight.com/xsgn http://pixinsight.com/xsgn/xsgn-1.0.xsd">
-   <CreationTime>2022-11-22T22:51:04.251Z</CreationTime>
+   <CreationTime>2022-11-27T10:16:41.404Z</CreationTime>
    <Signature version="1.0" scriptId="EmissionLineIntegrationTG" developerId="tglebe">
-      <Timestamp>2022-11-22T22:51:04.251Z</Timestamp>
+      <Timestamp>2022-11-27T10:16:41.404Z</Timestamp>
       <Entitlements>com.pixinsight.security.pcl.experimental-features,com.pixinsight.security.pjsr.allow-launch-application-instance</Entitlements>
-      <CodeSignature encoding="Base64">4bhp/pTdeC6nIZZPm6cacXlflyNDVCbvpZx1Ap6yMczUzqXA6t0wV9xRCopnygbtHKUSYAxXO1LbcMBh9kckCA==</CodeSignature>
+      <CodeSignature encoding="Base64">RohieyNKWbPGyhI7v6+6l6Hnw9S9NZ1HWus0KmG7ovHownQ/kr4WQ1j+04Itz05gnWAzUFKiAAqkKSw1ORlmCQ==</CodeSignature>
    </Signature>
 </xsgn>

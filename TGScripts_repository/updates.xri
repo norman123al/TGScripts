@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="7cb799bc6192bf40ae919b638b42397f7aab0401" type="script" releaseDate="20221122">
+      <package fileName="TGScripts_repository.tar.gz" sha1="84c99e296e95a94134d8cc248e973142a8c66e30" type="script" releaseDate="20221127">
          <title>
-            TGScripts snapshot - 2022 Nov 22
+            TGScripts snapshot - 2022 Nov 27
          </title>
          <remove>
             src/scripts/TGScripts
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               TGScriptSkeleton/TGDialogLib: Code refactoring, added Objects for button tool bar and Info box.
+               TGScriptSkeleton: code refactoring, added target view statistics control with optional SNR computation
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-11-22T22:54:24.805Z" encoding="Base64">JzRv8sAjfPFkyxzUA2gNeY4oPaLNctOJmRloNXv2T5iNujmze0nXPt6cIWx/yYcib9ZjtNIe0dEjJ3sbLD+9CQ==</Signature>
+<Signature developerId="tglebe" timestamp="2022-11-27T10:19:17.290Z" encoding="Base64">p9SDBSvt/d+yHWVDxYuNQzLbO48XSQCCPXdXVb6dwUTzG614xx93FWcesk4NePdZbp66pAX4BzEqQii0nwrXAg==</Signature>

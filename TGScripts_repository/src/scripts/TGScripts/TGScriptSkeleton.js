@@ -35,7 +35,6 @@
 //#include <pjsr/NumericControl.jsh>
 //#include <pjsr/TextAlign.jsh>
 //#include <pjsr/StdButton.jsh>
-//#include <pjsr/StdIcon.jsh>
 
 #include "lib/TGDialogLib.js"
 
@@ -48,19 +47,17 @@
    Copyright &copy; 2022 Thorsten Glebe. All Rights Reserved.
 
 // ----------------------------------------------------------------------------
-// ScriptData
+// version check
 // ----------------------------------------------------------------------------
-function ScriptData()
+if ( CoreApplication === undefined ||
+     CoreApplication.versionRevision === undefined ||
+     CoreApplication.versionMajor*1e11
+   + CoreApplication.versionMinor*1e8
+   + CoreApplication.versionRelease*1e5
+   + CoreApplication.versionRevision*1e2 < 100800900100 )
 {
-   this.targetView   = null;
-
-   this.acquireDataFromDialog = function(dialog)
-   {
-      this.targetView = dialog.targetViewSelector.getTargetView();
-   }
+   throw new Error( "This script requires PixInsight core version 1.8.9-1 or higher." );
 }
-
-var data = new ScriptData;
 
 // ----------------------------------------------------------------------------
 // doWork
@@ -71,10 +68,10 @@ function doWork()
    var t0 = new Date;
 
    // Check if image is non-linear
-   if(isStretched(data.targetView) && errorMessageOkCancel("Image seems to be non-linear, continue?", SCRIPTNAME))
+   if(isStretched(dialogData.targetView) && errorMessageOkCancel("Image seems to be non-linear, continue?", SCRIPTNAME))
       return;
 
-   Console.writeln("targetView: ", data.targetView.id);
+   Console.writeln("targetView: ", dialogData.targetView.id);
 
    //------ real work happens here ---------
 
@@ -93,8 +90,8 @@ function ScriptDialog()
    this.__base__ = Dialog;
    this.__base__();
 
-   data.dialog = this;
-   var labelWidth = 9 * this.font.width("M");
+   dialogData.dialog = this;
+   var labelWidth = 11 * this.font.width("M");
 
    // --- help box ---
    var helptext = "An empty script consisting of target view selection with "
@@ -106,6 +103,10 @@ function ScriptDialog()
    // TargetViewSelector
    // -------------------------------------------------------------------------
    this.targetViewSelector = new TargetViewSelector(this, "Target View Selection", labelWidth, "TargetViewSelectorImg");
+
+   // TargetViewStatBox
+   // -------------------------------------------------------------------------
+   this.targetViewStatBox = new TargetViewStatBox(this, "Target View Statistics");
 
    // exportParameters
    // -------------------------------------------------------------------------
@@ -119,6 +120,13 @@ function ScriptDialog()
    this.importParameters = function()
    {
       this.targetViewSelector.importParameters();
+   }
+
+   // updateControl
+   // -------------------------------------------------------------------------
+   this.updateControl = function()
+   {
+      this.targetViewSelector.updateSelectorView();
    }
 
    // resetControl
@@ -143,6 +151,9 @@ function ScriptDialog()
       addSpacing( SPACING );
       add( this.targetViewSelector );
       addSpacing( SPACING );
+      add( this.targetViewStatBox );
+      addSpacing( SPACING );
+      addStretch();
       add( this.toolButtonBar );
    }
 
@@ -172,7 +183,7 @@ function main()
    }
 
    // initialize dialog
-   dialog.targetViewSelector.updateSelectorView();
+   dialog.updateControl();
 
    //   dialog.userResizable = false;
    for ( ;; )
@@ -180,10 +191,8 @@ function main()
       if ( !dialog.execute() )
          return;
 
-      data.acquireDataFromDialog(dialog);
-
       // A view must be selected.
-      if ( !data.targetView )
+      if ( !dialogData.targetView )
       {
          errorMessageOk("You must select a view to apply this script.", TITLE);
          continue;

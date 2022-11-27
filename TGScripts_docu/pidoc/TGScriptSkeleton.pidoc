@@ -27,10 +27,15 @@
 
 \section { \label parameter_reference Parameter Reference } {
     \definition {
-        { \label target_image Target Image } {
-            The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for further processing. In case of linear images the script performs a stretch for display reasons. In case the image is already auto-stretched, the available STF settings are used. Otherwise an auto-stretch will be performed. In case of auto-stretch on a color image, the 'Use linked STF stretch' checkbox will be enabled to allow selecting a linked stretch. The unlinked stretch is the default.
+        { \label target_view_selection Target View Selection } {
+            The target view selection control allows to choose a main view of an image (either grayscale or RGB) as a target for further processing. In case of linear images the script performs a stretch for display reasons. In case the image is already auto-stretched, the available STF settings are used. Otherwise an auto-stretch will be performed. In case of auto-stretch on a color image, the 'Use linked STF stretch' checkbox will be enabled to allow selecting a linked stretch. The unlinked stretch is the default.
         }
-    } % target image
+    } % target view selection
     
+    \definition {
+        { \label target_view_statistics Target View Statistics } {
+            The target view statistics control shows some basic statistics of the chosen image. As SNR computation might be time consuming depending on the size of the image and the hardware used, SNR statistics is optionally and can be selected by the respective checkbox below. Per default the computed SNR is stored as a property in the image to avoid redundant expensive SNR computations. Thus the SNR values might become outdated in case images are altered. Therefore an additional checkbox allows to enforce the SNR recomputation.
+        }
+    } % target view statistics
 } % Parameter Reference
 \make
