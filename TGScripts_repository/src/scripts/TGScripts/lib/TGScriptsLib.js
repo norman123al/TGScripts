@@ -22,6 +22,7 @@
 #include <pjsr/SampleType.jsh>
 #include <pjsr/UndoFlag.jsh>
 #include <pjsr/StdIcon.jsh>
+#include <pjsr/StdButton.jsh>
 #include <pjsr/PropertyType.jsh>
 #include <pjsr/PropertyAttribute.jsh>
 

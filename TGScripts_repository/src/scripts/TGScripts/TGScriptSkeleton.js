@@ -34,7 +34,6 @@
 
 //#include <pjsr/NumericControl.jsh>
 //#include <pjsr/TextAlign.jsh>
-//#include <pjsr/StdButton.jsh>
 
 #include "lib/TGDialogLib.js"
 
@@ -194,7 +193,7 @@ function main()
       // A view must be selected.
       if ( !dialogData.targetView )
       {
-         errorMessageOk("You must select a view to apply this script.", TITLE);
+         errorMessageOk("You must select a view to apply this script.", SCRIPTNAME);
          continue;
       }
 
