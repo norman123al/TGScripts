@@ -36,6 +36,34 @@ function DialogData()
    this.dialog              = null;
    this.targetView          = null;
    this.targetViewListeners = [];
+
+   // exportParameters
+   // -------------------------------------------------------------------------
+   this.exportParameters = function()
+   {
+      this.dialog.targetViewSelector.exportParameters();
+   }
+
+   // importParameters
+   // -------------------------------------------------------------------------
+   this.importParameters = function()
+   {
+      this.targetViewSelector.importParameters();
+   }
+
+   // updateControl
+   // -------------------------------------------------------------------------
+   this.updateControl = function()
+   {
+      this.targetViewSelector.updateSelectorView();
+   }
+
+   // resetControl
+   // -------------------------------------------------------------------------
+   this.resetControl = function()
+   {
+      this.targetViewSelector.resetControl();
+   }
 }
 
 var dialogData = new DialogData;
@@ -857,6 +885,7 @@ function TargetViewPropBox(dialog, selector_title)
       }
       this.treeBox.setColumnWidth(0, maxkeylen * fontwidth);
 
+      Console.flush();  // weird, this seems to enforce adjustment(?)
       dialogData.dialog.adjustToContents();
    }
 
@@ -874,3 +903,61 @@ function TargetViewPropBox(dialog, selector_title)
 
 TargetViewPropBox.prototype = new VerticalSizer();
 
+// ----------------------------------------------------------------------------
+// TargetViewControl
+// ----------------------------------------------------------------------------
+function TargetViewControl(dialog, labelWidth)
+{
+   this.__base__ = VerticalSizer;
+  	this.__base__();
+
+   // TargetViewSelector
+   // -------------------------------------------------------------------------
+   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", labelWidth, "TargetViewSelectorImg");
+
+   // TargetViewStatBox
+   // -------------------------------------------------------------------------
+   this.targetViewStatBox = new TargetViewStatBox(dialog, "Target View Statistics");
+
+   // TargetViewPropBox
+   // -------------------------------------------------------------------------
+   this.targetViewPropBox = new TargetViewPropBox(dialog, "Target View Properties");
+
+   // exportParameters
+   // -------------------------------------------------------------------------
+   this.exportParameters = function()
+   {
+      this.targetViewSelector.exportParameters();
+   }
+
+   // importParameters
+   // -------------------------------------------------------------------------
+   this.importParameters = function()
+   {
+      this.targetViewSelector.importParameters();
+   }
+
+   // updateControl
+   // -------------------------------------------------------------------------
+   this.updateControl = function()
+   {
+      this.targetViewSelector.updateSelectorView();
+   }
+
+   // resetControl
+   // -------------------------------------------------------------------------
+   this.resetControl = function()
+   {
+      this.targetViewSelector.resetControl();
+   }
+
+   // register elements to this sizer
+   // -------------------------------------------------------------------------
+   this.add( this.targetViewSelector );
+   this.addSpacing( SPACING );
+   this.add( this.targetViewStatBox );
+   this.addSpacing( SPACING );
+   this.add( this.targetViewPropBox );
+} // TargetViewControl
+
+TargetViewControl.prototype = new VerticalSizer();

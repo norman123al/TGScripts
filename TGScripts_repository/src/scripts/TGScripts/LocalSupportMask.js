@@ -451,7 +451,7 @@ function LocalSupportMaskDialog()
    this.small_scale_Sizer = new HorizontalSizer;
    with( this.small_scale_Sizer )
    {
-      enabled = data.targetView != null
+//      enabled = data.targetView != null
       spacing = 4;
       add( this.small_scale_Label );
       add( this.small_scale_SpinBox );

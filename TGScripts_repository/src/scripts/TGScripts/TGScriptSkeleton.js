@@ -78,6 +78,7 @@ function doWork()
 
    var t1 = new Date;
    Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
+   Console.flush();
 }
 
 
@@ -99,44 +100,36 @@ function ScriptDialog()
       + "cancel, reset and documentation tool button."
    this.helpLabel = new HelpAndCopyrightLabel(this, 108, SCRIPTNAME, VERSION, helptext );
 
-   // TargetViewSelector
+   // TargetViewControl
    // -------------------------------------------------------------------------
-   this.targetViewSelector = new TargetViewSelector(this, "Target View Selection", labelWidth, "TargetViewSelectorImg");
-
-   // TargetViewStatBox
-   // -------------------------------------------------------------------------
-   this.targetViewStatBox = new TargetViewStatBox(this, "Target View Statistics");
-
-   // TargetViewPropBox
-   // -------------------------------------------------------------------------
-   this.targetViewPropBox = new TargetViewPropBox(this, "Target View Properties");
+   this.targetViewControl = new TargetViewControl(this, labelWidth);
 
    // exportParameters
    // -------------------------------------------------------------------------
    this.exportParameters = function()
    {
-      this.targetViewSelector.exportParameters();
+      this.targetViewControl.exportParameters();
    }
 
    // importParameters
    // -------------------------------------------------------------------------
    this.importParameters = function()
    {
-      this.targetViewSelector.importParameters();
+      this.targetViewControl.importParameters();
    }
 
    // updateControl
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      this.targetViewSelector.updateSelectorView();
+      this.targetViewControl.updateControl();
    }
 
    // resetControl
    // -------------------------------------------------------------------------
    this.resetControl = function()
    {
-      this.targetViewSelector.resetControl();
+      this.targetViewControl.resetControl();
    }
 
    // buttons
@@ -152,12 +145,7 @@ function ScriptDialog()
       spacing = SPACING;
       add( this.helpLabel );
       addSpacing( SPACING );
-      add( this.targetViewSelector );
-      addSpacing( SPACING );
-      add( this.targetViewStatBox );
-      addSpacing( SPACING );
-      add( this.targetViewPropBox );
-      addSpacing( SPACING );
+      add( this.targetViewControl );
       addStretch();
       add( this.toolButtonBar );
    }

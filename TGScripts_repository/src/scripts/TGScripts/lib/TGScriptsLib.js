@@ -136,6 +136,7 @@ function createImageChannelCopyWindow(viewId, baseImage, channelIndex)
 function copyView( view, newName)
 {
    Console.writeln('function copyView: ' + view.id + ' -> ' + newName);
+   Console.flush();
    var window = createImageCopyWindow(newName, view.image);
    return window.mainView;
 }
