@@ -29,7 +29,9 @@
 #define MIN_IMAGE_WIDTH         256
 #define MIN_IMAGE_HEIGHT        256
 #define TMP_STF_WINDOW_NAME     "tmpSTFWindow"
+#define NOISE_PROPERTY_KEY      "TGScript:Noise"
 #define SNR_PROPERTY_KEY        "TGScript:SNR"
+#define SNRDB_PROPERTY_KEY      "TGScript:SNR:DB"
 
 // Shadows clipping point in (normalized) MAD units from the median.
 #define SHADOWS_CLIP -2.80
@@ -571,8 +573,9 @@ function isStretched(view)
  *
  * Modified by Thorsten Glebe 2022
 */
-function ScaledNoiseEvaluation( image, scale )
+function ScaledNoiseEvaluation( image )
 {
+   var scale = image.Sn(); // computation intensive
    if ( 1 + scale == 1 )
       throw Error( "Zero or insignificant data." );
 
@@ -581,7 +584,7 @@ function ScaledNoiseEvaluation( image, scale )
    for ( ;; )
    {
       ++i;
-      a = image.noiseMRS( n ); // expensive computation
+      a = image.noiseMRS( n ); // computation intensive
 
       if ( a[1] >= m )
          break;
@@ -593,9 +596,23 @@ function ScaledNoiseEvaluation( image, scale )
       }
    }
 
-   this.sigma = a[0]/scale; // estimated scaled stddev of Gaussian noise
-   this.count = a[1];       // number of pixels in the noisy pixels set
-   this.layers = n;         // number of layers used for noise evaluation
+   this.scaledSigma = a[0]/scale; // estimated scaled stddev of Gaussian noise
+   this.sigma       = a[0];       // estimated stddev of Gaussian noise
+   this.count       = a[1];       // number of pixels in the noisy pixels set
+   this.layers      = n;          // number of layers used for noise evaluation
+}
+
+// ----------------------------------------------------------------------------
+// helper function to store values as property
+// ----------------------------------------------------------------------------
+function storeArrayAsPropertyValue(view, property_key, array)
+{
+   var vector = new Vector(array);
+   var ret = view.setPropertyValue(property_key, vector, PropertyType_Auto, PropertyAttribute_Storable);
+   if(!ret)
+   {
+      throw Error( "Failed to store " + property_key + " as property!" );
+   }
 }
 
 // ----------------------------------------------------------------------------
@@ -603,7 +620,7 @@ function ScaledNoiseEvaluation( image, scale )
 // ----------------------------------------------------------------------------
 function calculateAndStoreNoise(view, bForceCalculation)
 {
-   if(!bForceCalculation && view.hasProperty(SNR_PROPERTY_KEY))
+   if(!bForceCalculation && view.hasProperty(NOISE_PROPERTY_KEY) && view.hasProperty(SNR_PROPERTY_KEY) && view.hasProperty(SNRDB_PROPERTY_KEY))
    {
       return;
    }
@@ -618,36 +635,34 @@ function calculateAndStoreNoise(view, bForceCalculation)
    Console.flush();
 
    var noiseArray = [];
-   var Sn = view.computeOrFetchProperty("Sn");
+   var snrArray   = [];
+   var snrDBArray = [];
    var image = view.image;
+
+   // process channels
    for ( let c = 0; c < image.numberOfChannels; ++c )
    {
       Console.writeln(format("channel %i ...", c));
       Console.flush();
 
-      var scale = Sn.at(c);
-      if(scale == 0)
-      {  // recompute only if needed
-         Console.writeln("compute Sn, channel ", c);
-         Console.flush();
-         image.selectedChannel = c;
-         scale = image.Sn(); // this is expensive
-      }
+      image.selectedChannel = c;
 
-      let E = new ScaledNoiseEvaluation( image, scale );
-      noiseArray.push(E.sigma);
+      let E   = new ScaledNoiseEvaluation( image );
+      let snr = image.meanOfSquares(image.selectedRect) / E.sigma / E.sigma;
+      let db  = 10 * Math.log10(snr);
+
+      noiseArray.push(E.scaledSigma);
+      snrArray  .push(snr);
+      snrDBArray.push(db);
       //      Console.writeln( format( "%2d | <b>%.3e</b> |  %6.2f   |    %d   |", c, E.sigma, 100*E.count/image.selectedRect.area, E.layers ) );
       //      Console.flush();
    }
    //   Console.writeln(               "---+-----------+-----------+--------+" );
    image.resetSelections();
 
-   var vector = new Vector(noiseArray);
-   var ret = view.setPropertyValue(SNR_PROPERTY_KEY, vector, PropertyType_Auto, PropertyAttribute_Storable);
-   if(!ret)
-   {
-      throw Error( "Gailed to store SNR as property!" );
-   }
+   storeArrayAsPropertyValue(view, NOISE_PROPERTY_KEY, noiseArray);
+   storeArrayAsPropertyValue(view, SNR_PROPERTY_KEY  , snrArray);
+   storeArrayAsPropertyValue(view, SNRDB_PROPERTY_KEY, snrDBArray);
 
    Console.hide();
 }

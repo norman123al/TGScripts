@@ -551,12 +551,30 @@ function TargetViewStatBox(dialog, selector_title)
       setToolTip(1, toolTip(0));
    }
 
+   this.noiseNode = new TreeBoxNode(this.treeBox);
+   with(this.noiseNode)
+   {
+      setText(0, "noise");
+      setText(1, "-");
+      setToolTip(0, "<p>Estimation of the standard deviation of the noise, assuming a Gaussian noise distribution. Estimates are scaled by the Sn robust scale estimator of Rousseeuw and Croux.</p>");
+      setToolTip(1, toolTip(0));
+   }
+
    this.snrNode = new TreeBoxNode(this.treeBox);
    with(this.snrNode)
    {
       setText(0, "SNR");
       setText(1, "-");
-      setToolTip(0, "<p>Estimation of the standard deviation of the noise, assuming a Gaussian noise distribution.</p>");
+      setToolTip(0, "<p>Signal to noise ratio.</p>");
+      setToolTip(1, toolTip(0));
+   }
+
+   this.snrDBNode = new TreeBoxNode(this.treeBox);
+   with(this.snrDBNode)
+   {
+      setText(0, "SNR (db)");
+      setText(1, "-");
+      setToolTip(0, "<p>Signal to noise ratio expressed in decibel.</p>");
       setToolTip(1, toolTip(0));
    }
 
@@ -616,7 +634,7 @@ function TargetViewStatBox(dialog, selector_title)
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      var rows     = 5;
+      var rows     = 7;
       self.treeBox.setFixedHeight(2*rows*this.treeBox.font.height); // always set box height
 
       if(!dialogData.targetView)
@@ -661,16 +679,27 @@ function TargetViewStatBox(dialog, selector_title)
          if(showSNR)
          {
             calculateAndStoreNoise(view, forceSNRComputation);
+            var NOISE = view.propertyValue(NOISE_PROPERTY_KEY);
+            this.noiseNode.setText(1, format("%.6e", NOISE.at(0)));
+            this.noiseNode.setText(2, format("%.6e", NOISE.at(1)));
+            this.noiseNode.setText(3, format("%.6e", NOISE.at(2)));
             var SNR = view.propertyValue(SNR_PROPERTY_KEY);
-            this.snrNode.setText(1, format("%.6e", SNR.at(0)));
-            this.snrNode.setText(2, format("%.6e", SNR.at(1)));
-            this.snrNode.setText(3, format("%.6e", SNR.at(2)));
+            this.snrNode.setText(1, format("%.3e", SNR.at(0)));
+            this.snrNode.setText(2, format("%.3e", SNR.at(1)));
+            this.snrNode.setText(3, format("%.3e", SNR.at(2)));
+            var SNRDB = view.propertyValue(SNRDB_PROPERTY_KEY);
+            this.snrDBNode.setText(1, format("%.2f", SNRDB.at(0)));
+            this.snrDBNode.setText(2, format("%.2f", SNRDB.at(1)));
+            this.snrDBNode.setText(3, format("%.2f", SNRDB.at(2)));
          }
          else
          {
-            this.snrNode.setText(1, "-");
-            this.snrNode.setText(2, "-");
-            this.snrNode.setText(3, "-");
+            for(var i = 1; i < 4; ++i)
+            {
+               this.noiseNode.setText(i, "-");
+               this.snrNode  .setText(i, "-");
+               this.snrDBNode.setText(i, "-");
+            }
          }
       }
       else
@@ -687,8 +716,12 @@ function TargetViewStatBox(dialog, selector_title)
          if(showSNR)
          {
             calculateAndStoreNoise(view, forceSNRComputation);
+            var NOISE = view.propertyValue(NOISE_PROPERTY_KEY);
+            this.noiseNode.setText(1, format("%.6e", NOISE.at(0)));
             var SNR = view.propertyValue(SNR_PROPERTY_KEY);
-            this.snrNode.setText(1, format("%.6e", SNR.at(0)));
+            this.snrNode.setText(1, format("%.3e", SNR.at(0)));
+            var SNRDB = view.propertyValue(SNRDB_PROPERTY_KEY);
+            this.snrDBNode.setText(1, format("%.2f", SNRDB.at(0)));
          }
          else
          {
@@ -711,7 +744,9 @@ function TargetViewStatBox(dialog, selector_title)
       this.meanNode  .setText(1, "-");
       this.medianNode.setText(1, "-");
       this.madNode   .setText(1, "-");
+      this.noiseNode .setText(1, "-");
       this.snrNode   .setText(1, "-");
+      this.snrDBNode .setText(1, "-");
       showSNR                       = false;
       forceSNRComputation           = false;
       self.snrCheckBox.checked      = false;

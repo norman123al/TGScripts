@@ -34,7 +34,7 @@
     
     \definition {
         { \label target_view_statistics Target View Statistics } {
-            The target view statistics control shows some basic statistics of the chosen image. As SNR computation might be time consuming depending on the size of the image and the hardware used, SNR statistics is optionally and can be selected by the respective checkbox below. Per default the computed SNR is stored as a property in the image to avoid redundant expensive SNR computations. Thus the SNR values might become outdated in case images are altered. Therefore an additional checkbox allows to enforce the SNR recomputation.
+            The target view statistics control shows some basic statistics of the chosen image. As image noise and SNR computation might be time consuming depending on the size of the image and the hardware used, SNR statistics is optionally and can be selected by the respective checkbox below. Per default the computed SNR is stored as a property in the image to avoid redundant expensive SNR computations. Thus the SNR values might become outdated in case images are altered. Therefore an additional checkbox allows to enforce the SNR recomputation.
         }
     } % target view statistics
 } % Parameter Reference
