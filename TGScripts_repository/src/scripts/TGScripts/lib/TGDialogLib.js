@@ -634,7 +634,7 @@ function TargetViewStatBox(dialog, selector_title)
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      var rows     = 7;
+      var rows     = 6;
       self.treeBox.setFixedHeight(2*rows*this.treeBox.font.height); // always set box height
 
       if(!dialogData.targetView)
@@ -763,140 +763,114 @@ function TargetViewStatBox(dialog, selector_title)
 
 TargetViewStatBox.prototype = new VerticalSizer();
 
-/*
 // ----------------------------------------------------------------------------
-// TargetViewParamBox
+// TargetViewPropBox
 // ----------------------------------------------------------------------------
-function TargetViewParamBox(dialog, selector_title)
+function TargetViewPropBox(dialog, selector_title)
 {
    this.__base__ = VerticalSection;
   	this.__base__(dialog, selector_title);
 
    dialogData.targetViewListeners.push(this);
 
+   // member variables
+   var self = this;
+
+   // Save parameters in process icon
+   // -------------------------------------------------------------------------
+   this.exportParameters = function()
+   {
+   }
+
+   // Restore saved parameters
+   // -------------------------------------------------------------------------
+   this.importParameters = function()
+   {
+   }
+
+   // TreeBox
+   // -------------------------------------------------------------------------
    this.treeBox = new TreeBox(dialog);
    with(this.treeBox)
    {
       alternateRowColor = true;
-      headerVisible     = true;
+      headerVisible     = false;
       indentSize        = 0;
-      numberOfColumns   = 2;
-      var rows          = 4;
 
       setHeaderAlignment(0, Align_Left | TextAlign_VertCenter);
-      setColumnWidth(0, this.treeBox.font.width("ParameterMM"));
       setHeaderText(0, "");
       setHeaderAlignment(1, Align_Left | TextAlign_VertCenter);
-
-      setFixedHeight(2*rows*this.treeBox.font.height);
    }
 
-   this.countNode = new TreeBoxNode(this.treeBox);
-   with(this.countNode)
-   {
-      setText(0, "count (px)");
-      setText(1, "-");
-      setToolTip(0, "<p>Total number of pixel samples</p>");
-      setToolTip(1, toolTip(0));
-   }
-
-   this.meanNode = new TreeBoxNode(this.treeBox);
-   with(this.meanNode)
-   {
-      setText(0, "Mean");
-      setText(1, "-");
-      setToolTip(0, "<p>Arithmetic mean</p>");
-      setToolTip(1, toolTip(0));
-   }
-
-   this.medianNode = new TreeBoxNode(this.treeBox);
-   with(this.medianNode)
-   {
-      setText(0, "Median");
-      setText(1, "-");
-      setToolTip(0, "<p>median</p>");
-      setToolTip(1, toolTip(0));
-   }
-
-   this.madNode = new TreeBoxNode(this.treeBox);
-   with(this.madNode)
-   {
-      setText(0, "MAD");
-      setText(1, "-");
-      setToolTip(0, "<p>Median absolute deviation from the median.</p>");
-      setToolTip(1, toolTip(0));
-   }
-
+   // updateControl
+   // -------------------------------------------------------------------------
    this.updateControl = function()
    {
+      var rows       = 5;
+      var fontheight = 1.5*this.treeBox.font.height;
+      this.treeBox.setFixedHeight(rows * fontheight); // always set box height
+
       if(!dialogData.targetView)
       {
          this.resetControl();
          return;
       }
 
-      var view  = dialogData.targetView;
-      var image = view.image;
-      if(image.isColor)
+      var view      = dialogData.targetView;
+      var maxkeylen = 0;
+      var fontwidth = this.treeBox.font.width("M");
+
+      this.treeBox.numberOfColumns = 2;
+      this.treeBox.clear();
+
+      // generate TreeBoxNodes
+      for(var i in view.properties)
       {
-         this.treeBox.numberOfColumns = 4;
-         this.treeBox.setHeaderIcon(1, ":/toolbar/image-display-red.png");
-         this.treeBox.setHeaderText(1, "R");
-         this.treeBox.setHeaderIcon(2, ":/toolbar/image-display-green.png");
-         this.treeBox.setHeaderText(2, "G");
-         this.treeBox.setHeaderIcon(3, ":/toolbar/image-display-blue.png");
-         this.treeBox.setHeaderText(3, "B");
+         var key       = view.properties[i];
+         maxkeylen     = key.length > 20 ? 20 : key.length > maxkeylen ? key.length : maxkeylen;
+         var value     = view.propertyValue(key);
+         var type      = view.propertyType(key);
+         var arrString = "";
+         var node = new TreeBoxNode(this.treeBox);
+         node.setText(0, key);
+         if(type == PropertyType_F64Vector || type == PropertyType_UI64Vector)
+         {
+            arrString = "{" + value.toArray().toString() + "}";
+         }
+         else
+         {
+            var arr = [];
+            arr.push(value);
+            arrString = arr.toString();
+         }
 
-         var count = view.computeOrFetchProperty( "Count" );
-         this.countNode.setText(1, format("%d", count.at(0)));
-         this.countNode.setText(2, format("%d", count.at(1)));
-         this.countNode.setText(3, format("%d", count.at(2)));
-
-         var mean = view.computeOrFetchProperty( "Mean" );
-         this.meanNode.setText(1, format("%.6e", mean.at(0)));
-         this.meanNode.setText(2, format("%.6e", mean.at(1)));
-         this.meanNode.setText(3, format("%.6e", mean.at(2)));
-
-         var median = view.computeOrFetchProperty( "Median" );
-         this.medianNode.setText(1, format("%.6e", median.at(0)));
-         this.medianNode.setText(2, format("%.6e", median.at(1)));
-         this.medianNode.setText(3, format("%.6e", median.at(2)));
-
-         var mad = view.computeOrFetchProperty( "MAD" );
-         this.madNode.setText(1, format("%.6e", mad.at(0)));
-         this.madNode.setText(2, format("%.6e", mad.at(1)));
-         this.madNode.setText(3, format("%.6e", mad.at(2)));
+         // Console.writeln("key: " + key + " type: " + type + " value: " + arrString);
+         node.setText(1, arrString);
+         node.setToolTip(0, key);
+         node.setToolTip(1, arrString);
       }
-      else
+
+      if(view.properties.length < rows)
       {
-         this.treeBox.numberOfColumns = 2;
-//         setColumnWidth(1, this.treeBox.columnWidth(0));
-         this.treeBox.setHeaderIcon(1, ":/toolbar/image-display-luminance.png");
-         this.treeBox.setHeaderText(1, "K");
-
-         this.countNode .setText(1, format("%d"  , image.count()));
-         this.meanNode  .setText(1, format("%.6e", image.mean()));
-         this.medianNode.setText(1, format("%.6e", image.median()));
-         this.madNode   .setText(1, format("%.6e", image.mad()));
+         rows = view.properties.length;
+         this.treeBox.setFixedHeight(rows * fontheight)
       }
+      this.treeBox.setColumnWidth(0, maxkeylen * fontwidth);
+
+      dialogData.dialog.adjustToContents();
    }
 
+   // resetControl
    // -------------------------------------------------------------------------
    this.resetControl = function()
    {
-      this.treeBox.numberOfColumns = 2;
-      this.treeBox.setHeaderIcon(1, "");
-      this.treeBox.setHeaderText(1, "");
-      this.countNode .setText(1, "-");
-      this.meanNode  .setText(1, "-");
-      this.medianNode.setText(1, "-");
-      this.madNode   .setText(1, "-");
+      this.treeBox.clear();
    }
 
    // register elements to this sizer
    // -------------------------------------------------------------------------
    this.addControl(this.treeBox);
-} // TargetViewParamBox
+} // TargetViewPropBox
 
-TargetViewParamBox.prototype = new VerticalSizer();
-*/
+TargetViewPropBox.prototype = new VerticalSizer();
+

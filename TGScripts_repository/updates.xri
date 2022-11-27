@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="b84ac75110209e448ba77eeffa1a6724af12b07b" type="script" releaseDate="20221127">
+      <package fileName="TGScripts_repository.tar.gz" sha1="67b5709ce5da4b8d083511a1f7b32d33f098ffe5" type="script" releaseDate="20221127">
          <title>
             TGScripts snapshot - 2022 Nov 27
          </title>
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               TGScriptSkeleton: code refactoring, added target view statistics control with optional SNR computation
+               TGScriptSkeleton: code refactoring, added target view statistics and target view properties control with optional SNR computation.
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-11-27T12:21:08.297Z" encoding="Base64">ay9SNIA97RpbnW3elhHh++odws8Tj56BtBD8fnLzQVmBRFYdd4tD75vx6EDOGIoSzk6OPc7o0FLWtXOJdAzMBA==</Signature>
+<Signature developerId="tglebe" timestamp="2022-11-27T17:41:45.101Z" encoding="Base64">tN/ICKSclchJC5jySmgZgg5t+uelkZxf9GOUTvuAhbvlnbpP0W6Aiql4iJsus2529mNfnhapSH/1GGM819qdCA==</Signature>

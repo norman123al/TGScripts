@@ -107,6 +107,10 @@ function ScriptDialog()
    // -------------------------------------------------------------------------
    this.targetViewStatBox = new TargetViewStatBox(this, "Target View Statistics");
 
+   // TargetViewPropBox
+   // -------------------------------------------------------------------------
+   this.targetViewPropBox = new TargetViewPropBox(this, "Target View Properties");
+
    // exportParameters
    // -------------------------------------------------------------------------
    this.exportParameters = function()
@@ -151,6 +155,8 @@ function ScriptDialog()
       add( this.targetViewSelector );
       addSpacing( SPACING );
       add( this.targetViewStatBox );
+      addSpacing( SPACING );
+      add( this.targetViewPropBox );
       addSpacing( SPACING );
       addStretch();
       add( this.toolButtonBar );
