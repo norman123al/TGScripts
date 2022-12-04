@@ -81,7 +81,6 @@ function doWork()
    Console.flush();
 }
 
-
 // ----------------------------------------------------------------------------
 // ScriptDialog
 // ----------------------------------------------------------------------------
@@ -152,9 +151,8 @@ function ScriptDialog()
 
    this.windowTitle = SCRIPTNAME;
    this.setFixedWidth(PREVIEW_SIZE + 2*MARGIN);
-//   this.setScaledMinSize(PREVIEW_SIZE, PREVIEW_SIZE);
-   // this.setFixedSize(); // this prevents main window to scale
-   this.adjustToContents();
+   this.adjustToContents(); // do this before calling setFixedSize
+   this.setFixedSize();     // this prevents main window to scale
 } // ScriptDialog
 
 // Our dialog inherits all properties and methods from the core Dialog object.

@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="ab7f6ee50b9fe945f6016b44f3a42f3224d3d236" type="script" releaseDate="20221204">
+      <package fileName="TGScripts_repository.tar.gz" sha1="36b65d3b2f10a954f8839eae354c9e8b30aa26c6" type="script" releaseDate="20221204">
          <title>
             TGScripts snapshot - 2022 Dec 04
          </title>
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               TGScriptSkeleton: code refactoring, preparation for new feature.
+               TGScriptSkeleton: incorporated advanced image preview control from AnnotateImage (Adp/PreviewControl.js).
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-12-04T08:30:29.122Z" encoding="Base64">cdtHy6k4U3ELsPPtRdcUB0Y0P0PcJKl+yinMI8uCzmiXkLy99LS26HQjSQVv/nSv6kAi6yxGQcxO8yw50yEeCA==</Signature>
+<Signature developerId="tglebe" timestamp="2022-12-04T23:24:43.725Z" encoding="Base64">QlDR29ZnG5WH/oKChStPRnpXmnsZoyqkOR3/UT4/A39L+VpTS1Zb2TDnr2upyhNRDKRiUzb7rCa6seykQU+cBA==</Signature>

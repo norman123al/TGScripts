@@ -24,8 +24,12 @@
 #include <pjsr/StdCursor.jsh>
 
 #include "TGScriptsLib.js"
+#include "PreviewControl.js"
 
-#define PREVIEW_SIZE 400
+#define SETTINGS_MODULE "TGSCRIPT"
+#include "WCSmetadata.jsh"
+
+#define PREVIEW_SIZE 500
 #define SPACING      4
 #define MARGIN       4
 
@@ -292,15 +296,6 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
       }
    }
 
-/*
-   this.ScrollControl_Sizer = new HorizontalSizer;
-   with( this.ScrollControl_Sizer )
-   {
-      spacing = SPACING;
-      add( this.ScrollControl );
-   }
-*/
-
    // -------------------------------------------------------------------------
    this.targetImage_Label = new Label( dialog );
    with( this.targetImage_Label )
@@ -401,17 +396,22 @@ function ImagePreviewControl(dialog, basename)
    // register as dependent object to targetView control
    dialogData.targetViewListeners.push(this);
 
-   var self           = this;
-   var previewView    = null;
-   var previewImage   = null;
-   var rgbLinked      = false;
-   var adjustRequired = false;
+   let self           = this;
+   let previewView    = null;
+   let previewImage   = null;
+   let rgbLinked      = false;
+   let adjustRequired = false;
 
-   var bitmap         = null;
-   var scaledBitmap   = null;
-   var zoom           = 1;
-   var scale          = 1;
-   var zoomOutLimit   = -5;
+   let width          = 1;
+   let height         = 1;
+   let bitmap         = null;
+
+   this.metadata = new ImageMetadata( undefined/*module*/, 1.0);
+   this.previewControl = new PreviewControl( dialog );
+   this.previewControl.setFixedSize( PREVIEW_SIZE, PREVIEW_SIZE );
+
+   this.preview_hSizer = new HorizontalSizer;
+   this.preview_hSizer.add(this.previewControl);
 
    // Save parameters in process icon
    // -------------------------------------------------------------------------
@@ -438,7 +438,7 @@ function ImagePreviewControl(dialog, basename)
    this.updateControl = function()
    {
       this.linkedSTFCheckBox.updateControl();
-      this.scrollControl.updateControl();
+      this.renderImage();
    }
 
    // rgbLinked CheckBox
@@ -450,7 +450,7 @@ function ImagePreviewControl(dialog, basename)
       toolTip = "<p>If set, linked STF stretch is used. Unset to stretch each channel individually.</p>";
       checked = rgbLinked;
 
-      onClick = (checked) => { rgbLinked = checked; self.scrollControl.updateControl(); }
+      onClick = (checked) => { rgbLinked = checked; self.renderImage(); }
    }
 
    this.linkedSTFCheckBox.updateControl = function()
@@ -462,61 +462,26 @@ function ImagePreviewControl(dialog, basename)
          this.enabled = true;
    }
 
-
-//   this.frame = new Control(dialog);
-
-   // -------------------------------------------------------------------------
-   this.scrollControl = new ScrollBox( dialog );
-   this.scrollControl.autoScroll = true;
-   this.scrollControl.tracking   = true;
-   this.scrollControl.cursor     = new Cursor( StdCursor_UpArrow );
-
-   this.scroll_hSizer = new HorizontalSizer;
-   this.scroll_hSizer.add( this.scrollControl );
-//   this.frame.scroll_vSizer = new VerticalSizer;
-//   this.frame.scroll_vSizer.add( this.frame.scroll_hSizer );
+   this.checkbox_hSizer = new HorizontalSizer;
+   this.checkbox_hSizer.margin = MARGIN;
+   this.checkbox_hSizer.add(this.linkedSTFCheckBox);
 
    // -------------------------------------------------------------------------
-   this.scrollControl.updateScale = function()
+   this.renderImage = function()
    {
-      if ( self.zoom > 0 )
-      {
-         self.scale = self.zoom;
-      }
-      else
-      {
-         self.scale = 1/(-self.zoom + 2);
-      }
-      Console.writeln("scale: ", self.scale);
-      Console.flush();
-   }
-
-   // -------------------------------------------------------------------------
-   this.scrollControl.updateControl = function()
-   {
-      var width, height;
-
-      Console.writeln("update ScrollControl ");
-      Console.flush();
+//      var width, height;
 
       if(self.bitmap)
       {
          self.bitmap.clear();
          self.bitmap = null;
-         if(self.scaledBitmap)
-         {
-            self.scaledBitmap.clear();
-            self.scaledBitmap = null;
-         }
       }
 
       if(dialogData.targetView == null)
       {
-         width  = 1; // assure onPaint is called
-         height = 1;
-//         this.setFixedSize( width, height );
-         Console.writeln("no targetView");
-         Console.flush();
+//         width  = 1; // assure onPaint is called
+//         height = 1;
+         this.previewControl.SetImage( self.bitmap, this.metadata );
       }
       else
       {
@@ -542,6 +507,7 @@ function ImagePreviewControl(dialog, basename)
             }
          }
 
+/*
          var imageWidth  = previewImage.width;
          var imageHeight = previewImage.height;
          if ( imageWidth > imageHeight )
@@ -554,73 +520,22 @@ function ImagePreviewControl(dialog, basename)
             width  = PREVIEW_SIZE*imageWidth/imageHeight;
             height = PREVIEW_SIZE;
          }
-         Console.writeln("width= " + width + ", height= " + height);
-         Console.flush();
-
-         self.zoom   = dialogData.targetView.window.zoomFactor;
-         Console.writeln("zoom: ", self.zoom);
-         Console.flush();
-         this.updateScale();
-         self.bitmap = previewImage.render();
-         Console.writeln("scale: ", self.scale);
-         Console.flush();
-         var tmpScaled = self.bitmap.scaled(self.scale);
-         self.scaledBitmap = tmpScaled.scaledTo(width, height);
-         tmpScaled.clear();
-         Console.writeln("scaled bitmap width: ", self.scaledBitmap.width);
-         Console.flush();
-      }
-
-      this.setFixedSize( width, height );
-      dialogData.dialog.adjustToContents(); // just in case no resize happens
-   }
-
-   this.scrollControl.viewport.onPaint = function( x0, y0, x1, y1 )
-   {
-      Console.writeln("onPaint");
-      Console.flush();
-
-      if ( self.scaledBitmap != null && self.scaledBitmap.width > 0 )
-      {
-         Console.writeln("width: ", self.scaledBitmap.width);
-         Console.flush();
-         let graphics = new VectorGraphics( this );
-         graphics.drawBitmap( 0, 0, self.scaledBitmap );
-         graphics.end();
-      }
-
-/*
-      if(previewImage != null)
-      {
-         var G = new Graphics( this );
-         var bmp = previewImage.render();
-         G.drawScaledBitmap( this.boundsRect, bmp );
-         bmp.clear(); // required to instantly free memory
-         G.end();
-      }
 */
+         self.bitmap = previewImage.render();
 
-      if(this.adjustRequired)
-      {  // adjustToContent triggers onPaint, therefore we need to call conditionally to avoid recursion
-         Console.writeln("adjustRequired");
-         Console.flush();
-         dialogData.dialog.adjustToContents();
-         this.adjustRequired = false;
+         this.metadata.ExtractMetadata( dialogData.targetView.window );
+         this.previewControl.SetImage( self.bitmap, this.metadata );
       }
-   }
 
-   this.scrollControl.onResize = function()
-   {
-      Console.writeln("onResize");
-      Console.flush();
-      this.adjustRequired = true;
+      dialogData.dialog.adjustToContents(); // just in case no resize happens
    }
 
    // register elements to this sizer
    // -------------------------------------------------------------------------
-   this.add( this.linkedSTFCheckBox );
-   this.addSpacing( SPACING );
-   this.add( this.scroll_hSizer );
+   this.margin  = 0;
+   this.spacing = 0;
+   this.add(this.checkbox_hSizer);
+   this.add(this.preview_hSizer);
 } // ImagePreviewControl
 
 ImagePreviewControl.prototype = new VerticalSizer();
@@ -672,6 +587,9 @@ function TargetViewStatBox(dialog, selector_title)
       setColumnWidth(0, this.treeBox.font.width("ParameterMM"));
       setHeaderText(0, "");
       setHeaderAlignment(1, Align_Left | TextAlign_VertCenter);
+
+      var rows     = 6;
+      self.treeBox.setFixedHeight(2*rows*this.treeBox.font.height); // always set box height
    }
 
    this.countNode = new TreeBoxNode(this.treeBox);
@@ -793,9 +711,6 @@ function TargetViewStatBox(dialog, selector_title)
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      var rows     = 6;
-      self.treeBox.setFixedHeight(2*rows*this.treeBox.font.height); // always set box height
-
       if(!dialogData.targetView)
       {
          this.resetControl();
@@ -959,16 +874,16 @@ function TargetViewPropBox(dialog, selector_title)
       setHeaderAlignment(0, Align_Left | TextAlign_VertCenter);
       setHeaderText(0, "");
       setHeaderAlignment(1, Align_Left | TextAlign_VertCenter);
+
+      var rows       = 5;
+      var fontheight = 2*this.treeBox.font.height;
+      setFixedHeight(rows * fontheight); // always set box height
    }
 
    // updateControl
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      var rows       = 5;
-      var fontheight = 1.5*this.treeBox.font.height;
-      this.treeBox.setFixedHeight(rows * fontheight); // always set box height
-
       if(!dialogData.targetView)
       {
          this.resetControl();
@@ -1009,14 +924,9 @@ function TargetViewPropBox(dialog, selector_title)
          node.setToolTip(1, arrString);
       }
 
-      if(view.properties.length < rows)
-      {
-         rows = view.properties.length;
-         this.treeBox.setFixedHeight(rows * fontheight)
-      }
       this.treeBox.setColumnWidth(0, maxkeylen * fontwidth);
 
-      Console.flush();  // weird, this seems to enforce adjustment(?)
+//      Console.flush();  // weird, this seems to enforce adjustment(?)
       dialogData.dialog.adjustToContents();
    }
 
