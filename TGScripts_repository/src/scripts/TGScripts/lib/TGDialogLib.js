@@ -21,6 +21,7 @@
 #include <pjsr/Sizer.jsh>
 #include <pjsr/SectionBar.jsh>
 #include <pjsr/FrameStyle.jsh>
+#include <pjsr/StdCursor.jsh>
 
 #include "TGScriptsLib.js"
 
@@ -220,7 +221,7 @@ VerticalSection.prototype = new VerticalSizer();
 // ----------------------------------------------------------------------------
 // TargetViewSelector
 // ----------------------------------------------------------------------------
-function TargetViewSelector(dialog, selector_title, labelWidth, basename)
+function TargetViewSelector(dialog, selector_title, labelWidth)
 {
    this.__base__ = VerticalSection;
   	this.__base__(dialog, selector_title);
@@ -228,10 +229,6 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
    // member variables
    var self           = this;
    var view_id        = "";
-   var previewView    = null;
-   var previewImage   = null;
-   var rgbLinked      = false;
-   var adjustRequired = false;
 
    // Save parameters in process icon
    // -------------------------------------------------------------------------
@@ -295,86 +292,14 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
       }
    }
 
-   // -------------------------------------------------------------------------
-   this.ScrollControl = new Control( dialog );
-   this.ScrollControl.updateControl = function()
-   {
-      var width, height;
-
-      if(dialogData.targetView == null)
-      {
-         width  = 1; // assure onPaint is called
-         height = 1;
-      }
-      else
-      {
-         if(isStretched(dialogData.targetView))
-         {
-            previewImage = dialogData.targetView.image;
-         }
-         else
-         {
-            if(hasSTF(dialogData.targetView))
-            {
-               previewImage = applySTFHT(dialogData.targetView.image, dialogData.targetView.stf);
-               dialogData.targetView.image.resetSelections();
-            }
-            else
-            {
-               // copy view
-               previewView = copyView(dialogData.targetView, uniqueViewId(basename));
-               // STF stretch on copied view
-               ApplyAutoSTF(previewView, SHADOWS_CLIP, TARGET_BKG, rgbLinked);
-               previewImage = applySTFHT(previewView.image, previewView.stf);
-               previewView.window.forceClose();
-            }
-         }
-
-         var imageWidth  = previewImage.width;
-         var imageHeight = previewImage.height;
-         if ( imageWidth > imageHeight )
-         {
-            width  = PREVIEW_SIZE;
-            height = PREVIEW_SIZE*imageHeight/imageWidth;
-         }
-         else
-         {
-            width  = PREVIEW_SIZE*imageWidth/imageHeight;
-            height = PREVIEW_SIZE;
-         }
-      }
-
-      this.setFixedSize( width, height );
-      dialogData.dialog.adjustToContents(); // just in case no resize happens
-   }
-
-   this.ScrollControl.onPaint = function()
-   {
-      if(previewImage != null)
-      {
-         var G = new Graphics( this );
-         G.drawScaledBitmap( this.boundsRect, previewImage.render() );
-         G.end();
-      }
-
-      if(this.adjustRequired)
-      {  // adjustToContent triggers onPaint, therefore we need to call conditionally to avoid recursion
-         dialogData.dialog.adjustToContents();
-         this.adjustRequired = false;
-      }
-   }
-
-   this.ScrollControl.onResize = function()
-   {
-      this.adjustRequired = true;
-   }
-
+/*
    this.ScrollControl_Sizer = new HorizontalSizer;
    with( this.ScrollControl_Sizer )
    {
       spacing = SPACING;
       add( this.ScrollControl );
    }
+*/
 
    // -------------------------------------------------------------------------
    this.targetImage_Label = new Label( dialog );
@@ -419,42 +344,17 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
    }
 
    // -------------------------------------------------------------------------
-   this.linkedSTFCheckBox = new CheckBox(dialog);
-   with( this.linkedSTFCheckBox )
-   {
-      text    = "Use linked STF stretch";
-      toolTip = "<p>If set, linked STF stretch is used. Unset to stretch each channel individually.</p>";
-      checked = rgbLinked;
-
-      onClick = (checked) => { rgbLinked = checked; self.ScrollControl.updateControl(); }
-   }
-
-   this.linkedSTFCheckBox.updateControl = function()
-   {
-      this.checked = rgbLinked;
-      if(dialogData.targetView == null || dialogData.targetView.image.isGrayscale || isStretched(dialogData.targetView) || hasSTF(dialogData.targetView))
-         this.enabled = false;
-      else
-         this.enabled = true;
-   }
-
-   // -------------------------------------------------------------------------
    this.paramVSizer = new VerticalSizer( dialog );
    with( this.paramVSizer )
    {
       margin  = MARGIN;
       spacing = SPACING;
       add( this.targetImage_Sizer );
-      addSpacing( SPACING );
-      add( this.linkedSTFCheckBox );
    }
 
    // -------------------------------------------------------------------------
    this.updateSelectorView = function()
    {
-      this.linkedSTFCheckBox.updateControl();
-      this.ScrollControl.updateControl();
-
       // update dependent controls
       for(var i in dialogData.targetViewListeners)
       {
@@ -473,8 +373,6 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
 
       dialogData.targetView   = null;
       view_id                 = "";
-      previewView             = null;
-      previewImage            = null;
       rgbLinked               = false;
 
       // reset dependent controls
@@ -487,12 +385,245 @@ function TargetViewSelector(dialog, selector_title, labelWidth, basename)
    // -------------------------------------------------------------------------
    // register elements to this sizer
    this.addControl(this.paramVSizer);
-   this.addSpacing();
-   this.addControl(this.ScrollControl_Sizer);
 
 } // TargetViewSelector
 
 TargetViewSelector.prototype = new VerticalSizer();
+
+// ----------------------------------------------------------------------------
+// ImagePreviewControl
+// ----------------------------------------------------------------------------
+function ImagePreviewControl(dialog, basename)
+{
+   this.__base__ = VerticalSizer;
+   this.__base__(dialog);
+
+   // register as dependent object to targetView control
+   dialogData.targetViewListeners.push(this);
+
+   var self           = this;
+   var previewView    = null;
+   var previewImage   = null;
+   var rgbLinked      = false;
+   var adjustRequired = false;
+
+   var bitmap         = null;
+   var scaledBitmap   = null;
+   var zoom           = 1;
+   var scale          = 1;
+   var zoomOutLimit   = -5;
+
+   // Save parameters in process icon
+   // -------------------------------------------------------------------------
+   this.exportParameters = function()
+   {
+   }
+
+   // Restore saved parameters
+   // -------------------------------------------------------------------------
+   this.importParameters = function()
+   {
+   }
+
+   // resetControl
+   // -------------------------------------------------------------------------
+   this.resetControl = function()
+   {
+      previewView             = null;
+      previewImage            = null;
+   }
+
+   // updateControl
+   // -------------------------------------------------------------------------
+   this.updateControl = function()
+   {
+      this.linkedSTFCheckBox.updateControl();
+      this.scrollControl.updateControl();
+   }
+
+   // rgbLinked CheckBox
+   // -------------------------------------------------------------------------
+   this.linkedSTFCheckBox = new CheckBox(dialog);
+   with( this.linkedSTFCheckBox )
+   {
+      text    = "Use linked STF stretch";
+      toolTip = "<p>If set, linked STF stretch is used. Unset to stretch each channel individually.</p>";
+      checked = rgbLinked;
+
+      onClick = (checked) => { rgbLinked = checked; self.scrollControl.updateControl(); }
+   }
+
+   this.linkedSTFCheckBox.updateControl = function()
+   {
+      this.checked = rgbLinked;
+      if(dialogData.targetView == null || dialogData.targetView.image.isGrayscale || isStretched(dialogData.targetView) || hasSTF(dialogData.targetView))
+         this.enabled = false;
+      else
+         this.enabled = true;
+   }
+
+
+//   this.frame = new Control(dialog);
+
+   // -------------------------------------------------------------------------
+   this.scrollControl = new ScrollBox( dialog );
+   this.scrollControl.autoScroll = true;
+   this.scrollControl.tracking   = true;
+   this.scrollControl.cursor     = new Cursor( StdCursor_UpArrow );
+
+   this.scroll_hSizer = new HorizontalSizer;
+   this.scroll_hSizer.add( this.scrollControl );
+//   this.frame.scroll_vSizer = new VerticalSizer;
+//   this.frame.scroll_vSizer.add( this.frame.scroll_hSizer );
+
+   // -------------------------------------------------------------------------
+   this.scrollControl.updateScale = function()
+   {
+      if ( self.zoom > 0 )
+      {
+         self.scale = self.zoom;
+      }
+      else
+      {
+         self.scale = 1/(-self.zoom + 2);
+      }
+      Console.writeln("scale: ", self.scale);
+      Console.flush();
+   }
+
+   // -------------------------------------------------------------------------
+   this.scrollControl.updateControl = function()
+   {
+      var width, height;
+
+      Console.writeln("update ScrollControl ");
+      Console.flush();
+
+      if(self.bitmap)
+      {
+         self.bitmap.clear();
+         self.bitmap = null;
+         if(self.scaledBitmap)
+         {
+            self.scaledBitmap.clear();
+            self.scaledBitmap = null;
+         }
+      }
+
+      if(dialogData.targetView == null)
+      {
+         width  = 1; // assure onPaint is called
+         height = 1;
+//         this.setFixedSize( width, height );
+         Console.writeln("no targetView");
+         Console.flush();
+      }
+      else
+      {
+         if(isStretched(dialogData.targetView))
+         {
+            previewImage = dialogData.targetView.image;
+         }
+         else
+         {
+            if(hasSTF(dialogData.targetView))
+            {
+               previewImage = applySTFHT(dialogData.targetView.image, dialogData.targetView.stf);
+               dialogData.targetView.image.resetSelections();
+            }
+            else
+            {
+               // copy view
+               previewView = copyView(dialogData.targetView, uniqueViewId(basename));
+               // STF stretch on copied view
+               ApplyAutoSTF(previewView, SHADOWS_CLIP, TARGET_BKG, rgbLinked);
+               previewImage = applySTFHT(previewView.image, previewView.stf);
+               previewView.window.forceClose();
+            }
+         }
+
+         var imageWidth  = previewImage.width;
+         var imageHeight = previewImage.height;
+         if ( imageWidth > imageHeight )
+         {
+            width  = PREVIEW_SIZE;
+            height = PREVIEW_SIZE*imageHeight/imageWidth;
+         }
+         else
+         {
+            width  = PREVIEW_SIZE*imageWidth/imageHeight;
+            height = PREVIEW_SIZE;
+         }
+         Console.writeln("width= " + width + ", height= " + height);
+         Console.flush();
+
+         self.zoom   = dialogData.targetView.window.zoomFactor;
+         Console.writeln("zoom: ", self.zoom);
+         Console.flush();
+         this.updateScale();
+         self.bitmap = previewImage.render();
+         Console.writeln("scale: ", self.scale);
+         Console.flush();
+         var tmpScaled = self.bitmap.scaled(self.scale);
+         self.scaledBitmap = tmpScaled.scaledTo(width, height);
+         tmpScaled.clear();
+         Console.writeln("scaled bitmap width: ", self.scaledBitmap.width);
+         Console.flush();
+      }
+
+      this.setFixedSize( width, height );
+      dialogData.dialog.adjustToContents(); // just in case no resize happens
+   }
+
+   this.scrollControl.viewport.onPaint = function( x0, y0, x1, y1 )
+   {
+      Console.writeln("onPaint");
+      Console.flush();
+
+      if ( self.scaledBitmap != null && self.scaledBitmap.width > 0 )
+      {
+         Console.writeln("width: ", self.scaledBitmap.width);
+         Console.flush();
+         let graphics = new VectorGraphics( this );
+         graphics.drawBitmap( 0, 0, self.scaledBitmap );
+         graphics.end();
+      }
+
+/*
+      if(previewImage != null)
+      {
+         var G = new Graphics( this );
+         var bmp = previewImage.render();
+         G.drawScaledBitmap( this.boundsRect, bmp );
+         bmp.clear(); // required to instantly free memory
+         G.end();
+      }
+*/
+
+      if(this.adjustRequired)
+      {  // adjustToContent triggers onPaint, therefore we need to call conditionally to avoid recursion
+         Console.writeln("adjustRequired");
+         Console.flush();
+         dialogData.dialog.adjustToContents();
+         this.adjustRequired = false;
+      }
+   }
+
+   this.scrollControl.onResize = function()
+   {
+      Console.writeln("onResize");
+      Console.flush();
+      this.adjustRequired = true;
+   }
+
+   // register elements to this sizer
+   // -------------------------------------------------------------------------
+   this.add( this.linkedSTFCheckBox );
+   this.addSpacing( SPACING );
+   this.add( this.scroll_hSizer );
+} // ImagePreviewControl
+
+ImagePreviewControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // TargetViewStatBox
@@ -913,7 +1044,11 @@ function TargetViewControl(dialog, labelWidth)
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
-   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", labelWidth, "TargetViewSelectorImg");
+   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", labelWidth);
+
+   // TargetViewSelector
+   // -------------------------------------------------------------------------
+   this.imagePreviewControl = new ImagePreviewControl(dialog, "TargetViewSelectorImg");
 
    // TargetViewStatBox
    // -------------------------------------------------------------------------
@@ -954,6 +1089,8 @@ function TargetViewControl(dialog, labelWidth)
    // register elements to this sizer
    // -------------------------------------------------------------------------
    this.add( this.targetViewSelector );
+   this.addSpacing( SPACING );
+   this.add( this.imagePreviewControl );
    this.addSpacing( SPACING );
    this.add( this.targetViewStatBox );
    this.addSpacing( SPACING );

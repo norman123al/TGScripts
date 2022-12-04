@@ -96,6 +96,17 @@ function createRawImageWindow(viewId, baseImage)
 }
 
 // ----------------------------------------------------------------------------
+// copy content of provided image into new image
+// ----------------------------------------------------------------------------
+function applyImageToWindow(window, image)
+{
+   window.mainView.beginProcess(UndoFlag_NoSwapFile);
+   window.mainView.image.selectedPoint = new Point(0, 0);
+   window.mainView.image.apply(image);
+   window.mainView.endProcess();
+}
+
+// ----------------------------------------------------------------------------
 // Creates a copy of a view as separate window instance.
 // ----------------------------------------------------------------------------
 function createImageCopyWindow(viewId, baseImage)
@@ -103,11 +114,9 @@ function createImageCopyWindow(viewId, baseImage)
    var window = createRawImageWindow(viewId, baseImage);
 
    // copy content of provided image into new image
-   window.mainView.beginProcess(UndoFlag_NoSwapFile);
-   window.mainView.image.selectedPoint = new Point(0, 0);
-   window.mainView.image.apply(baseImage);
+   applyImageToWindow(window, baseImage);
+
    window.mainView.image.resetSelections();
-   window.mainView.endProcess();
 
    return window;
 }
@@ -119,15 +128,24 @@ function createImageChannelCopyWindow(viewId, baseImage, channelIndex)
 {
    var window = createRawImageWindow(viewId, baseImage);
 
-   // copy content of provided image into new image
-   window.mainView.beginProcess(UndoFlag_NoSwapFile);
-   window.mainView.image.selectedPoint = new Point(0, 0);
    window.mainView.image.selectedChannel = channelIndex;
-   window.mainView.image.apply(baseImage);
+
+   // copy content of provided image into new image
+   applyImageToWindow(window, baseImage);
+
    window.mainView.image.resetSelections();
-   window.mainView.endProcess();
 
    return window;
+}
+
+// ----------------------------------------------------------------------------
+// copyWindow
+// ----------------------------------------------------------------------------
+function copyWindow( view, newName)
+{
+   Console.writeln('function copyWindow: ' + view.id + ' -> ' + newName);
+   Console.flush();
+   return createImageCopyWindow(newName, view.image);
 }
 
 // ----------------------------------------------------------------------------
@@ -139,6 +157,16 @@ function copyView( view, newName)
    Console.flush();
    var window = createImageCopyWindow(newName, view.image);
    return window.mainView;
+}
+
+// ----------------------------------------------------------------------------
+// copyImage
+// ----------------------------------------------------------------------------
+function copyImage(image)
+{
+   var result = new Image(image.width, image.height, image.numberOfChannels, image.colorSpace, image.bitsPerSample, image.sampleType);
+   result.assign(image);
+   return result;
 }
 
 // ----------------------------------------------------------------------------
@@ -469,7 +497,7 @@ function ApplyAutoSTF( view, shadowsClipping, targetBackground, rgbLinked )
    stf.executeOn( view );
 
    console.writeln( "<end><cbr/><br/>" );
-};
+}
 
 // ----------------------------------------------------------------------------
 // applySTFHT - return permanently streched image
@@ -510,9 +538,7 @@ function applySTFHT( img, stf )
    HT.executeOn( v, false ); // no swap file
 
    // return image copy, throw away window
-   var image=v.image;
-   var result=new Image(image.width, image.height, image.numberOfChannels, image.colorSpace, image.bitsPerSample, image.sampleType);
-   result.assign(v.image);
+   var result = copyImage(v.image);
 
    wtmp.forceClose();
    return result;
