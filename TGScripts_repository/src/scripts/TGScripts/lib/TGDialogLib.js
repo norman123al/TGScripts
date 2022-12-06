@@ -132,10 +132,7 @@ function ToolButtonBar(dialog, scriptname)
       icon = scaledResource( ":/process-interface/reset.png" );
       toolTip = "Reset to defaults";
 
-      onMousePress = () =>
-      {
-         dialog.resetControl();
-      }
+      onMousePress = () => { dialog.resetControl(); }
    }
 
    // register elements to this sizer
@@ -388,10 +385,10 @@ TargetViewSelector.prototype = new VerticalSizer();
 // ----------------------------------------------------------------------------
 // ImagePreviewControl
 // ----------------------------------------------------------------------------
-function ImagePreviewControl(dialog, basename)
+function ImagePreviewControl(dialog, basename, selector_title)
 {
-   this.__base__ = VerticalSizer;
-   this.__base__(dialog);
+   this.__base__ = VerticalSection;
+  	this.__base__(dialog, selector_title);
 
    // register as dependent object to targetView control
    dialogData.targetViewListeners.push(this);
@@ -400,10 +397,6 @@ function ImagePreviewControl(dialog, basename)
    let previewView    = null;
    let previewImage   = null;
    let rgbLinked      = false;
-   let adjustRequired = false;
-
-   let width          = 1;
-   let height         = 1;
    let bitmap         = null;
 
    this.metadata = new ImageMetadata( undefined/*module*/, 1.0);
@@ -469,8 +462,6 @@ function ImagePreviewControl(dialog, basename)
    // -------------------------------------------------------------------------
    this.renderImage = function()
    {
-//      var width, height;
-
       if(self.bitmap)
       {
          self.bitmap.clear();
@@ -479,8 +470,6 @@ function ImagePreviewControl(dialog, basename)
 
       if(dialogData.targetView == null)
       {
-//         width  = 1; // assure onPaint is called
-//         height = 1;
          this.previewControl.SetImage( self.bitmap, this.metadata );
       }
       else
@@ -507,20 +496,6 @@ function ImagePreviewControl(dialog, basename)
             }
          }
 
-/*
-         var imageWidth  = previewImage.width;
-         var imageHeight = previewImage.height;
-         if ( imageWidth > imageHeight )
-         {
-            width  = PREVIEW_SIZE;
-            height = PREVIEW_SIZE*imageHeight/imageWidth;
-         }
-         else
-         {
-            width  = PREVIEW_SIZE*imageWidth/imageHeight;
-            height = PREVIEW_SIZE;
-         }
-*/
          self.bitmap = previewImage.render();
 
          this.metadata.ExtractMetadata( dialogData.targetView.window );
@@ -534,8 +509,8 @@ function ImagePreviewControl(dialog, basename)
    // -------------------------------------------------------------------------
    this.margin  = 0;
    this.spacing = 0;
-   this.add(this.checkbox_hSizer);
-   this.add(this.preview_hSizer);
+   this.addControl(this.checkbox_hSizer);
+   this.addControl(this.preview_hSizer);
 } // ImagePreviewControl
 
 ImagePreviewControl.prototype = new VerticalSizer();
@@ -958,7 +933,7 @@ function TargetViewControl(dialog, labelWidth)
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
-   this.imagePreviewControl = new ImagePreviewControl(dialog, "TargetViewSelectorImg");
+   this.imagePreviewControl = new ImagePreviewControl(dialog, "TargetViewSelectorImg", "Target View Preview");
 
    // TargetViewStatBox
    // -------------------------------------------------------------------------

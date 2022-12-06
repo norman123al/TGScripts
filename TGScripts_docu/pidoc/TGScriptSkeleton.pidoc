@@ -29,10 +29,14 @@
     \definition {
         { \label target_view_selection Target View Selection } {
             The target view selection control allows to choose a main view of an image (either grayscale or RGB) as a target for further processing. In case of linear images the script performs a stretch for display reasons. In case the image is already auto-stretched, the available STF settings are used. Otherwise an auto-stretch will be performed. In case of auto-stretch on a color image, the 'Use linked STF stretch' checkbox will be enabled to allow selecting a linked stretch. The unlinked stretch is the default.
-
-            The preview control is taken from the AnnotateImage script and allows to zoom and scroll the image. In case the image is plate solved, the cursor on the image will show x and y coordinates in pixels and in RA and DEC coordinates in addition to the current zoom factor. The zoom factor can be adjusted using the scroll wheel on the mouse or the zoom bottoms above the image.
         }
     } % target view selection
+    
+    \definition {
+        { \label target_view_preview Target View Preview } {
+            The preview control is taken from the Pixinsight 'AnnotateImage' script and allows to zoom and scroll the image. In case the image is plate solved, the cursor on the image will show x and y coordinates in pixels and in RA and DEC coordinates in addition to the current zoom factor. The zoom factor can be adjusted using the scroll wheel on the mouse or the zoom bottoms above the image.
+        }
+    } % target view statistics
     
     \definition {
         { \label target_view_statistics Target View Statistics } {

@@ -30,6 +30,9 @@
       replaced param GroupBox by image section
       added documentation tool button
       refactoring: introduce TargetViewSelector object
+   v1.4
+      incorporated the PreviewControl from AnnotateImage for image preview
+      introduce section controls to allow collapsing individual controls
 */
 
 //#include <pjsr/NumericControl.jsh>
@@ -37,7 +40,7 @@
 
 #include "lib/TGDialogLib.js"
 
-#define VERSION    "1.3"
+#define VERSION    "1.4"
 #define SCRIPTNAME "TGScriptSkeleton"
 
 #feature-id    TGScriptSkeleton : TG Scripts > TGScriptSkeleton
