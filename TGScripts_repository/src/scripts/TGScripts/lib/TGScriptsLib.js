@@ -18,6 +18,9 @@
    this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef __TGScriptsLib_js
+#define __TGScriptsLib_js
+
 #include <pjsr/ColorSpace.jsh>
 #include <pjsr/SampleType.jsh>
 #include <pjsr/UndoFlag.jsh>
@@ -65,6 +68,14 @@ function mainViewIdOfView(view)
 }
 
 // ----------------------------------------------------------------------------
+// assume image is stretched if median is > 0.01 (works for astro images)
+// ----------------------------------------------------------------------------
+function isStretched(view)
+{
+   return view.image.median() > 0.01
+}
+
+// ----------------------------------------------------------------------------
 // Returns a unique view id with the given base id prefix.
 // ----------------------------------------------------------------------------
 function uniqueViewId(baseId)
@@ -89,6 +100,24 @@ function createRawImageWindow(viewId, baseImage)
       baseImage.bitsPerSample,
       baseImage.sampleType == SampleType_Real,
       baseImage.colorSpace != ColorSpace_Gray,
+      viewId
+   );
+
+   return window;
+}
+
+// ----------------------------------------------------------------------------
+// Creates an image window with the given parameters.
+// ----------------------------------------------------------------------------
+function createGrayscaleImageWindow(viewId, baseImage)
+{
+   var window = new ImageWindow(
+      baseImage.width,
+      baseImage.height,
+      1,
+      baseImage.bitsPerSample,
+      baseImage.sampleType == SampleType_Real,
+      false /*isColorSpace*/,
       viewId
    );
 
@@ -134,6 +163,24 @@ function createImageChannelCopyWindow(viewId, baseImage, channelIndex)
    applyImageToWindow(window, baseImage);
 
    window.mainView.image.resetSelections();
+
+   return window;
+}
+
+// ----------------------------------------------------------------------------
+// Creates a copy of a view channel as separate window instance.
+// ----------------------------------------------------------------------------
+function createImageLuminanceCopyWindow(viewId, baseImage)
+{
+   var window = createGrayscaleImageWindow(viewId, baseImage);
+
+   var orig_colorSpace                  = baseImage.colorSpace;
+   baseImage.colorSpace                 = ColorSpace_CIELab;
+
+   // copy content of provided image into new image
+   applyImageToWindow(window, baseImage);
+
+   baseImage.colorSpace = orig_colorSpace;
 
    return window;
 }
@@ -243,6 +290,24 @@ function excludeMainViewsByColor(vList, excludeMono)
    {
       var v = all[i];
       if (excludeMono ? v.image.isGrayscale : v.image.isColor)
+      {
+         vList.remove(v);
+         continue;
+      }
+   }
+}
+
+// ----------------------------------------------------------------------------
+// exclude nonlinear main views
+// ----------------------------------------------------------------------------
+function excludeNonLinearMainViews(vList)
+{
+   var all = getAllMainViews();
+
+   for (var i in all)
+   {
+      var v = all[i];
+      if (isStretched(v))
       {
          vList.remove(v);
          continue;
@@ -572,14 +637,6 @@ function hasSTF(view)
    return !isInitialSTF;
 }
 
-// ----------------------------------------------------------------------------
-// assume image is stretched if median is > 0.01 (works for astro images)
-// ----------------------------------------------------------------------------
-function isStretched(view)
-{
-   return view.image.median() > 0.01
-}
-
 /**
  * Estimation of the standard deviation of the noise, assuming a Gaussian
  * noise distribution.
@@ -693,3 +750,6 @@ function calculateAndStoreNoise(view, bForceCalculation)
 
    Console.hide();
 }
+
+// ----------------------------------------------------------------------------
+#endif   // __TGScriptsLib_js

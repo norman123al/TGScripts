@@ -29,6 +29,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * Modified by Thorsten Glebe 2022
+ * - minor bug fixes
+ */
+
 #include <pjsr/ButtonCodes.jsh>
 #include <pjsr/StdCursor.jsh>
 
@@ -48,6 +53,9 @@ function PreviewControl( parent )
 
    this.UpdateZoom = function( newZoom, refPoint )
    {
+      if(!this.image)
+         return;
+
       newZoom = Math.max( this.zoomOutLimit, Math.min( 4, newZoom ) );
       if ( newZoom == this.zoom && this.scaledImage )
          return;
@@ -188,6 +196,10 @@ function PreviewControl( parent )
    this.scrollbox.viewport.onMouseMove = function( x, y, buttonState, modifiers )
    {
       let preview = this.parent.parent;
+
+      if(!preview.scaledImage)
+         return;
+
       if ( preview.scrolling )
       {
          preview.scrollbox.horizontalScrollPosition = preview.scrolling.orgScroll.x - (x - preview.scrolling.orgCursor.x);
@@ -264,6 +276,9 @@ function PreviewControl( parent )
       let graphics = new VectorGraphics( this );
 
       graphics.fillRect( x0, y0, x1, y1, new Brush( 0xff202020 ) );
+
+      if(!preview.scaledImage)
+         return;
 
       let offsetX = (this.parent.maxHorizontalScrollPosition > 0) ?
             -this.parent.horizontalScrollPosition : ( this.width - preview.scaledImage.width ) / 2;

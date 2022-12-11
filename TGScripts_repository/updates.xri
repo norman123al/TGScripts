@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="2c86d498d64c4dc1f4c2996b1c5f5bd7cc0606a7" type="script" releaseDate="20221206">
+      <package fileName="TGScripts_repository.tar.gz" sha1="f0b02f06fd5a46ce9c94b999148a651542c0d2d3" type="script" releaseDate="20221211">
          <title>
-            TGScripts snapshot - 2022 Dec 06
+            TGScripts snapshot - 2022 Dec 11
          </title>
          <remove>
             src/scripts/TGScripts
@@ -28,7 +28,8 @@
             <p>
                Updates:
                <br/>
-               TGScriptSkeleton: added section for preview control. Version update to 1.4
+               TGScriptSkeleton: minor refactoring
+               LocalSupportMask: v2.0 - refactored interface, added preview control
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +38,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2022-12-06T22:14:35.572Z" encoding="Base64">kI3OQI+zkRQynY2uzevpkTMcX1Z2DlZCLlGUXntdy3JBozo6VF+4h35/FzadscpXhqjsGaxm+TDKszmUod7UDg==</Signature>
+<Signature developerId="tglebe" timestamp="2022-12-11T23:22:57.094Z" encoding="Base64">+OI4gAauin62fjSTcw+G2tXeho+TGowNY3ibL85UnTuo8uC2B+rAGyFaLv3IpvSKIi7HiMsUaJqXQ26198liCQ==</Signature>

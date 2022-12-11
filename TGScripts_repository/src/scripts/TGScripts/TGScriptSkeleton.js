@@ -33,6 +33,9 @@
    v1.4
       incorporated the PreviewControl from AnnotateImage for image preview
       introduce section controls to allow collapsing individual controls
+   v1.5
+      removed labelWidth parameter for TargetViewSelector and center target view control
+      minor refactorings
 */
 
 //#include <pjsr/NumericControl.jsh>
@@ -40,7 +43,7 @@
 
 #include "lib/TGDialogLib.js"
 
-#define VERSION    "1.4"
+#define VERSION    "1.5"
 #define SCRIPTNAME "TGScriptSkeleton"
 
 #feature-id    TGScriptSkeleton : TG Scripts > TGScriptSkeleton
@@ -93,7 +96,6 @@ function ScriptDialog()
    this.__base__();
 
    dialogData.dialog = this;
-   var labelWidth = 11 * this.font.width("M");
 
    // --- help box ---
    var helptext = "An empty script consisting of target view selection with "
@@ -104,39 +106,11 @@ function ScriptDialog()
 
    // TargetViewControl
    // -------------------------------------------------------------------------
-   this.targetViewControl = new TargetViewControl(this, labelWidth);
-
-   // exportParameters
-   // -------------------------------------------------------------------------
-   this.exportParameters = function()
-   {
-      this.targetViewControl.exportParameters();
-   }
-
-   // importParameters
-   // -------------------------------------------------------------------------
-   this.importParameters = function()
-   {
-      this.targetViewControl.importParameters();
-   }
-
-   // updateControl
-   // -------------------------------------------------------------------------
-   this.updateControl = function()
-   {
-      this.targetViewControl.updateControl();
-   }
-
-   // resetControl
-   // -------------------------------------------------------------------------
-   this.resetControl = function()
-   {
-      this.targetViewControl.resetControl();
-   }
+   this.targetViewControl = new TargetViewControl(this, ViewSelect.All, "");
 
    // buttons
    // -------------------------------------------------------------------------
-   this.toolButtonBar = new ToolButtonBar(this, SCRIPTNAME);
+   this.toolButtonBar = new ToolButtonBar(this, SCRIPTNAME, /*bPreview*/false);
 
    // dialog layout
    // -------------------------------------------------------------------------
@@ -169,7 +143,7 @@ function main()
    var dialog = new ScriptDialog();
 
    Console.hide();
-   dialog.importParameters();
+   dialogData.importParameters();
    if (Parameters.isViewTarget)
    {
       doWork();
@@ -177,7 +151,7 @@ function main()
    }
 
    // initialize dialog
-   dialog.updateControl();
+   dialogData.updateControl();
 
    //   dialog.userResizable = false;
    for ( ;; )

@@ -18,6 +18,9 @@
    this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#ifndef __TGDialogLib_js
+#define __TGDialogLib_js
+
 #include <pjsr/Sizer.jsh>
 #include <pjsr/SectionBar.jsh>
 #include <pjsr/FrameStyle.jsh>
@@ -41,33 +44,56 @@ function DialogData()
    this.dialog              = null;
    this.targetView          = null;
    this.targetViewListeners = [];
+   this.previewListeners    = [];
 
    // exportParameters
    // -------------------------------------------------------------------------
    this.exportParameters = function()
    {
-      this.dialog.targetViewSelector.exportParameters();
+      for(var i in this.targetViewListeners)
+      {
+         this.targetViewListeners[i].exportParameters();
+      }
    }
 
    // importParameters
    // -------------------------------------------------------------------------
    this.importParameters = function()
    {
-      this.targetViewSelector.importParameters();
+      for(var i in this.targetViewListeners)
+      {
+         this.targetViewListeners[i].importParameters();
+      }
    }
 
    // updateControl
    // -------------------------------------------------------------------------
    this.updateControl = function()
    {
-      this.targetViewSelector.updateSelectorView();
+      for(var i in this.targetViewListeners)
+      {
+         this.targetViewListeners[i].updateControl();
+      }
    }
 
    // resetControl
    // -------------------------------------------------------------------------
    this.resetControl = function()
    {
-      this.targetViewSelector.resetControl();
+      for(var i in this.targetViewListeners)
+      {
+         this.targetViewListeners[i].resetControl();
+      }
+   }
+
+   // preview
+   // -------------------------------------------------------------------------
+   this.preview = function()
+   {
+      for(var i in this.previewListeners)
+      {
+         this.previewListeners[i].preview();
+      }
    }
 }
 
@@ -76,7 +102,7 @@ var dialogData = new DialogData;
 // ----------------------------------------------------------------------------
 // ToolButtonBar
 // ----------------------------------------------------------------------------
-function ToolButtonBar(dialog, scriptname)
+function ToolButtonBar(dialog, scriptname, bPreview)
 {
    this.__base__ = HorizontalSizer;
   	this.__base__();
@@ -90,8 +116,22 @@ function ToolButtonBar(dialog, scriptname)
 
       onMousePress = function()
       {
-         dialog.exportParameters();
+         dialogData.exportParameters();
          dialog.newInstance();
+      }
+   }
+
+   // optional preview button
+   // -------------------------------------------------------------------------
+   if(bPreview)
+   {
+      this.preview_Button = new ToolButton(dialog);
+      with( this.preview_Button )
+      {
+         icon = scaledResource(":/toolbar/view-zoom.png");
+         toolTip = "Preview";
+
+         onClick = () => { dialogData.preview(); }
       }
    }
 
@@ -132,13 +172,15 @@ function ToolButtonBar(dialog, scriptname)
       icon = scaledResource( ":/process-interface/reset.png" );
       toolTip = "Reset to defaults";
 
-      onMousePress = () => { dialog.resetControl(); }
+      onMousePress = () => { dialogData.resetControl(); }
    }
 
    // register elements to this sizer
    // -------------------------------------------------------------------------
    this.spacing = SPACING;
    this.add(this.newInstance_Button);
+   if(bPreview)
+      this.add(this.preview_Button);
    this.addStretch();
    this.add(this.ok_Button);
    this.add(this.cancel_Button);
@@ -220,12 +262,25 @@ function VerticalSection(dialog, selector_title)
 VerticalSection.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
+// ViewSelect enum
+// ----------------------------------------------------------------------------
+ViewSelect = {
+   All            : 0,
+   MainViews      : 1,
+   Previews       : 2,
+   LinearMainViews: 3
+}
+
+// ----------------------------------------------------------------------------
 // TargetViewSelector
 // ----------------------------------------------------------------------------
-function TargetViewSelector(dialog, selector_title, labelWidth)
+function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
 {
    this.__base__ = VerticalSection;
   	this.__base__(dialog, selector_title);
+
+   // register as event listener
+   dialogData.targetViewListeners.push(this);
 
    // member variables
    var self           = this;
@@ -237,12 +292,6 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
    {
       Parameters.set("view_id"  , view_id);
       Parameters.set("rgbLinked", rgbLinked);
-
-      // export dependent controls
-      for(var i in dialogData.targetViewListeners)
-      {
-         dialogData.targetViewListeners[i].exportParameters();
-      }
    }
 
    // Restore saved parameters
@@ -285,19 +334,13 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
       // update ViewList control
       if(dialogData.targetView)
          this.targetImage_ViewList.currentView = dialogData.targetView;
-
-      // import dependent controls
-      for(var i in dialogData.targetViewListeners)
-      {
-         dialogData.targetViewListeners[i].importParameters();
-      }
    }
 
    // -------------------------------------------------------------------------
    this.targetImage_Label = new Label( dialog );
    with( this.targetImage_Label )
    {
-      minWidth = labelWidth;
+      minWidth = 9;
       text = "Target image:";
       textAlignment = TextAlign_Right|TextAlign_VertCenter;
    }
@@ -305,7 +348,29 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
    this.targetImage_ViewList = new ViewList( dialog );
    with( this.targetImage_ViewList )
    {
-      getAll(); // include main views as well as previews
+      excludeIdentifiersPattern = excludePattern;
+
+      // -------------------------------------------------------------------------
+      this.getViewSelection = () =>
+      {
+         switch(view_select)
+         {
+            case ViewSelect.All:
+               this.targetImage_ViewList.getAll();
+            break;
+            case ViewSelect.MainViews:
+               this.targetImage_ViewList.getMainViews();
+            break;
+            case ViewSelect.Previews:
+               this.targetImage_ViewList.getPreviews();
+            break;
+            case ViewSelect.LinearMainViews:
+               this.targetImage_ViewList.getMainViews();
+               excludeNonLinearMainViews(this.targetImage_ViewList);
+            break;
+         }
+      }
+      self.getViewSelection();
 
       toolTip = this.targetImage_Label.toolTip = "Select the target image.";
 
@@ -322,7 +387,7 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
             view_id               = "";
          }
 
-         this.updateSelectorView();
+         dialogData.updateControl(); // notify we have a new target image
       }
    }
 
@@ -330,6 +395,7 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
    with( this.targetImage_Sizer )
    {
       spacing = SPACING;
+      addStretch();
       add( this.targetImage_Label );
       add( this.targetImage_ViewList );
       addStretch();
@@ -339,19 +405,14 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
    this.paramVSizer = new VerticalSizer( dialog );
    with( this.paramVSizer )
    {
-      margin  = MARGIN;
+      margin  = 0;
       spacing = SPACING;
       add( this.targetImage_Sizer );
    }
 
    // -------------------------------------------------------------------------
-   this.updateSelectorView = function()
+   this.updateControl = function()
    {
-      // update dependent controls
-      for(var i in dialogData.targetViewListeners)
-      {
-         dialogData.targetViewListeners[i].updateControl();
-      }
    }
 
    // -------------------------------------------------------------------------
@@ -360,24 +421,17 @@ function TargetViewSelector(dialog, selector_title, labelWidth)
       if(this.targetImage_ViewList.currentView)
       {
          this.targetImage_ViewList.remove(this.targetImage_ViewList.currentView);
-         this.targetImage_ViewList.getAll();
+         self.getViewSelection();
       }
 
       dialogData.targetView   = null;
       view_id                 = "";
       rgbLinked               = false;
-
-      // reset dependent controls
-      for(var i in dialogData.targetViewListeners)
-      {
-         dialogData.targetViewListeners[i].resetControl();
-      }
    }
 
+   // initialization
    // -------------------------------------------------------------------------
-   // register elements to this sizer
    this.addControl(this.paramVSizer);
-
 } // TargetViewSelector
 
 TargetViewSelector.prototype = new VerticalSizer();
@@ -422,8 +476,8 @@ function ImagePreviewControl(dialog, basename, selector_title)
    // -------------------------------------------------------------------------
    this.resetControl = function()
    {
-      previewView             = null;
-      previewImage            = null;
+      previewView   = null;
+      previewImage  = null;
    }
 
    // updateControl
@@ -922,16 +976,16 @@ TargetViewPropBox.prototype = new VerticalSizer();
 // ----------------------------------------------------------------------------
 // TargetViewControl
 // ----------------------------------------------------------------------------
-function TargetViewControl(dialog, labelWidth)
+function TargetViewControl(dialog, viewSelect, excludePattern)
 {
    this.__base__ = VerticalSizer;
   	this.__base__();
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
-   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", labelWidth);
+   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", viewSelect, excludePattern);
 
-   // TargetViewSelector
+   // ImagePreviewControl
    // -------------------------------------------------------------------------
    this.imagePreviewControl = new ImagePreviewControl(dialog, "TargetViewSelectorImg", "Target View Preview");
 
@@ -942,34 +996,6 @@ function TargetViewControl(dialog, labelWidth)
    // TargetViewPropBox
    // -------------------------------------------------------------------------
    this.targetViewPropBox = new TargetViewPropBox(dialog, "Target View Properties");
-
-   // exportParameters
-   // -------------------------------------------------------------------------
-   this.exportParameters = function()
-   {
-      this.targetViewSelector.exportParameters();
-   }
-
-   // importParameters
-   // -------------------------------------------------------------------------
-   this.importParameters = function()
-   {
-      this.targetViewSelector.importParameters();
-   }
-
-   // updateControl
-   // -------------------------------------------------------------------------
-   this.updateControl = function()
-   {
-      this.targetViewSelector.updateSelectorView();
-   }
-
-   // resetControl
-   // -------------------------------------------------------------------------
-   this.resetControl = function()
-   {
-      this.targetViewSelector.resetControl();
-   }
 
    // register elements to this sizer
    // -------------------------------------------------------------------------
@@ -983,3 +1009,68 @@ function TargetViewControl(dialog, labelWidth)
 } // TargetViewControl
 
 TargetViewControl.prototype = new VerticalSizer();
+
+// ----------------------------------------------------------------------------
+// SimpleTargetViewControl
+// ----------------------------------------------------------------------------
+function SimpleTargetViewControl(dialog, viewSelect, excludePattern)
+{
+   this.__base__ = VerticalSizer;
+  	this.__base__();
+
+   // TargetViewSelector
+   // -------------------------------------------------------------------------
+   this.targetViewSelector = new TargetViewSelector(dialog, "Target View Selection", viewSelect, excludePattern);
+
+   // register elements to this sizer
+   // -------------------------------------------------------------------------
+   this.add( this.targetViewSelector );
+} // SimpleTargetViewControl
+
+SimpleTargetViewControl.prototype = new VerticalSizer();
+
+// ----------------------------------------------------------------------------
+// DummyControl - copy and paste control skeleton
+// ----------------------------------------------------------------------------
+function DummyControl(dialog, selector_title)
+{
+   this.__base__ = VerticalSection;
+  	this.__base__(dialog, selector_title);
+
+   dialogData.targetViewListeners.push(this);
+
+   // Save parameters in process icon
+   // -------------------------------------------------------------------------
+   this.exportParameters = function()
+   {
+   }
+
+   // Restore saved parameters
+   // -------------------------------------------------------------------------
+   this.importParameters = function()
+   {
+   }
+
+   // updateControl
+   // -------------------------------------------------------------------------
+   this.updateControl = function()
+   {
+   }
+
+   // resetControl
+   // -------------------------------------------------------------------------
+   this.resetControl = function()
+   {
+   }
+
+   // register elements to this sizer
+   // -------------------------------------------------------------------------
+   this.margin  = 0;
+   this.spacing = 0;
+//   this.addControl(this.treeBox);
+} // DummyControl
+
+DummyControl.prototype = new VerticalSizer();
+
+// ----------------------------------------------------------------------------
+#endif   // __TGDialogLib_js
