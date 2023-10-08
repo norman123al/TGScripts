@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="4959a89aceb537e1829356f9fc61ca65a3fa1295" type="script" releaseDate="20231008">
+      <package fileName="TGScripts_repository.tar.gz" sha1="7279793847e2807af046d24a7699536a849577ef" type="script" releaseDate="20231008">
          <title>
             TGScripts snapshot - 2023 Oct 08
          </title>
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               CSTG: bug fix for error messages
+               CSTG: fix duplicate definitions
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2023-10-08T12:37:56.548Z" encoding="Base64">0izNrYqaCKFaF0+nEE+9jcI2B9IUuv0csSr+fbdPGItgefqenzpGAUncGEF0ik5DLcVSvqSZOyqRSMEyWE0RDA==</Signature>
+<Signature developerId="tglebe" timestamp="2023-10-08T13:14:32.635Z" encoding="Base64">gj3WyUGhEIRrvyw3yAkhQ8dxJrWqEb1W5GIx/GwqcXTeaVsd9Rzq+ZJn6D3Gmn9r14D7F1wBI0sh8ZCFOdvDCg==</Signature>

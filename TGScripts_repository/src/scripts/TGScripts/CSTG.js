@@ -1808,32 +1808,6 @@ function showDialog()
 }
 
 
-function equalizeMean(view, targetView)
-{
-   var f = targetView.image.mean() / view.image.mean();
-
-   var P = new PixelMath;
-   P.expression = "$T * " + f.toString();
-   P.expression1 = "";
-   P.expression2 = "";
-   P.expression3 = "";
-   P.useSingleExpression = true;
-   P.symbols = "";
-   P.generateOutput = true;
-   P.singleThreaded = false;
-   P.use64BitWorkingImage = false;
-   P.rescale = false;
-   P.truncate = true;
-   P.truncateLower = 0;
-   P.truncateUpper = 1;
-   P.createNewImage = false;
-   P.newImageAlpha = false;
-   P.newImageColorSpace = PixelMath.prototype.SameAsTarget;
-   P.newImageSampleFormat = PixelMath.prototype.SameAsTarget;
-
-   P.executeOn(view);
-}
-
 function linearFit(referenceView, imageToFit)
 {
    var P = new LinearFit;
@@ -2099,17 +2073,6 @@ function getKeyString(window, keyName)
       }
    }
    return null;
-}
-
-function getAllMainViews()
-{
-   var mainViews = [];
-   var images = ImageWindow.windows;
-   for ( var i in images )
-   {
-      if (images[i].mainView.isMainView) mainViews.push(images[i].mainView);
-   }
-   return mainViews;
 }
 
 function excludeViews(vList)
