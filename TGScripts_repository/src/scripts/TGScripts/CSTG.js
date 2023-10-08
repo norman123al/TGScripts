@@ -74,6 +74,7 @@
 #include <pjsr/FontFamily.jsh>
 #include <pjsr/ImageOp.jsh>
 
+#include "lib/TGScriptsLib.js"
 
 #define TITLE "Continuum Subtraction"
 #define SCRIPTNAME "CSTG"

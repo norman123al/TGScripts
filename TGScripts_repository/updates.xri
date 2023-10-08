@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.8.9">
-      <package fileName="TGScripts_repository.tar.gz" sha1="f0b02f06fd5a46ce9c94b999148a651542c0d2d3" type="script" releaseDate="20221211">
+      <package fileName="TGScripts_repository.tar.gz" sha1="fde0f17fbc77d129b302f8917c0f23916fe6d04e" type="script" releaseDate="20231008">
          <title>
-            TGScripts snapshot - 2022 Dec 11
+            TGScripts snapshot - 2023 Oct 08
          </title>
          <remove>
             src/scripts/TGScripts
@@ -28,8 +28,7 @@
             <p>
                Updates:
                <br/>
-               TGScriptSkeleton: minor refactoring
-               LocalSupportMask: v2.0 - refactored interface, added preview control
+               CSTG: bug fix for error messages
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
