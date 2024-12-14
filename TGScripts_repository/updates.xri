@@ -5,7 +5,7 @@
         TGScripts Updates ? Repository for Pixinsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.8.9:1.8.9">
+   <platform os="all" arch="noarch" version="1.8.9:1.9.0">
       <package fileName="TGScripts_repository.tar.gz" sha1="7279793847e2807af046d24a7699536a849577ef" type="script" releaseDate="20231008">
          <title>
             TGScripts snapshot - 2023 Oct 08
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               CSTG: fix duplicate definitions
+               Enable Pixinsight 1.9.0
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2023-10-08T13:14:32.635Z" encoding="Base64">gj3WyUGhEIRrvyw3yAkhQ8dxJrWqEb1W5GIx/GwqcXTeaVsd9Rzq+ZJn6D3Gmn9r14D7F1wBI0sh8ZCFOdvDCg==</Signature>
+<Signature developerId="tglebe" timestamp="2024-12-14T17:57:54.442Z" encoding="Base64">t3REsP5FV737VtQLWJ4Kh59kKcnOTCTVyUYZGP1RpUmhobV53/NhVj51aYMoUoMFeX+Z5sXGRZvU74KQ05tDCQ==</Signature>
