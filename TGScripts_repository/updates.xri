@@ -5,7 +5,7 @@
         TGScripts Updates ? Repository for Pixinsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.8.9:1.9.0">
+   <platform os="all" arch="noarch" version="1.8.9:1.9.99">
       <package fileName="TGScripts_repository.tar.gz" sha1="7279793847e2807af046d24a7699536a849577ef" type="script" releaseDate="20231008">
          <title>
             TGScripts snapshot - 2023 Oct 08
