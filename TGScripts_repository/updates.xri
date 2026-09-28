@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="7279793847e2807af046d24a7699536a849577ef" type="script" releaseDate="20231008">
+      <package fileName="TGScripts_repository.tar.gz" sha1="5f5e570f1352f6d8fc949db14edaece495c69362" type="script" releaseDate="20231008">
          <title>
-            TGScripts snapshot - 2023 Oct 08
+            TGScripts snapshot - 2026 Sept 28
          </title>
          <remove>
             src/scripts/TGScripts
@@ -28,7 +28,7 @@
             <p>
                Updates:
                <br/>
-               Enable Pixinsight 1.9.0
+               Added StarSpikeProtectionMask script.
             </p>
             <p>
                Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +37,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2024-12-24T11:27:40.579Z" encoding="Base64">iJQo4XTT7LAddusywKrKh+dd6r/OFQGoR3bp0qR2vW4GxIP4DQ4EoB17woQ6IkwCJGyYGpw9VWdvdIpzd/9MAA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-09-28T17:53:24.486Z" encoding="Base64">8ofmaxf2D/R2WltYyn+HSmSOr8XqPhI2aOTHuiWDiGpc9+8Hr+m4LY6S4H0sMqnvVbw43/SFTUyaJHZIYs3FDw==</Signature>
