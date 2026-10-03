@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="b75cbbdb225f2d7ac590839757d1c5e7fc7c711c" type="script" releaseDate="20261003">
+      <package fileName="TGScripts_repository.tar.gz" sha1="84a3d6b7633233a8cf80ba3e4309637a392e4148" type="script" releaseDate="20261003">
          <title>
             TGScripts snapshot - 2026 Okt 03
          </title>
@@ -28,13 +28,13 @@
             <p>
                Updates:
                <br/>
-               Improved StarSpikeProtectionMask script. More narrow star spike masks, simplified UI, add option to grow mask area.
+               Added ROILinearFit script and documentation.
             </p>
             <p>
-               Copyright (c) 2022 Dr. Thorsten Glebe. All Rights Reserved.
+               Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
             </p>
          </description>
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-03T15:28:50.130Z" encoding="Base64">IjkCavHXKyfo7fhyuIlpw2diq27tzCR4E66WOsQ3W8d2R3X3p2iga6+2SpZt32yvGN+Oqdfk6+Y1IILnV5FyDg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-03T21:18:26.111Z" encoding="Base64">whV10DHY89lSeWLafRbJY5VagyYbbeJ506vAJJnRikOpCUKdvLfU/x8gmR/iVpJ/kUvekQOeCXa7zd3RzujQCA==</Signature>
