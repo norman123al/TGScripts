@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="84a3d6b7633233a8cf80ba3e4309637a392e4148" type="script" releaseDate="20261003">
+      <package fileName="TGScripts_repository.tar.gz" sha1="5af6cd38a9c390ea299fb7f9c087761f41b5e14c" type="script" releaseDate="20261004">
          <title>
             TGScripts snapshot - 2026 Okt 03
          </title>
@@ -16,9 +16,12 @@
             doc/scripts/AberrationSpotterTG
             doc/scripts/BBStarReduction
             doc/scripts/ColorMaskTG
+            doc/scripts/CSTG
             doc/scripts/DarkStructureEnhanceTG
             doc/scripts/DeconvolutionPreviewTG
             doc/scripts/LocalSupportMask
+            doc/scripts/ROILinearFit
+            doc/scripts/StarSpikeProtectionMask
             doc/scripts/TGScriptSkeleton
          </remove>
          <description>
@@ -28,7 +31,8 @@
             <p>
                Updates:
                <br/>
-               Added ROILinearFit script and documentation.
+               StarSpikeProtectionMask: improved UI
+               ROILinearFit:            improved UI
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -37,4 +41,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-03T21:18:26.111Z" encoding="Base64">whV10DHY89lSeWLafRbJY5VagyYbbeJ506vAJJnRikOpCUKdvLfU/x8gmR/iVpJ/kUvekQOeCXa7zd3RzujQCA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-04T10:52:29.001Z" encoding="Base64">CALftV+1y6MQemVQZf0GXFXPcwx1OzJzHJ4Rp1bGrXTLVgAN6kWNY9+wUfszzK0YVXwCq7oQfFymMHli+cWpCg==</Signature>

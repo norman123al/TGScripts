@@ -4,7 +4,7 @@
 #feature-info Fit a full grayscale or RGB image to a reference using a rectangular region.
 #endif
 
-/* ROI Linear Fit 1.1 — PixInsight 1.9.5+ (V8)
+/* ROI Linear Fit 1.1.3 — PixInsight 1.9.5+ (V8)
  * Source = reference; target = image modified in place, with normal Undo.
  * Images must be registered and have the same dimensions and color type.
  * Only script-owned, hidden ROI windows are created; all are closed in finally.
@@ -17,21 +17,34 @@
  * No console parsing, rounded coefficients, temporary files, or log interception.
  */
 
-const ROILF_VERSION = '1.1';
+const ROILF_VERSION = '1.1.3';
 const ROILF_SCRIPT_FILE = #__FILE__;
 
-/** Portable help: resolve doc/ beside this script, independent of working directory. */
-function roiFitDocumentationPath() {
-   return File.extractDrive(ROILF_SCRIPT_FILE) + File.extractDirectory(ROILF_SCRIPT_FILE) +
-      '/doc/scripts/ROILinearFit/ROILinearFit.html';
+/** Support both the portable bundle and PixInsight's installed doc tree.
+ * Resolve by the PIDoc identifier, independently of the spaced menu label.
+ * Optional arguments let the path resolver be tested without changing settings.
+ */
+function roiFitDocumentationPath(scriptFile = ROILF_SCRIPT_FILE,
+                                 docDirectory = CoreApplication.docDirPath) {
+   let relativePath = '/scripts/ROILinearFit/ROILinearFit.html';
+   let portable = File.extractDrive(scriptFile) + File.extractDirectory(scriptFile) +
+      '/doc' + relativePath;
+   if (File.exists(portable)) return portable;
+   let installed = docDirectory.replace(/[\\/]+$/, '') + relativePath;
+   return File.exists(installed) ? installed : '';
 }
 
-/** Open the same native documentation browser used by StarSpikeProtectionMask. */
+/** Open a verified local page in PixInsight's native documentation browser.
+ * browseScriptDocumentation can show an unavailable page even when it returns
+ * true: menu registration and the PIDoc directory name need not agree.
+ */
 function roiFitShowDocumentation() {
    let path = roiFitDocumentationPath();
-   if (File.exists(path)) Dialog.openBrowser(path, 'ROI Linear Fit — TG Scripts');
-   else if (!Dialog.browseScriptDocumentation('ROILinearFit'))
-      new MessageBox('Keep the supplied doc folder beside ROILinearFit.js to use Help.',
+   if (path) Dialog.openBrowser(path, 'ROI Linear Fit — TG Scripts');
+   else
+      new MessageBox('Documentation was not found. Keep the supplied doc folder beside ' +
+         'ROILinearFit.js, or install its ROILinearFit documentation folder under ' +
+         CoreApplication.docDirPath + '/scripts/.',
          'ROI Linear Fit', StdIcon.Warning, StdButton.Ok).execute();
 }
 
@@ -398,21 +411,35 @@ class ROILinearFitDialog extends Dialog {
          'The source is the reference; the target is modified with Undo support.';
       this.sizer.add(help);
 
-      let addRow = (labelText, control) => {
-         let row = new HorizontalSizer; row.spacing = 8;
-         let label = new Label(this); label.text = labelText; label.setFixedWidth(155);
-         row.add(label); row.add(control, 100); this.sizer.add(row);
+      // Common columns and compact field widths keep all groups aligned at any DPI.
+      const labelWidth = Math.max(this.font.width('Copy ROI from preview:'), Math.round(155*this.displayPixelRatio));
+      const fieldWidth = Math.max(this.font.width('0.000000') + Math.round(24*this.displayPixelRatio),
+                                  this.font.width('000000') + Math.round(36*this.displayPixelRatio));
+      let groupSizer;
+      let addGroup = title => {
+         let group = new GroupBox(this); group.title = title;
+         group.sizer = new VerticalSizer; group.sizer.margin = 10; group.sizer.spacing = 8;
+         this.sizer.add(group); groupSizer = group.sizer;
       };
+      let addRow = (labelText, control, compact = false) => {
+         let row = new HorizontalSizer; row.spacing = 8;
+         let label = new Label(this); label.text = labelText; label.setFixedWidth(labelWidth);
+         row.add(label); row.add(control, compact ? 0 : 100);
+         if (compact) row.addStretch();
+         groupSizer.add(row);
+      };
+      addGroup('Images');
       this.sourceList = new ViewList(this); this.sourceList.getMainViews();
       this.targetList = new ViewList(this); this.targetList.getMainViews();
       addRow('Source (reference):', this.sourceList);
       addRow('Target (to modify):', this.targetList);
+      addGroup('Region of interest');
       this.previewList = new ViewList(this); this.previewList.getPreviews();
       this.previewList.toolTip = 'Optional: choose a preview on the selected source or target to copy its rectangle. Preview processing is ignored; pixels come from the main images.';
       addRow('Copy ROI from preview:', this.previewList);
       let note = new Label(this); note.wordWrapping = true;
       note.text = 'Enter coordinates below, or select an existing preview above. Coordinates start at 0 in the top-left corner.';
-      this.sizer.add(note);
+      groupSizer.add(note);
 
       let coordRow = new HorizontalSizer; coordRow.spacing = 8;
       let spin = (name, value, minimum) => {
@@ -423,7 +450,7 @@ class ROILinearFitDialog extends Dialog {
       };
       this.x = spin('X', options.x, 0); this.y = spin('Y', options.y, 0);
       this.w = spin('Width', options.width, 1); this.h = spin('Height', options.height, 1);
-      this.sizer.add(coordRow);
+      groupSizer.add(coordRow);
       this.previewList.onViewSelected = view => {
          if (!roiFitHasView(view)) return;
          let parent = view.window.mainView;
@@ -435,7 +462,7 @@ class ROILinearFitDialog extends Dialog {
          this.x.value = r.x0; this.y.value = r.y0;
          this.w.value = r.width; this.h.value = r.height;
       };
-      let bounds = new Label(this); this.sizer.add(bounds);
+      let bounds = new Label(this); groupSizer.add(bounds);
       let updateBounds = () => {
          let v = this.targetList.currentView;
          bounds.text = roiFitHasView(v) ? 'Target: ' + v.image.width + ' x ' + v.image.height +
@@ -450,27 +477,32 @@ class ROILinearFitDialog extends Dialog {
          this.h.value = Math.min(256, this.targetList.currentView.image.height);
       }
       updateBounds();
-      let rejectionRow = new HorizontalSizer; rejectionRow.spacing = 8;
+      addGroup('Fit settings');
       let numeric = (text, value) => {
-         let n = new NumericEdit(this); n.label.text = text;
+         let n = new NumericEdit(this);
+         // Use the shared row label rather than NumericEdit's independent label layout.
+         n.label.hide(); n.sizer.margin = 0; n.sizer.spacing = 0;
          n.setReal(true); n.setRange(0, 1); n.setPrecision(6); n.setValue(value);
+         n.edit.setFixedWidth(fieldWidth); n.setFixedWidth(fieldWidth);
          n.toolTip = 'Native LinearFit sample rejection. Only samples strictly between these limits are used in the fit.';
-         rejectionRow.add(n, 100); return n;
+         addRow(text, n, true); return n;
       };
       this.low = numeric('Reject low:', options.low);
       this.high = numeric('Reject high:', options.high);
-      this.sizer.add(rejectionRow);
       this.clip = new CheckBox(this); this.clip.text = 'Clip final result to [0,1] (standard LinearFit behavior)';
       this.clip.checked = options.clip;
       this.clip.toolTip = 'Disable to retain negative or above-white values in a floating-point target. No rescaling is ever applied.';
-      this.sizer.add(this.clip);
+      groupSizer.add(this.clip);
+      addGroup('Scatter plot');
       this.showPlot = new CheckBox(this); this.showPlot.text = 'Show scatter plot after applying the fit';
       this.showPlot.checked = options.showPlot;
       this.showPlot.toolTip = 'Displays original target versus source pixel values and the native fitted line. The magnifier always shows a read-only fit preview.';
-      this.sizer.add(this.showPlot);
+      groupSizer.add(this.showPlot);
       this.maxPoints = new SpinBox(this); this.maxPoints.setRange(100,100000); this.maxPoints.value = options.maxPoints;
+      // Allow six digits, spin arrows and padding without stretching across the dialog.
+      this.maxPoints.setFixedWidth(fieldWidth);
       this.maxPoints.toolTip = 'Maximum displayed pixel pairs per channel. A deterministic spatial sample is used for large ROIs. This limit never changes the fit.';
-      addRow('Plot sample limit:', this.maxPoints);
+      addRow('Plot sample limit:', this.maxPoints, true);
       let cleanup = new Label(this); cleanup.wordWrapping = true;
       cleanup.text = 'Temporary ROI images are always closed. Existing previews are preserved. An attached target mask is temporarily disabled so the fit covers the full image.';
       this.sizer.add(cleanup);

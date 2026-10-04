@@ -1,6 +1,6 @@
 #engine v8
 
-/* Star Spike Protection Mask 1.6
+/* Star Spike Protection Mask 1.7.1
  * Native PixInsight / PJSR script; tested with PixInsight 1.9.5.
  * TG Scripts menu package. Runtime target: PixInsight 1.9.5 with V8.
  * Pipeline: source snapshot -> connected cores -> measured spikes -> mask -> blur.
@@ -14,7 +14,7 @@
 #include <pjsr/controls/ImageView.js>
 
 var SPM_SCRIPT_FILE = #__FILE__;
-var SPM_VERSION = "1.6";
+var SPM_VERSION = "1.7.1";
 
 /** Resolve bundled help relative to THIS file, never the current directory.
  * Keeping doc/ beside the script makes the TG Scripts installation portable.
@@ -461,9 +461,14 @@ SPMEngine.prototype.analyze=function() {
    console.writeln("Measuring diffraction spikes...");
    for(var i=0;i<this.candidates.length;++i) {
       if(this.measureStar(this.candidates[i]))this.stars.push(this.candidates[i]);
-      if((i%25)==0){console.write("\rMeasured "+i+" / "+this.candidates.length);SPMCheckAbort();}
+      // PixInsight's console is not a terminal: a carriage return does not
+      // reliably replace a progress line. Emit complete, newline-ended updates.
+      var measured=i+1;
+      if(measured%25==0||measured==this.candidates.length)
+         console.writeln("Measured "+measured+" / "+this.candidates.length);
+      if((i%25)==0)SPMCheckAbort();
    }
-   console.writeln("\nSelected "+this.stars.length+" stars.");
+   console.writeln("Selected "+this.stars.length+" stars.");
    var capped=this.stars.filter(function(s){return s.truncated;}).length;
    if(capped)console.warningln(capped+" stars have spikes reaching the length limit. Consider increasing Maximum spike length.");
    return this.stars;
@@ -586,7 +591,11 @@ class SPMDialog extends Dialog {
    this.windowTitle="Star Spike Protection Mask "+SPM_VERSION;
    this.tabs=new TabBox(this);
    this.parameters=new Control(this.tabs);
-   this.advanced=new Control(this.tabs);
+   // Native titled GroupBoxes follow BBStarReduction's layout convention:
+   // a six-pixel inner margin and four-pixel spacing, on one settings page.
+   this.selectionGroup=new GroupBox(this.parameters);this.selectionGroup.title="Star selection";
+   this.spikesGroup=new GroupBox(this.parameters);this.spikesGroup.title="Spike detection";
+   this.maskGroup=new GroupBox(this.parameters);this.maskGroup.title="Mask settings";
    this.help=new Label(this);this.help.useRichText=true;this.help.wordWrapping=true;
    this.help.text="<b>Protect bright stars and their diffraction spikes.</b><br>"+
       "Use a stretched stars-only image. The output has black protected regions on white, with soft edges. " +
@@ -601,27 +610,25 @@ class SPMDialog extends Dialog {
       c.toolTip=tip;c.onValueUpdated=function(v){o[key]=v;self.invalidate();};return c;
    }
    this.area=numeric("Minimum bright-core area (px)",'minArea',1,10000,0,
-      "Main lower cutoff. Number of connected bright pixels above the core threshold, after slight smoothing. Raise this to protect only larger/brighter stars; lower it to include smaller stars. Not a stellar magnitude.");
+      "Main lower cutoff. Number of connected bright pixels above the core threshold, after slight smoothing. Raise this to protect only larger/brighter stars; lower it to include smaller stars. Not a stellar magnitude.",this.selectionGroup);
    this.core=numeric("Core luminance threshold",'coreThreshold',.0001,.9999,4,
-      "Normalized native luminance used to measure the bright core. 0.60 is a starting point for the stretched RGB stars image. Lower this for darker data; STF is not applied.",this.advanced);
+      "Normalized native luminance used to measure the bright core. 0.60 is a starting point for the stretched RGB stars image. Lower this for darker data; STF is not applied.",this.selectionGroup);
    this.arms=numeric("Required spike arms (0 = any)",'minArms',0,4,0,
-      "Zero includes all qualifying bright stars. Two includes many clipped or asymmetric stars; three or four is stricter. Stars without detected arms receive only core protection.",this.advanced);
+      "Zero includes all qualifying bright stars. Two includes many clipped or asymmetric stars; three or four is stricter. Stars without detected arms receive only core protection.",this.selectionGroup);
    this.contrast=numeric("Minimum luminance contrast",'spikeContrast',.0001,.3,4,
-      "Minimum luminance above local background for core wings and spike profiles. Raise to tighten protection; lower for faint spikes. Local noise can impose a higher threshold.");
-   this.auto=new CheckBox(this.advanced);this.auto.text="Measure spike angle automatically";this.auto.checked=o.autoAngle;
+      "Minimum luminance above local background for core wings and spike profiles. Raise to tighten protection; lower for faint spikes. Local noise can impose a higher threshold.",this.spikesGroup);
+   this.auto=new CheckBox(this.spikesGroup);this.auto.text="Measure spike angle automatically";this.auto.checked=o.autoAngle;
    this.auto.onCheck=function(v){o.autoAngle=v;self.angle.enabled=!v;self.invalidate();};
    this.angle=numeric("Spike-axis angle (degrees)",'angleDegrees',0,90,2,
-      "One of the two perpendicular spike axes, clockwise from the image's horizontal axis. Only used when automatic measurement is off.",this.advanced);this.angle.enabled=!o.autoAngle;
-   this.length=numeric("Maximum spike length (px)",'maxLength',30,3000,0,"Upper search limit for each independently measured spike. No extra tip margin or opposite-arm extension is added. This is a search cap, not a growth control.",this.advanced);
+      "One of the two perpendicular spike axes, clockwise from the image's horizontal axis. Only used when automatic measurement is off.",this.spikesGroup);this.angle.enabled=!o.autoAngle;
+   this.length=numeric("Maximum spike length (px)",'maxLength',30,3000,0,"Upper search limit for each independently measured spike. No extra tip margin or opposite-arm extension is added. This is a search cap, not a growth control.",this.spikesGroup);
    this.coreRadius=numeric("Core radius (%)",'coreRadiusPercent',10,200,1,
-      "Scales the luminance-shaped core profile. 100% uses its measured extent; try 60% for tighter cores. Does not change star selection or spike geometry. Optional blur is applied afterward. Version 1.5 profiles differ from earlier geometric masks.");
+      "Scales the luminance-shaped core profile. 100% uses its measured extent; try 60% for tighter cores. Does not change star selection or spike geometry. Optional blur is applied afterward. Version 1.5 profiles differ from earlier geometric masks.",this.maskGroup);
    this.grow=numeric("Grow protected area (px)",'growRadius',0,12,0,
-      "Expand all protected cores and spikes by this many pixels using a circular morphological filter. Zero leaves the measured mask unchanged. Try 2 or 3. Growth runs before whole-mask blur and does not select additional stars.");
-   this.advancedHelp=new Label(this.advanced);this.advancedHelp.wordWrapping=true;
-   this.advancedHelp.text="Detection settings affect which stars and spike directions are found. Maximum length is only a search cap. Use Grow protected area on Settings to expand the actual mask.";
+      "Expand all protected cores and spikes by this many pixels using a circular morphological filter. Zero leaves the measured mask unchanged. Try 2 or 3. Growth runs before whole-mask blur and does not select additional stars.",this.maskGroup);
    this.blurSigma=numeric("Whole-mask blur sigma (0 = off)",'blurSigma',0,25,1,
-      "Gaussian standard deviation in pixels. Zero disables blur; try 2.0 to smooth the whole mask. Profiles already have natural soft edges; extra blur can reduce protection of narrow spikes.");
-   this.save=new CheckBox(this.parameters);this.save.text="Offer to save the result as XISF";this.save.checked=o.saveAsXisf;
+      "Gaussian standard deviation in pixels. Zero disables blur; try 2.0 to smooth the whole mask. Profiles already have natural soft edges; extra blur can reduce protection of narrow spikes.",this.maskGroup);
+   this.save=new CheckBox(this.maskGroup);this.save.text="Offer to save the result as XISF";this.save.checked=o.saveAsXisf;
    this.save.onCheck=function(v){o.saveAsXisf=v;};
    this.status=new Label(this);this.status.wordWrapping=true;
    this.status.text="Update preview to inspect core size and count selected stars.";
@@ -691,7 +698,7 @@ class SPMDialog extends Dialog {
       catch(err){self.status.text=String(err);console.warningln(String(err));}
    };
    // Keep UI controls disabled while measuring, while allowing console Abort.
-   this.busy=function(b){self.parameters.enabled=!b;self.advanced.enabled=!b;self.previewPage.enabled=!b;self.newInstanceButton.enabled=!b;self.previewButton.enabled=!b;self.helpButton.enabled=!b;self.create.enabled=!b;self.closeButton.enabled=!b;};
+   this.busy=function(b){self.parameters.enabled=!b;self.previewPage.enabled=!b;self.newInstanceButton.enabled=!b;self.previewButton.enabled=!b;self.helpButton.enabled=!b;self.create.enabled=!b;self.closeButton.enabled=!b;};
    /** Compute the same full-resolution mask as Create, then display an 8-bit
     * snapshot. No preview window survives this call, including on error/abort.
     * This is explicit refresh, not continuous processing on every slider change.
@@ -727,14 +734,20 @@ class SPMDialog extends Dialog {
       }catch(err){self.analysis=null;self.status.text=String(err);console.warningln(String(err));}
       finally{console.abortEnabled=false;self.busy(false);}
    };
+   this.selectionGroup.sizer=new VerticalSizer;
+   this.spikesGroup.sizer=new VerticalSizer;
+   this.maskGroup.sizer=new VerticalSizer;
+   [this.selectionGroup,this.spikesGroup,this.maskGroup].forEach(function(group){
+      group.sizer.margin=6;group.sizer.spacing=4;
+   });
+   [this.area,this.core,this.arms].forEach(function(c){self.selectionGroup.sizer.add(c);});
+   [this.contrast,this.auto,this.angle,this.length].forEach(function(c){self.spikesGroup.sizer.add(c);});
+   [this.coreRadius,this.grow,this.blurSigma,this.save].forEach(function(c){self.maskGroup.sizer.add(c);});
    this.parameters.sizer=new VerticalSizer;
-   this.parameters.sizer.spacing=5;
-   [this.views,this.area,this.contrast,this.coreRadius,this.grow,this.blurSigma,this.save].forEach(function(c){self.parameters.sizer.add(c);});
+   this.parameters.sizer.margin=6;this.parameters.sizer.spacing=6;
+   [this.views,this.selectionGroup,this.spikesGroup,this.maskGroup].forEach(function(c){self.parameters.sizer.add(c);});
    this.parameters.sizer.addStretch();
-   this.advanced.sizer=new VerticalSizer;this.advanced.sizer.spacing=6;
-   [this.advancedHelp,this.core,this.arms,this.auto,this.angle,this.length].forEach(function(c){self.advanced.sizer.add(c);});
-   this.advanced.sizer.addStretch();
-   this.tabs.addPage(this.parameters,"Settings");this.tabs.addPage(this.previewPage,"Mask preview");this.tabs.addPage(this.advanced,"Detection");
+   this.tabs.addPage(this.parameters,"Settings");this.tabs.addPage(this.previewPage,"Mask preview");
    var buttons=new HorizontalSizer;buttons.spacing=8;buttons.add(this.newInstanceButton);buttons.add(this.previewButton);buttons.addStretch();buttons.add(this.create);buttons.add(this.closeButton);buttons.add(this.helpButton);
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;
    this.sizer.add(this.help);this.sizer.add(this.tabs,100);this.sizer.add(this.status);this.sizer.add(buttons);
