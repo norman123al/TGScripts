@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="5af6cd38a9c390ea299fb7f9c087761f41b5e14c" type="script" releaseDate="20261004">
+      <package fileName="TGScripts_repository.tar.gz" sha1="8e082b5a3772576ae9faba35643084a9071ee471" type="script" releaseDate="20261004">
          <title>
             TGScripts snapshot - 2026 Okt 03
          </title>
@@ -31,8 +31,9 @@
             <p>
                Updates:
                <br/>
-               StarSpikeProtectionMask: improved UI
-               ROILinearFit:            improved UI
+               StarSpikeProtectionMask: updated documentation
+               <br/>
+               ROILinearFit:            updated documentation
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.

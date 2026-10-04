@@ -3,9 +3,9 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | StarSpikeProtectionMask</title>
-   <meta name="keywords" content="luminance, stars, masks, diffraction spikes, profiles, preview" />
+   <meta name="keywords" content="stars, diffraction spikes, luminance, mask, growth, preview" />
    <meta name="author" content="" />
-   <meta name="description" content="Luminance-guided protection masks for bright stars and diffraction spikes." />
+   <meta name="description" content="Create luminance-guided protection masks for bright stars and diffraction spikes." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,10 +25,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Luminance-guided protection masks for bright stars and diffraction spikes. <a href="#__contents__">[more]</a></p></div>
+<p>Create luminance-guided protection masks for bright stars and diffraction spikes. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> luminance, stars, masks, diffraction spikes, profiles, preview</p>
+<p><strong>Keywords:</strong> stars, diffraction spikes, luminance, mask, growth, preview</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -52,11 +52,15 @@
 <li class="pidoc_tocSubitem"><a href="#__parameter011__">2.11&emsp;Offer to save the result as XISF</a></li>
 </ul>
 <li class="pidoc_tocItem"><a href="#__Usage__">3&emsp;Usage</a></li>
-<li class="pidoc_tocItem"><a href="#__Installation_and_symbols__">4&emsp;Installation and symbols</a></li>
-<li class="pidoc_tocItem"><a href="#__Simplified_controls_and_morphological_growth__">5&emsp;Simplified controls and morphological growth</a></li>
-<li class="pidoc_tocItem"><a href="#__Algorithm_and_size_improvements__">6&emsp;Algorithm and size improvements</a></li>
-<li class="pidoc_tocItem"><a href="#__Preview_and_instance_migration__">7&emsp;Preview and instance migration</a></li>
-<li class="pidoc_tocItem"><a href="#__Limitations_and_validation__">8&emsp;Limitations and validation</a></li>
+<li class="pidoc_tocItem"><a href="#__Installation__">4&emsp;Installation</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface_and_symbol_buttons__">5&emsp;Interface and symbol buttons</a></li>
+<li class="pidoc_tocItem"><a href="#__Preview_and_source_comparison__">6&emsp;Preview and source comparison</a></li>
+<li class="pidoc_tocItem"><a href="#__Adjust_mask_size__">7&emsp;Adjust mask size</a></li>
+<li class="pidoc_tocItem"><a href="#__Growth_examples__">8&emsp;Growth examples</a></li>
+<li class="pidoc_tocItem"><a href="#__Save_and_reuse_settings__">9&emsp;Save and reuse settings</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting__">10&emsp;Troubleshooting</a></li>
+<li class="pidoc_tocItem"><a href="#__Suitable_images_and_limitations__">11&emsp;Suitable images and limitations</a></li>
+<li class="pidoc_tocItem"><a href="#__Applying_and_saving_the_mask__">12&emsp;Applying and saving the mask</a></li>
 </ul>
 </div>
 
@@ -66,9 +70,9 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<p>Star Spike Protection Mask 1.7.1 creates a full-resolution Float32 grayscale mask using native CIE Y luminance. Grayscale sources are used directly. Bright cores and spike ridges receive strong protection; faint wings taper with their measured signal. The source remains unchanged.</p>
-<p><strong>Black protects. White allows processing. Leave Invert Mask OFF.</strong></p>
-<p>The script targets PixInsight 1.9.5 with V8 and stretched stars-only images with approximately perpendicular spikes. STF does not affect measurements.</p>
+<p>Star Spike Protection Mask creates a full-size grayscale mask that protects bright stars and their diffraction spikes. It uses the image's luminance to follow the shape and brightness of the cores and spikes. The source image is read without changing its pixels.</p>
+<p><strong>Black protects the target from processing; white allows processing; gray gives partial protection. Apply the result with masking enabled and Invert Mask OFF.</strong></p>
+<p>Use PixInsight 1.9.5 with the V8 scripting engine and a stretched stars-only RGB or grayscale image. The detector is intended for roughly straight spikes on two perpendicular axes. The saved mask is a single-channel, 32-bit floating-point XISF with the source image's dimensions and orientation.</p>
    </div>
 </div>
 
@@ -79,77 +83,88 @@
       <div id="__parameter001__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.1&emsp;Minimum bright-core area (px)</h4>
-<p>Default 100. Main lower selection cutoff: connected pixels above the core luminance threshold after slight smoothing. Increase for fewer, larger stars. This is a size-based brightness proxy, not a calibrated magnitude.</p>
+<p>Group: Star selection. Default: 100. Range: 1–10000 whole pixels.</p>
+<p>The main lower limit for choosing stars. It counts connected pixels above Core luminance threshold after slight smoothing. Increase it to select fewer, larger bright cores; decrease it to include smaller ones. It is a size-based brightness measure, not a stellar magnitude. Changing this value does not expand the mask of a star that remains selected.</p>
 </div>
 
       </div>
       <div id="__parameter002__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.2&emsp;Core luminance threshold</h4>
-<p>Default 0.60. Normalized native luminance defining the detected core. Reduce for darker data. Selection now uses CIE Y rather than the brightest RGB channel, so counts and suitable thresholds can differ from previous versions.</p>
+<p>Group: Star selection. Default: 0.60. Range: 0.0001–0.9999.</p>
+<p>The luminance level used to define a bright core. Lower it when the actual image samples are too dark for stars to qualify. Changing this threshold also changes measured core areas, so review the minimum-area setting afterward. ScreenTransferFunction (STF) is a display stretch and does not change these measurements.</p>
 </div>
 
       </div>
       <div id="__parameter003__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.3&emsp;Required spike arms (0 = any)</h4>
-<p>Default 2; range 0 to 4. Zero includes qualifying round stars. Two accommodates many asymmetric or edge-clipped patterns; higher values require more evidence.</p>
+<p>Group: Star selection. Default: 2. Range: 0–4 whole arms.</p>
+<p>The number of detected arms a star must have to qualify. Two accommodates many asymmetric or partly clipped stars. Three or four makes selection stricter. Zero admits qualifying stars without spikes; those stars receive core protection.</p>
 </div>
 
       </div>
       <div id="__parameter004__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.4&emsp;Minimum luminance contrast</h4>
-<p>Default 0.025. Minimum signal above background used for spike evidence, core wings and transverse profiles. Raise to tighten masks and reject faint structures. Lower for faint spikes. Local noise estimates can raise the effective threshold. Strongly colored stars may be dimmer in luminance than under the old maximum-RGB detector.</p>
+<p>Group: Spike detection. Default: 0.025. Range: 0.0001–0.3.</p>
+<p>The minimum signal above local background for core wings and spike profiles. Raise it to tighten protection and reject faint structures; lower it to include fainter wings and spikes. Local noise can impose a higher effective cutoff. This setting can change both the profile and which stars qualify.</p>
 </div>
 
       </div>
       <div id="__parameter005__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.5&emsp;Measure spike angle automatically</h4>
-<p>Default enabled. Estimates shared orientation from large candidates, then refines individual angles. Disable to use the manual angle.</p>
+<p>Group: Spike detection. Default: On. Range: On or Off.</p>
+<p>Estimate the shared spike direction from bright stars, then refine it for individual stars. Turn it off to enter a manual direction.</p>
 </div>
 
       </div>
       <div id="__parameter006__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.6&emsp;Spike-axis angle (degrees)</h4>
-<p>Default 0. Manual angle clockwise from horizontal in image coordinates; angles are equivalent modulo 90 degrees. Used only when automatic measurement is disabled.</p>
+<p>Group: Spike detection. Default: 0. Range: 0–90 degrees.</p>
+<p>Manual direction of one spike axis, measured clockwise from the image's horizontal axis. It is used only when automatic angle measurement is off. Either of the two perpendicular axes can be specified.</p>
 </div>
 
       </div>
       <div id="__parameter007__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.7&emsp;Maximum spike length (px)</h4>
-<p>Default 600. Upper measurement limit per arm. Each arm is independent: there is no opposite-arm extension or added tip margin. Increase if the console reports the limit being reached.</p>
+<p>Group: Spike detection. Default: 600. Range: 30–3000 whole pixels.</p>
+<p>The maximum distance searched from a star's center along each arm. Increase it if the console reports that spikes reach this limit. It is a search limit, not a growth control: increasing it has no effect when the measured spikes already end sooner.</p>
 </div>
 
       </div>
       <div id="__parameter008__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.8&emsp;Core radius (%)</h4>
-<p>Default 100; range 10 to 200. Scales the luminance-shaped central profile. Try 60 for tighter cores. Remote spike geometry is unchanged. This is not a solid disk radius; protection within the footprint follows actual luminance. Version 1.5 changes the profile, so 100 percent does not reproduce version 1.4 masks.</p>
+<p>Group: Mask settings. Default: 100. Range: 10–200 percent.</p>
+<p>Scale the luminance-shaped central profile. At 100 percent it uses the measured extent; 60 percent makes it smaller. The effect is confined to the core profile, leaving the measured spike arms in place. Protection within the footprint follows luminance rather than forming a uniformly black disk.</p>
 </div>
 
       </div>
       <div id="__parameter009__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.9&emsp;Grow protected area (px)</h4>
-<p>Default 0; range 0 to 12 whole pixels. Expands all protected cores and spikes by a circular morphological radius. Try 2 or 3 pixels, with blur initially at zero. Gray protection levels are retained. Growth does not change which stars were selected or the image dimensions, and is applied before optional Gaussian blur. Nearby regions can merge. A radius of 2 adds approximately 2 pixels on each side of a long narrow spike. Zero is an exact bypass.</p>
+<p>Group: Mask settings. Default: 0. Range: 0–12 whole pixels.</p>
+<p>Expand all existing protection around cores, spike sides and spike tips by a circular radius. Zero disables growth. Start with 2 or 3 pixels. Gray protection levels are retained, the selected-star count does not change, and nearby protected regions can merge. Growth is applied before whole-mask blur.</p>
 </div>
 
       </div>
       <div id="__parameter010__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.10&emsp;Whole-mask blur sigma (0 = off)</h4>
-<p>Default 0; range 0 to 25. Zero disables Gaussian smoothing. Profiles already provide natural soft edges. If needed, try 2 pixels for additional smoothing of the finished mask. Blur spreads transitions and can weaken protection of narrow spikes.</p>
+<p>Group: Mask settings. Default: 0. Range: 0–25 pixels.</p>
+<p>Gaussian smoothing of the completed mask. Zero disables blur; 2 pixels is a useful starting point when additional softness is wanted. Sigma is the Gaussian standard deviation. Blur spreads transitions and can turn narrow black spikes gray, reducing their protection. It does not select more stars or provide an exact growth distance.</p>
 </div>
 
       </div>
       <div id="__parameter011__">
 <div class="pidoc_parameter">
    <h4 class="pidoc_parameterTitle">2.11&emsp;Offer to save the result as XISF</h4>
-<p>Default enabled. Show Save after interactive creation. Cancelling leaves the mask open. Saving over the source is rejected. View-target execution leaves the mask open without a save dialog.</p>
+<p>Group: Mask settings. Default: On. Range: On or Off.</p>
+<p>Show a save dialog after interactive mask creation. If disabled, save the generated image with File &gt; Save As. Cancelling Save leaves the mask available. Choose a destination different from the source image.</p>
 </div>
 
       </div>
@@ -160,63 +175,118 @@
    <h3 class="pidoc_sectionTitle">3&emsp;Usage</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Usage', this );">[hide]</p>
    <div id="Usage">
-<p>Open the stars image, run <strong>Script &gt; TG Scripts &gt; StarSpikeProtectionMask</strong>, select the source, set the lower core-area limit and click the preview magnifier. Inspect the Mask preview at 1:1, using zoom and pan. Source comparison shows the original image without STF. Click the green checkmark to create the full-precision mask and optionally save XISF. Apply it to the matching target with mask inversion disabled.</p>
+<p>1. Open your stretched stars-only image and launch StarSpikeProtectionMask from Script &gt; TG Scripts.</p>
+<p>2. Select the source image in the list at the top of Settings. Begin with the default values and leave whole-mask blur at 0.</p>
+<p>3. Click the magnifier to update the preview. Read the selected-star count and inspect the mask at 1:1.</p>
+<p>4. Adjust Minimum bright-core area to include fewer or more stars. Update the preview after each change.</p>
+<p>5. Adjust Core radius to change only the central profiles. To expand protection around both cores and spikes, try Grow protected area = 2 pixels. Add blur only if you want softer transitions.</p>
+<p>6. Click the green checkmark to create the mask. Save the XISF when prompted. Cancelling the save dialog leaves the generated image open.</p>
+<p>7. Assign the generated image as a mask to the matching target, enable masking and leave Invert Mask OFF. Inspect the mask overlay before applying your image process.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Installation_and_symbols__">
-   <h3 class="pidoc_sectionTitle">4&emsp;Installation and symbols</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Installation_and_symbols', this );">[hide]</p>
-   <div id="Installation_and_symbols">
-<p>Extract the archive and keep its TG Scripts folder intact, including doc/ and rsc/. Register this folder with Script &gt; Feature Scripts &gt; Add. The script identifier is StarSpikeProtectionMask. Help opens this bundled PIDoc manual.</p>
-<p>The bottom toolbar provides a triangle for New instance, a preview magnifier, a green Create checkmark, a red Close cross and a Help icon. Tooltips name each action. Drag the triangle to save settings on the workspace. Double-click the resulting icon and use the Script panel's blue Apply Global circle to reopen the dialog. Save process icons or the project to retain them across sessions. Drag an instance onto a main image to create its mask without a save dialog. Preview targets are rejected.</p>
+<div class="pidoc_section" id="__Installation__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Installation</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Installation', this );">[hide]</p>
+   <div id="Installation">
+<p>Extract the supplied archive to a permanent location. Keep the TG Scripts folder intact, including StarSpikeProtectionMask.js, doc/ and rsc/. In PixInsight, choose Script &gt; Feature Scripts &gt; Add and select that TG Scripts folder. Finish registration, then run Script &gt; TG Scripts &gt; StarSpikeProtectionMask. The documentation icon opens the bundled help.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Simplified_controls_and_morphological_growth__">
-   <h3 class="pidoc_sectionTitle">5&emsp;Simplified controls and morphological growth</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Simplified_controls_and_morphological_growth', this );">[hide]</p>
-   <div id="Simplified_controls_and_morphological_growth">
-<p>Settings contains the source selector and three native titled groups matching BBStarReduction. Star selection contains minimum core area, core luminance threshold and required arms. Spike detection contains luminance contrast, automatic/manual angle and maximum search length. Mask settings contains core radius, growth, blur and the save preference. Mask preview remains the only other tab. The extra minimum-peak control was removed: disabling it on RGB_clone_stars.xisf left the same 132 selected stars.</p>
-<p>Minimum core area changes which stars qualify; it does not resize the mask for a retained star. Core radius resizes only the central profile. Growth expands the complete protection. Luminance contrast affects faint profile support and can change selection. Maximum length only caps the search, so increasing it has no effect when all detected spikes end earlier. Manual angle applies only when automatic measurement is off.</p>
-<p>Since black protects, growth is native grayscale Erosion of the finished mask, equivalent to dilation of inverse protection. One full-strength pass uses a disk with diameter 2r+1, containing grid points whose squared distance from the center is at most r squared. The maximum radius 12 corresponds to PixInsight's maximum 25-pixel structure size. Zero skips the process entirely. No binary threshold or rescaling is applied. Growth is clipped at image boundaries. Optional Gaussian blur follows growth.</p>
-<p>Inspect at 1:1 with zero blur, starting with 2 pixels of growth. Save the chosen settings with the triangle instance button. The same growth is used in preview, interactive creation and view-target execution.</p>
+<div class="pidoc_section" id="__Interface_and_symbol_buttons__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Interface and symbol buttons</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface_and_symbol_buttons', this );">[hide]</p>
+   <div id="Interface_and_symbol_buttons">
+<p>Settings contains the source selector and three titled groups: Star selection, Spike detection and Mask settings. Mask preview is the second tab. Values in pixels refer to the full-resolution source, regardless of the preview zoom.</p>
+<p>Triangle: New instance: drag to the workspace to store the current settings.</p>
+<p>Magnifier: Update preview and selected-star count.</p>
+<p>Green checkmark: Create the full-resolution mask and optionally save it.</p>
+<p>Red cross: Close the dialog.</p>
+<p>Documentation icon: Open the built-in help.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Algorithm_and_size_improvements__">
-   <h3 class="pidoc_sectionTitle">6&emsp;Algorithm and size improvements</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Algorithm_and_size_improvements', this );">[hide]</p>
-   <div id="Algorithm_and_size_improvements">
-<p>Native Image.getLuminance computes CIE Y with the source RGB working space. Full-image extraction preserves selections and ignores STF. Bright connected cores establish centers and selection. Robust ray measurements establish orientation and independent arm lengths.</p>
-<p>A radial median profile bounds each core while local luminance supplies its shape. For every detected arm, transverse profiles are sampled along its length. Local background, the radial halo profile and a robust noise floor are subtracted. Only the transverse component touching the central ridge is retained. Detached cross-axis neighbors are rejected. Strong signal maps to black protection and faint wings to gray. Missing arms receive no profile.</p>
-<p>The old fixed-width bands, artificial arm extensions, broad solid disks, tip margins and geometric feathering have been removed. Core and spike weights are combined, inverted and optionally blurred. No histogram normalization is applied.</p>
+<div class="pidoc_section" id="__Preview_and_source_comparison__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Preview and source comparison</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_and_source_comparison', this );">[hide]</p>
+   <div id="Preview_and_source_comparison">
+<p>Update preview calculates the complete mask with the current settings, including growth and blur. Use the viewer's zoom controls for fit-to-window and 1:1, the mouse wheel to zoom, and dragging to pan. Inspect narrow spikes at 1:1. Show source image for comparison switches between the original RGB or grayscale image and the mask while retaining the viewing scale and position. The source display does not apply STF.</p>
+<p>Changing a setting or the source clears the preview. Click the magnifier to calculate it again; slider changes do not trigger continuous processing. The status line reports the number of selected stars. Previewing creates no permanent mask image. The display is an 8-bit bitmap, while Create mask produces full-precision Float32 output and rereads the source.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Preview_and_instance_migration__">
-   <h3 class="pidoc_sectionTitle">7&emsp;Preview and instance migration</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_and_instance_migration', this );">[hide]</p>
-   <div id="Preview_and_instance_migration">
-<p>Preview uses the same complete calculation as Create, including blur, then displays an 8-bit bitmap. The output remains Float32. Preview includes morphological growth and subsequent blur. No preview image window is retained. Changed settings clear stale previews. Refresh explicitly to see the new mask and star count. Create rereads the source.</p>
-<p>Schema 4 stores twelve parameters, including growth. Older instances default to zero growth. The redundant minimum-peak cutoff is ignored, which can admit additional stars on some images. Older icons retain supported settings and migrate legacy enable flags, but always run the new luminance algorithm. Obsolete padding, edge softness and halo-floor settings are ignored. Review the preview and save a new icon. A closed or renamed source must be selected again.</p>
+<div class="pidoc_section" id="__Adjust_mask_size__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Adjust mask size</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Adjust_mask_size', this );">[hide]</p>
+   <div id="Adjust_mask_size">
+<p>A practical starting sequence is: select stars with the area and detection controls; inspect the luminance profiles with Core radius at 100, growth at 0 and blur at 0; adjust the core size if necessary; add 2 pixels of growth; then add modest blur only if needed. Refresh and inspect after each step.</p>
+<p>A growth radius of 2 pixels expands a long straight spike by approximately 2 pixels on each side, making it about 4 pixels wider. The operation uses a circular footprint on the pixel grid and is clipped at image boundaries. Because black is the protected region, the corresponding operation in MorphologicalTransformation is Erosion of this mask, or Dilation of its inverse. Growth preserves graded protection instead of converting the mask to a binary image.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Limitations_and_validation__">
-   <h3 class="pidoc_sectionTitle">8&emsp;Limitations and validation</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Limitations_and_validation', this );">[hide]</p>
-   <div id="Limitations_and_validation">
-<p>Profiles assume straight, approximately perpendicular spikes. The transverse search extends 12 to 32 pixels on either side; wider, curved or severely crowded spikes can need manual correction. Stars lying directly on a spike can contaminate its profile. Linear data requires adjusted luminance thresholds or a stretched detection copy. Source and mask must receive identical geometric transformations.</p>
-<p>Native tests cover native luminance and preserved ROI, asymmetric arm lengths and widths, missing arms, detached neighbors, brightness tapering, core-radius independence, preview equality, whole-mask blur, XISF round trip and saved parameters. Tested on RGB_clone_stars.xisf at 6004 by 3908 pixels: 132 stars selected with defaults, saved as Float32 grayscale XISF and reopened with exact sample equality. The previous geometric version selected 869 with its defaults. These counts differ because CIE Y replaces maximum-RGB intensity; the mask-size comparison reflects both selection and profile changes.</p>
-<p>Version 1.7.1 requires a new code signature. An older xsgn must not accompany this edited script. Source comments and the companion developer notes describe the implementation and tests.</p>
+<div class="pidoc_section" id="__Growth_examples__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Growth examples</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Growth_examples', this );">[hide]</p>
+   <div id="Growth_examples">
+<p>These crops show the same star region with 0, 2 and 5 pixels of growth. Star selection, core radius and all other settings are identical, with blur disabled. Compare the widths of the spike sides and the extent of the central protection.</p>
+<p>Move the pointer over a growth value to compare these images in place.</p>
+<div class="pidoc_mouseover">
+<img src="images/growth_0px_detail.png" style="width:441px;height:auto;" id="kUKnb8pf4d86ZbNl" alt="" />
+<ul>
+<li><span class="pidoc_indicator_default" id="kUKnb8pf4d86ZbNl_1"></span><a href="javascript:void(0);" onmouseover="pidoc_setImgSrc('kUKnb8pf4d86ZbNl', 'images/growth_0px_detail.png'); pidoc_hideGroup('kUKnb8pf4d86ZbNl', 3); pidoc_setOpacity('kUKnb8pf4d86ZbNl_1', 1.0);">0 pixels</a></li>
+<li><span class="pidoc_indicator" id="kUKnb8pf4d86ZbNl_2"></span><a href="javascript:void(0);" onmouseover="pidoc_setImgSrc('kUKnb8pf4d86ZbNl', 'images/growth_2px_detail.png'); pidoc_hideGroup('kUKnb8pf4d86ZbNl', 3); pidoc_setOpacity('kUKnb8pf4d86ZbNl_2', 1.0);">2 pixels</a></li>
+<li><span class="pidoc_indicator" id="kUKnb8pf4d86ZbNl_3"></span><a href="javascript:void(0);" onmouseover="pidoc_setImgSrc('kUKnb8pf4d86ZbNl', 'images/growth_5px_detail.png'); pidoc_hideGroup('kUKnb8pf4d86ZbNl', 3); pidoc_setOpacity('kUKnb8pf4d86ZbNl_3', 1.0);">5 pixels</a></li>
+</ul>
+</div>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Save_and_reuse_settings__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Save and reuse settings</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Save_and_reuse_settings', this );">[hide]</p>
+   <div id="Save_and_reuse_settings">
+<p>Choose the source and settings, then drag the triangle onto an empty part of the workspace. Double-click the resulting process icon to open PixInsight's Script panel and click its blue Apply Global circle to reopen the mask dialog. Save the process icons or the project to retain them across sessions. Keep the script at its installed location. The icon stores the parameters and source view identifier, not source pixels or the preview bitmap.</p>
+<p>If the saved source is closed or renamed, select a source in the dialog. Dragging an instance onto a main image runs immediately on that image, using the stored settings and creating a separate mask. This execution mode leaves the result open without a save dialog; use File &gt; Save As. Apply instances to full images, not PixInsight previews, so the output covers the entire target.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Troubleshooting</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting', this );">[hide]</p>
+   <div id="Troubleshooting">
+<p>Too many stars are selected: Increase Minimum bright-core area first. To restrict selection to clearer diffraction patterns, increase Required spike arms.</p>
+<p>A desired star is missing: Reduce Minimum bright-core area. If the source is dark, lower Core luminance threshold. If the core qualifies but the arms are faint or clipped, reduce Minimum luminance contrast or Required spike arms.</p>
+<p>The mask is too wide around the core: Reduce Core radius. If faint wings remain too extensive, increase Minimum luminance contrast. Inspect with growth and blur set to zero while adjusting the underlying profile.</p>
+<p>Cores and spikes need more protection: Increase Grow protected area, starting at 2 pixels. Refresh the preview at 1:1.</p>
+<p>Spike tips are cut short: Check the console for the maximum-length warning and increase Maximum spike length if needed. Lower Minimum luminance contrast to detect faint extensions. Growth adds a margin around the detected profile.</p>
+<p>A control seems to do nothing: Area and arm count choose stars; they do not resize retained stars. Maximum length affects only spikes that reach the search limit. Manual angle is active only with automatic measurement off. Refresh the preview after any change.</p>
+<p>A blurred spike looks gray instead of black: Reduce Whole-mask blur sigma. For a wider protected band, increase growth before adding blur.</p>
+<p>No stars are selected: Reduce the area or luminance cutoffs. Check actual image brightness rather than its STF appearance. The script does not create an empty all-white mask.</p>
+<p>The mask does not align with the target: Confirm that source and target have the same dimensions and alignment. Apply identical cropping, resizing and rotation to both.</p>
+<p>A calculation needs to stop: Use Abort in the PixInsight Process Console. Partial output is closed on cancellation.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Suitable_images_and_limitations__">
+   <h3 class="pidoc_sectionTitle">11&emsp;Suitable images and limitations</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Suitable_images_and_limitations', this );">[hide]</p>
+   <div id="Suitable_images_and_limitations">
+<p>Luminance is extracted using the source RGB working space; grayscale input is used directly. Color and image stretch affect the measured signal. Linear data generally requires adjusted thresholds or a stretched copy used for mask detection. The detector assumes two approximately perpendicular spike axes. Curved or unusually broad spikes, severe crowding, nebulosity, and stars lying on another star's spike can require manual correction. The transverse profile search is bounded to 12–32 pixels on each side of an axis. Frame-clipped stars have less evidence available, and growth cannot extend outside the image.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Applying_and_saving_the_mask__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Applying and saving the mask</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Applying_and_saving_the_mask', this );">[hide]</p>
+   <div id="Applying_and_saving_the_mask">
+<p>Black protects the target from processing; white allows processing; gray gives partial protection. Apply the result with masking enabled and Invert Mask OFF. The mask is not applied automatically. Keep it geometrically aligned with the target. The output can be saved and reopened as XISF for use with any image having the same alignment.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-04 10:43:41 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-04 11:22:13 UTC</p>
 </div>
 <br/>
 <br/>

@@ -36,24 +36,17 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameters__">2&emsp;Parameters</a></li>
-
-<ul>
-<li class="pidoc_tocSubitem"><a href="#__parameter001__">2.1&emsp;Source (reference)</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter002__">2.2&emsp;Target (to modify)</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter003__">2.3&emsp;ROI coordinates and preview</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter004__">2.4&emsp;Reject low and Reject high</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter005__">2.5&emsp;Clip final result to zero through one</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter006__">2.6&emsp;Show scatter plot after applying the fit</a></li>
-<li class="pidoc_tocSubitem"><a href="#__parameter007__">2.7&emsp;Plot sample limit</a></li>
-</ul>
-<li class="pidoc_tocItem"><a href="#__Usage__">3&emsp;Usage</a></li>
-<li class="pidoc_tocItem"><a href="#__Installation_and_symbols__">4&emsp;Installation and symbols</a></li>
-<li class="pidoc_tocItem"><a href="#__Understanding_the_scatter_plot__">5&emsp;Understanding the scatter plot</a></li>
-<li class="pidoc_tocItem"><a href="#__Exporting_a_plot__">6&emsp;Exporting a plot</a></li>
-<li class="pidoc_tocItem"><a href="#__Process_instances__">7&emsp;Process instances</a></li>
-<li class="pidoc_tocItem"><a href="#__Errors_cleanup_and_limitations__">8&emsp;Errors, cleanup and limitations</a></li>
-<li class="pidoc_tocItem"><a href="#__Implementation_and_developer_documentation__">9&emsp;Implementation and developer documentation</a></li>
+<li class="pidoc_tocItem"><a href="#__Before_you_begin__">2&emsp;Before you begin</a></li>
+<li class="pidoc_tocItem"><a href="#__Fit_an_image__">3&emsp;Fit an image</a></li>
+<li class="pidoc_tocItem"><a href="#__Images__">4&emsp;Images</a></li>
+<li class="pidoc_tocItem"><a href="#__Region_of_interest__">5&emsp;Region of interest</a></li>
+<li class="pidoc_tocItem"><a href="#__Fit_settings__">6&emsp;Fit settings</a></li>
+<li class="pidoc_tocItem"><a href="#__Scatter_plot_settings__">7&emsp;Scatter plot settings</a></li>
+<li class="pidoc_tocItem"><a href="#__Read_the_scatter_plot__">8&emsp;Read the scatter plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Export_a_plot__">9&emsp;Export a plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_symbols__">10&emsp;Toolbar symbols</a></li>
+<li class="pidoc_tocItem"><a href="#__Reuse_settings_with_a_process_icon__">11&emsp;Reuse settings with a process icon</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting_and_cleanup__">12&emsp;Troubleshooting and cleanup</a></li>
 </ul>
 </div>
 
@@ -63,139 +56,139 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<p>ROI Linear Fit 1.1.3 uses PixInsight's native LinearFit on hidden source/reference and target ROI copies, recovers the applied affine transformation, and applies it to the entire target. Grayscale uses one fit; RGB uses separate fits per channel. The source stays unchanged. Temporary ROI images are closed after success, failure, and normal script abort. Existing user previews are preserved.</p>
-<p>Requires PixInsight 1.9.5 with V8 and its native plotting objects. Images must be registered, have identical dimensions, and be both grayscale or both RGB. Matching dimensions alone do not establish alignment.</p>
+<p>ROI Linear Fit matches the intensity scale of a target image to a source image using a rectangular region of interest (ROI). It measures the fit inside that region and applies the resulting correction to the entire target. The source remains unchanged.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameters__">
-   <h3 class="pidoc_sectionTitle">2&emsp;Parameters</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameters', this );">[hide]</p>
-   <div id="Parameters">
-      <div id="__parameter001__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.1&emsp;Source (reference)</h4>
-<p>The main image whose intensity scale is used as the reference. Source pixels are read-only. A missing or renamed saved source must be selected again; it is not silently replaced by the active image.</p>
-</div>
-
-      </div>
-      <div id="__parameter002__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.2&emsp;Target (to modify)</h4>
-<p>The main image receiving the full-image formula. It must differ from the source. A fresh launch selects the active image if available. Integer targets retain their precision; floating-point targets can optionally retain values outside the zero-to-one range. Normal alpha data is preserved. An attached mask is temporarily disabled to fit the whole target, then its enabled state is restored.</p>
-</div>
-
-      </div>
-      <div id="__parameter003__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.3&emsp;ROI coordinates and preview</h4>
-<p>X and Y are zero-based top-left coordinates; Width and Height are positive integer dimensions. The same rectangle is used in both images. X=100, Y=200, Width=300, Height=150 includes columns 100 through 399 and rows 200 through 349. A fresh launch starts with a 256 by 256 region, bounded by the active image.</p>
-<p>Copy ROI from preview accepts an existing preview on the selected source or target. Only its rectangle is used; measurements always read the main image pixels. The saved instance stores explicit coordinates, so the original preview is not needed later. At least 32 pixels are required. Choose varying corresponding signal and avoid blank borders.</p>
-</div>
-
-      </div>
-      <div id="__parameter004__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.4&emsp;Reject low and Reject high</h4>
-<p>Defaults 0 and 0.92. Native LinearFit uses pixel pairs whose values are strictly inside the interval in both images. Limits must satisfy 0 &lt;= low &lt; high &lt;= 1. These are normalized actual samples, independent of STF. All ROI data is available to native LinearFit subject to these limits; chart sampling does not reduce the fit data.</p>
-</div>
-
-      </div>
-      <div id="__parameter005__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.5&emsp;Clip final result to zero through one</h4>
-<p>Enabled by default, matching native LinearFit clipping. Disable only on floating-point targets to retain negative and above-white results. No rescaling is applied. The scatter line shows the untruncated formula regardless of this setting.</p>
-</div>
-
-      </div>
-      <div id="__parameter006__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.6&emsp;Show scatter plot after applying the fit</h4>
-<p>Enabled by default. Shows original target values against source values after successful application. The snapshot is captured before mutation. Disable this option before saving an instance intended for unattended execution. The preview magnifier always displays the plot without modifying either image.</p>
-</div>
-
-      </div>
-      <div id="__parameter007__">
-<div class="pidoc_parameter">
-   <h4 class="pidoc_parameterTitle">2.7&emsp;Plot sample limit</h4>
-<p>Default 12000, range 100 to 100000, per channel. Small ROIs show all pairs. Larger ROIs use a repeatable stratified sample spanning the rectangle. This setting changes only the visualization, never the native fitting calculation. Rare outliers may be absent from the sample; increase the limit to inspect more data.</p>
-</div>
-
-      </div>
+<div class="pidoc_section" id="__Before_you_begin__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Before you begin</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Before_you_begin', this );">[hide]</p>
+   <div id="Before_you_begin">
+<p>Open two different main images that are already aligned and have identical pixel dimensions. Use two grayscale images or two RGB images. A grayscale image has one fit; RGB images have separate fits for the red, green, and blue channels. Mixing grayscale and RGB is not supported.</p>
+<p>Work with linear image data for a linear-fitting workflow. The script reads actual pixel values: a ScreenTransferFunction (STF) affects only their display. The script does not align images, remove gradients, stretch images, or save your image files.</p>
+<p>Choose a region containing corresponding, varying signal in both images. Avoid empty borders and regions dominated by saturated pixels. Equal dimensions do not guarantee alignment.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Usage__">
-   <h3 class="pidoc_sectionTitle">3&emsp;Usage</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Usage', this );">[hide]</p>
-   <div id="Usage">
-<p>Select Source (reference) and Target (to modify), enter the ROI or copy it from an existing preview, and click the magnifier to inspect a read-only fit and scatter plot. Close the chart, adjust settings if needed, then click the green checkmark to recalculate and apply the formula to the full target. Undo reverts the change. Save your image separately.</p>
+<div class="pidoc_section" id="__Fit_an_image__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Fit an image</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Fit_an_image', this );">[hide]</p>
+   <div id="Fit_an_image">
+<p>1. In Images, select Source (reference), whose intensity scale you want to match, and Target (to modify), which will receive the correction.</p>
+<p>2. In Region of interest, enter X, Y, Width, and Height, or select an existing preview in Copy ROI from preview.</p>
+<p>3. In Fit settings, choose the rejection limits and whether to clip the final result. The default limits are 0 and 0.92; clipping is enabled.</p>
+<p>4. Click the magnifier to preview the fit and scatter plot. This leaves both images unchanged.</p>
+<p>5. Close the plot with the red cross. Adjust the region or settings and preview again if necessary.</p>
+<p>6. Click the green checkmark to calculate a fresh fit and apply it to the entire target. The scatter plot opens afterward if that option is enabled.</p>
+<p>7. Inspect the target. Use PixInsight Undo to revert the correction, or save your image when satisfied.</p>
+<p>Closing the scatter plot after applying a fit does not undo the correction. Preview and Apply each use the current image data; Apply does not reuse a previously previewed calculation.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Installation_and_symbols__">
-   <h3 class="pidoc_sectionTitle">4&emsp;Installation and symbols</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Installation_and_symbols', this );">[hide]</p>
-   <div id="Installation_and_symbols">
-<p>Extract TG_Scripts_ROILinearFit_1.1.3.zip to a permanent location and keep its TG Scripts folder intact, including doc/ and rsc/. Register the folder with Script &gt; Feature Scripts &gt; Add. Run Script &gt; TG Scripts &gt; ROI Linear Fit. The identifier remains ROILinearFit. Remove an older duplicate registration if necessary. Execute Script File is also supported.</p>
-<p>Version 1.1.1 fixes Help for centrally installed documentation. The Help icon checks both the bundled doc folder and PixInsight's documentation directory and opens the existing page directly.</p>
-<p>Version 1.1.3 groups controls into Images, Region of interest, Fit settings, and Scatter plot, following the titled-group style of BBStarReduction. Reject low, Reject high, and Plot sample limit use compact fields in a common input column.</p>
-<p>The bottom toolbar follows StarSpikeProtectionMask: triangle for New instance, magnifier for read-only Preview fit, green checkmark for Apply fit, red cross for Close, and documentation icon for Help. Hover for tooltips. The chart adds a Save symbol for PNG/SVG export. Closing a chart after applying does not undo the fit.</p>
+<div class="pidoc_section" id="__Images__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Images</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Images', this );">[hide]</p>
+   <div id="Images">
+<p>Source (reference) sets the desired intensity scale. Target (to modify) is corrected in place, with Undo support. Select main images rather than previews. On a fresh launch, the source is unselected and the active main image is selected as the target when available.</p>
+<p>The correction covers the full target, including pixels outside the ROI. An enabled target mask is temporarily disabled during application and its enabled state is restored afterward. Alpha channels are preserved. The target retains its sample format, so integer images remain subject to their existing precision.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Understanding_the_scatter_plot__">
-   <h3 class="pidoc_sectionTitle">5&emsp;Understanding the scatter plot</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Understanding_the_scatter_plot', this );">[hide]</p>
-   <div id="Understanding_the_scatter_plot">
-<p>Horizontal axis: original target pixel value. Vertical axis: source/reference value at the corresponding position inside the ROI. Colored points lie inside both rejection limits; gray points fail at least one limit. Select Gray, R, G or B with the channel selector. The count states how many pairs are displayed out of the total ROI pixels.</p>
-<p>The yellow straight line is source approximately equal to offset plus slope times original target. It uses the same full-ROI native LinearFit coefficients that are applied by PixelMath. It is not a new regression computed from the displayed sample. The chart title rounds coefficients for readability; execution uses full precision, also printed in the Process Console.</p>
-<p>Noise and different spectral content produce scatter. A curved relation, multiple groups, or a broad cloud can suggest that one linear correction is insufficient for the chosen region. The plot is diagnostic, not proof of alignment or photometric accuracy. Values use actual samples rather than STF or separately processed preview pixels.</p>
-<p>Preview and Apply each recalculate from current images; a cached preview fit is never reused. The chart retains its numerical snapshot, so applying the fit does not move the original points. If clipping is enabled, output below zero or above one is clipped during application, while the plotted line remains straight.</p>
+<div class="pidoc_section" id="__Region_of_interest__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Region of interest</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Region_of_interest', this );">[hide]</p>
+   <div id="Region_of_interest">
+<p>X and Y specify the top-left pixel of the rectangle, counting from zero. Width and Height specify its size in pixels. The same rectangle is used in both images and must lie entirely within their bounds.</p>
+<p>For example, X = 100, Y = 200, Width = 300, Height = 150 selects columns 100 through 399 and rows 200 through 349. A fresh dialog starts with X = 0, Y = 0 and a 256 by 256 rectangle, reduced to fit the initially selected active target when needed.</p>
+<p>Copy ROI from preview accepts a preview on the selected source or target. It copies only the rectangle: the fit always reads the main image pixels, even if the preview has been processed separately. Existing previews are preserved, and the copied coordinates remain usable after the preview is closed.</p>
+<p>The rectangle must contain at least 32 pixels. A successful fit also requires enough varying, unclipped samples in each channel. A larger, representative region is usually more useful than the smallest allowed rectangle.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Exporting_a_plot__">
-   <h3 class="pidoc_sectionTitle">6&emsp;Exporting a plot</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Exporting_a_plot', this );">[hide]</p>
-   <div id="Exporting_a_plot">
-<p>Click the Save symbol in the chart and choose a PNG or SVG filename. Exports contain the displayed channel at 1200 by 760 pixels, or the corresponding vector canvas. Select and save each RGB channel separately if desired. Cancelling Save creates no file. Plots are not automatically saved and create no image windows.</p>
+<div class="pidoc_section" id="__Fit_settings__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Fit settings</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Fit_settings', this );">[hide]</p>
+   <div id="Fit_settings">
+<p>Reject low and Reject high define the pixel-value interval used for fitting. A pair qualifies only when both its source value and its target value are strictly above Reject low and strictly below Reject high. Values exactly on either boundary are excluded. The limits must satisfy 0 &lt;= Reject low &lt; Reject high &lt;= 1.</p>
+<p>The defaults are Reject low = 0 and Reject high = 0.92. These limits refer to actual normalized samples, independently of STF. They control which ROI samples contribute to the fit; they do not restrict where the final correction is applied.</p>
+<p>Clip final result to (zero through one) is enabled by default. It clips corrected values below zero to zero and values above one to one. Disable it only for a floating-point target if you want to retain values outside this range. Integer targets require clipping. No rescaling is performed.</p>
+<p>The correction has the form: corrected target = offset + slope × original target. The offset and slope are determined with PixInsight’s native LinearFit using the ROI. One formula is applied to a grayscale image; each RGB channel receives its own formula.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Process_instances__">
-   <h3 class="pidoc_sectionTitle">7&emsp;Process instances</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Process_instances', this );">[hide]</p>
-   <div id="Process_instances">
-<p>Drag the triangle to the workspace to save source ID, target ID, X, Y, width, height, low and high rejection limits, clipping, post-apply chart preference, plot sample limit, and selected channel. The icon stores settings, not images, preview objects or fitted coefficients.</p>
-<p>Double-click the instance and use the Script panel's blue Apply Global circle to restore the custom dialog. Save process icons or the project for later sessions. Keep the installed script at a stable path. Closed or renamed saved images leave selectors empty and require reselection.</p>
-<p>Drop an instance onto a main image to execute directly. That image overrides the saved target only. The saved source and ROI remain in effect, and the fit is freshly calculated. A chart appears afterward if enabled; disable it for unattended execution. Preview targets are rejected. Direct execution reports missing source references instead of selecting another image.</p>
+<div class="pidoc_section" id="__Scatter_plot_settings__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Scatter plot settings</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Scatter_plot_settings', this );">[hide]</p>
+   <div id="Scatter_plot_settings">
+<p>Show scatter plot after applying the fit is enabled by default. The plot uses a snapshot of the original target and source values captured before the correction. Disable this option if you want application to finish without opening a plot. The magnifier always opens a plot.</p>
+<p>Plot sample limit sets the maximum number of displayed pixel pairs per channel. Its default is 12000 and its allowed range is 100 to 100000. When the ROI is smaller than the limit, all pairs are shown. Larger regions use a repeatable sample distributed across the rectangle.</p>
+<p>The sample limit affects only the plot. Native LinearFit uses the full ROI subject to the rejection limits. Increasing the plot limit can reveal more detail or rare outliers, but does not change the fit.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Errors_cleanup_and_limitations__">
-   <h3 class="pidoc_sectionTitle">8&emsp;Errors, cleanup and limitations</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Errors_cleanup_and_limitations', this );">[hide]</p>
-   <div id="Errors_cleanup_and_limitations">
-<p>Constant, heavily clipped or insufficiently varied regions can fail coefficient recovery. Each channel needs at least 32 usable unclipped, varying pixels. Choose a larger or more representative region. All channel transformations are verified before target modification.</p>
-<p>Script-owned hidden ROI windows are closed in a cleanup block after success, error or normal abort. User previews and unrelated windows remain. If the fit applies successfully but chart display fails, the error explicitly says the fit was applied; Undo remains available. Closing the chart does not revert application.</p>
-<p>The script does not align, stretch or automatically save images. Integer images are subject to their existing quantization. A single affine transformation may be inadequate for mismatched gradients or different spectral structures. This release is unsigned and should not be paired with an older detached signature.</p>
+<div class="pidoc_section" id="__Read_the_scatter_plot__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Read the scatter plot</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Read_the_scatter_plot', this );">[hide]</p>
+   <div id="Read_the_scatter_plot">
+<p>The horizontal axis shows original target pixel values. The vertical axis shows source/reference values at the corresponding ROI positions. For grayscale, the channel is Gray. For RGB, use the channel selector to inspect R, G, or B.</p>
+<p>Colored points satisfy both rejection limits. Gray points fail at least one limit. The displayed count gives the number of sampled pairs and the total number of ROI pixels per channel.</p>
+<p>The yellow line shows source approximately equal to offset plus slope times original target. It represents the same correction that is applied to the target, not a separate fit to the displayed points. The title displays rounded coefficients; application uses full precision.</p>
+<p>The line shows the formula before final clipping. If clipping is enabled, application limits the output to zero through one, while the line remains straight.</p>
+<p>A narrow distribution around the line suggests that a linear relation describes the selected samples reasonably well. Noise or different spectral content can increase scatter. Curvature, distinct groups, or a broad cloud may indicate that one linear correction does not describe the region adequately. The plot alone does not prove alignment or photometric accuracy.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Implementation_and_developer_documentation__">
-   <h3 class="pidoc_sectionTitle">9&emsp;Implementation and developer documentation</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Implementation_and_developer_documentation', this );">[hide]</p>
-   <div id="Implementation_and_developer_documentation">
-<p>The source includes function contracts and ownership comments. ROILinearFit_developer_notes.md documents the versioned parameter schema, native fit recovery, deterministic sampling and test coverage. Editable manual source is in documentation-source/.</p>
-<p>Native LinearFit exposes no coefficient output property. The script measures the affine map from original target ROI values to the process result, excluding clipped endpoints, and verifies that map against all fitted ROI samples. It does not parse rounded console coefficients or replace native LinearFit with a reference-to-target least-squares calculation. PixelMath applies coefficients with 17 significant digits and a 64-bit working image.</p>
+<div class="pidoc_section" id="__Export_a_plot__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Export a plot</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Export_a_plot', this );">[hide]</p>
+   <div id="Export_a_plot">
+<p>Select the channel to export, click the Save icon in the plot dialog, and choose a filename ending in .png or .svg. PNG exports are 1200 by 760 pixels; SVG exports use the corresponding vector canvas. Export RGB channels separately when needed.</p>
+<p>Plots are saved only when you request an export. Cancelling the file dialog creates no file. The plot itself is a dialog and does not create an intermediate image window.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_symbols__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Toolbar symbols</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_symbols', this );">[hide]</p>
+   <div id="Toolbar_symbols">
+<p>Triangle — New instance. Drag it to the workspace to store the current settings in a process icon.</p>
+<p>Magnifier — Preview fit. Calculate a fresh fit and display its scatter plot without modifying either image.</p>
+<p>Green checkmark — Apply fit. Calculate and apply the correction to the full target.</p>
+<p>Red cross — Close the current dialog. Closing the main dialog without applying leaves the target unchanged.</p>
+<p>Documentation icon — Help. Open this manual inside PixInsight.</p>
+<p>Save icon in the plot — Export the currently selected channel as PNG or SVG.</p>
+<p>Hover over an icon to read its tooltip.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Reuse_settings_with_a_process_icon__">
+   <h3 class="pidoc_sectionTitle">11&emsp;Reuse settings with a process icon</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Reuse_settings_with_a_process_icon', this );">[hide]</p>
+   <div id="Reuse_settings_with_a_process_icon">
+<p>Drag the triangle to the workspace. The icon stores the source and target image IDs; ROI X, Y, Width, and Height; both rejection limits; clipping; the post-apply plot preference; the plot sample limit; and the selected plot channel. It stores settings, not image data or fitted coefficients.</p>
+<p>To reopen the custom dialog, double-click the icon and use the Script panel’s blue Apply Global circle. Save your process icons or project if you want to retain them for another session.</p>
+<p>Dropping an instance onto a main image executes the fit directly. The dropped-on image replaces the saved target; the saved source and ROI remain in effect. The script recalculates the fit from current pixels. Dropping onto a preview is not supported.</p>
+<p>For unattended execution, turn off Show scatter plot after applying the fit before creating the instance. A missing or renamed saved image must be selected again; it is not silently replaced. The ROI is stored as coordinates, so the preview used to define it does not need to remain open.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting_and_cleanup__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Troubleshooting and cleanup</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting_and_cleanup', this );">[hide]</p>
+   <div id="Troubleshooting_and_cleanup">
+<p>Image selection or geometry error: select two different main images of the same dimensions and color type. Check that the ROI fits inside both images. The script cannot verify that stars or other structures are actually aligned.</p>
+<p>Invalid rejection limits: use values between zero and one, with Reject low smaller than Reject high. Avoid an interval so narrow that it removes nearly all useful signal.</p>
+<p>Insufficient samples or failed fit verification: try a larger or different region with more intensity variation and fewer saturated pixels. Each channel needs at least 32 usable, unclipped samples with variation. All channel corrections are checked before the target is changed.</p>
+<p>Clipping error on an integer target: enable Clip final result to (zero through one), or use a floating-point target when you need values outside that range.</p>
+<p>Plot error after application: if the correction succeeded but the chart could not be displayed, the error message explicitly states that the fit was applied. Use Undo on the target if you wish to revert it.</p>
+<p>The script creates hidden ROI copies for its calculations and closes those copies after success, error, or normal abort. It preserves your source, existing previews, and unrelated images. Save the corrected target separately when you are ready.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-04 10:32:31 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-04 11:27:13 UTC</p>
 </div>
 <br/>
 <br/>
