@@ -4,7 +4,7 @@
 #feature-info Fit a full grayscale or RGB image to a reference using a rectangular region.
 #endif
 
-/* ROI Linear Fit 1.1.3 — PixInsight 1.9.5+ (V8)
+/* ROI Linear Fit 1.1.6 — PixInsight 1.9.5+ (V8)
  * Source = reference; target = image modified in place, with normal Undo.
  * Images must be registered and have the same dimensions and color type.
  * Only script-owned, hidden ROI windows are created; all are closed in finally.
@@ -17,7 +17,7 @@
  * No console parsing, rounded coefficients, temporary files, or log interception.
  */
 
-const ROILF_VERSION = '1.1.3';
+const ROILF_VERSION = '1.1.6';
 const ROILF_SCRIPT_FILE = #__FILE__;
 
 /** Support both the portable bundle and PixInsight's installed doc tree.
@@ -333,11 +333,16 @@ class ROILinearFitPlotDialog extends Dialog {
    constructor(data, options) {
       super(); this.windowTitle = 'ROI Linear Fit — scatter plot';
       this.sizer = new VerticalSizer; this.sizer.margin = 10; this.sizer.spacing = 8;
-      this.channel = new ComboBox(this);
-      for (let d of data.channels) this.channel.addItem(d.name);
-      this.channel.currentItem = Math.min(options.plotChannel, data.channels.length - 1);
-      this.channel.toolTip = 'Select the grayscale or RGB channel to inspect.';
-      this.sizer.add(this.channel);
+      // Grayscale has no channel choice; create a selector only for color plots.
+      this.channel = null;
+      if (data.channels.length > 1) {
+         this.channel = new ComboBox(this);
+         for (let d of data.channels) this.channel.addItem(d.name);
+         this.channel.currentItem = Math.min(options.plotChannel, data.channels.length - 1);
+         this.channel.toolTip = 'Select the RGB channel to inspect.';
+         this.sizer.add(this.channel);
+      }
+      let channelIndex = () => this.channel ? this.channel.currentItem : 0;
       this.renderer = new PlotRenderer(this); this.renderer.setMinSize(780,480);
       this.manager = new PlotManager(this.renderer);
       this.renderer.backgroundColor = 0xff202020; this.manager.backgroundColor = 0xff202020;
@@ -348,11 +353,12 @@ class ROILinearFitPlotDialog extends Dialog {
          'Gray points fall outside the rejection limits. The line uses the full-ROI native fit; it is not clipped.';
       this.sizer.add(info);
       this.updatePlot = () => {
-         let index = this.channel.currentItem, d = data.channels[index], f = d.fit;
+         let index = channelIndex(), d = data.channels[index], f = d.fit;
          options.plotChannel = index;
          this.manager.clear();
          let plot = this.manager.addPlot(1,1,0);
-         plot.title = d.name + ': y = ' + f.offset.toPrecision(8) + ' + ' + f.slope.toPrecision(8) + ' x';
+         plot.title = (data.channels.length === 1 ? '' : d.name + ': ') +
+            'y = ' + f.offset.toPrecision(8) + ' + ' + f.slope.toPrecision(8) + ' x';
          plot.titleFontSize = 13;
          const colors = data.channels.length === 1 ? [0xff53bde8] : [0xfff08080,0xff7edb9a,0xff82b9ff];
          let scatter = (x,y,color,label) => {
@@ -373,7 +379,7 @@ class ROILinearFitPlotDialog extends Dialog {
          plot.legendEnabled = true; plot.legendPosition = PlotLegendPosition.TopLeft;
          this.manager.refresh();
       };
-      this.channel.onItemSelected = () => this.updatePlot();
+      if (this.channel) this.channel.onItemSelected = () => this.updatePlot();
       this.updatePlot();
       let row = new HorizontalSizer; row.spacing = 8;
       this.saveButton = roiFitTool(this,':/icons/save-as.png','Save the displayed channel plot as PNG or SVG.',() => {
@@ -381,7 +387,7 @@ class ROILinearFitPlotDialog extends Dialog {
             let save = new SaveFileDialog;
             save.caption = 'Save ROI Linear Fit scatter plot';
             save.filters = [['PNG image','*.png'],['SVG vector image','*.svg']];
-            save.initialPath = data.targetId + '_ROI_fit_' + data.channels[this.channel.currentItem].name + '.png';
+            save.initialPath = data.targetId + '_ROI_fit_' + data.channels[channelIndex()].name + '.png';
             if (!save.execute()) return;
             let extension = File.extractExtension(save.fileName).toLowerCase();
             if (extension === '.svg') this.manager.saveAsSVG(save.fileName,1200,760);
@@ -434,8 +440,8 @@ class ROILinearFitDialog extends Dialog {
       addRow('Source (reference):', this.sourceList);
       addRow('Target (to modify):', this.targetList);
       addGroup('Region of interest');
-      this.previewList = new ViewList(this); this.previewList.getPreviews();
-      this.previewList.toolTip = 'Optional: choose a preview on the selected source or target to copy its rectangle. Preview processing is ignored; pixels come from the main images.';
+      this.previewList = new ViewList(this);
+      this.previewList.toolTip = 'Only previews of the selected source and target are listed. Choose one to copy its rectangle. Preview processing is ignored; pixels come from the main images.';
       addRow('Copy ROI from preview:', this.previewList);
       let note = new Label(this); note.wordWrapping = true;
       note.text = 'Enter coordinates below, or select an existing preview above. Coordinates start at 0 in the top-left corner.';
@@ -451,8 +457,27 @@ class ROILinearFitDialog extends Dialog {
       this.x = spin('X', options.x, 0); this.y = spin('Y', options.y, 0);
       this.w = spin('Width', options.width, 1); this.h = spin('Height', options.height, 1);
       groupSizer.add(coordRow);
+      let refreshingPreviews = false;
+      /** Rebuild the eligible previews without changing the explicit ROI.
+       * Preserve an eligible selection; clear it if its parent is no longer selected.
+       * Removing a ViewList item never deletes the user's preview.
+       */
+      this.refreshPreviews = () => {
+         let selected = this.previewList.currentView;
+         let parentIds = [this.sourceList.currentView, this.targetList.currentView]
+            .filter(roiFitHasView).map(v => v.id);
+         refreshingPreviews = true;
+         try {
+            this.previewList.getPreviews();
+            for (let window of ImageWindow.windows)
+               if (parentIds.indexOf(window.mainView.id) < 0)
+                  for (let preview of window.previews) this.previewList.remove(preview);
+            this.previewList.currentView = roiFitHasView(selected) &&
+               parentIds.indexOf(selected.window.mainView.id) >= 0 ? selected : null;
+         } finally { refreshingPreviews = false; }
+      };
       this.previewList.onViewSelected = view => {
-         if (!roiFitHasView(view)) return;
+         if (refreshingPreviews || !roiFitHasView(view)) return;
          let parent = view.window.mainView;
          if (![this.sourceList.currentView, this.targetList.currentView].some(v => roiFitHasView(v) && v.id === parent.id)) {
             new MessageBox('Choose a preview belonging to the selected source or target.', this.windowTitle, StdIcon.Warning, StdButton.Ok).execute();
@@ -468,7 +493,8 @@ class ROILinearFitDialog extends Dialog {
          bounds.text = roiFitHasView(v) ? 'Target: ' + v.image.width + ' x ' + v.image.height +
             ' pixels; ' + (v.image.isColor ? 'RGB (3 fits)' : 'grayscale (1 fit)') : 'Select a target image.';
       };
-      this.targetList.onViewSelected = updateBounds;
+      this.sourceList.onViewSelected = () => this.refreshPreviews();
+      this.targetList.onViewSelected = () => { updateBounds(); this.refreshPreviews(); };
       if (options.sourceId) this.sourceList.currentView = View.viewById(options.sourceId);
       if (options.targetId) this.targetList.currentView = View.viewById(options.targetId);
       else if (!Parameters.has('roiFitSchemaVersion') && !ImageWindow.activeWindow.isNull) {
@@ -477,6 +503,7 @@ class ROILinearFitDialog extends Dialog {
          this.h.value = Math.min(256, this.targetList.currentView.image.height);
       }
       updateBounds();
+      this.refreshPreviews();
       addGroup('Fit settings');
       let numeric = (text, value) => {
          let n = new NumericEdit(this);

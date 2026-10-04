@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="8e082b5a3772576ae9faba35643084a9071ee471" type="script" releaseDate="20261004">
+      <package fileName="TGScripts_repository.tar.gz" sha1="cfd7c9c8dac15cd149c9d49217414867c0e4c94c" type="script" releaseDate="20261004">
          <title>
             TGScripts snapshot - 2026 Okt 03
          </title>
@@ -31,9 +31,7 @@
             <p>
                Updates:
                <br/>
-               StarSpikeProtectionMask: updated documentation
-               <br/>
-               ROILinearFit:            updated documentation
+               ROILinearFit: simplify grayscale scatter plot preview
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -42,4 +40,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-04T13:43:05.369Z" encoding="Base64">7L9IN9zFLm69dSffUeFouimDmlR1v9P5Vi3xpK+QoJ8//y955rXngMm1mDlCr4z2aiT6ZG54CiVkbvJR1GXFCA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-04T16:16:45.214Z" encoding="Base64">uxSl4xk+ydMpca5baxazUwJYrvbSecsXRgfhgmvWeI3OmOkp4bpMIjFj4+soe7IoflIl5eScpXlmjnRHhrMFDQ==</Signature>
