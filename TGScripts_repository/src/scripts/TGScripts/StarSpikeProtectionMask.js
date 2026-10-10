@@ -1,6 +1,6 @@
 #engine v8
 
-/* Star Spike Protection Mask 1.7.1
+/* Star Spike Protection Mask 1.7.2
  * Native PixInsight / PJSR script; tested with PixInsight 1.9.5.
  * TG Scripts menu package. Runtime target: PixInsight 1.9.5 with V8.
  * Pipeline: source snapshot -> connected cores -> measured spikes -> mask -> blur.
@@ -14,7 +14,7 @@
 #include <pjsr/controls/ImageView.js>
 
 var SPM_SCRIPT_FILE = #__FILE__;
-var SPM_VERSION = "1.7.1";
+var SPM_VERSION = "1.7.2";
 
 /** Resolve bundled help relative to THIS file, never the current directory.
  * Keeping doc/ beside the script makes the TG Scripts installation portable.
@@ -603,11 +603,13 @@ class SPMDialog extends Dialog {
    this.views=new ViewList(this.parameters);this.views.getMainViews();
    var initialView=SPMResolveSource(o,null);
    if(initialView)this.views.currentView=initialView;
+   this.numericControls={};
    function numeric(label,key,lo,hi,precision,tip,parent) {
       var c=new NumericControl(parent||self.parameters);c.label.text=label;c.label.setFixedWidth(220);
       c.real=precision!=0;
       c.setRange(lo,hi);c.slider.setRange(0,1000);c.setPrecision(precision);c.setValue(o[key]);
-      c.toolTip=tip;c.onValueUpdated=function(v){o[key]=v;self.invalidate();};return c;
+      c.toolTip=tip;c.onValueUpdated=function(v){o[key]=v;self.invalidate();};
+      self.numericControls[key]=c;return c;
    }
    this.area=numeric("Minimum bright-core area (px)",'minArea',1,10000,0,
       "Main lower cutoff. Number of connected bright pixels above the core threshold, after slight smoothing. Raise this to protect only larger/brighter stars; lower it to include smaller stars. Not a stellar magnitude.",this.selectionGroup);
@@ -623,7 +625,7 @@ class SPMDialog extends Dialog {
       "One of the two perpendicular spike axes, clockwise from the image's horizontal axis. Only used when automatic measurement is off.",this.spikesGroup);this.angle.enabled=!o.autoAngle;
    this.length=numeric("Maximum spike length (px)",'maxLength',30,3000,0,"Upper search limit for each independently measured spike. No extra tip margin or opposite-arm extension is added. This is a search cap, not a growth control.",this.spikesGroup);
    this.coreRadius=numeric("Core radius (%)",'coreRadiusPercent',10,200,1,
-      "Scales the luminance-shaped core profile. 100% uses its measured extent; try 60% for tighter cores. Does not change star selection or spike geometry. Optional blur is applied afterward. Version 1.5 profiles differ from earlier geometric masks.",this.maskGroup);
+      "Scales the luminance-shaped core profile. 100% uses its measured extent; try 60% for tighter cores. Does not change star selection or spike geometry. Optional blur is applied afterward.",this.maskGroup);
    this.grow=numeric("Grow protected area (px)",'growRadius',0,12,0,
       "Expand all protected cores and spikes by this many pixels using a circular morphological filter. Zero leaves the measured mask unchanged. Try 2 or 3. Growth runs before whole-mask blur and does not select additional stars.",this.maskGroup);
    this.blurSigma=numeric("Whole-mask blur sigma (0 = off)",'blurSigma',0,25,1,
@@ -659,6 +661,21 @@ class SPMDialog extends Dialog {
       self.previewViewer.setStatusMessage("Preview is out of date. Click Update preview.");
    };
    this.invalidate=function(){this.analysis=null;this.clearPreview();this.status.text="Settings changed. Update preview or create a mask.";};
+   /** Restore processing and save defaults from the same source as a fresh
+    * launch. Preserve the selected image and the options object captured by
+    * control callbacks. Discard cached analysis and previews, then require an
+    * explicit refresh so reset never starts an image calculation by itself.
+    */
+   this.resetDefaults=function() {
+      var defaults=new SPMOptions;
+      for(var key in SPM_PARAMETER_TYPES)if(key!="sourceId")o[key]=defaults[key];
+      for(var key in self.numericControls)self.numericControls[key].setValue(o[key]);
+      self.auto.checked=o.autoAngle;self.angle.enabled=!o.autoAngle;
+      self.save.checked=o.saveAsXisf;
+      self.sourceView=null;self.invalidate();
+      self.tabs.currentPageIndex=0;
+      self.status.text="Default parameters restored. Update preview or create a mask.";
+   };
    this.views.onViewSelected=function(){self.invalidate();};
    this.runAnalysis=function() {
       var view=self.views.currentView;
@@ -676,6 +693,11 @@ class SPMDialog extends Dialog {
    this.previewButton=new ToolButton(this);
    this.previewButton.icon=this.scaledResource(":/toolbar/view-zoom.png");
    this.previewButton.setScaledFixedSize(24,24);this.previewButton.toolTip="Update preview: calculate the mask with all current settings, including blur.";
+   this.resetButton=new ToolButton(this);
+   this.resetButton.icon=this.scaledResource(":/process-interface/reset.png");
+   this.resetButton.setScaledFixedSize(24,24);
+   this.resetButton.toolTip="Reset parameters to defaults. Keep the selected source image and clear the preview.";
+   this.resetButton.onClick=function(){self.resetDefaults();};
    this.helpButton=new ToolButton(this);
    this.helpButton.icon=this.scaledResource(":/process-interface/browse-documentation.png");
    this.helpButton.setScaledFixedSize(24,24);this.helpButton.toolTip="Help: open the Star Spike Protection Mask documentation.";
@@ -698,7 +720,7 @@ class SPMDialog extends Dialog {
       catch(err){self.status.text=String(err);console.warningln(String(err));}
    };
    // Keep UI controls disabled while measuring, while allowing console Abort.
-   this.busy=function(b){self.parameters.enabled=!b;self.previewPage.enabled=!b;self.newInstanceButton.enabled=!b;self.previewButton.enabled=!b;self.helpButton.enabled=!b;self.create.enabled=!b;self.closeButton.enabled=!b;};
+   this.busy=function(b){self.parameters.enabled=!b;self.previewPage.enabled=!b;self.newInstanceButton.enabled=!b;self.previewButton.enabled=!b;self.resetButton.enabled=!b;self.helpButton.enabled=!b;self.create.enabled=!b;self.closeButton.enabled=!b;};
    /** Compute the same full-resolution mask as Create, then display an 8-bit
     * snapshot. No preview window survives this call, including on error/abort.
     * This is explicit refresh, not continuous processing on every slider change.
@@ -748,7 +770,7 @@ class SPMDialog extends Dialog {
    [this.views,this.selectionGroup,this.spikesGroup,this.maskGroup].forEach(function(c){self.parameters.sizer.add(c);});
    this.parameters.sizer.addStretch();
    this.tabs.addPage(this.parameters,"Settings");this.tabs.addPage(this.previewPage,"Mask preview");
-   var buttons=new HorizontalSizer;buttons.spacing=8;buttons.add(this.newInstanceButton);buttons.add(this.previewButton);buttons.addStretch();buttons.add(this.create);buttons.add(this.closeButton);buttons.add(this.helpButton);
+   var buttons=new HorizontalSizer;buttons.spacing=8;buttons.add(this.newInstanceButton);buttons.add(this.previewButton);buttons.addStretch();buttons.add(this.create);buttons.add(this.closeButton);buttons.add(this.resetButton);buttons.add(this.helpButton);
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;
    this.sizer.add(this.help);this.sizer.add(this.tabs,100);this.sizer.add(this.status);this.sizer.add(buttons);
    this.setScaledMinWidth(700);this.adjustToContents();
