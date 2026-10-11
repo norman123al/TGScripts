@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{LinearMasterBlend}
 \keywords{linear images, image combination, fine detail, preview, blink, noise}
-\brief{Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.1.}
+\brief{Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.2.}
 
 \description{
 Linear Master Blend matches the brightness of two master images and combines their broader structures while keeping fine detail from the source you choose. It provides an image preview, blinking against either source, a scatter plot and noise measurements. The result opens as a new linear image. The source images remain unchanged.
@@ -36,7 +36,7 @@ When the images come from different telescopes, choose the source with the finer
 }
 
 \section{Settings}{
-A reference / B to normalize: choose the brightness reference and the image to match to it. This choice is independent of which source supplies fine detail.
+A reference / B to normalize: choose the brightness reference and the image to match to it. Both start unselected when you launch the script; saved process instances restore your chosen images. This choice is independent of which source supplies fine detail.
 
 Fine-detail source: choose the image whose small structures and sharpness you want to retain. Its fine noise is also retained.
 

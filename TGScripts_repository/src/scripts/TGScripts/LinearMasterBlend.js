@@ -5,7 +5,7 @@
 #feature-info Normalize aligned linear masters and combine broad structure while retaining the selected master's fine detail.
 #endif
 
-/* Linear Master Blend 1.6.1
+/* Linear Master Blend 1.6.2
  * Requires PixInsight 1.9.5+ (V8). No external libraries or image files.
  * Original implementation, 2026. Released under the MIT license (see LICENSE.txt).
  * A is the photometric reference. B is normalized to A independently per channel.
@@ -16,7 +16,7 @@
  * Source windows are never process targets. Owned windows are closed on failure.
  */
 
-const LMB_VERSION = '1.6.1';
+const LMB_VERSION = '1.6.2';
 const LMB_SCRIPT_FILE = #__FILE__;
 
 /** Let the UI process events between native operations and honor console Abort.
@@ -377,10 +377,10 @@ class LMBAnalysis {
    }
 }
 
-/** Session defaults: L supplies fine detail; the other image contributes 25%
- * at broad scales. These are adjustable starting choices, not fitted weights.
+/** Start without selected images. Once chosen, A supplies fine detail by default;
+ * the other image contributes 25% at broad scales. These settings are adjustable.
  */
-function lmbDefaults() { return {a:'L', b:'RGB_registered_L', low:0, high:0.92, fallback:false, output:'Linear_Blend',
+function lmbDefaults() { return {a:'', b:'', low:0, high:0.92, fallback:false, output:'Linear_Blend',
    detail:'A', scale:4, other:0.25, autoStretch:true}; }
 
 /** Restore only user choices, never cached pixels or fitted coefficients.
@@ -567,6 +567,9 @@ class LMBDialog extends Dialog {
          + 'A defines the normalization scale. Lower pixel noise does not necessarily mean greater depth. Crop registration borders first.';
       this.aList = new ViewList(this); this.aList.getMainViews();
       this.bList = new ViewList(this); this.bList.getMainViews();
+      // Do not infer inputs from open views; only restore explicit instance choices.
+      this.aList.currentView = new View();
+      this.bList.currentView = new View();
       if (options.a && lmbHasView(View.viewById(options.a))) this.aList.currentView = View.viewById(options.a);
       if (options.b && lmbHasView(View.viewById(options.b))) this.bList.currentView = View.viewById(options.b);
       this.low = new NumericEdit(this); this.low.label.text = 'Reject low:';

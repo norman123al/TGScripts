@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="1014e3e10a2f0fbff3d73a4a45db5d58e2d8b9eb" type="script" releaseDate="20261011">
+      <package fileName="TGScripts_repository.tar.gz" sha1="64fc9c434a0efcc958debd2b33dbd3da1ce8707c" type="script" releaseDate="20261011">
          <title>
             TGScripts snapshot - 2026 Okt 11
          </title>
@@ -32,7 +32,7 @@
             <p>
                Updates:
                <br/>
-               Add LinearMasterBlend script to combine two linear master images from different telescopes.
+               Fix LinearMasterBlend default settings.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -41,4 +41,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-11T08:01:42.614Z" encoding="Base64">4bNN+2ufma67QiArzZv8ck3cpxifGaj8trgxXM8TQU0oF9MRqM48oseXAOz1JzSoaMAbnVyjj76GGbgVwP97Cw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-11T08:33:25.957Z" encoding="Base64">sB2CO0DkUJgGEETHWSKotzscN6en9K4R9/yRxEFHzPFUipkboZL0LQH2GzWTKjC9prCy5qjq5GSrbCNZSzfwCg==</Signature>
