@@ -18,7 +18,9 @@ Install through PixInsight's update system to receive the scripts and their bund
    ```
 
 3. Select **Resources → Updates → Check for Updates** and install the available TGScripts update. Restart PixInsight if prompted to complete installation.
-4. Open a script from **Script → TG Scripts**. The newer tools appear as **Linear Master Blend**, **ROI Linear Fit**, and **Star Spike Protection Mask**.
+4. Open a script from **Script → TG Scripts**. The newer tools appear as **Linear Master Blend**, **LRGB Deconvolution Match**, **ROI Linear Fit**, and **Star Spike Protection Mask**.
+
+To try a newly added script before the next updater release, download or clone this repository and use **Script → Execute Script File** to open its JavaScript file from `TGScripts_repository/src/scripts/TGScripts/`.
 
 <details>
 <summary>Show installation screenshots</summary>
@@ -36,10 +38,11 @@ Install through PixInsight's update system to receive the scripts and their bund
 ### Requirements
 
 - **PixInsight:** scripts run inside PixInsight using its JavaScript Runtime (PJSR).
-- **Linear Master Blend, ROI Linear Fit, and Star Spike Protection Mask:** use PixInsight **1.9.5 or later with the V8 scripting engine**. Star Spike Protection Mask targets and was tested with 1.9.5. Older scripts have their own requirements; LocalSupportMask and TGScriptSkeleton explicitly require at least 1.8.9-1.
+- **Linear Master Blend, LRGB Deconvolution Match, ROI Linear Fit, and Star Spike Protection Mask:** use PixInsight **1.9.5 or later with the V8 scripting engine**. Star Spike Protection Mask targets and was tested with 1.9.5. Older scripts have their own requirements; LocalSupportMask and TGScriptSkeleton explicitly require at least 1.8.9-1.
+- **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) to be installed and configured with an AI model. The script requires an image or preview of at least **256 × 256 pixels**.
 
-The update manifest accepts a broader range of PixInsight versions than the three V8 scripts support. Being offered the package by the updater does not establish compatibility with every script.
+The update manifest accepts a broader range of PixInsight versions than the four V8 scripts support. Being offered the package by the updater does not establish compatibility with every script.
 
 ## Script overview
 
@@ -55,11 +58,12 @@ The update manifest accepts a broader range of PixInsight versions than the thre
 | Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
 | Blend linear masters | [Linear Master Blend](#linear-master-blend) | Combines broad-scale signal from two masters while preserving fine detail from a chosen source. | 2026&#8209;10&#8209;11 |
 | Support deconvolution | [LocalSupportMask](#localsupportmask) | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;11 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. Linear Master Blend uses the **2026-10-11** release date in the [update manifest](TGScripts_repository/updates.xri).
+Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. Linear Master Blend uses the **2026-10-11** release date in the [update manifest](TGScripts_repository/updates.xri). LRGB Deconvolution Match uses its source-file modification date, **2026-10-11**, while its initial addition is uncommitted.
 
 ## Script gallery
 
@@ -215,6 +219,23 @@ Creates a **local support mask for deconvolution deringing**, helping protect st
 
 </details>
 
+### LRGB Deconvolution Match
+
+**Last update:** 2026-10-11
+
+Prepares **linear luminance and RGB images with matched stellar widths** for later LRGB processing. Deconvolve the sharper reference with your chosen BlurXTerminator settings, inspect its before/after preview, then let the script adjust **Sharpen Stars** and **Adjust Star Halos** on the other image to approach that reference. The reference result stays fixed during matching; **Sharpen Nonstellar** is chosen once for both images.
+
+Blink the deconvolved L against luminance extracted from RGB, inspect the paired-star **FWHM scatter plot**, and review the match assessment before creating two new linear output images. The originals remain unchanged. Display stretching and brightness alignment affect only the previews; perform the final stretch and LRGB combination separately.
+
+Requires **PixInsight 1.9.5+ with V8** and **BlurXTerminator** with a license and AI model. Supply registered, equally sized floating-point grayscale L and three-channel RGB images, without alpha channels or empty registration borders, and at least **20 reliable common stars**. [Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
+
+<details>
+<summary>View LRGB Deconvolution Match interface</summary>
+
+![LRGB Deconvolution Match 1.4.1 interface with L and RGB selection, reference deconvolution settings, matching limits, and preview and star measurement tabs](TGScripts_repository/images/LRGBDeconvolutionMatch_main_screen.jpg)
+
+</details>
+
 ### ROI Linear Fit
 
 **Last update:** 2026-10-04
@@ -280,7 +301,7 @@ Please [open an issue](https://github.com/norman123al/TGScripts/issues) with the
 
 | Location | Contents |
 | --- | --- |
-| [TGScripts_repository/src/scripts/TGScripts](TGScripts_repository/src/scripts/TGScripts) | The 13 menu scripts. |
+| [TGScripts_repository/src/scripts/TGScripts](TGScripts_repository/src/scripts/TGScripts) | The 14 menu scripts. |
 | [TGScripts_repository/src/scripts/TGScripts/lib](TGScripts_repository/src/scripts/TGScripts/lib) | Shared helpers and libraries used by the scripts. |
 | [TGScripts_repository/doc/scripts](TGScripts_repository/doc/scripts) | Compiled PixInsight documentation and guide images. |
 | [TGScripts_repository/images](TGScripts_repository/images) | Installation images and additional README screenshots. |
@@ -293,6 +314,6 @@ The files in `lib/` support the menu scripts and are not standalone tools.
 
 Maintained by **Thorsten Glebe**. This collection includes original tools and adaptations of scripts by **Mike Schuster, David Serrano, Rick Stevenson, Hartmut V. Bornemann, Carlos Sonnenstein, Oriol Lehmkuhl, and Juan M. Gómez**. BBStarReduction implements star reduction methods by **Bill Blanshan**. Individual source files retain their original attribution and copyright notices.
 
-The repository includes the [GNU General Public License v3.0](LICENSE). Linear Master Blend is distributed under its own [MIT license](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend-LICENSE.txt). See individual source headers for applicable notices and terms. The software is provided without warranty.
+The repository includes the [GNU General Public License v3.0](LICENSE). Linear Master Blend and LRGB Deconvolution Match have their own MIT licenses: [Linear Master Blend license](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend-LICENSE.txt) and [LRGB Deconvolution Match license](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch-LICENSE.txt). See individual source headers for applicable notices and terms. The software is provided without warranty.
 
 Visit Thorsten's [astrophotography gallery on AstroBin](https://www.astrobin.com/users/norman123al/).

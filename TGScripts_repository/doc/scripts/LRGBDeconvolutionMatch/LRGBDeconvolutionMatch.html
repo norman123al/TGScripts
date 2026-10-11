@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | LRGBDeconvolutionMatch</title>
+   <meta name="keywords" content="deconvolution, BlurXTerminator, LRGB, FWHM, reference, blink" />
+   <meta name="author" content="" />
+   <meta name="description" content="Prepare registered linear luminance and RGB images with matched stellar widths." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>LRGBDeconvolutionMatch</h1>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>Prepare registered linear luminance and RGB images with matched stellar widths. <a href="#__contents__">[more]</a></p></div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> deconvolution, BlurXTerminator, LRGB, FWHM, reference, blink</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
+<li class="pidoc_tocItem"><a href="#__Opening_the_script__">2&emsp;Opening the script</a></li>
+<li class="pidoc_tocItem"><a href="#__Preparing_the_input_images__">3&emsp;Preparing the input images</a></li>
+<li class="pidoc_tocItem"><a href="#__Images__">4&emsp;Images</a></li>
+<li class="pidoc_tocItem"><a href="#__Reference_deconvolution__">5&emsp;Reference deconvolution</a></li>
+<li class="pidoc_tocItem"><a href="#__Other_image_search_limits__">6&emsp;Other image: search limits</a></li>
+<li class="pidoc_tocItem"><a href="#__Shared_deconvolution__">7&emsp;Shared deconvolution</a></li>
+<li class="pidoc_tocItem"><a href="#__Recommended_workflow__">8&emsp;Recommended workflow</a></li>
+<li class="pidoc_tocItem"><a href="#__Reference_beforeafter_preview__">9&emsp;Reference before/after preview</a></li>
+<li class="pidoc_tocItem"><a href="#__Matched_L__RGB_preview__">10&emsp;Matched L / RGB preview</a></li>
+<li class="pidoc_tocItem"><a href="#__FWHM_scatter_and_matching_result__">11&emsp;FWHM scatter and matching result</a></li>
+<li class="pidoc_tocItem"><a href="#__Star_measurement__">12&emsp;Star measurement</a></li>
+<li class="pidoc_tocItem"><a href="#__Symbol_buttons__">13&emsp;Symbol buttons</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting__">14&emsp;Troubleshooting</a></li>
+<li class="pidoc_tocItem"><a href="#__License__">15&emsp;License</a></li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<p>LRGB Deconvolution Match prepares a luminance image and an RGB image for later LRGB processing. Choose the sharper image as the reference and set its BlurXTerminator sharpening. Inspect the reference before and after deconvolution, then let the script adjust the other image to obtain the closest measured star-width match.</p>
+<p>Only Sharpen Stars and Adjust Star Halos are varied on the other image. Sharpen Nonstellar is a value you choose for both images. The reference result stays fixed during matching.</p>
+<p>The script creates new linear image windows. The original images remain unchanged. Stretching and LRGB combination are separate steps that you perform afterward.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Opening_the_script__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Opening the script</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Opening_the_script', this );">[hide]</p>
+   <div id="Opening_the_script">
+<p>With the script installed in the TGScripts folder through the standard PixInsight script installation, choose Script &gt; TG Scripts &gt; LRGB Deconvolution Match. Click the document symbol at the bottom right to open this manual.</p>
+<p>The script requires PixInsight 1.9.5 or later and an installed, licensed BlurXTerminator with its AI model. Open a grayscale luminance image and a three-channel RGB image before starting.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Preparing_the_input_images__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Preparing the input images</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preparing_the_input_images', this );">[hide]</p>
+   <div id="Preparing_the_input_images">
+<p>Both inputs must be linear, in floating-point format, without alpha channels. A display STF is fine. Register and crop the images to the same pixel grid and dimensions, removing empty registration borders. Each image must be at least 64 by 64 pixels and contain at least 20 reliable common stars.</p>
+<p>Images from different telescopes may have different original pixel scales. Complete any required resampling and registration before using this script. Choose the reference according to the effective star resolution in the registered images.</p>
+<p>Accurate registration is essential for a meaningful comparison. The script does not align, resample or crop images, and cannot confirm that they are linear from their appearance alone.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Images__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Images</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Images', this );">[hide]</p>
+   <div id="Images">
+<p>Luminance: select the open grayscale image.</p>
+<p>RGB: select the open color image.</p>
+<p>Sharper reference: select L or RGB, or choose Auto to use the image with the smaller measured median star FWHM. A tie selects L. You can select the reference explicitly when your knowledge of the data gives a better basis for the choice.</p>
+<p>Both image selectors start empty. A saved process instance restores the image selections and settings that you saved.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Reference_deconvolution__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Reference deconvolution</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Reference_deconvolution', this );">[hide]</p>
+   <div id="Reference_deconvolution">
+<p>Sharpen Stars: the stellar sharpening applied to the reference. The default is 0.50; the available range is 0 to 0.70.</p>
+<p>Adjust Star Halos: the halo adjustment applied to the reference, from -0.50 to +0.50. The default is 0.00.</p>
+<p>These values are applied once to the reference. Inspect the Reference before/after tab before matching the other image. If the reference shows ringing, dark halos or excessive sharpening, revise these settings and calculate its preview again.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Other_image_search_limits__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Other image: search limits</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Other_image_search_limits', this );">[hide]</p>
+   <div id="Other_image_search_limits">
+<p>These controls set the allowed BlurXTerminator values for the image that is not the reference. Their defaults allow the full stellar-sharpening and halo ranges.</p>
+<p>Maximum Sharpen Stars: default 0.70. The search can use any value from zero to this maximum. Set a lower maximum if you want to limit sharpening, or set zero to hold Sharpen Stars at zero. The initial value is 0.50, limited to the allowed range.</p>
+<p>Minimum Adjust Star Halos and Maximum Adjust Star Halos: defaults -0.50 and +0.50. Narrow this interval to limit halo changes. Set both limits to the same value to hold Adjust Star Halos fixed.</p>
+<p>The limits apply only to the other image. They do not change the reference settings. The final values actually used for each image appear below the preview tabs.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Shared_deconvolution__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Shared deconvolution</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Shared_deconvolution', this );">[hide]</p>
+   <div id="Shared_deconvolution">
+<p>Sharpen Nonstellar: choose the sharpening strength for nonstellar detail, from 0 to 1. Its default follows the installed BlurXTerminator default. The selected value is used for both images and remains fixed during matching.</p>
+<p>All remaining BlurXTerminator options use their installed defaults.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Recommended_workflow__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Recommended workflow</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Recommended_workflow', this );">[hide]</p>
+   <div id="Recommended_workflow">
+<p>1. Select Luminance and RGB in the Images group, then choose the sharper reference.</p>
+<p>2. Set the reference Sharpen Stars and Adjust Star Halos values, choose Sharpen Nonstellar, and review the other image's search limits.</p>
+<p>3. In Reference before/after, click the magnifier inside the tab. Only the reference is deconvolved at this stage.</p>
+<p>4. Use play or step to blink BEFORE BXT and AFTER initial BXT. Inspect stars, halos and nonstellar detail at 1:1 or a higher zoom. If necessary, revise the reference settings and repeat this stage.</p>
+<p>5. Click the bottom magnifier to match the other image. The reference result you inspected stays fixed. You can also use the bottom magnifier directly to calculate both stages without pausing for reference inspection.</p>
+<p>6. Inspect Matched L / RGB and FWHM scatter. Review the final settings and the PASS or REVIEW result. The Process Console provides measurements and a record of the settings tried.</p>
+<p>7. Click the green checkmark to create the two linear output images. Their names use the input image identifiers with a _BXT suffix; an additional numeric suffix avoids a name conflict. Apply a display STF as needed and save the images.</p>
+<p>Matching may require up to eleven BlurXTerminator runs including the reference. The execution count and stopping reason appear below the tabs. Use the Process Console Abort control to cancel a calculation.</p>
+<p>Changing processing settings clears the current previews. Changing display options does not rerun BlurXTerminator. After a completed match, the bottom magnifier calculates a fresh pair. Recalculate if an input image has been edited outside the script.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Reference_beforeafter_preview__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Reference before/after preview</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Reference_beforeafter_preview', this );">[hide]</p>
+   <div id="Reference_beforeafter_preview">
+<p>This tab compares the reference before deconvolution with its initial BlurXTerminator result. An RGB reference is displayed as its extracted luminance in both frames.</p>
+<p>Play alternates every 0.75 seconds. Step pauses blinking and switches one frame. The label above the image identifies BEFORE BXT or AFTER initial BXT. Zoom and pan are preserved while switching frames. Use the magnifier symbols above the image for zoom in, zoom out, 1:1 and fit.</p>
+<p>Display STF uses the same display stretch for both frames, based on the original reference. Brightness is not equalized between the before and after images. Disable Display STF to view the linear data directly.</p>
+<p>This preview remains available after matching and continues to show the same reference result. Switching tabs stops playback. Preview display settings never change the linear output pixels.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Matched_L__RGB_preview__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Matched L / RGB preview</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Matched_L__RGB_preview', this );">[hide]</p>
+   <div id="Matched_L__RGB_preview">
+<p>This tab blinks the final deconvolved L against the extracted luminance of the final deconvolved RGB image. The frame label identifies the image and whether it is the reference. The RGB output itself remains a color image.</p>
+<p>Play, step, zoom and pan work as in the reference preview. Display STF uses a shared display stretch. Align preview brightness compensates for brightness differences to make star widths easier to compare. Turn it off when you want to inspect the unadjusted relative brightness.</p>
+<p>All display adjustments affect only the preview. They do not stretch or normalize the output images.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__FWHM_scatter_and_matching_result__">
+   <h3 class="pidoc_sectionTitle">11&emsp;FWHM scatter and matching result</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'FWHM_scatter_and_matching_result', this );">[hide]</p>
+   <div id="FWHM_scatter_and_matching_result">
+<p>Each blue point represents the same star measured in both final images. The horizontal axis shows L FWHM in pixels; the vertical axis shows RGB luminance FWHM in pixels. Both axes have equal scale. The yellow line has slope 1 and passes through zero: points on it have equal measured star widths.</p>
+<p>Points above the line have wider stars in RGB luminance; points below it have wider stars in L. The plot includes outliers. Inspect the spread of the points as well as their overall position relative to the line.</p>
+<p>The legend reports the number of paired stars, median absolute mismatch and 90th-percentile mismatch. A 90th-percentile value of 10 percent means that 90 percent of the measured pairs differ by no more than that amount. Relative mismatch is the width difference divided by the average of the two widths.</p>
+<p>PASS means the measured star-width criteria are met, including separate comparisons of the red, green and blue channels against L. REVIEW means at least one criterion was not met. You can still create the images for inspection. The reference is not weakened to force agreement.</p>
+<p>Similar FWHMs do not guarantee identical star profiles, halos or appearance after stretching. Inspect bright and faint stars across the field before proceeding to LRGB combination.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Star_measurement__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Star measurement</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Star_measurement', this );">[hide]</p>
+   <div id="Star_measurement">
+<p>The Star measurement tab contains two groups.</p>
+<p>Match acceptance: Tolerance defaults to 5 percent for the median absolute paired FWHM mismatch. The 90th-percentile limit and regional limits are twice this value. Minimum FWHM defaults to 1.60 pixels and requires both images' median widths to meet that sampling limit.</p>
+<p>Star detection and fitting: Detection sensitivity controls star detection. Reject peaks at or above excludes stars whose peak reaches the selected value; the default is 0.85. Maximum sampled stars defaults to 250. PSF model selects Moffat beta = 4 or Gaussian for star-width measurements.</p>
+<p>Measurements require at least 20 valid paired stars and at least 80 percent of the reference-qualified stars. The script also checks different regions of the image and each RGB channel. A region with fewer than five stars is reported as having insufficient support; it cannot establish agreement there.</p>
+<p>Use consistent measurement settings for the pair. If too few stars are available, check alignment, registration borders, crowded stars and saturated peaks before relaxing rejection settings.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Symbol_buttons__">
+   <h3 class="pidoc_sectionTitle">13&emsp;Symbol buttons</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Symbol_buttons', this );">[hide]</p>
+   <div id="Symbol_buttons">
+<p>Reference-tab magnifier: calculate the reference deconvolution and its before/after preview.</p>
+<p>Bottom magnifier: match the other image to the prepared reference, or calculate both stages if needed. After completion, calculate a fresh pair.</p>
+<p>Play/stop and step: blink or switch frames in the active preview tab.</p>
+<p>Triangle: drag onto the workspace to save your selected images and settings as a process instance. Run the instance globally with those images open.</p>
+<p>Reset: restore defaults, clear both image selections and clear the previews. Reference Sharpen Stars returns to 0.50 and Adjust Star Halos to 0.00; the other image's search limits return to 0 through 0.70 for stars and -0.50 through +0.50 for halos.</p>
+<p>Green checkmark: create two linear output windows from the completed match. It is unavailable after the reference-only stage.</p>
+<p>Red cross: close the script. Output images already created remain open.</p>
+<p>Document: open this user manual.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting__">
+   <h3 class="pidoc_sectionTitle">14&emsp;Troubleshooting</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting', this );">[hide]</p>
+   <div id="Troubleshooting">
+<p>Too few usable stars: verify registration and border cropping. Check detection sensitivity and the peak rejection threshold. Strong sharpening may push bright stars above the threshold. Very crowded, star-poor or undersampled images may not provide a reliable comparison.</p>
+<p>Reference below Minimum FWHM: inspect whether it is oversharpened or undersampled. Reconsider reference sharpening before lowering the sampling requirement.</p>
+<p>Search reaches a limit or reports REVIEW: inspect the FWHM scatter and Process Console. If you have narrowed the limits, consider allowing a wider range. With the full ranges already allowed, the two images may not support the desired match at the chosen reference settings. Inspect the reference and reconsider its sharpening where appropriate.</p>
+<p>Preview is empty: select both images and calculate the required stage. Output images look dark: they remain linear; use a display STF to view them.</p>
+<p>Help is unavailable: check that the TGScripts installation includes the script's documentation.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__License__">
+   <h3 class="pidoc_sectionTitle">15&emsp;License</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'License', this );">[hide]</p>
+   <div id="License">
+<p>The script and its user documentation are distributed under the accompanying MIT license.</p>
+<p>This product is based on software from the PixInsight project, developed by Pleiades Astrophoto and its contributors (https://pixinsight.com/).</p>
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-11 15:12:58 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>

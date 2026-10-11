@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="64fc9c434a0efcc958debd2b33dbd3da1ce8707c" type="script" releaseDate="20261011">
+      <package fileName="TGScripts_repository.tar.gz" sha1="c7fecfc3561b9bb4994cd214d2a046a84dcf71cc" type="script" releaseDate="20261011">
          <title>
             TGScripts snapshot - 2026 Okt 11
          </title>
@@ -21,6 +21,7 @@
             doc/scripts/DeconvolutionPreviewTG
             doc/scripts/LinearMasterBlend
             doc/scripts/LocalSupportMask
+            doc/scripts/LRGBDeconvolutionMatch
             doc/scripts/ROILinearFit
             doc/scripts/StarSpikeProtectionMask
             doc/scripts/TGScriptSkeleton
@@ -32,7 +33,7 @@
             <p>
                Updates:
                <br/>
-               Fix LinearMasterBlend default settings.
+               Add LRGBDeconvolutionMatch script
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -41,4 +42,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-11T08:33:25.957Z" encoding="Base64">sB2CO0DkUJgGEETHWSKotzscN6en9K4R9/yRxEFHzPFUipkboZL0LQH2GzWTKjC9prCy5qjq5GSrbCNZSzfwCg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-11T15:29:57.506Z" encoding="Base64">rRS1OlNvZZyGW/p6Tf0h+liP2dB0t3ebMtMAExEF8ghDtZLVlqcBh59P1LQWHB9PNwecYdSTDkBLMbesxToYAQ==</Signature>
