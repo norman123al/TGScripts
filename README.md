@@ -43,21 +43,21 @@ The update manifest accepts a broader range of PixInsight versions than the thre
 
 ## Script overview
 
-| Task | Script | What it does | Last update |
+| Task | Script | What it does | Last&nbsp;update |
 | --- | --- | --- | --- |
-| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | Builds a configurable grid of image crops for comparing stars across the field. | 2022-10-31 |
-| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | Combines the four corners and, optionally, the center in one inspection image. | 2022-10-31 |
-| Reduce stars | [BBStarReduction](#bbstarreduction) | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2022-11-18 |
-| Select colors | [ColorMaskTG](#colormasktg) | Creates masks from hue, intensity, and saturation ranges. | 2022-11-14 |
-| Isolate emission | [CSTG](#cstg) | Subtracts the broadband continuum contribution from a narrowband image. | 2023-10-08 |
-| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | Increases the visibility of dark structures such as dust lanes. | 2022-11-18 |
-| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | Compares deconvolution results across synthetic point spread function settings. | 2022-11-18 |
-| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | Adds continuum-subtracted narrowband emission to RGB channels. | 2022-11-18 |
-| Blend linear masters | [Linear Master Blend](#linear-master-blend) | Combines broad-scale signal from two masters while preserving fine detail from a chosen source. | 2026-10-11 |
-| Support deconvolution | [LocalSupportMask](#localsupportmask) | Generates a local support mask for deconvolution deringing. | 2022-12-12 |
-| Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | Measures a fit in a selected region and applies it to the full target image. | 2026-10-04 |
-| Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | Builds a soft mask protecting bright stellar cores and their spikes. | 2026-10-10 |
-| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | Provides a reusable dialog, image preview, and process-instance framework. | 2022-12-12 |
+| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | Builds a configurable grid of image crops for comparing stars across the field. | 2022&#8209;10&#8209;31 |
+| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | Combines the four corners and, optionally, the center in one inspection image. | 2022&#8209;10&#8209;31 |
+| Reduce stars | [BBStarReduction](#bbstarreduction) | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2022&#8209;11&#8209;18 |
+| Select colors | [ColorMaskTG](#colormasktg) | Creates masks from hue, intensity, and saturation ranges. | 2022&#8209;11&#8209;14 |
+| Isolate emission | [CSTG](#cstg) | Subtracts the broadband continuum contribution from a narrowband image. | 2023&#8209;10&#8209;08 |
+| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | Increases the visibility of dark structures such as dust lanes. | 2022&#8209;11&#8209;18 |
+| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | Compares deconvolution results across synthetic point spread function settings. | 2022&#8209;11&#8209;18 |
+| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
+| Blend linear masters | [Linear Master Blend](#linear-master-blend) | Combines broad-scale signal from two masters while preserving fine detail from a chosen source. | 2026&#8209;10&#8209;11 |
+| Support deconvolution | [LocalSupportMask](#localsupportmask) | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
+| Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
+| Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
+| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
 
 Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. Linear Master Blend uses the **2026-10-11** release date in the [update manifest](TGScripts_repository/updates.xri).
 
