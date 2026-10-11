@@ -1,0 +1,108 @@
+\documentclass{PIScriptDoc}
+\script{LinearMasterBlend}
+\keywords{linear images, image combination, fine detail, preview, blink, noise}
+\brief{Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.1.}
+
+\description{
+Linear Master Blend matches the brightness of two master images and combines their broader structures while keeping fine detail from the source you choose. It provides an image preview, blinking against either source, a scatter plot and noise measurements. The result opens as a new linear image. The source images remain unchanged.
+}
+
+\section{Start the script}{
+Linear Master Blend is part of TGScripts. With TGScripts installed through PixInsight's standard update system, choose Script > TG Scripts > Linear Master Blend.
+
+Click the document icon in the script to open this guide.
+}
+
+\section{Prepare your images}{
+Open two aligned linear master images with the same dimensions. Use either two grayscale images or two RGB images, in floating-point format without alpha channels. Crop empty registration borders. Each image must be at least 32 by 32 pixels.
+
+The images should show corresponding structures with compatible backgrounds and filter responses. An STF display stretch is fine; permanently stretched images are unsuitable.
+
+When the images come from different telescopes, choose the source with the finer real detail as the fine-detail source. Lower measured noise alone does not mean greater depth or better resolution.
+}
+
+\section{Create a combined image}{
+1. Select A reference and B to normalize. B will be matched to A's brightness scale.
+
+2. Choose whether A or B supplies the fine detail. Start with Gaussian sigma at 4 pixels and Other image at broad scales at 25 percent.
+
+3. Click the magnifier to calculate the preview. Inspect stars and faint structures, and blink against each source. Check the Fit and noise tab.
+
+4. Adjust the settings and preview again until the blend looks suitable. If you edit either source outside the script, click Preview again before creating the result.
+
+5. Click the green checkmark to create the output. It uses the current preview calculation, or calculates a result first if no preview is available.
+
+6. Apply an STF to view the new linear image and save it as XISF. The script does not save it automatically.
+}
+
+\section{Settings}{
+A reference / B to normalize: choose the brightness reference and the image to match to it. This choice is independent of which source supplies fine detail.
+
+Fine-detail source: choose the image whose small structures and sharpness you want to retain. Its fine noise is also retained.
+
+Gaussian sigma (px): controls the size of structures affected by the blend, from 1 to 32 pixels. Larger values confine the other image's contribution to broader structures.
+
+Other image at broad scales: controls how much the other image contributes to broad structures, from 0 to 100 percent. Zero uses the detail source alone. Increase the value when the other image adds useful signal; check stars and halos as you adjust it.
+
+Reject low / high: exclude very dark or bright pixels when matching brightness. Defaults are 0 and 0.92. These settings affect the brightness match, not which parts of the image are combined.
+
+Allow k-sigma fallback: allow an alternative noise estimate if the standard estimate fails. It does not change the blend strength.
+
+Output ID: name the new image. If that name is already in use, a suffix is added.
+}
+
+\section{Preview and blink}{
+Use the Output preview tab to inspect the result. The viewer has zoom-in, zoom-out, 1:1 and fit-to-window buttons. Use the mouse wheel to zoom and drag to pan.
+
+Auto stretch preview makes faint signal visible. It affects the preview only; the created image remains linear. Disable it to inspect the linear brightness.
+
+In Blink with, choose A reference or B normalized. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. The label above the viewer identifies the displayed image. Zoom and position stay fixed between frames.
+
+Blink comparisons use a common brightness scale and display stretch. Very bright or dark source details can be clipped in this comparison display; the source data remains unchanged.
+
+Changing the comparison source, switching to Fit and noise, changing the stretch or recalculating stops blinking. Changes to processing settings clear the preview; click the magnifier to update it.
+}
+
+\section{Fit and noise}{
+The scatter plot compares B on the horizontal axis with A on the vertical axis. Blue points fall within the brightness-matching limits; gray points fall outside them. The yellow line shows the brightness match. A broad or uneven cloud can reveal noise, background differences or differences in the structures recorded by the two images.
+
+The noise table shows A, B and the output. Image units shows each image's measured noise. A units puts all three on a common brightness scale for comparison. For RGB images, use the channel selector to inspect red, green or blue.
+
+MRS or k-sigma identifies the noise-estimation method. If a value is Unavailable, hover over it for the reason. Lower noise alone does not prove better depth or detail. The measurements help you judge the result; they do not set the blend strength.
+}
+
+\section{Toolbar buttons}{
+Triangle: drag onto the workspace to save the selected images and settings as a process icon. Keep those images open when running the icon globally.
+
+Magnifier: calculate or refresh the preview, fit and noise measurements.
+
+Reset: restore the default settings and clear the preview. The selected images stay selected.
+
+Green checkmark: create a new combined image.
+
+Red cross: close the script. Created output images remain open.
+
+Document: open this guide.
+}
+
+\section{Tips and troubleshooting}{
+Brightness matching fails: check alignment, crop empty borders, and review the rejection limits. Both images need useful, varying signal in common.
+
+Noise estimation fails: inspect borders, gradients and heavily processed data. Try Allow k-sigma fallback if needed. A failed output noise measurement does not discard the output image.
+
+Unwanted halos or softer structures: choose the sharper source for fine detail, reduce the other image's contribution, or increase Gaussian sigma. Compare both sources and the output at the same zoom.
+
+Large images can take time and require substantial memory. Wait for preview calculation to finish before comparing the result.
+
+The script does not align images or remove gradients. Prepare these first. The output does not carry source astrometry, exposure metadata or custom color settings; restore these separately if needed.
+
+Help is missing or looks unformatted: check that the script and its documentation are up to date through PixInsight's standard update system.
+}
+
+\section{License}{
+The script and guide are distributed under the MIT license in LICENSE.txt. Bundled documentation resources and fonts retain their own licenses.
+
+This product is based on software from the PixInsight project, developed by Pleiades Astrophoto and its contributors (https://pixinsight.com/).
+}
+
+\make
