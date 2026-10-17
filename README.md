@@ -56,16 +56,16 @@ The update manifest accepts a broader range of PixInsight versions than the four
 | Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | 2.2 | Increases the visibility of dark structures such as dust lanes. | 2022&#8209;11&#8209;18 |
 | Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | 2.1 | Compares deconvolution results across synthetic point spread function settings. | 2022&#8209;11&#8209;18 |
 | Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.0 | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
-| Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.19.0 | Normalizes and integrates two linear masters using measured PSF signal, SNR, and stellar sharpness. | 2026&#8209;10&#8209;17 |
+| Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.0 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;17 |
 | Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.0 | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
-| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.4.1 | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;11 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.4.1 | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;17 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.5 | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
 
 Versions follow the declarations in the repository source. EmissionLineIntegrationTG declares TG version **2.0** in its header; its interface retains the upstream **2.1.0** label.
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded.
+Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. For Linear Master Blend and LRGB Deconvolution Match, the dates include the local source updates made on **2026-10-17**.
 
 ## Script gallery
 
@@ -193,11 +193,11 @@ Based on Hartmut V. Bornemann's EmissionLineIntegration, with changes to speed u
 
 ### Linear Master Blend
 
-**Version:** 1.19.0 · **Last update:** 2026-10-17
+**Version:** 1.20.0 · **Last update:** 2026-10-17
 
 Normalizes and integrates **two aligned linear master images** using measured source quality. Preview automatically chooses the master with the lower combined stellar **FWHM** as the brightness reference. It matches the other master's stellar flux and local background to that reference independently in each channel.
 
-Integration uses **40% PSF Signal Weight, 40% PSF SNR, and 20% inverse combined FWHM** to determine the two source contributions. The resulting weights apply to every pixel and all RGB channels. This is a weighted average of the complete masters; including a source with broader stars can broaden the output stars, so inspect both detail and noise.
+Integration starts with a base balance of **40% PSF Signal Weight, 40% PSF SNR, and 20% inverse combined FWHM**. **Sharpness preference** (0–8, default **1**) then gives extra weight to the master with narrower stars. Set it to **0** to use the base balance alone; higher values favor sharpness more strongly and can reduce the noise benefit of the other master. Recalculate Preview after changing it. The resulting weights apply to every pixel and all RGB channels. This is a weighted average of the complete masters; including a source with broader stars can broaden the output stars, so inspect both detail and noise.
 
 The **Output preview** supports zoom, pan, display stretching, and blinking against either master. The **Measurements** tab shows the stellar-flux fit, selected reference, noise, FWHM X/Y, PSF quality metrics, source contributions, and output measurements. Create produces a **new 32-bit floating-point linear image** using the preview's normalization and weights; both originals remain unchanged.
 
@@ -208,11 +208,11 @@ Use registered, cropped floating-point images with identical dimensions and matc
 
 **Output preview**
 
-![Linear Master Blend 1.19.0 with Master 1 and Master 2 selectors, output preview, zoom, and blink controls](TGScripts_repository/images/LinearMasterBlend_main_screen.jpg)
+![Linear Master Blend 1.20.0 with L_clone and RGB_registered_L selected, Sharpness preference, output preview, zoom, and blink controls](TGScripts_repository/images/LinearMasterBlend_main_screen.jpg)
 
 **Measurements**
 
-![Linear Master Blend 1.19.0 Measurements tab with stellar-flux fit and a table comparing the masters and output](TGScripts_repository/images/LinearMasterBlend_measurements.jpg)
+![Linear Master Blend 1.20.0 Measurements tab with stellar-flux fit and a table comparing the masters and output](TGScripts_repository/images/LinearMasterBlend_measurements.jpg)
 
 </details>
 
@@ -233,7 +233,7 @@ Creates a **local support mask for deconvolution deringing**, helping protect st
 
 ### LRGB Deconvolution Match
 
-**Last update:** 2026-10-11
+**Version:** 1.4.1 · **Last update:** 2026-10-17
 
 Prepares **linear luminance and RGB images with matched stellar widths** for later LRGB processing. Deconvolve the sharper reference with your chosen BlurXTerminator settings, inspect its before/after preview, then let the script adjust **Sharpen Stars** and **Adjust Star Halos** on the other image to approach that reference. The reference result stays fixed during matching; **Sharpen Nonstellar** is chosen once for both images.
 

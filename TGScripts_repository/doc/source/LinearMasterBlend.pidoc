@@ -1,10 +1,10 @@
 \documentclass{PIScriptDoc}
 \script{LinearMasterBlend}
 \keywords{linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink}
-\brief{Integrate two aligned linear master images using measured source quality. Version 1.19.0.}
+\brief{Integrate two aligned linear master images using measured source quality. Version 1.20.0.}
 
 \description{
-Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The criteria are PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). The result is a new linear image. Both source images remain unchanged.
+Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The base quality balance uses PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). Adjustable Sharpness preference gives additional influence to the master with narrower stellar profiles. The result is a new linear image. Both source images remain unchanged.
 }
 
 \section{Start the script}{
@@ -14,7 +14,7 @@ Open two already aligned and cropped linear masters. Use matching dimensions and
 }
 
 \section{Combine two masters}{
-1. Select the two images as Master 1 and Master 2.
+1. Select the two images as Master 1 and Master 2. Set Sharpness preference: the default is 1; increase it for more influence from the sharper master.
 
 2. Click the magnifier to calculate Preview. It first measures both master PSFs and selects the master with the lower combined FWHM as the reference frame. It then matches the other master's brightness to the reference and calculates the integration. Master 1 and Master 2 keep their selection order.
 
@@ -30,9 +30,17 @@ Each source is measured using the same accepted stars. Higher PSF Signal Weight 
 
 Each criterion is normalized across the two sources before the contributions are added. With S for PSF Signal Weight, N for PSF SNR and F for combined FWHM:
 
-Weight 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).
+Base 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).
+
+Base 2 = 1 - Base 1.
+
+With p for Sharpness preference:
+
+Weight 1 = (Base 1 / F_1^p) / (Base 1 / F_1^p + Base 2 / F_2^p).
 
 Weight 2 = 1 - Weight 1.
+
+Zero applies the base quality balance alone. Increasing p increases the contribution of the master with smaller combined FWHM. At p = 1, a master with half the FWHM receives twice the relative weight it had in the base balance; at p = 2, it receives four times the relative weight. The pair is then normalized to sum to 100 percent. Equal widths leave the base balance unchanged.
 
 Output = Weight 1 * Master 1 + Weight 2 * Master 2, with both masters on the reference brightness scale.
 
@@ -71,6 +79,8 @@ Comparisons use a common display scale and stretch. Source values outside the di
 
 \section{Settings and buttons}{
 Master 1 / Master 2: choose the two open master images. Preview selects the reference by their measured combined FWHM; equal widths retain Master 1. Saved process instances restore your image choices in the same order.
+
+Sharpness preference: choose a value from 0 to 8, with a default of 1. This is a strength setting, not a percentage. Larger values favor narrower stellar profiles more strongly. Calculate Preview after changing it, then compare the contributions and output. Strong preference can reduce the benefit of a quieter or deeper master. Saved process instances retain this value.
 
 Allow k-sigma fallback: allow an alternative noise estimate if MRS fails. The Sigma tooltip identifies the estimator used.
 

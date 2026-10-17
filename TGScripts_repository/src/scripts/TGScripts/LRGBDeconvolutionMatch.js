@@ -684,7 +684,7 @@ class LDMDialog extends Dialog {
       if(o.l && ldmExists(View.viewById(o.l)))this.lList.currentView=View.viewById(o.l);
       if(o.rgb && ldmExists(View.viewById(o.rgb)))this.rgbList.currentView=View.viewById(o.rgb);
       this.reference=new ComboBox(this.imagesGroup);
-      this.reference.addItem('Auto: smaller measured stellar FWHM');this.reference.addItem('L is the sharper reference');this.reference.addItem('RGB is the sharper reference');
+      this.reference.addItem('Auto: smaller measured stellar FWHM');this.reference.addItem('Luminance is the sharper reference');this.reference.addItem('RGB is the sharper reference');
       this.reference.currentItem=['auto','l','rgb'].indexOf(o.reference);
       this.reference.toolTip='Auto compares baseline star FWHM on the common registered pixel grid. Select L or RGB explicitly when instrument information or image content makes that a better reference.';
       this.imagesGroup.sizer.add(ldmRow(this.imagesGroup,'Luminance:',this.lList));

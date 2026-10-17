@@ -2,10 +2,10 @@
 #include <pjsr/controls/ImageView.js>
 #ifndef LMB_LIBRARY
 #feature-id LinearMasterBlend : TG Scripts > Linear Master Blend
-#feature-info Normalize and integrate two aligned linear masters with PSF Signal Weight, PSF SNR and FWHM weights.
+#feature-info Integrate two aligned linear masters with measured quality weights and adjustable sharpness preference.
 #endif
 
-/* Linear Master Blend 1.19.0
+/* Linear Master Blend 1.20.0
  * Requires PixInsight 1.9.5+ (V8). No external libraries or image files.
  * Original implementation, 2026. Released under the MIT license (see LICENSE.txt).
  * PSF measurement places the lower-FWHM image in A as photometric reference.
@@ -19,7 +19,7 @@
  * Source windows are never process targets. Owned windows are closed on failure.
  */
 
-const LMB_VERSION = '1.19.0';
+const LMB_VERSION = '1.20.0';
 const LMB_SCRIPT_FILE = #__FILE__;
 const LMB_SIGMA_TOOLTIP = 'Estimated noise standard deviation for the selected channel, expressed on the reference image\'s brightness scale. The reference is the master with the lower combined FWHM. This common scale lets you compare noise in Master 1, Master 2 and the output independently of their brightness scaling. Lower values indicate less noise; they do not measure detail or resolution.';
 
@@ -339,6 +339,7 @@ function lmbSelectPSFReference(a, b, report) {
  * Registration, linearity and common spectral response require user judgment.
  */
 function lmbValidate(a, b, options) {
+   lmbSharpness(options.sharpness);
    if (!a || a.isNull || !b || b.isNull) throw new Error('Select two open main images.');
    if (!a.isMainView || !b.isMainView) throw new Error('Select main images, not previews.');
    if (a.id === b.id) throw new Error('Master 1 and Master 2 must be different images.');
@@ -535,16 +536,34 @@ function lmbNoise(im, c, allowFallback) {
    } finally { im.resetSelections(); }
 }
 
-/** Normalize each criterion across the source pair before combining it.
- * Each criterion has exactly 40%, 40% or 20% of the total integration weight.
- * Ratio scaling avoids overflow for very different positive measurements.
+/** Validate before native processing; omitted values preserve saved instances. */
+function lmbSharpness(value = 0) {
+   if(!Number.isFinite(value) || value<0 || value>8)
+      throw new Error('Sharpness preference must be a finite number from 0 to 8.');
+   return value;
+}
+
+/** Start with the normalized 40/40/20 quality blend. Apply an extra FWHM
+ * preference: final weight_i is proportional to base_i / FWHM_i^p.
+ * Increasing p increases the narrower profile's relative contribution even
+ * when its signal metrics already dominate. p=0 preserves the base formula
+ * exactly; equal widths leave it unchanged. Logarithms and a common shift
+ * avoid overflow/underflow of both unnormalized weights at extreme scales.
  */
-function lmbIntegrationWeights(a,b) {
+function lmbIntegrationWeights(a,b,sharpness = 0) {
+   sharpness=lmbSharpness(sharpness);
    for(let q of [a,b])for(let key of ['weight','snr','f'])
       if(!(q[key]>0)||!Number.isFinite(q[key]))throw new Error('Reliable PSF Signal Weight, PSF SNR and combined FWHM are required for both masters.');
    let share=(x,y)=>{let m=Math.max(x,y);return (x/m)/(x/m+y/m);};
    let terms=[share(a.weight,b.weight),share(a.snr,b.snr),share(b.f,a.f)];
    let wa=.4*terms[0]+.4*terms[1]+.2*terms[2];
+   if(sharpness>0 && a.f!==b.f) {
+      let logA=Math.log(a.f),logB=Math.log(b.f),minimum=Math.min(logA,logB);
+      let u=Math.log(wa)+sharpness*(minimum-logA);
+      let v=Math.log(1-wa)+sharpness*(minimum-logB);
+      let maximum=Math.max(u,v),x=Math.exp(u-maximum),y=Math.exp(v-maximum);
+      wa=x/(x+y);
+   }
    return {a:wa,b:1-wa,termsA:terms};
 }
 
@@ -577,7 +596,7 @@ class LMBAnalysis {
    constructor(a, b, options) {
       lmbValidate(a, b, options);
       this.owned = []; this.sourceA = a.id; this.sourceB = b.id;
-      this.options = Object.assign({}, options);
+      this.options = Object.assign({}, options, {sharpness:lmbSharpness(options.sharpness)});
       this.width = a.image.width; this.height = a.image.height;
       this.channels = a.image.numberOfNominalChannels;
       this.noiseA = []; this.noiseB = []; this.noiseOutput = null; this.psfOutput = null; this.qualityOutput=null; this.fits = [];
@@ -613,7 +632,7 @@ class LMBAnalysis {
          this.qualityA=lmbMeasureQuality(this.a.mainView.image,this.psfA,this.noiseA,options.fallback);
          this.qualityB=lmbMeasureQuality(this.b.mainView.image,this.psfB,normalizedNoiseB,options.fallback);
          this.weights=lmbIntegrationWeights(Object.assign({f:this.psfA.f},this.qualityA),
-            Object.assign({f:this.psfB.f},this.qualityB));
+            Object.assign({f:this.psfB.f},this.qualityB),this.options.sharpness);
          this.prepareOutputRange();
       } catch (e) { e.psfReport=this.psf; this.dispose(); throw e; }
    }
@@ -753,7 +772,7 @@ class LMBAnalysis {
 
 /** Start with no source names; the workflow tag identifies saved instances. */
 function lmbDefaults() { return {a:'',b:'',fallback:false,output:'Linear_Blend',
-   autoStretch:true,workflow:'quality-weighted-v1'}; }
+   autoStretch:true,sharpness:1,workflow:'quality-weighted-v1'}; }
 
 /** Do not silently reinterpret saved instances from another integration mode. */
 function lmbLoadOptions() {
@@ -763,6 +782,9 @@ function lmbLoadOptions() {
       throw new Error('This saved instance does not specify quality-weighted integration. Open Linear Master Blend and save a new instance.');
    for(let key of ['a','b','output'])if(Parameters.has(key))o[key]=Parameters.getString(key);
    for(let key of ['fallback','autoStretch'])if(Parameters.has(key))o[key]=Parameters.getBoolean(key);
+   // A saved quality-weighted instance without this parameter keeps its math.
+   if(Parameters.has('sharpness'))o.sharpness=lmbSharpness(Parameters.getReal('sharpness'));
+   else if(Parameters.has('workflow'))o.sharpness=0;
    return o;
 }
 
@@ -979,7 +1001,7 @@ class LMBDialog extends Dialog {
       this.blinkTimer = new Timer(0.75, false, this);
       this.blinkTimer.onTimeout = () => this.blinkTick();
       this.intro = new Label(this); this.intro.wordWrapping = true;
-      this.intro.text='Integrate two aligned linear masters using 40% PSF Signal Weight, 40% PSF SNR and 20% inverse combined FWHM. '
+      this.intro.text='Integrate two aligned linear masters using measured quality and adjustable sharpness preference. '
          +'Preview selects the sharper master as the brightness reference. Crop registration borders first.';
       this.aList = new ViewList(this); this.aList.getMainViews();
       this.bList = new ViewList(this); this.bList.getMainViews();
@@ -988,6 +1010,12 @@ class LMBDialog extends Dialog {
       this.bList.currentView = new View();
       if (options.a && lmbHasView(View.viewById(options.a))) this.aList.currentView = View.viewById(options.a);
       if (options.b && lmbHasView(View.viewById(options.b))) this.bList.currentView = View.viewById(options.b);
+      this.sharpness=new NumericControl(this);
+      this.sharpness.label.hide(); this.sharpness.sizer.margin=0;
+      this.sharpness.setReal(true); this.sharpness.setRange(0,8); this.sharpness.setPrecision(2);
+      this.sharpness.slider.setRange(0,800); this.sharpness.slider.setScaledMinWidth(200);
+      this.sharpness.setValue(lmbSharpness(options.sharpness));
+      this.sharpness.toolTip='Extra preference for the master with smaller combined FWHM. Default: 1. Zero uses the 40% PSF Signal Weight / 40% PSF SNR / 20% inverse-FWHM balance alone. Higher values increase the sharper master\'s contribution. This value is not a percentage. Calculate Preview after changing it.';
       this.fallback = new CheckBox(this); this.fallback.text = 'Allow k-sigma fallback if MRS fails'; this.fallback.checked = options.fallback;
       this.output = new Edit(this); this.output.text = options.output;
       this.channel = new ComboBox(this); for (let name of ['R', 'G', 'B']) this.channel.addItem(name);
@@ -1035,9 +1063,9 @@ class LMBDialog extends Dialog {
       let headers=this.measurementCells[0];
       headers[1].toolTip=LMB_SIGMA_TOOLTIP;
       headers[2].toolTip=headers[3].toolTip='Median stellar FWHM in aligned-image pixels: X = fitted major axis, Y = fitted minor axis. Master rows show the original PSF widths used to select the reference; RGB uses combined linear intensity.';
-      headers[4].toolTip='Stellar signal quality from the accepted PSF stars, measured on brightness-matched masters. Higher is better. This criterion supplies 40% of the integration weight.';
-      headers[5].toolTip='PixInsight PSF signal-to-noise estimator on the same matched stars. Higher is better. This criterion supplies 40% of the integration weight.';
-      headers[6].toolTip='40% normalized PSF Signal Weight + 40% normalized PSF SNR + 20% normalized inverse combined FWHM. Each criterion is normalized across the two brightness-matched masters. Contributions sum to 100% and apply to every pixel and RGB channel.';
+      headers[4].toolTip='Stellar signal quality from the accepted PSF stars, measured on brightness-matched masters. Higher is better. This criterion supplies 40% of the base quality weight, before sharpness preference.';
+      headers[5].toolTip='PixInsight PSF signal-to-noise estimator on the same matched stars. Higher is better. This criterion supplies 40% of the base quality weight, before sharpness preference.';
+      headers[6].toolTip='Base quality = 40% normalized PSF Signal Weight + 40% normalized PSF SNR + 20% normalized inverse combined FWHM. Sharpness preference multiplies each base weight by inverse FWHM raised to the chosen power, then normalizes the pair. Contributions sum to 100% and apply to every pixel and RGB channel.';
       headers[7].toolTip='Number of accepted PSF star measurements.';
       this.formula=new Label(this.fitPage);this.formula.wordWrapping=true;
       this.formula.toolTip='Both masters are on the reference brightness scale before combination. One common affine range map is applied afterward only if needed to keep the output within [0,1]. Source pixels are unchanged.';
@@ -1049,7 +1077,7 @@ class LMBDialog extends Dialog {
       this.status.text = 'Magnifier: calculate preview. Green checkmark: create a new image.';
       let row = (label, control) => {
          let s = new HorizontalSizer; s.spacing = 8;
-         let l = new Label(this); l.text = label; l.setScaledMinWidth(105); s.add(l); s.add(control, 100); return s;
+         let l = new Label(this); l.text = label; l.setScaledMinWidth(140); s.add(l); s.add(control, 100); return s;
       };
       let channelRow = new HorizontalSizer; channelRow.addStretch(); channelRow.add(this.channel);
       this.newInstanceButton = lmbTool(this, ':/process-interface/new-instance.png', 'New instance: drag to the workspace to save image IDs and settings.');
@@ -1059,7 +1087,7 @@ class LMBDialog extends Dialog {
       this.previewButton = lmbTool(this, ':/toolbar/view-zoom.png', 'Preview: measure both PSFs, select the sharper master as reference, match brightness, and calculate the combined image and all measurements.', () => this.action(false));
       this.resetButton = lmbTool(this, ':/process-interface/reset.png', 'Reset settings and release the preview snapshots.', () => {
          this.invalidate(true); this.fallback.checked = false; this.output.text = 'Linear_Blend';
-         this.autoStretch.checked=true;
+         this.autoStretch.checked=true; this.sharpness.setValue(lmbDefaults().sharpness);
       });
       this.helpButton = lmbTool(this, ':/process-interface/browse-documentation.png', 'Open the Linear Master Blend user manual.', lmbShowDocumentation);
       this.createButton = lmbTool(this, ':/process-interface/execute.png', 'Create a new 32-bit combined image, calculated at 64-bit precision, using the current preview.', () => this.action(true));
@@ -1071,10 +1099,12 @@ class LMBDialog extends Dialog {
       buttons.add(this.createButton); buttons.add(this.closeButton); buttons.add(this.helpButton);
       this.sizer = new VerticalSizer; this.sizer.margin = 10; this.sizer.spacing = 8;
       this.sizer.add(this.intro); this.sizer.add(row('Master 1:', this.aList)); this.sizer.add(row('Master 2:', this.bList));
+      this.sizer.add(row('Sharpness preference:',this.sharpness));
       this.sizer.add(channelRow); this.sizer.add(this.fallback); this.sizer.add(row('Output ID:', this.output));
       this.sizer.add(this.tabs, 100); this.sizer.add(this.status); this.sizer.add(buttons);
       this.aList.onViewSelected = this.bList.onViewSelected = () => this.invalidate(true);
       this.fallback.onCheck=()=>this.invalidate();
+      this.sharpness.onValueUpdated=()=>this.invalidate();
       this.channel.onItemSelected = index => { this.plot.channel = this.plot.analysis && this.plot.analysis.channels === 3 ? index : 0; this.plot.update(); this.updateMeasurements(); };
       this.autoStretch.onCheck = () => { if (this.analysis) this.action(false, true); };
       this.blinkSource.onItemSelected = () => {
@@ -1093,7 +1123,7 @@ class LMBDialog extends Dialog {
       return {a:lmbHasView(this.aList.currentView) ? this.aList.currentView.id : '',
          b:lmbHasView(this.bList.currentView) ? this.bList.currentView.id : '',
          fallback:this.fallback.checked, output:this.output.text.trim(),
-         autoStretch:this.autoStretch.checked,workflow:'quality-weighted-v1'};
+         autoStretch:this.autoStretch.checked,sharpness:this.sharpness.value,workflow:'quality-weighted-v1'};
    }
 
 
@@ -1288,7 +1318,7 @@ class LMBDialog extends Dialog {
    /** Keep timers and user edits out of native processing event loops. */
    setBusy(busy) {
       this.running = busy;
-      for (let c of [this.aList,this.bList,this.fallback,this.output,this.channel,
+      for (let c of [this.aList,this.bList,this.sharpness,this.fallback,this.output,this.channel,
          this.autoStretch,this.tabs,
          this.newInstanceButton,this.previewButton,this.resetButton,this.helpButton,this.createButton,this.closeButton])
          c.enabled = !busy;

@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | LinearMasterBlend</title>
    <meta name="keywords" content="linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink" />
    <meta name="author" content="" />
-   <meta name="description" content="Integrate two aligned linear master images using measured source quality. Version 1.19.0." />
+   <meta name="description" content="Integrate two aligned linear master images using measured source quality. Version 1.20.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Integrate two aligned linear master images using measured source quality. Version 1.19.0. <a href="#__contents__">[more]</a></p></div>
+<p>Integrate two aligned linear master images using measured source quality. Version 1.20.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink</p>
@@ -53,7 +53,7 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<p>Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The criteria are PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). The result is a new linear image. Both source images remain unchanged.</p>
+<p>Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The base quality balance uses PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). Adjustable Sharpness preference gives additional influence to the master with narrower stellar profiles. The result is a new linear image. Both source images remain unchanged.</p>
    </div>
 </div>
 
@@ -70,7 +70,7 @@
    <h3 class="pidoc_sectionTitle">3&emsp;Combine two masters</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Combine_two_masters', this );">[hide]</p>
    <div id="Combine_two_masters">
-<p>1. Select the two images as Master 1 and Master 2.</p>
+<p>1. Select the two images as Master 1 and Master 2. Set Sharpness preference: the default is 1; increase it for more influence from the sharper master.</p>
 <p>2. Click the magnifier to calculate Preview. It first measures both master PSFs and selects the master with the lower combined FWHM as the reference frame. It then matches the other master's brightness to the reference and calculates the integration. Master 1 and Master 2 keep their selection order.</p>
 <p>3. Inspect the Output preview and blink against either master. Open Measurements to see which master became the reference, both master FWHM X/Y values, the contributions and the output measurements in one table.</p>
 <p>4. Click the green checkmark to create the integrated image. Create uses the current preview's normalization and weights. Apply an STF to view the linear image, then save it as XISF.</p>
@@ -84,8 +84,12 @@
    <div id="Integration_weights">
 <p>Each source is measured using the same accepted stars. Higher PSF Signal Weight and PSF SNR favor a source. Smaller combined FWHM favors sharper stellar profiles. Combined FWHM is the median of sqrt(FWHM X * FWHM Y) over the matched stars.</p>
 <p>Each criterion is normalized across the two sources before the contributions are added. With S for PSF Signal Weight, N for PSF SNR and F for combined FWHM:</p>
-<p>Weight 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).</p>
+<p>Base 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).</p>
+<p>Base 2 = 1 - Base 1.</p>
+<p>With p for Sharpness preference:</p>
+<p>Weight 1 = (Base 1 / F_1^p) / (Base 1 / F_1^p + Base 2 / F_2^p).</p>
 <p>Weight 2 = 1 - Weight 1.</p>
+<p>Zero applies the base quality balance alone. Increasing p increases the contribution of the master with smaller combined FWHM. At p = 1, a master with half the FWHM receives twice the relative weight it had in the base balance; at p = 2, it receives four times the relative weight. The pair is then normalized to sum to 100 percent. Equal widths leave the base balance unchanged.</p>
 <p>Output = Weight 1 * Master 1 + Weight 2 * Master 2, with both masters on the reference brightness scale.</p>
 <p>The contributions sum to 100 percent. Equally measured sources receive 50 percent each. One pair of weights applies to the entire image and to all RGB channels. The measured contributions and the numeric combination formula appear below the scatter plot.</p>
 <p>PSF Signal Weight combines stellar signal, its concentration, noise and background residuals. PSF SNR compares stellar signal with measured noise. These two metrics share sensitivity to noise. The signal measurements use the accepted star sample, so their absolute values can differ from SubframeSelector measurements based on a different stellar population.</p>
@@ -123,6 +127,7 @@
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Settings_and_buttons', this );">[hide]</p>
    <div id="Settings_and_buttons">
 <p>Master 1 / Master 2: choose the two open master images. Preview selects the reference by their measured combined FWHM; equal widths retain Master 1. Saved process instances restore your image choices in the same order.</p>
+<p>Sharpness preference: choose a value from 0 to 8, with a default of 1. This is a strength setting, not a percentage. Larger values favor narrower stellar profiles more strongly. Calculate Preview after changing it, then compare the contributions and output. Strong preference can reduce the benefit of a quieter or deeper master. Saved process instances retain this value.</p>
 <p>Allow k-sigma fallback: allow an alternative noise estimate if MRS fails. The Sigma tooltip identifies the estimator used.</p>
 <p>Output ID: name the new image. A suffix is added if that identifier is already in use.</p>
 <p>Triangle: drag onto the workspace to save the selected images and settings as a process icon. Run it globally with those images open.</p>
@@ -159,7 +164,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-17 15:08:07 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-17 16:26:24 UTC</p>
 </div>
 <br/>
 <br/>
