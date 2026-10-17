@@ -46,24 +46,26 @@ The update manifest accepts a broader range of PixInsight versions than the four
 
 ## Script overview
 
-| Task | Script | What it does | Last&nbsp;update |
-| --- | --- | --- | --- |
-| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | Builds a configurable grid of image crops for comparing stars across the field. | 2022&#8209;10&#8209;31 |
-| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | Combines the four corners and, optionally, the center in one inspection image. | 2022&#8209;10&#8209;31 |
-| Reduce stars | [BBStarReduction](#bbstarreduction) | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2022&#8209;11&#8209;18 |
-| Select colors | [ColorMaskTG](#colormasktg) | Creates masks from hue, intensity, and saturation ranges. | 2022&#8209;11&#8209;14 |
-| Isolate emission | [CSTG](#cstg) | Subtracts the broadband continuum contribution from a narrowband image. | 2023&#8209;10&#8209;08 |
-| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | Increases the visibility of dark structures such as dust lanes. | 2022&#8209;11&#8209;18 |
-| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | Compares deconvolution results across synthetic point spread function settings. | 2022&#8209;11&#8209;18 |
-| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
-| Blend linear masters | [Linear Master Blend](#linear-master-blend) | Combines broad-scale signal from two masters while preserving fine detail from a chosen source. | 2026&#8209;10&#8209;11 |
-| Support deconvolution | [LocalSupportMask](#localsupportmask) | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
-| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;11 |
-| Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
-| Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
+| Task | Script | Version | What it does | Last&nbsp;update |
+| --- | --- | --- | --- | --- |
+| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2022&#8209;10&#8209;31 |
+| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.0 | Combines the four corners and, optionally, the center in one inspection image. | 2022&#8209;10&#8209;31 |
+| Reduce stars | [BBStarReduction](#bbstarreduction) | 1.1 | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2022&#8209;11&#8209;18 |
+| Select colors | [ColorMaskTG](#colormasktg) | 2.0 | Creates masks from hue, intensity, and saturation ranges. | 2022&#8209;11&#8209;14 |
+| Isolate emission | [CSTG](#cstg) | 2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2023&#8209;10&#8209;08 |
+| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | 2.2 | Increases the visibility of dark structures such as dust lanes. | 2022&#8209;11&#8209;18 |
+| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | 2.1 | Compares deconvolution results across synthetic point spread function settings. | 2022&#8209;11&#8209;18 |
+| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.0 | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
+| Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.19.0 | Normalizes and integrates two linear masters using measured PSF signal, SNR, and stellar sharpness. | 2026&#8209;10&#8209;17 |
+| Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.0 | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.4.1 | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;11 |
+| Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
+| Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
+| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.5 | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. Linear Master Blend uses the **2026-10-11** release date in the [update manifest](TGScripts_repository/updates.xri). LRGB Deconvolution Match uses its source-file modification date, **2026-10-11**, while its initial addition is uncommitted.
+Versions follow the declarations in the repository source. EmissionLineIntegrationTG declares TG version **2.0** in its header; its interface retains the upstream **2.1.0** label.
+
+Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded.
 
 ## Script gallery
 
@@ -191,16 +193,26 @@ Based on Hartmut V. Bornemann's EmissionLineIntegration, with changes to speed u
 
 ### Linear Master Blend
 
-**Last update:** 2026-10-11
+**Version:** 1.19.0 · **Last update:** 2026-10-17
 
-Combines **two registered linear masters**, including data from different telescopes, while preserving fine detail from a chosen source. It normalizes image B to reference A with PixInsight’s native LinearFit, then blends broad structures using an adjustable Gaussian scale and contribution from the other image. The fine-detail source can be A or B, independently of the normalization reference.
+Normalizes and integrates **two aligned linear master images** using measured source quality. Preview automatically chooses the master with the lower combined stellar **FWHM** as the brightness reference. It matches the other master's stellar flux and local background to that reference independently in each channel.
 
-Use aligned floating-point images with identical dimensions and matching grayscale or RGB channels; crop registration borders first. The interface offers a stretched preview, blink comparison, fit plots, and noise measurements. It creates a **new linear image** and leaves both inputs unchanged. Requires PixInsight 1.9.5+ with V8. [Source](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend.js) · [Guide](TGScripts_repository/doc/scripts/LinearMasterBlend/LinearMasterBlend.html)
+Integration uses **40% PSF Signal Weight, 40% PSF SNR, and 20% inverse combined FWHM** to determine the two source contributions. The resulting weights apply to every pixel and all RGB channels. This is a weighted average of the complete masters; including a source with broader stars can broaden the output stars, so inspect both detail and noise.
+
+The **Output preview** supports zoom, pan, display stretching, and blinking against either master. The **Measurements** tab shows the stellar-flux fit, selected reference, noise, FWHM X/Y, PSF quality metrics, source contributions, and output measurements. Create produces a **new 32-bit floating-point linear image** using the preview's normalization and weights; both originals remain unchanged.
+
+Use registered, cropped floating-point images with identical dimensions and matching grayscale or RGB channels, without alpha channels. Correct gradients first and provide at least **10 reliable matched stars per channel** for brightness matching. Requires PixInsight 1.9.5+ with V8. [Source](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend.js) · [Guide](TGScripts_repository/doc/scripts/LinearMasterBlend/LinearMasterBlend.html)
 
 <details>
 <summary>View Linear Master Blend interface</summary>
 
-![Linear Master Blend 1.6.1 dialog with reference and source selection, fine-detail source, blend scale, output preview, and fit and noise tabs](TGScripts_repository/images/LinearMasterBlend_main_screen.jpg)
+**Output preview**
+
+![Linear Master Blend 1.19.0 with Master 1 and Master 2 selectors, output preview, zoom, and blink controls](TGScripts_repository/images/LinearMasterBlend_main_screen.jpg)
+
+**Measurements**
+
+![Linear Master Blend 1.19.0 Measurements tab with stellar-flux fit and a table comparing the masters and output](TGScripts_repository/images/LinearMasterBlend_measurements.jpg)
 
 </details>
 
