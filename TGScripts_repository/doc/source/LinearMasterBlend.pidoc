@@ -1,102 +1,106 @@
 \documentclass{PIScriptDoc}
 \script{LinearMasterBlend}
-\keywords{linear images, image combination, fine detail, preview, blink, noise}
-\brief{Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.2.}
+\keywords{linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink}
+\brief{Integrate two aligned linear master images using measured source quality. Version 1.19.0.}
 
 \description{
-Linear Master Blend matches the brightness of two master images and combines their broader structures while keeping fine detail from the source you choose. It provides an image preview, blinking against either source, a scatter plot and noise measurements. The result opens as a new linear image. The source images remain unchanged.
+Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The criteria are PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). The result is a new linear image. Both source images remain unchanged.
 }
 
 \section{Start the script}{
-Linear Master Blend is part of TGScripts. With TGScripts installed through PixInsight's standard update system, choose Script > TG Scripts > Linear Master Blend.
+With TGScripts installed through PixInsight's standard update system, choose Script > TG Scripts > Linear Master Blend.
 
-Click the document icon in the script to open this guide.
+Open two already aligned and cropped linear masters. Use matching dimensions and either two grayscale images or two RGB images. Remove alpha channels and correct gradients before combining. Both image selectors start empty.
 }
 
-\section{Prepare your images}{
-Open two aligned linear master images with the same dimensions. Use either two grayscale images or two RGB images, in floating-point format without alpha channels. Crop empty registration borders. Each image must be at least 32 by 32 pixels.
+\section{Combine two masters}{
+1. Select the two images as Master 1 and Master 2.
 
-The images should show corresponding structures with compatible backgrounds and filter responses. An STF display stretch is fine; permanently stretched images are unsuitable.
+2. Click the magnifier to calculate Preview. It first measures both master PSFs and selects the master with the lower combined FWHM as the reference frame. It then matches the other master's brightness to the reference and calculates the integration. Master 1 and Master 2 keep their selection order.
 
-When the images come from different telescopes, choose the source with the finer real detail as the fine-detail source. Lower measured noise alone does not mean greater depth or better resolution.
+3. Inspect the Output preview and blink against either master. Open Measurements to see which master became the reference, both master FWHM X/Y values, the contributions and the output measurements in one table.
+
+4. Click the green checkmark to create the integrated image. Create uses the current preview's normalization and weights. Apply an STF to view the linear image, then save it as XISF.
+
+If you edit either source outside the script, calculate a fresh Preview before creating the result. The script does not save the output automatically.
 }
 
-\section{Create a combined image}{
-1. Select A reference and B to normalize. B will be matched to A's brightness scale.
+\section{Integration weights}{
+Each source is measured using the same accepted stars. Higher PSF Signal Weight and PSF SNR favor a source. Smaller combined FWHM favors sharper stellar profiles. Combined FWHM is the median of sqrt(FWHM X * FWHM Y) over the matched stars.
 
-2. Choose whether A or B supplies the fine detail. Start with Gaussian sigma at 4 pixels and Other image at broad scales at 25 percent.
+Each criterion is normalized across the two sources before the contributions are added. With S for PSF Signal Weight, N for PSF SNR and F for combined FWHM:
 
-3. Click the magnifier to calculate the preview. Inspect stars and faint structures, and blink against each source. Check the Fit and noise tab.
+Weight 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).
 
-4. Adjust the settings and preview again until the blend looks suitable. If you edit either source outside the script, click Preview again before creating the result.
+Weight 2 = 1 - Weight 1.
 
-5. Click the green checkmark to create the output. It uses the current preview calculation, or calculates a result first if no preview is available.
+Output = Weight 1 * Master 1 + Weight 2 * Master 2, with both masters on the reference brightness scale.
 
-6. Apply an STF to view the new linear image and save it as XISF. The script does not save it automatically.
+The contributions sum to 100 percent. Equally measured sources receive 50 percent each. One pair of weights applies to the entire image and to all RGB channels. The measured contributions and the numeric combination formula appear below the scatter plot.
+
+PSF Signal Weight combines stellar signal, its concentration, noise and background residuals. PSF SNR compares stellar signal with measured noise. These two metrics share sensitivity to noise. The signal measurements use the accepted star sample, so their absolute values can differ from SubframeSelector measurements based on a different stellar population.
+
+For RGB images, quality is measured on equal-weight linear intensity, (R+G+B)/3, after brightness matching. Sigma remains available separately for each channel. Exposure time and sky conditions are not scored directly.
+
+This is a weighted average of both masters at every pixel. A contribution from a broader-PSF source can broaden output stars. The quality weights balance signal and sharpness; inspect the result rather than assuming that every output measurement will improve.
 }
 
-\section{Settings}{
-A reference / B to normalize: choose the brightness reference and the image to match to it. Both start unselected when you launch the script; saved process instances restore your chosen images. This choice is independent of which source supplies fine detail.
+\section{Brightness matching and measurements}{
+The scatter plot shows the background-subtracted flux of each matched star: the other master horizontally and the reference master vertically. The axes identify Master 1 and Master 2. The yellow line shows the brightness scale to the reference and passes through zero. Blue points support the fit, gray points have reduced influence, and red points are rejected. At least ten reliable stars are required in every channel.
 
-Fine-detail source: choose the image whose small structures and sharpness you want to retain. Its fine noise is also retained.
+The other master is scaled to the reference independently in each channel. Its background is matched separately using the backgrounds around the accepted stars. This is a global brightness match; it does not remove spatial gradients.
 
-Gaussian sigma (px): controls the size of structures affected by the blend, from 1 to 32 pixels. Larger values confine the other image's contribution to broader structures.
+The reference frame is identified above a single table with rows for Master 1, Master 2 and Output. The table reports Sigma, FWHM X, FWHM Y, PSF Signal Weight, PSF SNR, Contribution and Stars. Sigma is the noise standard deviation on the reference image's brightness scale. Hover over a value for measurement details. For RGB images, the channel selector changes Sigma and the scatter plot.
 
-Other image at broad scales: controls how much the other image contributes to broad structures, from 0 to 100 percent. Zero uses the detail source alone. Increase the value when the other image adds useful signal; check stars and halos as you adjust it.
+FWHM X and Y are the fitted major and minor axes in aligned-image pixels, which can be rotated relative to the image edges. They do not describe the original camera pixel size or angular resolution. The master rows show the original PSF widths used to select the reference. Channel-wise brightness matching can slightly change an RGB master's combined-intensity PSF; the FWHM tooltip also gives those brightness-matched widths when applicable. Quality weights use the brightness-matched images.
 
-Reject low / high: exclude very dark or bright pixels when matching brightness. Defaults are 0 and 0.92. These settings affect the brightness match, not which parts of the image are combined.
+Output measurements are reported after integration and do not change the weights. RGB PSF and quality values describe combined linear intensity and stay fixed when you change the channel selector.
 
-Allow k-sigma fallback: allow an alternative noise estimate if the standard estimate fails. It does not change the blend strength.
+Both sources need reliable quality measurements to calculate weights. If an output diagnostic is unavailable, the created image remains usable; hover over the affected value for the reason.
 
-Output ID: name the new image. If that name is already in use, a suffix is added.
+The output is a 32-bit floating-point image. If the integrated values fall below 0 or above 1, one common brightness transformation brings all channels into that range. The formula label indicates when this is needed. The result remains linear, and reported Sigma is converted back to the reference image's brightness scale.
 }
 
 \section{Preview and blink}{
-Use the Output preview tab to inspect the result. The viewer has zoom-in, zoom-out, 1:1 and fit-to-window buttons. Use the mouse wheel to zoom and drag to pan.
+Use the zoom buttons or mouse wheel to inspect the Output preview. Drag to pan. Auto stretch preview affects only the display; the output remains linear.
 
-Auto stretch preview makes faint signal visible. It affects the preview only; the created image remains linear. Disable it to inspect the linear brightness.
+Choose Master 1 or Master 2 in Blink with. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. Zoom and position stay fixed. Changing the comparison source or opening the measurements tab stops blinking.
 
-In Blink with, choose A reference or B normalized. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. The label above the viewer identifies the displayed image. Zoom and position stay fixed between frames.
-
-Blink comparisons use a common brightness scale and display stretch. Very bright or dark source details can be clipped in this comparison display; the source data remains unchanged.
-
-Changing the comparison source, switching to Fit and noise, changing the stretch or recalculating stops blinking. Changes to processing settings clear the preview; click the magnifier to update it.
+Comparisons use a common display scale and stretch. Source values outside the display range can be clipped in the preview only. The coordinate bar shows the linear pixel value under the pointer, or separate R, G and B values. Output values use the created image's scale; source values use the reference image's brightness scale. Display stretching does not change this readout.
 }
 
-\section{Fit and noise}{
-The scatter plot compares B on the horizontal axis with A on the vertical axis. Blue points fall within the brightness-matching limits; gray points fall outside them. The yellow line shows the brightness match. A broad or uneven cloud can reveal noise, background differences or differences in the structures recorded by the two images.
+\section{Settings and buttons}{
+Master 1 / Master 2: choose the two open master images. Preview selects the reference by their measured combined FWHM; equal widths retain Master 1. Saved process instances restore your image choices in the same order.
 
-The noise table shows A, B and the output. Image units shows each image's measured noise. A units puts all three on a common brightness scale for comparison. For RGB images, use the channel selector to inspect red, green or blue.
+Allow k-sigma fallback: allow an alternative noise estimate if MRS fails. The Sigma tooltip identifies the estimator used.
 
-MRS or k-sigma identifies the noise-estimation method. If a value is Unavailable, hover over it for the reason. Lower noise alone does not prove better depth or detail. The measurements help you judge the result; they do not set the blend strength.
-}
+Output ID: name the new image. A suffix is added if that identifier is already in use.
 
-\section{Toolbar buttons}{
-Triangle: drag onto the workspace to save the selected images and settings as a process icon. Keep those images open when running the icon globally.
+Triangle: drag onto the workspace to save the selected images and settings as a process icon. Run it globally with those images open.
 
-Magnifier: calculate or refresh the preview, fit and noise measurements.
+Magnifier: measure both PSFs, select the reference, and calculate a fresh preview and all measurements.
 
-Reset: restore the default settings and clear the preview. The selected images stay selected.
+Reset: restore defaults and clear the preview, keeping the selected sources.
 
-Green checkmark: create a new combined image.
+Green checkmark: create a new integrated image.
 
-Red cross: close the script. Created output images remain open.
+Red cross: close the script and release temporary copies. Created images stay open.
 
 Document: open this guide.
 }
 
 \section{Tips and troubleshooting}{
-Brightness matching fails: check alignment, crop empty borders, and review the rejection limits. Both images need useful, varying signal in common.
+Insufficient stars or a failed brightness fit: check alignment, crop registration borders and use images with enough isolated, unsaturated stars. Different filters or strong processing can make stellar fluxes incompatible.
 
-Noise estimation fails: inspect borders, gradients and heavily processed data. Try Allow k-sigma fallback if needed. A failed output noise measurement does not discard the output image.
+Noise or quality measurement fails: inspect borders, gradients and processed data. Try Allow k-sigma fallback when appropriate. The script requires reliable source measurements rather than guessing weights.
 
-Unwanted halos or softer structures: choose the sharper source for fine detail, reduce the other image's contribution, or increase Gaussian sigma. Compare both sources and the output at the same zoom.
+Inspect stars, halos and faint structures by blinking the output with both sources. FWHM describes stellar sharpness, not depth or every type of detail. A high quality score does not guarantee that different telescope or filter data should be mixed.
 
-Large images can take time and require substantial memory. Wait for preview calculation to finish before comparing the result.
+Large images require time and memory. Use the console Abort control to cancel processing. Source images remain unchanged.
 
-The script does not align images or remove gradients. Prepare these first. The output does not carry source astrometry, exposure metadata or custom color settings; restore these separately if needed.
+The script does not align images or remove gradients. The output does not inherit source astrometry, exposure metadata or custom color settings; restore these separately if needed.
 
-Help is missing or looks unformatted: check that the script and its documentation are up to date through PixInsight's standard update system.
+If help is missing or unformatted, update the script and documentation through PixInsight's standard update system.
 }
 
 \section{License}{

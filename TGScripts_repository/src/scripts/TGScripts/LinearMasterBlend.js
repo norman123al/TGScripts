@@ -2,22 +2,26 @@
 #include <pjsr/controls/ImageView.js>
 #ifndef LMB_LIBRARY
 #feature-id LinearMasterBlend : TG Scripts > Linear Master Blend
-#feature-info Normalize aligned linear masters and combine broad structure while retaining the selected master's fine detail.
+#feature-info Normalize and integrate two aligned linear masters with PSF Signal Weight, PSF SNR and FWHM weights.
 #endif
 
-/* Linear Master Blend 1.6.2
+/* Linear Master Blend 1.19.0
  * Requires PixInsight 1.9.5+ (V8). No external libraries or image files.
  * Original implementation, 2026. Released under the MIT license (see LICENSE.txt).
- * A is the photometric reference. B is normalized to A independently per channel.
- * Native LinearFit determines the transformation; its clipped output is used only
- * to recover and validate that transformation. PixelMath applies it unclipped to
- * a fresh copy of B. Source noise is measured before normalization; actual output
- * noise is measured after creation and shown also in reference intensity units.
+ * PSF measurement places the lower-FWHM image in A as photometric reference.
+ * B is normalized to A independently per channel.
+ * Robust through-origin regression of matched stellar fluxes determines scale.
+ * Matched local PSF backgrounds determine the additive offset separately.
+ * PixelMath applies this affine map unclipped to a fresh copy of B.
+ * Source noise is measured before normalization; actual output
+ * noise is measured after creation. All reported noise uses reference units.
+ * Master 1/2 retain selection order; internal A/B mean reference/normalized.
  * Source windows are never process targets. Owned windows are closed on failure.
  */
 
-const LMB_VERSION = '1.6.2';
+const LMB_VERSION = '1.19.0';
 const LMB_SCRIPT_FILE = #__FILE__;
+const LMB_SIGMA_TOOLTIP = 'Estimated noise standard deviation for the selected channel, expressed on the reference image\'s brightness scale. The reference is the master with the lower combined FWHM. This common scale lets you compare noise in Master 1, Master 2 and the output independently of their brightness scaling. Lower values indicate less noise; they do not measure detail or resolution.';
 
 /** Let the UI process events between native operations and honor console Abort.
  * Native processes manage cancellation while their own executeOn call runs.
@@ -45,13 +49,299 @@ function lmbClose(w) {
 function lmbNumber(x) { return x.toPrecision(17); }
 function lmbChannel(c, n) { return n === 1 ? 'Gray' : ['R', 'G', 'B'][c]; }
 
+/** Robust summaries are computed from the same accepted stars in both images.
+ * A PSF is a resolution proxy, not a measurement of depth or nonstellar detail.
+ */
+function lmbMedian(values) {
+   if (!values.length) return NaN;
+   let v = values.slice().sort((a,b) => a-b), n = v.length;
+   return n & 1 ? v[(n-1)/2] : (v[n/2-1]+v[n/2])/2;
+}
+function lmbMAD(values, median = lmbMedian(values)) {
+   return 1.4826*lmbMedian(values.map(x => Math.abs(x-median)));
+}
+
+/** Full-resolution, disjoint sampling patches bound memory and detection cost.
+ * No resampling is performed, so widths retain the aligned-image pixel scale.
+ * Small images are measured completely; large images use a 3 x 3 field sample.
+ */
+function lmbPSFTiles(width, height) {
+   let nx = Math.min(3, Math.max(1, Math.floor(width/384)));
+   let ny = Math.min(3, Math.max(1, Math.floor(height/384))), tiles = [];
+   for (let iy=0; iy<ny; ++iy) for (let ix=0; ix<nx; ++ix) {
+      let w = Math.min(768, Math.floor(width/nx)), h = Math.min(768, Math.floor(height/ny));
+      let x = Math.round((ix+0.5)*width/nx-w/2), y = Math.round((iy+0.5)*height/ny-h/2);
+      tiles.push(new Rect(x,y,x+w,y+h));
+   }
+   return tiles;
+}
+
+/** Read a detached grayscale patch; for RGB use equal-weight linear intensity.
+ * Source selections, sample data, working-space settings and STF are untouched.
+ */
+function lmbPSFPatch(image, rect, channel = null) {
+   let patch = new Image, temp = new Image;
+   try {
+      patch.assign(image, rect, channel === null ? 0 : channel, channel === null ? 0 : channel);
+      if (channel === null && image.numberOfNominalChannels === 3) {
+         for (let c=1; c<3; ++c) {
+            temp.assign(image, rect, c, c); patch.apply(temp, ImageOp.Add);
+         }
+         patch.apply(1/3, ImageOp.Mul);
+      }
+      patch.resetSelections(); patch.rangeClippingEnabled = false;
+      // Native star detection must never receive non-finite samples. A constant
+      // patch is harmless (no stars), unlike a non-finite one.
+      let row=new Float64Array(patch.width);
+      for(let y=0;y<patch.height;++y) {
+         if((y&63)===0)lmbCheckAbort();
+         patch.getSamples(row,new Rect(0,y,patch.width,y+1),0);
+         for(let value of row)if(!Number.isFinite(value))throw new Error('PSF region contains NaN or infinite samples.');
+      }
+      return patch;
+   } catch (e) { patch.free(); throw e; }
+   finally { temp.free(); }
+}
+
+/** Fit an elliptical stellar profile with the native V8 PSF API. This is the
+ * same PSF fitting engine used by DynamicPSF/PSFImage, without process tables.
+ * Native fwhmX/Y convert sigma with the selected model (including Moffat beta).
+ * X is the fitted major axis and Y the minor axis, not fixed detector axes.
+ */
+function lmbFitPSF(image, star, rect, model) {
+   let p = new PSF;
+   p.fitSource(image, new Point(star.pos.x,star.pos.y), rect, model, false);
+   if (!p.isValid || !(p.A>0) || !Number.isFinite(p.mad) || p.mad/p.A>0.10) return null;
+   if ((p.x-star.pos.x)**2+(p.y-star.pos.y)**2>2.25) return null;
+   let x = p.fwhmX, y = p.fwhmY;
+   if (!Number.isFinite(x) || !Number.isFinite(y) || y<1 || x<y ||
+       x>0.75*Math.min(rect.width,rect.height) || y/x<0.5) return null;
+   if (model === PSFunction.Moffat && (!(p.beta>1.05) || p.beta>9.95)) return null;
+   return {x:x, y:y, f:Math.sqrt(x*y), cx:p.x, cy:p.y, residual:p.mad/p.A,
+      flux:p.flux, background:p.B, signal:p.signal,
+      // fitSource uses growth=1: area of the elliptical tenth-maximum aperture.
+      signalArea:0.25*Math.PI*p.fwtmX*p.fwtmY};
+}
+
+/** Detect in both patches and use isolated, coincident, unsaturated sources.
+ * Fit the same model family to each member of a pair. Prefer fitted Moffat;
+ * use Gaussian for both if Moffat is invalid or has a worse joint residual.
+ */
+function lmbPSFPairs(a, b, cell) {
+   let detector = new StarDetector;
+   detector.sensitivity = 0.5; detector.upperLimit = 0.95;
+   detector.allowClusteredSources = false;
+   let sa = detector.stars(a), sb = detector.stars(b), pairs = [], candidates=[];
+   let distance = (s,t) => (s.pos.x-t.pos.x)**2+(s.pos.y-t.pos.y)**2;
+   for (let s of sa) {
+      lmbCheckAbort();
+      let matches = sb.filter(t => distance(s,t)<=4);
+      if (matches.length!==1) continue;
+      let t = matches[0];
+      if (sa.filter(u => distance(u,t)<=4).length!==1) continue;
+      candidates.push({s:s,t:t,brightness:s.flux*t.flux,x:(s.pos.x+t.pos.x)/2,y:(s.pos.y+t.pos.y)/2});
+   }
+   // Rank matched pairs symmetrically before imposing the per-tile star limit.
+   // Otherwise swapping the reference can change the selected stars and fit.
+   candidates.sort((p,q)=>q.brightness-p.brightness || p.y-q.y || p.x-q.x);
+   for(let candidate of candidates) {
+      if(pairs.length>=32)break;
+      lmbCheckAbort();
+      let s=candidate.s,t=candidate.t;
+      let radius = Math.max(8, Math.min(40, Math.ceil(1.5*Math.sqrt(Math.max(s.size,t.size)))));
+      let cx=(s.pos.x+t.pos.x)/2, cy=(s.pos.y+t.pos.y)/2;
+      let rect = new Rect(Math.floor(cx-radius),Math.floor(cy-radius),Math.ceil(cx+radius+1),Math.ceil(cy+radius+1));
+      if (rect.x0<0 || rect.y0<0 || rect.x1>a.width || rect.y1>a.height) continue;
+      if (sa.some(u => u!==s && distance(s,u)<4*radius*radius) ||
+          sb.some(u => u!==t && distance(t,u)<4*radius*radius)) continue;
+      if (a.maximum(rect,0,0)>=0.95 || b.maximum(rect,0,0)>=0.95) continue;
+      let best = null;
+      for (let model of [PSFunction.Moffat, PSFunction.Gaussian]) {
+         let pa=lmbFitPSF(a,s,rect,model), pb=lmbFitPSF(b,t,rect,model);
+         if (!pa || !pb || (pa.cx-pb.cx)**2+(pa.cy-pb.cy)**2>2.25) continue;
+         let residual=pa.residual+pb.residual;
+         if (!best || residual<best.residual) best={a:pa,b:pb,cell:cell,residual:residual,model:model};
+      }
+      if (best) {
+         // Retain the accepted location/model for an unbiased output comparison.
+         // Coordinates are local to this sampling tile, not resampled pixels.
+         best.sample={cell:cell,x:cx,y:cy,rect:[rect.x0,rect.y0,rect.x1,rect.y1],model:best.model,
+            radius:1.5*Math.max(best.a.x,best.b.x)};
+         pairs.push(best);
+      }
+   }
+   return pairs;
+}
+
+/** Summarize exactly the same accepted stars in both sources. Retain native
+ * signal/aperture measurements so quality weighting can reuse these fits.
+ */
+function lmbSummarizePSF(pairs, tileCount) {
+   let report={count:0,detectedPairs:pairs.length,a:null,b:null,reason:'',samples:[]};
+   if(!pairs.length){report.reason='No usable matched stars.';return report;}
+   let dimensions=[p=>Math.log(p.a.f),p=>Math.log(p.b.f),p=>Math.log(p.b.f/p.a.f)];
+   let bounds=dimensions.map(fn=>{let v=pairs.map(fn),m=lmbMedian(v);return {m:m,d:Math.max(.03,3.5*lmbMAD(v,m))};});
+   pairs=pairs.filter(p=>dimensions.every((fn,i)=>Math.abs(fn(p)-bounds[i].m)<=bounds[i].d));
+   report.count=pairs.length;report.samples=pairs.map(p=>p.sample);
+   if(!pairs.length){report.reason='No consistent matched PSFs.';return report;}
+   let summary=key=>({count:pairs.length,x:lmbMedian(pairs.map(p=>p[key].x)),
+      y:lmbMedian(pairs.map(p=>p[key].y)),f:lmbMedian(pairs.map(p=>p[key].f)),
+      signals:pairs.map(p=>p[key].signal),signalAreas:pairs.map(p=>p[key].signalArea)});
+   report.a=summary('a');report.b=summary('b');
+   report.reason=pairs.length<10?'At least ten reliable matched stars are required.':
+      'The same stars are used to compare source quality.';
+   return report;
+}
+
+/** Read-only measurement on small detached buffers. Missing stars are a
+ * diagnostic result, whereas API errors/abort propagate and remain visible.
+ */
+function lmbMeasurePSF(a, b) {
+   let tiles=lmbPSFTiles(a.width,a.height), pairs=[];
+   for(let i=0;i<tiles.length;++i) {
+      lmbCheckAbort();
+      console.writeln('Measuring PSF region '+(i+1)+'/'+tiles.length+'...');
+      let pa=null,pb=null;
+      try {
+         pa=lmbPSFPatch(a,tiles[i]); pb=lmbPSFPatch(b,tiles[i]);
+         pairs.push(...lmbPSFPairs(pa,pb,i));
+      } finally { if(pa)pa.free(); if(pb)pb.free(); }
+   }
+   return lmbSummarizePSF(pairs,tiles.length);
+}
+
+/** Measure the actual linear output at the accepted source-star locations.
+ * Reusing each pair's model and fitting box prevents detection thresholds or
+ * model changes from masquerading as a change in resolution. RGB uses the same
+ * linear intensity as the source measurement; STF never enters this calculation.
+ * Failed fits are omitted and reported through the accepted/attempted counts.
+ */
+function lmbMeasureOutputPSF(image, sourceReport, fixedSamples = null) {
+   let samples=fixedSamples || sourceReport && sourceReport.samples || [], fits=[];
+   let report={count:0,total:samples.length,x:null,y:null,f:null,error:null,samples:[]};
+   if(!samples.length) { report.error='No accepted source stars for output PSF measurement.'; return report; }
+   let tiles=lmbPSFTiles(image.width,image.height);
+   for(let cell=0;cell<tiles.length;++cell) {
+      let selected=samples.filter(s=>s.cell===cell);
+      if(!selected.length)continue;
+      lmbCheckAbort(); console.writeln('Measuring output PSF region '+(cell+1)+'/'+tiles.length+'...');
+      let patch=null;
+      try {
+         patch=lmbPSFPatch(image,tiles[cell]);
+         for(let s of selected) {
+            lmbCheckAbort();
+            let fit=lmbFitPSF(patch,{pos:{x:s.x,y:s.y}},new Rect(...s.rect),s.model);
+            if(fit){fit.sample=s;fits.push(fit);}
+         }
+      } finally { if(patch)patch.free(); }
+   }
+   // Keep the median robust to occasional poor fits when no fixed star list
+   // is required. Source widths are never substituted for measured widths.
+   if(fits.length && !fixedSamples) {
+      let logs=fits.map(p=>Math.log(p.f)), median=lmbMedian(logs), limit=Math.max(0.03,3.5*lmbMAD(logs,median));
+      fits=fits.filter(p=>Math.abs(Math.log(p.f)-median)<=limit);
+   }
+   report.count=fits.length;
+   // Reuse these native fits for signal metrics; never detect/refit a second
+   // stellar population just to evaluate image quality.
+   report.signals=fits.map(p=>p.signal);
+   report.signalAreas=fits.map(p=>p.signalArea);
+   report.samples=fits.map(p=>p.sample);
+   // Use the same accepted stars for source quality and output diagnostics.
+   // A different stellar population would bias the source-weight comparison.
+   if(fixedSamples && fits.length!==samples.length) {
+      report.error='Not all matched stars have reliable PSF measurements.';return report;
+   }
+   if(fits.length<3) { report.error='Fewer than three reliable output star fits.'; return report; }
+   for(let key of ['x','y','f'])report[key]=lmbMedian(fits.map(p=>p[key]));
+   return report;
+}
+
+/** PSF signal formulae from PCL PSFSignalEstimator (PSFSW and PSFSNR).
+ * Use the same accepted star sample rather than SubframeSelector's
+ * independently detected full-field population. Absolute values therefore
+ * belong to this analysis; the normalized source measurements are comparable.
+ * The native RCR Winsorization of mean fluxes limits tiny-aperture outliers.
+ */
+function lmbPSFSignalTerms(psf, sigma, mStar) {
+   let flux=psf.signals,areas=psf.signalAreas;
+   if(!flux || !areas || flux.length!==psf.count || areas.length!==flux.length ||
+      flux.some((s,i)=>!(s>0) || !Number.isFinite(s) || !(areas[i]>0) || !Number.isFinite(areas[i])) ||
+      !(sigma>0) || !Number.isFinite(sigma) || !(mStar>0) || !Number.isFinite(mStar))
+      throw new Error('Reliable stellar fluxes, noise and background residuals are required.');
+   let means=new Float64Array(flux.map((s,i)=>s/areas[i]));
+   let rejection=Stat.robustChauvenetRejection(means,0.5,1);
+   let first=rejection.i,last=rejection.j-1;
+   if(!(first>=0 && last>=first && last<means.length))throw new Error('Mean stellar flux estimation failed.');
+   for(let i=0;i<first;++i)means[i]=means[first];
+   for(let i=last+1;i<means.length;++i)means[i]=means[last];
+   let totalFlux=Stat.stableSum(flux),totalMeanFlux=Stat.stableSum(means);
+   let weight=(5.326e-6/9.0e6)*(totalFlux/sigma)*(totalMeanFlux/mStar);
+   let snr=(1.316e-7/4.987e6)*(totalFlux/sigma)**2;
+   if(!(weight>0) || !Number.isFinite(weight) || !(snr>0) || !Number.isFinite(snr))
+      throw new Error('PSF signal metrics are invalid.');
+   return {weight:weight,snr:snr,totalFlux:totalFlux,totalMeanFlux:totalMeanFlux,mStar:mStar,sigma:sigma};
+}
+
+/** Measure the image's background residual, reusing gray noise and
+ * PSF fits already measured for the UI. RGB uses (R+G+B)/3, just like the PSF
+ * fits, with its own measured noise (channel correlations need not be zero).
+ * Native channel arithmetic avoids a full-image JavaScript pixel traversal.
+ * Only the compact measurements survive; the intensity image is freed here.
+ */
+function lmbMeasureQuality(image, psf, noise, allowFallback) {
+   if(!psf || psf.error || psf.count<10)throw new Error('At least ten reliable matched stars are required.');
+   let intensity=null,channel=null;
+   try {
+      let im=image,n=noise && noise[0];
+      if(image.numberOfNominalChannels===3) {
+         intensity=new Image;channel=new Image;
+         let rect=new Rect(0,0,image.width,image.height);
+         intensity.assign(image,rect,0,0);
+         for(let c=1;c<3;++c){channel.assign(image,rect,c,c);intensity.apply(channel,ImageOp.Add);}
+         intensity.apply(1/3,ImageOp.Mul);channel.free();channel=null;
+         im=intensity;n=lmbNoise(im,0,allowFallback);
+      }
+      if(!n || n.error || !(n.sigma>0))throw new Error('A reliable intensity noise estimate is required.');
+      im.resetSelections();im.rangeClippingEnabled=false;lmbCheckAbort();
+      let residual=im.mmtBackgroundResidual(256);
+      lmbCheckAbort();
+      if(residual.length<32)throw new Error('Too few pixels for the background residual estimate.');
+      let result=lmbPSFSignalTerms(psf,n.sigma,Stat.median(residual));
+      result.method=n.method+':'+n.layers;result.stars=psf.count;
+      result.backgroundPixels=residual.length;
+      return result;
+   } finally {if(channel)channel.free();if(intensity)intensity.free();}
+}
+
+/** Put the lower combined FWHM source in A as the photometric reference.
+ * Remap internal paired measurements, never selectors or source pixels. Keep
+ * the original Master 1/2 IDs and reference index for all UI mappings. Equal
+ * widths retain Master 1. Quality weights are symmetric in the two sources.
+ */
+function lmbSelectPSFReference(a, b, report) {
+   let previous=a.id, masters=[a.id,b.id];
+   let available=report.count>=3 && report.a && report.b &&
+      Number.isFinite(report.a.f) && report.a.f>0 &&
+      Number.isFinite(report.b.f) && report.b.f>0;
+   let tied=available && Math.abs(report.a.f-report.b.f)<=1e-6*Math.max(report.a.f,report.b.f);
+   let changed=!!available && !tied && report.b.f<report.a.f;
+   if(changed) {
+      [a,b]=[b,a];
+      [report.a,report.b]=[report.b,report.a];
+   }
+   report.reference={a:a.id,b:b.id,previous:previous,changed:changed,masters:masters,masterIndex:changed?1:0,
+      available:!!available,tied:!!tied};
+   return [a,b];
+}
+
 /** Check geometry, sample type and user parameters before allocating copies.
  * Registration, linearity and common spectral response require user judgment.
  */
 function lmbValidate(a, b, options) {
    if (!a || a.isNull || !b || b.isNull) throw new Error('Select two open main images.');
    if (!a.isMainView || !b.isMainView) throw new Error('Select main images, not previews.');
-   if (a.id === b.id) throw new Error('A and B must be different images.');
+   if (a.id === b.id) throw new Error('Master 1 and Master 2 must be different images.');
    let x = a.image, y = b.image;
    if (x.width !== y.width || x.height !== y.height) throw new Error('Image dimensions must match. Register and crop both masters first.');
    if (x.width < 32 || x.height < 32) throw new Error('Both dimensions must be at least 32 pixels for noise evaluation.');
@@ -61,15 +351,9 @@ function lmbValidate(a, b, options) {
       throw new Error('Use two grayscale or two RGB images with matching channels.');
    if (x.numberOfChannels !== x.numberOfNominalChannels || y.numberOfChannels !== y.numberOfNominalChannels)
       throw new Error('Remove alpha channels before combining.');
-   if (!Number.isFinite(options.low) || !Number.isFinite(options.high) ||
-       options.low < 0 || options.high > 1 || options.low >= options.high)
-      throw new Error('LinearFit limits must satisfy 0 <= low < high <= 1.');
    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(options.output))
       throw new Error('Output identifier must start with a letter or underscore and contain only letters, digits and underscores.');
-   if (!['A','B'].includes(options.detail) ||
-       !Number.isFinite(options.scale) || options.scale < 1 || options.scale > 32 ||
-       !Number.isFinite(options.other) || options.other < 0 || options.other > 1)
-      throw new Error('Choose detail source A/B, Gaussian sigma 1 to 32 pixels, and other-image contribution 0 to 100%.');
+
 }
 
 /** Make a full-image Float64 snapshot, ignoring any source selection.
@@ -104,45 +388,108 @@ function lmbValidatePixels(im) {
    }
 }
 
-// Stratified deterministic samples for visualization and affine-map recovery.
-// The native LinearFit process itself uses the full images, not this sample.
-function lmbSample(a, b, maxPoints) {
-   let total = a.width * a.height, n = Math.min(total, maxPoints), state = 13579;
-   let channels = Array.from({length:a.numberOfNominalChannels}, () => []);
-   for (let i = 0; i < n; ++i) {
-      state = (1664525 * state + 1013904223) >>> 0;
-      let start = Math.floor(i * total / n), end = Math.floor((i + 1) * total / n);
-      let index = start + Math.floor((state / 4294967296) * (end - start));
-      let x = index % a.width, y = Math.floor(index / a.width);
-      for (let c = 0; c < channels.length; ++c)
-         channels[c].push({x:b.sample(x, y, c), y:a.sample(x, y, c), px:x, py:y});
+/** Measure one background-subtracted stellar flux per accepted location and
+ * channel. Refit each channel rather than copying the intensity PSF flux into
+ * RGB. The native PSF.flux integrates the source above its fitted background
+ * over the native flux region (it is neither peak amplitude nor model volume).
+ * Keep the same model family and box in A/B, but allow different stellar widths.
+ * All measurements use detached patches, preserving source pixels/selections.
+ */
+function lmbStellarSamples(a, b, report) {
+   let samples=report && report.samples || [];
+   let points=Array.from({length:a.numberOfNominalChannels},()=>[]);
+   let tiles=lmbPSFTiles(a.width,a.height);
+   for(let cell=0;cell<tiles.length;++cell) {
+      let selected=samples.map((s,i)=>({sample:s,index:i})).filter(s=>s.sample.cell===cell);
+      if(!selected.length)continue;
+      for(let c=0;c<points.length;++c) {
+         lmbCheckAbort();
+         console.writeln('Measuring stellar flux: '+lmbChannel(c,points.length)+', region '+(cell+1)+'...');
+         let pa=null,pb=null;
+         try {
+            pa=lmbPSFPatch(a,tiles[cell],c); pb=lmbPSFPatch(b,tiles[cell],c);
+            for(let entry of selected) {
+               lmbCheckAbort();
+               let s=entry.sample,rect=new Rect(...s.rect),star={pos:{x:s.x,y:s.y}};
+               // A channel can saturate even when the detection intensity does not.
+               if(pa.maximum(rect,0,0)>=0.95 || pb.maximum(rect,0,0)>=0.95)continue;
+               let fa=lmbFitPSF(pa,star,rect,s.model),fb=lmbFitPSF(pb,star,rect,s.model);
+               if(!fa || !fb || (fa.cx-fb.cx)**2+(fa.cy-fb.cy)**2>2.25)continue;
+               if(!(fa.flux>0) || !(fb.flux>0) ||
+                  ![fa.flux,fb.flux,fa.background,fb.background].every(Number.isFinite))continue;
+               points[c].push({x:fb.flux,y:fa.flux,backgroundA:fa.background,
+                  backgroundB:fb.background,star:entry.index});
+            }
+         } finally {if(pa)pa.free();if(pb)pb.free();}
+      }
    }
-   return channels;
+   return {points:points,kind:'stellar-flux',stars:samples.length};
 }
 
-// Recover the map applied by LinearFit, not an alternative reference-vs-B fit.
-function lmbRecover(points, fitted, channel) {
-   let usable = [];
-   for (let p of points) {
-      let v = fitted.sample(p.px, p.py, channel);
-      if (!Number.isFinite(v)) throw new Error('LinearFit returned a non-finite sample.');
-      p.fitted = v;
-      if (v > 1e-10 && v < 1 - 1e-10) usable.push(p);
+/** Positive, through-origin photometric scale: A_flux = slope * B_flux.
+ * Tukey IRLS suppresses discrepant stars without interpreting image-noise
+ * estimates as stellar weights. A median-ratio seed limits the leverage of a
+ * very bright mismatched star before the first weighted least-squares solve.
+ * The numerical scale floor preserves exact-fit stars when the median residual
+ * is zero, while still rejecting isolated nonzero residuals. Insufficient
+ * photometry is an error; there is deliberately no pixel-fit fallback.
+ */
+function lmbFitStellarFlux(points, channel = 'Gray') {
+   const minimum=10;
+   if(points.length<minimum)
+      throw new Error('Stellar-flux fitting needs at least '+minimum+' usable matched stars in '+channel+'. Use aligned images with unsaturated stars.');
+   if(points.some(p=>!(p.x>0) || !(p.y>0) ||
+      ![p.x,p.y,p.backgroundA,p.backgroundB].every(Number.isFinite)))
+      throw new Error('Invalid stellar flux or background in '+channel+'.');
+   let slope=lmbMedian(points.map(p=>p.y/p.x));
+   let floor=64*Number.EPSILON*Math.max(...points.map(p=>p.y));
+   function weights(k) {
+      let residuals=points.map(p=>p.y-k*p.x);
+      let sigma=Math.max(floor,lmbMedian(residuals.map(r=>Math.abs(r)))/0.6744897501960817);
+      return residuals.map(r=>{let u=r/(4.685*sigma);return Math.abs(u)<1?(1-u*u)**2:0;});
    }
-   if (usable.length < 32) throw new Error('Too few unclipped samples to recover the native fit. Check overlap, signal range and rejection limits.');
-   let mx = 0, my = 0;
-   for (let p of usable) { mx += p.x / usable.length; my += p.fitted / usable.length; }
-   let covariance = 0, variance = 0;
-   for (let p of usable) { covariance += (p.x - mx) * (p.fitted - my); variance += (p.x - mx) ** 2; }
-   let slope = covariance / variance, offset = my - slope * mx;
-   if (!(variance > 1e-24) || !Number.isFinite(slope) || slope <= 0 || !Number.isFinite(offset))
-      throw new Error('Degenerate or non-positive native fit. Check that the masters represent the same signal.');
-   let error = 0;
-   for (let p of points)
-      error = Math.max(error, Math.abs(Math.max(0, Math.min(1, offset + slope * p.x)) - p.fitted));
-   if (error > 2e-7) throw new Error('Native LinearFit is not consistent with a clipped affine transformation. Maximum error: ' + error);
-   return {slope:slope, offset:offset, error:error, count:usable.length};
+   function requireSupport(q) {
+      if(q.filter(w=>w>0.1).length<minimum)
+         throw new Error('Too few consistent stellar fluxes in '+channel+' after outlier rejection (need '+minimum+'). Check alignment, saturation and filter compatibility.');
+   }
+   let iterations=0;
+   for(;iterations<30;++iterations) {
+      lmbCheckAbort();
+      let q=weights(slope); requireSupport(q);
+      // Normalize flux magnitudes to avoid poorly scaled sums.
+      let scaleX=Math.max(...points.map(p=>p.x)),scaleY=Math.max(...points.map(p=>p.y));
+      let xx=0,xy=0;
+      for(let i=0;i<points.length;++i) {
+         let x=points[i].x/scaleX,y=points[i].y/scaleY;
+         xx+=q[i]*x*x;xy+=q[i]*x*y;
+      }
+      let next=xy/xx*(scaleY/scaleX);
+      if(!(next>0) || !Number.isFinite(next))throw new Error('Invalid stellar brightness scale in '+channel+'.');
+      let converged=Math.abs(next-slope)<=1e-10*Math.max(next,slope);
+      slope=next;
+      if(converged){++iterations;break;}
+   }
+   let q=weights(slope); requireSupport(q);
+   for(let i=0;i<points.length;++i)points[i].weight=q[i];
+   // Stellar flux contains no additive sky term. Estimate that term separately
+   // from paired local PSF backgrounds, with the same robust stellar weights.
+   // A weighted median resists local contamination; it is a single offset per
+   // channel, not a spatial gradient correction or a fitted flux intercept.
+   let backgrounds=points.map((p,i)=>({value:p.backgroundA-slope*p.backgroundB,weight:q[i]}))
+      .filter(p=>p.weight>0).sort((a,b)=>a.value-b.value);
+   let half=backgrounds.reduce((sum,p)=>sum+p.weight,0)/2,cumulative=0,offset=NaN;
+   for(let p of backgrounds){cumulative+=p.weight;if(cumulative>=half){offset=p.value;break;}}
+   if(!Number.isFinite(offset))throw new Error('Cannot match local backgrounds in '+channel+'.');
+   let count=q.filter(w=>w>0.1).length;
+   console.writeln(channel+': stellar-flux scale '+slope.toPrecision(8)+', background offset '+offset.toPrecision(8)+
+      ' ('+count+'/'+points.length+' well-supported stars).');
+   return {slope:slope,offset:offset,count:count,sampleCount:points.length,iterations:iterations};
 }
+
+function lmbFitStellarChannels(points) {
+   return points.map((channel,c)=>lmbFitStellarFlux(channel,lmbChannel(c,points.length)));
+}
+
 
 /** Common PixelMath configuration: Float64 working precision and explicit math.
  * Scalar expressions serve grayscale; three expressions select RGB channels.
@@ -188,13 +535,17 @@ function lmbNoise(im, c, allowFallback) {
    } finally { im.resetSelections(); }
 }
 
-// Unit-sum positive Gaussian, truncated at four sigma. No sharpening or clipping.
-function lmbGaussian(sigma) {
-   let radius = Math.ceil(4 * sigma), kernel = [], sum = 0;
-   for (let i = -radius; i <= radius; ++i) {
-      let value = Math.exp(-0.5 * (i / sigma) ** 2); kernel.push(value); sum += value;
-   }
-   return kernel.map(value => value / sum);
+/** Normalize each criterion across the source pair before combining it.
+ * Each criterion has exactly 40%, 40% or 20% of the total integration weight.
+ * Ratio scaling avoids overflow for very different positive measurements.
+ */
+function lmbIntegrationWeights(a,b) {
+   for(let q of [a,b])for(let key of ['weight','snr','f'])
+      if(!(q[key]>0)||!Number.isFinite(q[key]))throw new Error('Reliable PSF Signal Weight, PSF SNR and combined FWHM are required for both masters.');
+   let share=(x,y)=>{let m=Math.max(x,y);return (x/m)/(x/m+y/m);};
+   let terms=[share(a.weight,b.weight),share(a.snr,b.snr),share(b.f,a.f)];
+   let wa=.4*terms[0]+.4*terms[1]+.2*terms[2];
+   return {a:wa,b:1-wa,termsA:terms};
 }
 
 // One affine output map for all channels; preserve the existing scale if bounded.
@@ -218,10 +569,9 @@ function lmbImageRange(im) {
            maximum:im.maximum(rect, 0, im.numberOfNominalChannels - 1)};
 }
 
-/** Owns an immutable preview: A, normalized B, and their smoothed difference.
- * Construction fits the snapshots, measures original-source noise, prepares
- * the detail blend, and determines one shared output map for all channels.
- * Create reuses this preview exactly; dispose releases all owned snapshots.
+/** Owns normalized source snapshots and their fixed integration weights.
+ * Construction measures source quality once and determines the output range.
+ * Preview and Create apply the same direct weighted average.
  */
 class LMBAnalysis {
    constructor(a, b, options) {
@@ -230,31 +580,55 @@ class LMBAnalysis {
       this.options = Object.assign({}, options);
       this.width = a.image.width; this.height = a.image.height;
       this.channels = a.image.numberOfNominalChannels;
-      this.noiseA = []; this.noiseB = []; this.noiseOutput = null; this.fits = [];
+      this.noiseA = []; this.noiseB = []; this.noiseOutput = null; this.psfOutput = null; this.qualityOutput=null; this.fits = [];
       try {
+         // Re-measure on every fresh Preview/Create, including saved instances.
+         // Do this before allocating full-size processing snapshots.
+         this.psf = lmbMeasurePSF(a.image,b.image);
+         [a,b] = lmbSelectPSFReference(a,b,this.psf);
+         this.sourceA=a.id; this.sourceB=b.id;
          this.a = lmbCopy(a, 'LMB_A', this.owned);
          this.b = lmbCopy(b, 'LMB_B', this.owned);
          lmbValidatePixels(this.a.mainView.image); lmbValidatePixels(this.b.mainView.image);
-         this.points = lmbSample(this.a.mainView.image, this.b.mainView.image, 12000);
-         // Measure before B is normalized so the table can show original units.
+         this.scatter = lmbStellarSamples(this.a.mainView.image,this.b.mainView.image,this.psf);
+         this.points = this.scatter.points;
+         // Measure original noise, then convert B's sigma with its fitted slope.
          for (let c = 0; c < this.channels; ++c) {
             console.writeln('Measuring raw noise: ' + lmbChannel(c, this.channels));
             this.noiseA.push(lmbNoise(this.a.mainView.image, c, options.fallback));
             this.noiseB.push(lmbNoise(this.b.mainView.image, c, options.fallback));
          }
-         let fitted = lmbCopy(this.b.mainView, 'LMB_fit', this.owned);
-         let fit = new LinearFit;
-         fit.referenceViewId = this.a.mainView.id;
-         fit.rejectLow = options.low; fit.rejectHigh = options.high;
-         lmbCheckAbort();
-         if (!fit.executeOn(fitted.mainView, false)) throw new Error('LinearFit failed or was aborted.');
-         for (let c = 0; c < this.channels; ++c) this.fits.push(lmbRecover(this.points[c], fitted.mainView.image, c));
-         lmbClose(fitted); this.owned.pop();
+         this.fitMethod=this.scatter.kind;
+         this.fits=lmbFitStellarChannels(this.points);
          let normalization = this.fits.map(f => '(' + lmbNumber(f.offset) + ')+(' + lmbNumber(f.slope) + ')*$T');
          if (!lmbPixelMath(normalization).executeOn(this.b.mainView, false)) throw new Error('Unclipped normalization failed.');
-         this.prepareDetail();
+         this.psfA=this.psf.a;
+         // Scalar affine normalization preserves gray PSF widths and multiplies
+         // signal by the fitted slope. RGB channel scaling can alter intensity
+         // profiles, so remeasure normalized B at the same accepted locations.
+         this.psfB=this.channels===1 ? Object.assign({},this.psf.b,{
+            signals:this.psf.b.signals.map(v=>v*this.fits[0].slope)}) :
+            lmbMeasureOutputPSF(this.b.mainView.image,this.psf,this.psf.samples);
+         let normalizedNoiseB=this.noiseB.map((n,c)=>Object.assign({},n,{sigma:n.sigma*this.fits[c].slope}));
+         this.qualityA=lmbMeasureQuality(this.a.mainView.image,this.psfA,this.noiseA,options.fallback);
+         this.qualityB=lmbMeasureQuality(this.b.mainView.image,this.psfB,normalizedNoiseB,options.fallback);
+         this.weights=lmbIntegrationWeights(Object.assign({f:this.psfA.f},this.qualityA),
+            Object.assign({f:this.psfB.f},this.qualityB));
          this.prepareOutputRange();
-      } catch (e) { this.dispose(); throw e; }
+      } catch (e) { e.psfReport=this.psf; this.dispose(); throw e; }
+   }
+
+   /** Resolve a stable Master 1/2 row to the internally reordered snapshots.
+    * Use this mapping for measurements, formula and blink/readout together.
+    * Source PSF widths are the original measurements used to choose reference;
+    * normalizedPSF supplies the widths used by the integration quality weight.
+    */
+   master(index) {
+      let reference=index===this.psf.reference.masterIndex;
+      return {id:this.psf.reference.masters[index],reference:reference,
+         snapshot:reference?this.a:this.b,noise:reference?this.noiseA:this.noiseB,
+         psf:reference?this.psf.a:this.psf.b,normalizedPSF:reference?this.psfA:this.psfB,
+         quality:reference?this.qualityA:this.qualityB,weight:reference?this.weights.a:this.weights.b};
    }
 
    /** Close in reverse allocation order; a failed close must not skip others. */
@@ -265,32 +639,11 @@ class LMBAnalysis {
       this.owned = [];
    }
 
-   /** Store G(O-D), where D is the detail master and O the other normalized
-    * image. Positive separable filtering preserves signed differences. This
-    * saves one full-size image compared with storing G(D) and G(O) separately.
-    */
-   prepareDetail() {
-      // G(other-detail) needs only one extra image and keeps signed differences.
-      let detail = this.options.detail === 'A' ? this.a : this.b;
-      let other = this.options.detail === 'A' ? this.b : this.a;
-      this.lowDifference = lmbCopy(other.mainView, 'LMB_LowDifference', this.owned);
-      if (!lmbPixelMath(['$T-' + detail.mainView.id]).executeOn(this.lowDifference.mainView, false))
-         throw new Error('Detail difference calculation failed.');
-      let kernel = lmbGaussian(this.options.scale), view = this.lowDifference.mainView;
-      lmbCheckAbort();
-      view.beginProcess(UndoFlag.NoSwapFile);
-      try {
-         view.image.resetSelections();
-         view.image.convolveSeparable(kernel, kernel);
-      } finally { view.endProcess(); }
-      lmbCheckAbort();
-   }
-
-   /** Unbounded blend D + f*G(O-D), using channel-explicit snapshot identifiers. */
+   /** Direct convex average, with identical scalar weights for RGB channels. */
    blendExpression(c) {
-      let sub = this.channels === 3 ? '[' + c + ']' : '';
-      let detail = this.options.detail === 'A' ? this.a : this.b;
-      return detail.mainView.id + sub + '+(' + lmbNumber(this.options.other) + ')*' + this.lowDifference.mainView.id + sub;
+      let sub=this.channels===3?'['+c+']':'';
+      return '('+lmbNumber(this.weights.a)+')*'+this.a.mainView.id+sub+
+         '+('+lmbNumber(this.weights.b)+')*'+this.b.mainView.id+sub;
    }
 
    /** Measure the actual full blend in a hidden temporary Float64 image.
@@ -331,12 +684,13 @@ class LMBAnalysis {
          (this.channels === 3 ? lmbChannel(c, this.channels) + ': ' : '') + this.expression(c)).join('\n\n');
    }
 
-   /** Create a bounded Float32 result and measure its actual per-channel sigma.
-    * A missing output-noise estimate is diagnostic, so a valid image survives.
+   /** Create a bounded Float32 result and measure its PSF and per-channel sigma.
+    * Missing output diagnostics do not discard an otherwise valid image.
     * Abort or image-creation failure closes only this newly created result.
     */
    combine(output, show, quiet = false) {
       let id = lmbUnique(output), result = null;
+      this.noiseOutput=null; this.psfOutput=null; this.qualityOutput=null;
       try {
          let expressions = Array.from({length:this.channels}, (_, c) => this.expression(c));
          let p = lmbPixelMath(expressions);
@@ -364,8 +718,28 @@ class LMBAnalysis {
             }
          }
          this.noiseOutput = measured;
+         try { this.psfOutput=lmbMeasureOutputPSF(result.mainView.image,this.psf,this.psf.samples); }
+         catch(e) {
+            if(console.abortRequested)throw e;
+            this.psfOutput={count:0,total:this.psf && this.psf.samples ? this.psf.samples.length : 0,error:e.message};
+         }
+         if(this.psfOutput.error)console.warningln('Output PSF unavailable: '+this.psfOutput.error);
+         try {this.qualityOutput=lmbMeasureQuality(result.mainView.image,this.psfOutput,measured,this.options.fallback);}
+         catch(e) {
+            if(console.abortRequested)throw e;
+            this.qualityOutput={error:e.message};
+            console.warningln('Output PSF signal metrics unavailable: '+e.message);
+         }
          if (!quiet) {
             console.writeln(this.report());
+            let psf=this.psfOutput;
+            console.writeln('Output PSF FWHM X / Y: '+(psf.error?'Unavailable ('+psf.error+')':
+               psf.x.toFixed(3)+' / '+psf.y.toFixed(3)+' px; '+psf.count+' stars.'));
+            for(let c=0;c<this.channels;++c) {
+               let n=this.noiseOutput[c];
+               console.writeln('Output noise '+lmbChannel(c,this.channels)+': '+(n.error?'Unavailable':
+                  (n.sigma/this.outputMap.gain).toExponential(5)+' ('+n.method+'; reference brightness scale)'));
+            }
             console.writeln('Created ' + id + '. Save the result as XISF when ready.');
          }
          if (show !== false) result.show();
@@ -377,23 +751,18 @@ class LMBAnalysis {
    }
 }
 
-/** Start without selected images. Once chosen, A supplies fine detail by default;
- * the other image contributes 25% at broad scales. These settings are adjustable.
- */
-function lmbDefaults() { return {a:'', b:'', low:0, high:0.92, fallback:false, output:'Linear_Blend',
-   detail:'A', scale:4, other:0.25, autoStretch:true}; }
+/** Start with no source names; the workflow tag identifies saved instances. */
+function lmbDefaults() { return {a:'',b:'',fallback:false,output:'Linear_Blend',
+   autoStretch:true,workflow:'quality-weighted-v1'}; }
 
-/** Restore only user choices, never cached pixels or fitted coefficients.
- * Reject retired noise-only instances instead of silently changing their math.
- */
+/** Do not silently reinterpret saved instances from another integration mode. */
 function lmbLoadOptions() {
-   let o = lmbDefaults();
-   if (Parameters.isGlobalTarget && (!Parameters.has('detail') ||
-       (Parameters.has('mode') && Parameters.getString('mode') !== 'detail')))
-      throw new Error('This saved instance uses the retired noise-only workflow. Open the script and create a new detail-blend instance.');
-   for (let key of ['a', 'b', 'output', 'detail']) if (Parameters.has(key)) o[key] = Parameters.getString(key);
-   for (let key of ['low', 'high', 'scale', 'other']) if (Parameters.has(key)) o[key] = Parameters.getReal(key);
-   for (let key of ['fallback','autoStretch']) if (Parameters.has(key)) o[key] = Parameters.getBoolean(key);
+   let o=lmbDefaults();
+   if(Parameters.isGlobalTarget && (!Parameters.has('workflow') ||
+      Parameters.getString('workflow')!==o.workflow))
+      throw new Error('This saved instance does not specify quality-weighted integration. Open Linear Master Blend and save a new instance.');
+   for(let key of ['a','b','output'])if(Parameters.has(key))o[key]=Parameters.getString(key);
+   for(let key of ['fallback','autoStretch'])if(Parameters.has(key))o[key]=Parameters.getBoolean(key);
    return o;
 }
 
@@ -432,6 +801,7 @@ class LMBPlot extends Control {
    constructor(parent) {
       super(parent); this.analysis = null; this.channel = 0;
       this.setScaledMinSize(700, 270);
+      this.toolTip = 'One point per matched star: background-subtracted flux in the other master horizontally and the reference master vertically. Yellow: robust flux scale through zero. Blue: well-supported stars; gray: strongly downweighted; red: rejected. The separate image-background offset is not part of this flux line. RGB channels are fitted separately.';
       this.onPaint = () => {
          let g = new Graphics(this);
          try {
@@ -439,14 +809,11 @@ class LMBPlot extends Control {
             let right = this.width - 22 * s, bottom = this.height - 42 * s;
             g.fillRect(0, 0, this.width, this.height, new Brush(0xff18202b));
             g.font = this.font; g.pen = new Pen(0xffe6edf3);
-            if (!this.analysis) { g.drawText(20 * s, 45 * s, 'Select images, then click the magnifier to calculate the fit and noise.'); return; }
+            if (!this.analysis) { g.drawText(20 * s, 45 * s, 'Select Master 1 and Master 2, then Preview to see the scatter plot.'); return; }
             let data = this.analysis.points[this.channel], f = this.analysis.fits[this.channel];
-            let xs = data.map(p => p.x).sort((a,b) => a-b), ys = data.map(p => p.y).sort((a,b) => a-b);
-            // Central 99% zoom keeps a few saturated stars from hiding the fit.
-            let loX = xs[Math.floor(xs.length * 0.005)], hiX = xs[Math.min(xs.length - 1, Math.floor(xs.length * 0.995))];
-            let loY = ys[Math.floor(ys.length * 0.005)], hiY = ys[Math.min(ys.length - 1, Math.floor(ys.length * 0.995))];
-            let dx = Math.max(hiX - loX, 1e-9), dy = Math.max(hiY - loY, 1e-9);
-            loX -= 0.05 * dx; hiX += 0.05 * dx; loY -= 0.05 * dy; hiY += 0.05 * dy;
+            if(!data.length) {g.drawText(20*s,45*s,'No usable matched stellar fluxes for this channel.');return;}
+            // Show the origin, all measured stars, and the through-origin line.
+            let loX=0,loY=0,hiX=Math.max(...data.map(p=>p.x))*1.05,hiY=Math.max(...data.map(p=>p.y))*1.05;
             let X = v => pad + (v - loX) / (hiX - loX) * (right - pad);
             let Y = v => bottom - (v - loY) / (hiY - loY) * (bottom - top);
             for (let i = 0; i <= 4; ++i) {
@@ -457,18 +824,22 @@ class LMBPlot extends Control {
                g.pen = new Pen(0xffaebacc); g.drawText(tickX, bottom + 17 * s, tick);
                g.drawText(3 * s, Y(y) + 4 * s, y.toPrecision(3));
             }
-            let low = this.analysis.options.low, high = this.analysis.options.high;
-            for (let p of data) {
-               if (p.x < loX || p.x > hiX || p.y < loY || p.y > hiY) continue;
-               let accepted = p.x > low && p.x < high && p.y > low && p.y < high;
-               g.pen = new Pen(accepted ? 0xff55b4dc : 0xff737c87);
-               g.drawPoint(X(p.x), Y(p.y));
+            if(f) {
+               let last=Math.min(hiX,hiY/f.slope);
+               g.pen=new Pen(0xffffd166,2*s);g.drawLine(X(0),Y(0),X(last),Y(f.slope*last));
             }
-            let first = Math.max(loX, (loY - f.offset) / f.slope), last = Math.min(hiX, (hiY - f.offset) / f.slope);
-            if (last > first) { g.pen = new Pen(0xffffd166, 2 * s); g.drawLine(X(first), Y(f.offset + f.slope * first), X(last), Y(f.offset + f.slope * last)); }
+            // Paint stars after the line, so an excellent fit still shows them.
+            for (let p of data) {
+               let color=p.weight===0 ? 0xffee776e : p.weight>0.1 ? 0xff55b4dc : 0xff737c87;
+               let x=X(p.x),y=Y(p.y),radius=2*s;
+               g.fillRect(x-radius,y-radius,x+radius,y+radius,new Brush(color));
+            }
             g.pen = new Pen(0xffe6edf3);
-            g.drawText(pad, 18 * s, 'A reference (y) vs original B (x) | yellow: native fit | blue: within rejection limits');
-            g.drawText(pad, this.height - 8 * s, 'Original B intensity; central 99% display range. Full image used for LinearFit and noise.');
+            let reference=this.analysis.psf.reference.masterIndex+1, other=3-reference;
+            g.drawText(pad,18*s,'Stellar flux: Master '+reference+' (y, reference) vs Master '+other+' (x) | '+lmbChannel(this.channel,this.analysis.channels)+
+               (f?' | slope = '+f.slope.toPrecision(5):''));
+            g.drawText(pad,this.height-8*s,data.length+' stars'+(f?' | '+f.count+' well-supported':'')+
+               ' | blue: accepted; gray: downweighted; red: rejected');
          } finally { g.end(); }
       };
    }
@@ -549,22 +920,67 @@ function lmbOutputBitmap(view, autoStretch, range = null, stretch = null) {
    } finally { lmbClose(display); }
 }
 
-/** View selection, blend controls, output image, original scatter chart, and noise table.
+/** Extend the bundled ImageView without replacing its navigation handlers.
+ * Coordinate conversion is supplied by ImageView, so centered/zoomed/panned
+ * views all sample the same integer image pixel. Paint refreshes a stationary
+ * pointer after zoom, scrolling or frame changes; labels update only on change.
+ */
+function lmbInstallPixelReadout(viewer, sampleProvider) {
+   viewer.pixelName_Label=new Label(viewer);viewer.pixelName_Label.text='Value:';
+   viewer.pixelValue_Label=new Label(viewer);viewer.pixelValue_Label.text='---';
+   let row=viewer.coords_Control.sizer;
+   row.insert(row.numberOfItems-1,viewer.pixelName_Label);
+   row.insert(row.numberOfItems-1,viewer.pixelValue_Label);
+   let pointer=null;
+   viewer.refreshPixelReadout=()=>{
+      let sample=null;
+      if(pointer && viewer.isValid) {
+         let pos=viewer.viewportToImage(pointer.x,pointer.y);
+         sample=sampleProvider(Math.floor(pos.x),Math.floor(pos.y));
+      }
+      let text='---';
+      if(sample) {
+         viewer.pixelName_Label.text=sample.name+':';
+         text=sample.values.map((v,c)=>(sample.values.length===3?['R ','G ','B '][c]:'')+v.toFixed(6)).join('  ');
+         viewer.pixelValue_Label.toolTip=sample.tip;
+      }
+      if(viewer.pixelValue_Label.text!==text)viewer.pixelValue_Label.text=text;
+   };
+   viewer.clearPixelReadout=()=>{pointer=null;viewer.refreshPixelReadout();};
+   let viewport=viewer.scrollbox.viewport;
+   viewport.tracking=true;
+   let move=viewport.onMouseMove,leave=viewport.onLeave,paint=viewport.onPaint,wheel=viewport.onMouseWheel;
+   viewport.onMouseMove=function(x,y,buttons,modifiers){
+      if(move)move.call(this,x,y,buttons,modifiers);
+      pointer={x:x,y:y};viewer.refreshPixelReadout();
+   };
+   viewport.onMouseWheel=function(x,y,delta,buttons,modifiers){
+      if(wheel)wheel.call(this,x,y,delta,buttons,modifiers);
+      pointer={x:x,y:y};viewer.refreshPixelReadout();
+   };
+   viewport.onLeave=function(){if(leave)leave.call(this);viewer.clearPixelReadout();};
+   viewport.onPaint=function(x0,y0,x1,y1){
+      if(paint)paint.call(this,x0,y0,x1,y1);viewer.refreshPixelReadout();
+   };
+}
+
+/** Master selection, output preview, stellar-flux scatter and measurements.
  * Any processing-setting change invalidates the owned preview. Channel changes
  * only change the displayed plot/table and do not rerun the image calculations.
  */
 class LMBDialog extends Dialog {
    constructor(options) {
       super(); this.windowTitle = 'Linear Master Blend ' + LMB_VERSION;
-      this.analysis = null; this.running = false;
+      this.analysis = null; this.running = false; this.psfReport = null;
       // Retain output plus one lazy source bitmap. ImageView owns its own copy.
       this.outputBitmap = null; this.sourceBitmap = null; this.previewStretch = null;
+      this.sourceBitmapIndex=-1;
       this.showingSource = false; this.blinking = false;
       this.blinkTimer = new Timer(0.75, false, this);
       this.blinkTimer.onTimeout = () => this.blinkTick();
       this.intro = new Label(this); this.intro.wordWrapping = true;
-      this.intro.text = 'For different telescopes, keep fine structure from the sharper master and control the other image at broad scales. '
-         + 'A defines the normalization scale. Lower pixel noise does not necessarily mean greater depth. Crop registration borders first.';
+      this.intro.text='Integrate two aligned linear masters using 40% PSF Signal Weight, 40% PSF SNR and 20% inverse combined FWHM. '
+         +'Preview selects the sharper master as the brightness reference. Crop registration borders first.';
       this.aList = new ViewList(this); this.aList.getMainViews();
       this.bList = new ViewList(this); this.bList.getMainViews();
       // Do not infer inputs from open views; only restore explicit instance choices.
@@ -572,35 +988,23 @@ class LMBDialog extends Dialog {
       this.bList.currentView = new View();
       if (options.a && lmbHasView(View.viewById(options.a))) this.aList.currentView = View.viewById(options.a);
       if (options.b && lmbHasView(View.viewById(options.b))) this.bList.currentView = View.viewById(options.b);
-      this.low = new NumericEdit(this); this.low.label.text = 'Reject low:';
-      this.low.setRange(0, 1); this.low.setPrecision(6); this.low.setValue(options.low);
-      this.high = new NumericEdit(this); this.high.label.text = 'Reject high:';
-      this.high.setRange(0, 1); this.high.setPrecision(6); this.high.setValue(options.high);
-      this.low.toolTip = this.high.toolTip = 'Native LinearFit input rejection limits. Only pairs strictly between the limits are used. Noise is measured on the original source snapshots and actual output.';
       this.fallback = new CheckBox(this); this.fallback.text = 'Allow k-sigma fallback if MRS fails'; this.fallback.checked = options.fallback;
-      this.detail = new ComboBox(this); this.detail.addItem('A supplies fine detail'); this.detail.addItem('B supplies fine detail');
-      this.detail.currentItem = options.detail === 'B' ? 1 : 0;
-      this.scale = new NumericEdit(this); this.scale.label.text = 'Gaussian sigma (px):';
-      this.scale.setRange(1,32); this.scale.setPrecision(2); this.scale.setValue(options.scale);
-      this.scale.toolTip = 'Aligned-image pixels. Larger sigma confines the other image to broader structures. 4 is a starting point, not a measured PSF. Inspect stars/halos and increase if necessary.';
-      this.other = new NumericEdit(this); this.other.label.text = 'Other image at broad scales (%):';
-      this.other.setRange(0,100); this.other.setPrecision(1); this.other.setValue(100*options.other);
-      this.other.toolTip = '0 keeps the detail image alone; 25 retains 75% of its broad-scale component. Increase only if the other image adds useful faint signal. Noise does not set this value.';
       this.output = new Edit(this); this.output.text = options.output;
       this.channel = new ComboBox(this); for (let name of ['R', 'G', 'B']) this.channel.addItem(name);
       this.channel.visible = false;
       this.tabs = new TabBox(this);
       this.outputPage = new Control(this.tabs); this.fitPage = new Control(this.tabs);
       this.previewViewer = new ImageView(this.outputPage);
+      lmbInstallPixelReadout(this.previewViewer,(x,y)=>this.previewPixelSample(x,y));
       this.previewViewer.setScaledMinSize(700, 370);
       this.previewViewer.setStatusMessage('Click the magnifier to preview the combined image.');
       this.autoStretch = new CheckBox(this.outputPage); this.autoStretch.text = 'Auto stretch preview (display only)';
       this.autoStretch.checked = options.autoStretch !== false;
       this.autoStretch.toolTip = 'One output-derived display stretch for output and source. Original images and the linear output remain unchanged. Turning this off shows their common linear display scale.';
       this.blinkSource = new ComboBox(this.outputPage);
-      this.blinkSource.addItem('A reference'); this.blinkSource.addItem('B normalized');
+      this.blinkSource.addItem('Master 1'); this.blinkSource.addItem('Master 2');
       this.blinkSource.setScaledFixedWidth(190);
-      this.blinkSource.toolTip = 'Blink the output against source A or the LinearFit-normalized source B. Both use the output range map and the same display stretch. Source values outside the display range are clipped only for display.';
+      this.blinkSource.toolTip = 'Blink the output against either master on the reference brightness scale. Both use the output range map and the same display stretch. Source values outside the display range are clipped only for display.';
       this.blinkButton = lmbTool(this.outputPage, ':/icons/play.png', 'Start blinking output/source every 0.75 seconds. Stop returns to output.', () => this.blinkAction(true));
       this.stepButton = lmbTool(this.outputPage, ':/icons/step-forward.png', 'Switch once between output and the selected source; pause automatic blinking.', () => this.blinkAction(false));
       let previewControls = new HorizontalSizer; previewControls.spacing = 6;
@@ -610,39 +1014,52 @@ class LMBDialog extends Dialog {
       this.outputPage.sizer = new VerticalSizer; this.outputPage.sizer.margin = 6; this.outputPage.sizer.spacing = 6;
       this.outputPage.sizer.add(this.previewViewer, 100); this.outputPage.sizer.add(previewControls);
       this.plot = new LMBPlot(this.fitPage);
-      this.noiseTitle = new Label(this.fitPage); this.noiseTitle.text = 'Noise sigma';
-      let noiseTable = new VerticalSizer; noiseTable.spacing = 3;
-      noiseTable.add(this.noiseTitle);
-      this.noiseCells = [];
-      for (let texts of [['Image','Sigma: image units','Sigma: A units'],['Source A','-','-'],['Source B','-','-'],['Output','After Preview','After Preview']]) {
-         let cells = [], row = new HorizontalSizer; row.spacing = 12;
+      this.measurementTitle = new Label(this.fitPage);
+      this.referenceStatus = new Label(this.fitPage); this.referenceStatus.wordWrapping = true;
+      this.referenceStatus.toolTip = 'The master with the lower median sqrt(FWHM X * FWHM Y) over the same accepted stars becomes the brightness reference. Equal widths retain Master 1. Selection order stays fixed.';
+      let measurementTable = new VerticalSizer; measurementTable.spacing = 3;
+      measurementTable.add(this.measurementTitle); measurementTable.add(this.referenceStatus);
+      this.measurementCells = [];
+      const widths=[90,100,95,95,140,100,100,45];
+      for (let texts of [['Image','Sigma','FWHM X (px)','FWHM Y (px)','PSF Signal Weight','PSF SNR','Contribution','Stars'],
+                        ['Master 1','-','-','-','-','-','-','-'],
+                        ['Master 2','-','-','-','-','-','-','-'],
+                        ['Output','-','-','-','-','-','-','-']]) {
+         let cells = [], row = new HorizontalSizer; row.spacing = 8;
          for (let text of texts) {
-            let label = new Label(this.fitPage); label.text = text; label.setScaledMinWidth(210);
-            row.add(label, 100); cells.push(label);
+            let label = new Label(this.fitPage); label.text = text;
+            label.setScaledMinWidth(widths[cells.length]); row.add(label,100); cells.push(label);
          }
-         this.noiseCells.push(cells); noiseTable.add(row);
+         this.measurementCells.push(cells); measurementTable.add(row);
       }
+      let headers=this.measurementCells[0];
+      headers[1].toolTip=LMB_SIGMA_TOOLTIP;
+      headers[2].toolTip=headers[3].toolTip='Median stellar FWHM in aligned-image pixels: X = fitted major axis, Y = fitted minor axis. Master rows show the original PSF widths used to select the reference; RGB uses combined linear intensity.';
+      headers[4].toolTip='Stellar signal quality from the accepted PSF stars, measured on brightness-matched masters. Higher is better. This criterion supplies 40% of the integration weight.';
+      headers[5].toolTip='PixInsight PSF signal-to-noise estimator on the same matched stars. Higher is better. This criterion supplies 40% of the integration weight.';
+      headers[6].toolTip='40% normalized PSF Signal Weight + 40% normalized PSF SNR + 20% normalized inverse combined FWHM. Each criterion is normalized across the two brightness-matched masters. Contributions sum to 100% and apply to every pixel and RGB channel.';
+      headers[7].toolTip='Number of accepted PSF star measurements.';
+      this.formula=new Label(this.fitPage);this.formula.wordWrapping=true;
+      this.formula.toolTip='Both masters are on the reference brightness scale before combination. One common affine range map is applied afterward only if needed to keep the output within [0,1]. Source pixels are unchanged.';
       this.fitPage.sizer = new VerticalSizer; this.fitPage.sizer.margin = 6; this.fitPage.sizer.spacing = 6;
-      this.fitPage.sizer.add(this.plot,100); this.fitPage.sizer.add(noiseTable);
-      this.tabs.addPage(this.outputPage, 'Output preview'); this.tabs.addPage(this.fitPage, 'Fit and noise');
-      this.noiseTitle.toolTip = 'Measured Gaussian noise sigma for the selected channel. Image units are the original source or stored output scale. A units multiply B sigma by the fit slope and divide output sigma by the output gain. These scale conversions do not imply an SNR improvement.';
+      this.fitPage.sizer.add(this.plot,100); this.fitPage.sizer.add(measurementTable); this.fitPage.sizer.add(this.formula);
+      this.tabs.addPage(this.outputPage, 'Output preview'); this.tabs.addPage(this.fitPage, 'Measurements');
+      this.measurementTitle.toolTip = LMB_SIGMA_TOOLTIP + ' RGB PSF and quality values use combined linear intensity and do not change with the noise channel selector.';
       this.status = new Label(this); this.status.wordWrapping = true;
       this.status.text = 'Magnifier: calculate preview. Green checkmark: create a new image.';
       let row = (label, control) => {
          let s = new HorizontalSizer; s.spacing = 8;
          let l = new Label(this); l.text = label; l.setScaledMinWidth(105); s.add(l); s.add(control, 100); return s;
       };
-      let limits = new HorizontalSizer; limits.spacing = 12; limits.add(this.low); limits.add(this.high); limits.addStretch(); limits.add(this.channel);
-      let detailControls = new HorizontalSizer; detailControls.spacing = 12;
-      detailControls.add(this.detail); detailControls.add(this.scale); detailControls.add(this.other);
+      let channelRow = new HorizontalSizer; channelRow.addStretch(); channelRow.add(this.channel);
       this.newInstanceButton = lmbTool(this, ':/process-interface/new-instance.png', 'New instance: drag to the workspace to save image IDs and settings.');
       this.newInstanceButton.onMousePress = () => {
          let o = this.options(); Parameters.clear(); for (let key of Object.keys(o)) Parameters.set(key, o[key]); this.newInstance();
       };
-      this.previewButton = lmbTool(this, ':/toolbar/view-zoom.png', 'Preview: calculate the full combined image, noise measurements and fit scatter without changing either source.', () => this.action(false));
+      this.previewButton = lmbTool(this, ':/toolbar/view-zoom.png', 'Preview: measure both PSFs, select the sharper master as reference, match brightness, and calculate the combined image and all measurements.', () => this.action(false));
       this.resetButton = lmbTool(this, ':/process-interface/reset.png', 'Reset settings and release the preview snapshots.', () => {
-         this.invalidate(); this.low.setValue(0); this.high.setValue(0.92); this.fallback.checked = false; this.output.text = 'Linear_Blend';
-         this.detail.currentItem = 0; this.scale.setValue(4); this.other.setValue(25); this.autoStretch.checked = true;
+         this.invalidate(true); this.fallback.checked = false; this.output.text = 'Linear_Blend';
+         this.autoStretch.checked=true;
       });
       this.helpButton = lmbTool(this, ':/process-interface/browse-documentation.png', 'Open the Linear Master Blend user manual.', lmbShowDocumentation);
       this.createButton = lmbTool(this, ':/process-interface/execute.png', 'Create a new 32-bit combined image, calculated at 64-bit precision, using the current preview.', () => this.action(true));
@@ -653,22 +1070,21 @@ class LMBDialog extends Dialog {
       buttons.addStretch();
       buttons.add(this.createButton); buttons.add(this.closeButton); buttons.add(this.helpButton);
       this.sizer = new VerticalSizer; this.sizer.margin = 10; this.sizer.spacing = 8;
-      this.sizer.add(this.intro); this.sizer.add(row('A reference:', this.aList)); this.sizer.add(row('B to normalize:', this.bList));
-      this.sizer.add(detailControls);
-      this.sizer.add(limits); this.sizer.add(this.fallback); this.sizer.add(row('Output ID:', this.output));
+      this.sizer.add(this.intro); this.sizer.add(row('Master 1:', this.aList)); this.sizer.add(row('Master 2:', this.bList));
+      this.sizer.add(channelRow); this.sizer.add(this.fallback); this.sizer.add(row('Output ID:', this.output));
       this.sizer.add(this.tabs, 100); this.sizer.add(this.status); this.sizer.add(buttons);
-      this.aList.onViewSelected = this.bList.onViewSelected = () => this.invalidate();
-      this.low.onValueUpdated = this.high.onValueUpdated = this.fallback.onCheck = () => this.invalidate();
-      this.detail.onItemSelected = this.scale.onValueUpdated = this.other.onValueUpdated = () => this.invalidate();
-      this.channel.onItemSelected = index => { this.plot.channel = this.analysis && this.analysis.channels === 3 ? index : 0; this.plot.update(); this.updateNoise(); };
+      this.aList.onViewSelected = this.bList.onViewSelected = () => this.invalidate(true);
+      this.fallback.onCheck=()=>this.invalidate();
+      this.channel.onItemSelected = index => { this.plot.channel = this.plot.analysis && this.plot.analysis.channels === 3 ? index : 0; this.plot.update(); this.updateMeasurements(); };
       this.autoStretch.onCheck = () => { if (this.analysis) this.action(false, true); };
       this.blinkSource.onItemSelected = () => {
          this.stopBlink(true);
          if (this.sourceBitmap) this.sourceBitmap.clear(); this.sourceBitmap = null;
+         this.sourceBitmapIndex=-1;
       };
-      this.tabs.onPageSelected = index => { if (index !== 0) this.stopBlink(true); };
+      this.tabs.onPageSelected=index=>{if(index!==0)this.stopBlink(true);};
       this.onClose = () => { if (this.running) return false; this.stopBlink(false); return true; };
-      this.updateBlinkControls();
+      this.updateBlinkControls();this.updateMeasurements();
       this.adjustToContents();
    }
 
@@ -676,30 +1092,72 @@ class LMBDialog extends Dialog {
    options() {
       return {a:lmbHasView(this.aList.currentView) ? this.aList.currentView.id : '',
          b:lmbHasView(this.bList.currentView) ? this.bList.currentView.id : '',
-         low:this.low.value, high:this.high.value, fallback:this.fallback.checked, output:this.output.text.trim(),
-         detail:this.detail.currentItem === 0 ? 'A' : 'B',
-         scale:this.scale.value, other:this.other.value/100, autoStretch:this.autoStretch.checked};
+         fallback:this.fallback.checked, output:this.output.text.trim(),
+         autoStretch:this.autoStretch.checked,workflow:'quality-weighted-v1'};
    }
 
-   /** Display measured sigma and its reference-scale conversion. B uses slope;
-    * output uses inverse gain. Additive offsets do not change noise sigma.
-    * Missing output values remain pending until Preview or Create completes.
-    */
-   updateNoise() {
-      let a = this.analysis, c = a && a.channels === 3 ? this.channel.currentItem : 0;
-      this.noiseTitle.text = 'Noise sigma' + (a ? ' - ' + lmbChannel(c, a.channels) : '');
-      let values = a ? [a.noiseA[c], a.noiseB[c], a.noiseOutput ? a.noiseOutput[c] : null] : [null,null,null];
-      let names = a ? [a.sourceA, a.sourceB, 'Output'] : ['Source A','Source B','Output'];
-      let factors = a ? [1, a.fits[c].slope, 1/a.outputMap.gain] : [1,1,1];
-      for (let i = 0; i < 3; ++i) {
-         let cells = this.noiseCells[i+1], n = values[i];
-         cells[0].text = names[i];
-         let empty = i === 2 ? 'After Preview' : '-';
-         cells[1].text = n ? (n.error ? 'Unavailable' : n.sigma.toExponential(4) + ' (' + n.method + ')') : empty;
-         cells[2].text = n && !n.error ? (n.sigma*factors[i]).toExponential(4) : (n ? 'Unavailable' : empty);
-         let tip = n ? (n.error || ('Support: ' + n.count + ' pixels' + (n.layers ? '; MRS layers: ' + n.layers : ''))) : '';
-         cells[1].toolTip = cells[2].toolTip = tip;
+
+   /** Adopt measurements without changing the user's Master 1/2 selections. */
+   adoptPSF(report) {
+      this.psfReport=report;
+      this.updateMeasurements();
+   }
+
+   /** Report the reference decision beside the corresponding measurement rows. */
+   updateReference() {
+      let r=this.psfReport, ref=r && r.reference;
+      let text='Reference frame: determined by Preview.';
+      if(ref) {
+         if(!ref.available)text='Reference frame: unavailable — insufficient PSF measurements.';
+         else {
+            text='Reference frame: Master '+(ref.masterIndex+1)+' ('+ref.a+'). ';
+            text+=ref.tied?'Equal combined FWHM; Master 1 retained.':
+               'Lower combined FWHM: '+r.a.f.toFixed(3)+' px (other master: '+r.b.f.toFixed(3)+' px).';
+         }
       }
+      this.referenceStatus.text=text;
+   }
+
+   /** All rows retain selection order. Sigma is on the reference brightness
+    * scale; an additive offset does not change it. Master PSF widths are the
+    * original reference-selection measurements, even if later steps fail.
+    * RGB normalization can slightly alter intensity PSFs; those widths are
+    * used for quality weighting and included in the FWHM tooltip.
+    */
+   updateMeasurements() {
+      this.updateReference();
+      let a=this.analysis,c=a && a.channels===3?this.channel.currentItem:0;
+      this.measurementTitle.text='Measurements'+(a?' — Sigma: '+lmbChannel(c,a.channels)+'; PSF: '+(a.channels===3?'combined intensity':'Gray'):'');
+      let report=this.psfReport,ref=report && report.reference;
+      for(let i=0;i<3;++i) {
+         let m=a && i<2?a.master(i):null;
+         let cells=this.measurementCells[i+1],n=a?(i===2?(a.noiseOutput?a.noiseOutput[c]:null):m.noise[c]):null;
+         let factor=a?(i===2?1/a.outputMap.gain:m.reference?1:a.fits[c].slope):1;
+         cells[0].text=i===2?'Output':'Master '+(i+1);
+         cells[0].toolTip=i===2?'Integrated output.':(ref?ref.masters[i]+(i===ref.masterIndex?' — reference image':' — normalized to the reference image'):'Selected master image.');
+         cells[1].text=n && !n.error?(n.sigma*factor).toExponential(4):n?'Unavailable':'-';
+         let tip=n?(n.error || ('Method: '+n.method+'; support: '+n.count+' pixels'+(n.layers?'; MRS layers: '+n.layers:''))):'';
+         cells[1].toolTip=LMB_SIGMA_TOOLTIP+(tip?'\n\n'+tip:'');
+         let psf=i===2?(a?a.psfOutput:null):m?m.psf:ref?(i===ref.masterIndex?report.a:report.b):null;
+         let count=psf?psf.count:0;
+         let valid=psf && !psf.error && Number.isFinite(psf.x) && Number.isFinite(psf.y);
+         cells[2].text=valid?psf.x.toFixed(3):psf?'Unavailable':'-';
+         cells[3].text=valid?psf.y.toFixed(3):psf?'Unavailable':'-';
+         cells[7].text=psf?String(count):'-';
+         let psfTip=psf && psf.error?psf.error:this.measurementCells[0][2].toolTip;
+         if(i===2 && psf && !psf.error)psfTip='Output fits: '+count+' / '+psf.total+' accepted source-star locations, using the same profile models. X = major axis; Y = minor axis.';
+         if(m && a.channels===3 && !m.reference && m.normalizedPSF && !m.normalizedPSF.error)
+            psfTip+=' After RGB brightness matching, the quality weight uses FWHM X / Y = '+m.normalizedPSF.x.toFixed(3)+' / '+m.normalizedPSF.y.toFixed(3)+' px.';
+         if(valid && count<20)psfTip+=' Small sample: interpret with caution.';
+         cells[2].toolTip=cells[3].toolTip=cells[7].toolTip=psfTip;
+         let q=a?(i===2?a.qualityOutput:m.quality):null;
+         cells[4].text=q && !q.error?q.weight.toExponential(4):q?'Unavailable':'-';
+         cells[5].text=q && !q.error?q.snr.toExponential(4):q?'Unavailable':'-';
+         cells[6].text=m?(100*m.weight).toFixed(2)+'%':'-';
+         for(let j=4;j<=6;++j)cells[j].toolTip=q && q.error?q.error:this.measurementCells[0][j].toolTip;
+      }
+      this.formula.text=a?'Combination: '+a.master(0).weight.toFixed(6)+' × Master 1 + '+a.master(1).weight.toFixed(6)+' × Master 2 (reference brightness scale)'+
+         (a.outputMap.gain!==1 || a.outputMap.lower!==0?'; then common range normalization.':'.'):'Preview calculates the integration weights.';
    }
 
    /** Stop callbacks before releasing cached frames. A new analysis or display
@@ -708,8 +1166,10 @@ class LMBDialog extends Dialog {
    releasePreview() {
       this.stopBlink(false);
       this.previewViewer.clear();
+      this.previewViewer.clearPixelReadout();
       if (this.outputBitmap) this.outputBitmap.clear(); this.outputBitmap = null;
       if (this.sourceBitmap) this.sourceBitmap.clear(); this.sourceBitmap = null;
+      this.sourceBitmapIndex=-1;
       this.previewStretch = null; this.showingSource = false;
       this.updateBlinkControls();
    }
@@ -723,6 +1183,42 @@ class LMBDialog extends Dialog {
       this.setPreviewFrame(false);
    }
 
+   /** Exact linear pixel readout, independent of the displayed stretch.
+    * Reconstruct the weighted output from immutable snapshots with the same
+    * Float32 rounding and range map as the actual PixelMath result.
+    */
+   previewPixelSample(x,y) {
+      let a=this.analysis;
+      if(!a || !this.outputBitmap || !Number.isFinite(x)||!Number.isFinite(y)||x<0||y<0||x>=a.width||y>=a.height)return null;
+      x=Math.floor(x);y=Math.floor(y);let values=[];
+      for(let c=0;c<a.channels;++c) {
+         let v;
+         if(this.showingSource)v=a.master(this.blinkSource.currentItem).snapshot.mainView.image.sample(x,y,c);
+         else {
+            v=a.weights.a*a.a.mainView.image.sample(x,y,c)+a.weights.b*a.b.mainView.image.sample(x,y,c);
+            v=Math.fround(Math.min(1,Math.max(0,(v-a.outputMap.lower)*a.outputMap.gain)));
+         }
+         values.push(v);
+      }
+      return {name:'Value',values:values,tip:this.showingSource?'Linear master value on the reference brightness scale, before display mapping.':'Linear output value before display stretching.'};
+   }
+
+   /** One shared source cache, keyed by image identity within this analysis.
+    * ImageView owns its display copy. releasePreview() clears the cache when
+    * the output or display stretch changes.
+    */
+   sourcePreviewBitmap(index) {
+      if(this.sourceBitmap && this.sourceBitmapIndex!==index) {
+         this.sourceBitmap.clear(); this.sourceBitmap=null; this.sourceBitmapIndex=-1;
+      }
+      if(!this.sourceBitmap) {
+         let source=this.analysis.master(index).snapshot;
+         this.sourceBitmap=lmbOutputBitmap(source.mainView,this.autoStretch.checked,this.analysis.outputMap,this.previewStretch);
+         this.sourceBitmapIndex=index;
+      }
+      return this.sourceBitmap;
+   }
+
    /** regenerate(bitmap) preserves ImageView zoom and scroll position. setImage
     * resets them and therefore must only be used for a newly computed preview.
     */
@@ -730,9 +1226,12 @@ class LMBDialog extends Dialog {
       let bitmap = source ? this.sourceBitmap : this.outputBitmap;
       if (!bitmap) return;
       if (source !== this.showingSource) this.previewViewer.regenerate(bitmap);
-      this.showingSource = source;
+      this.showingSource = source;this.previewViewer.refreshPixelReadout();
       let label = 'Output';
-      if (source) label = this.blinkSource.currentItem === 0 ? 'Source A: ' + this.analysis.sourceA : 'Source B: ' + this.analysis.sourceB + ' (normalized)';
+      if (source) {
+         let index=this.blinkSource.currentItem, master=this.analysis.master(index);
+         label='Master '+(index+1)+': '+master.id+(master.reference?' (reference)':' (normalized)');
+      }
       this.previewViewer.setStatusMessage(label + (this.autoStretch.checked ? ' - shared display stretch' : ' - common linear display scale'));
    }
 
@@ -776,10 +1275,7 @@ class LMBDialog extends Dialog {
       let oldAbort = console.abortEnabled;
       this.setBusy(true); console.abortEnabled = true;
       try {
-         if (!this.sourceBitmap) {
-            let source = this.blinkSource.currentItem === 0 ? this.analysis.a : this.analysis.b;
-            this.sourceBitmap = lmbOutputBitmap(source.mainView, this.autoStretch.checked, this.analysis.outputMap, this.previewStretch);
-         }
+         this.sourcePreviewBitmap(this.blinkSource.currentItem);
          this.setPreviewFrame(automatic || !this.showingSource);
          if (automatic) { this.blinking = true; this.blinkTimer.start(); }
       } catch (e) {
@@ -792,19 +1288,21 @@ class LMBDialog extends Dialog {
    /** Keep timers and user edits out of native processing event loops. */
    setBusy(busy) {
       this.running = busy;
-      for (let c of [this.aList,this.bList,this.low,this.high,this.fallback,this.output,this.channel,
-         this.detail,this.scale,this.other,this.autoStretch,this.tabs,
+      for (let c of [this.aList,this.bList,this.fallback,this.output,this.channel,
+         this.autoStretch,this.tabs,
          this.newInstanceButton,this.previewButton,this.resetButton,this.helpButton,this.createButton,this.closeButton])
          c.enabled = !busy;
       this.updateBlinkControls();
    }
 
    /** Release snapshots before clearing UI pointers; stale values must vanish. */
-   invalidate() {
+   invalidate(clearPSF = false) {
       this.releasePreview();
       this.previewViewer.setStatusMessage('Preview is out of date. Click the magnifier.');
       if (this.analysis) this.analysis.dispose(); this.analysis = null;
-      this.plot.analysis = null; this.channel.visible = false; this.plot.update(); this.updateNoise();
+      this.plot.analysis = null; this.channel.visible = false; this.plot.update();
+      if (clearPSF) this.psfReport=null;
+      this.updateMeasurements();
       this.status.text = 'Ready to calculate a fresh preview.';
    }
 
@@ -817,18 +1315,19 @@ class LMBDialog extends Dialog {
       console.show(); console.abortEnabled = true;
       try {
          let o = this.options();
-         if (!o.a || !o.b) throw new Error('Select both reference A and target B.');
+         if (!o.a || !o.b) throw new Error('Select both Master 1 and Master 2.');
          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(o.output)) throw new Error('Invalid output identifier.');
          if ((!create && !displayOnly) || !this.analysis) {
-            this.invalidate(); this.status.text = 'Normalizing copies and measuring full-resolution noise...';
+            this.invalidate(true); this.status.text = 'Measuring PSFs, normalizing copies and measuring noise...';
             this.analysis = new LMBAnalysis(View.viewById(o.a), View.viewById(o.b), o);
+            this.adoptPSF(this.analysis.psf);
             this.plot.analysis = this.analysis; this.plot.channel = this.analysis.channels === 3 ? this.channel.currentItem : 0;
-            this.channel.visible = this.analysis.channels === 3; this.plot.update(); this.updateNoise();
+            this.channel.visible = this.analysis.channels === 3; this.plot.update(); this.updateMeasurements();
 
          }
          if (create) {
             created = this.analysis.combine(o.output);
-            this.updateNoise();
+            this.updateMeasurements();
             this.showOutputPreview(created.mainView);
             this.status.text = 'Created ' + created.mainView.id + '. The preview stretch is display-only; save the linear output as XISF.';
          } else {
@@ -836,11 +1335,12 @@ class LMBDialog extends Dialog {
             this.status.text = 'Rendering the full-resolution combined output...';
             try {
                temporary = this.analysis.combine('LMB_preview', false, true);
-               this.updateNoise(); this.showOutputPreview(temporary.mainView);
-               this.status.text = 'Output preview ready. Zoom or drag to inspect it; Fit and noise shows diagnostics. Create opens the linear result.';
+               this.updateMeasurements(); this.showOutputPreview(temporary.mainView);
+               this.status.text = 'Output preview ready. Measurements shows the reference frame and results for both masters and output. Create opens the linear result.';
             } finally { lmbClose(temporary); }
          }
       } catch (e) {
+         if(e.psfReport)this.adoptPSF(e.psfReport);
          this.status.text = created ? 'Created ' + created.mainView.id + '; preview unavailable: ' + e.message : 'Error: ' + e.message;
          console.warningln(String(e));
          new MessageBox(this.status.text, 'Linear Master Blend', StdIcon.Error, StdButton.Ok).execute();

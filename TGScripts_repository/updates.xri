@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="c7fecfc3561b9bb4994cd214d2a046a84dcf71cc" type="script" releaseDate="20261011">
+      <package fileName="TGScripts_repository.tar.gz" sha1="99355727989598eb7c2f24b59995589bd428973c" type="script" releaseDate="20261017">
          <title>
-            TGScripts snapshot - 2026 Okt 11
+            TGScripts snapshot - 2026 Okt 17
          </title>
          <remove>
             src/scripts/TGScripts
@@ -33,7 +33,7 @@
             <p>
                Updates:
                <br/>
-               Add LRGBDeconvolutionMatch script
+               LinearMasterBlend: do photon-flux based linear fit, use PSF signal weight, PSF SNR and combined FWHM to compute master file contributions.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -42,4 +42,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-11T15:29:57.506Z" encoding="Base64">rRS1OlNvZZyGW/p6Tf0h+liP2dB0t3ebMtMAExEF8ghDtZLVlqcBh59P1LQWHB9PNwecYdSTDkBLMbesxToYAQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-17T15:31:29.739Z" encoding="Base64">xKX+2PvUwSMBBjrzmU3WuLp6Rm4GQmqM7oajEkx4JWlb1lnPJFtxKd/pIxU8ztPM+G+s+Q9CeSSF+hChEduMBQ==</Signature>

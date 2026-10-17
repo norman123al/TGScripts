@@ -3,9 +3,9 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | LinearMasterBlend</title>
-   <meta name="keywords" content="linear images, image combination, fine detail, preview, blink, noise" />
+   <meta name="keywords" content="linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink" />
    <meta name="author" content="" />
-   <meta name="description" content="Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.2." />
+   <meta name="description" content="Integrate two aligned linear master images using measured source quality. Version 1.19.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,10 +25,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Combine two aligned linear master images while keeping fine detail from a chosen source. Version 1.6.2. <a href="#__contents__">[more]</a></p></div>
+<p>Integrate two aligned linear master images using measured source quality. Version 1.19.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> linear images, image combination, fine detail, preview, blink, noise</p>
+<p><strong>Keywords:</strong> linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -37,14 +37,13 @@
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
 <li class="pidoc_tocItem"><a href="#__Start_the_script__">2&emsp;Start the script</a></li>
-<li class="pidoc_tocItem"><a href="#__Prepare_your_images__">3&emsp;Prepare your images</a></li>
-<li class="pidoc_tocItem"><a href="#__Create_a_combined_image__">4&emsp;Create a combined image</a></li>
-<li class="pidoc_tocItem"><a href="#__Settings__">5&emsp;Settings</a></li>
+<li class="pidoc_tocItem"><a href="#__Combine_two_masters__">3&emsp;Combine two masters</a></li>
+<li class="pidoc_tocItem"><a href="#__Integration_weights__">4&emsp;Integration weights</a></li>
+<li class="pidoc_tocItem"><a href="#__Brightness_matching_and_measurements__">5&emsp;Brightness matching and measurements</a></li>
 <li class="pidoc_tocItem"><a href="#__Preview_and_blink__">6&emsp;Preview and blink</a></li>
-<li class="pidoc_tocItem"><a href="#__Fit_and_noise__">7&emsp;Fit and noise</a></li>
-<li class="pidoc_tocItem"><a href="#__Toolbar_buttons__">8&emsp;Toolbar buttons</a></li>
-<li class="pidoc_tocItem"><a href="#__Tips_and_troubleshooting__">9&emsp;Tips and troubleshooting</a></li>
-<li class="pidoc_tocItem"><a href="#__License__">10&emsp;License</a></li>
+<li class="pidoc_tocItem"><a href="#__Settings_and_buttons__">7&emsp;Settings and buttons</a></li>
+<li class="pidoc_tocItem"><a href="#__Tips_and_troubleshooting__">8&emsp;Tips and troubleshooting</a></li>
+<li class="pidoc_tocItem"><a href="#__License__">9&emsp;License</a></li>
 </ul>
 </div>
 
@@ -54,7 +53,7 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<p>Linear Master Blend matches the brightness of two master images and combines their broader structures while keeping fine detail from the source you choose. It provides an image preview, blinking against either source, a scatter plot and noise measurements. The result opens as a new linear image. The source images remain unchanged.</p>
+<p>Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The criteria are PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). The result is a new linear image. Both source images remain unchanged.</p>
    </div>
 </div>
 
@@ -62,45 +61,50 @@
    <h3 class="pidoc_sectionTitle">2&emsp;Start the script</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Start_the_script', this );">[hide]</p>
    <div id="Start_the_script">
-<p>Linear Master Blend is part of TGScripts. With TGScripts installed through PixInsight's standard update system, choose Script &gt; TG Scripts &gt; Linear Master Blend.</p>
-<p>Click the document icon in the script to open this guide.</p>
+<p>With TGScripts installed through PixInsight's standard update system, choose Script &gt; TG Scripts &gt; Linear Master Blend.</p>
+<p>Open two already aligned and cropped linear masters. Use matching dimensions and either two grayscale images or two RGB images. Remove alpha channels and correct gradients before combining. Both image selectors start empty.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Prepare_your_images__">
-   <h3 class="pidoc_sectionTitle">3&emsp;Prepare your images</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Prepare_your_images', this );">[hide]</p>
-   <div id="Prepare_your_images">
-<p>Open two aligned linear master images with the same dimensions. Use either two grayscale images or two RGB images, in floating-point format without alpha channels. Crop empty registration borders. Each image must be at least 32 by 32 pixels.</p>
-<p>The images should show corresponding structures with compatible backgrounds and filter responses. An STF display stretch is fine; permanently stretched images are unsuitable.</p>
-<p>When the images come from different telescopes, choose the source with the finer real detail as the fine-detail source. Lower measured noise alone does not mean greater depth or better resolution.</p>
+<div class="pidoc_section" id="__Combine_two_masters__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Combine two masters</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Combine_two_masters', this );">[hide]</p>
+   <div id="Combine_two_masters">
+<p>1. Select the two images as Master 1 and Master 2.</p>
+<p>2. Click the magnifier to calculate Preview. It first measures both master PSFs and selects the master with the lower combined FWHM as the reference frame. It then matches the other master's brightness to the reference and calculates the integration. Master 1 and Master 2 keep their selection order.</p>
+<p>3. Inspect the Output preview and blink against either master. Open Measurements to see which master became the reference, both master FWHM X/Y values, the contributions and the output measurements in one table.</p>
+<p>4. Click the green checkmark to create the integrated image. Create uses the current preview's normalization and weights. Apply an STF to view the linear image, then save it as XISF.</p>
+<p>If you edit either source outside the script, calculate a fresh Preview before creating the result. The script does not save the output automatically.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Create_a_combined_image__">
-   <h3 class="pidoc_sectionTitle">4&emsp;Create a combined image</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Create_a_combined_image', this );">[hide]</p>
-   <div id="Create_a_combined_image">
-<p>1. Select A reference and B to normalize. B will be matched to A's brightness scale.</p>
-<p>2. Choose whether A or B supplies the fine detail. Start with Gaussian sigma at 4 pixels and Other image at broad scales at 25 percent.</p>
-<p>3. Click the magnifier to calculate the preview. Inspect stars and faint structures, and blink against each source. Check the Fit and noise tab.</p>
-<p>4. Adjust the settings and preview again until the blend looks suitable. If you edit either source outside the script, click Preview again before creating the result.</p>
-<p>5. Click the green checkmark to create the output. It uses the current preview calculation, or calculates a result first if no preview is available.</p>
-<p>6. Apply an STF to view the new linear image and save it as XISF. The script does not save it automatically.</p>
+<div class="pidoc_section" id="__Integration_weights__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Integration weights</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Integration_weights', this );">[hide]</p>
+   <div id="Integration_weights">
+<p>Each source is measured using the same accepted stars. Higher PSF Signal Weight and PSF SNR favor a source. Smaller combined FWHM favors sharper stellar profiles. Combined FWHM is the median of sqrt(FWHM X * FWHM Y) over the matched stars.</p>
+<p>Each criterion is normalized across the two sources before the contributions are added. With S for PSF Signal Weight, N for PSF SNR and F for combined FWHM:</p>
+<p>Weight 1 = 0.4 * S_1 / (S_1 + S_2) + 0.4 * N_1 / (N_1 + N_2) + 0.2 * F_2 / (F_1 + F_2).</p>
+<p>Weight 2 = 1 - Weight 1.</p>
+<p>Output = Weight 1 * Master 1 + Weight 2 * Master 2, with both masters on the reference brightness scale.</p>
+<p>The contributions sum to 100 percent. Equally measured sources receive 50 percent each. One pair of weights applies to the entire image and to all RGB channels. The measured contributions and the numeric combination formula appear below the scatter plot.</p>
+<p>PSF Signal Weight combines stellar signal, its concentration, noise and background residuals. PSF SNR compares stellar signal with measured noise. These two metrics share sensitivity to noise. The signal measurements use the accepted star sample, so their absolute values can differ from SubframeSelector measurements based on a different stellar population.</p>
+<p>For RGB images, quality is measured on equal-weight linear intensity, (R+G+B)/3, after brightness matching. Sigma remains available separately for each channel. Exposure time and sky conditions are not scored directly.</p>
+<p>This is a weighted average of both masters at every pixel. A contribution from a broader-PSF source can broaden output stars. The quality weights balance signal and sharpness; inspect the result rather than assuming that every output measurement will improve.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Settings__">
-   <h3 class="pidoc_sectionTitle">5&emsp;Settings</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Settings', this );">[hide]</p>
-   <div id="Settings">
-<p>A reference / B to normalize: choose the brightness reference and the image to match to it. Both start unselected when you launch the script; saved process instances restore your chosen images. This choice is independent of which source supplies fine detail.</p>
-<p>Fine-detail source: choose the image whose small structures and sharpness you want to retain. Its fine noise is also retained.</p>
-<p>Gaussian sigma (px): controls the size of structures affected by the blend, from 1 to 32 pixels. Larger values confine the other image's contribution to broader structures.</p>
-<p>Other image at broad scales: controls how much the other image contributes to broad structures, from 0 to 100 percent. Zero uses the detail source alone. Increase the value when the other image adds useful signal; check stars and halos as you adjust it.</p>
-<p>Reject low / high: exclude very dark or bright pixels when matching brightness. Defaults are 0 and 0.92. These settings affect the brightness match, not which parts of the image are combined.</p>
-<p>Allow k-sigma fallback: allow an alternative noise estimate if the standard estimate fails. It does not change the blend strength.</p>
-<p>Output ID: name the new image. If that name is already in use, a suffix is added.</p>
+<div class="pidoc_section" id="__Brightness_matching_and_measurements__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Brightness matching and measurements</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Brightness_matching_and_measurements', this );">[hide]</p>
+   <div id="Brightness_matching_and_measurements">
+<p>The scatter plot shows the background-subtracted flux of each matched star: the other master horizontally and the reference master vertically. The axes identify Master 1 and Master 2. The yellow line shows the brightness scale to the reference and passes through zero. Blue points support the fit, gray points have reduced influence, and red points are rejected. At least ten reliable stars are required in every channel.</p>
+<p>The other master is scaled to the reference independently in each channel. Its background is matched separately using the backgrounds around the accepted stars. This is a global brightness match; it does not remove spatial gradients.</p>
+<p>The reference frame is identified above a single table with rows for Master 1, Master 2 and Output. The table reports Sigma, FWHM X, FWHM Y, PSF Signal Weight, PSF SNR, Contribution and Stars. Sigma is the noise standard deviation on the reference image's brightness scale. Hover over a value for measurement details. For RGB images, the channel selector changes Sigma and the scatter plot.</p>
+<p>FWHM X and Y are the fitted major and minor axes in aligned-image pixels, which can be rotated relative to the image edges. They do not describe the original camera pixel size or angular resolution. The master rows show the original PSF widths used to select the reference. Channel-wise brightness matching can slightly change an RGB master's combined-intensity PSF; the FWHM tooltip also gives those brightness-matched widths when applicable. Quality weights use the brightness-matched images.</p>
+<p>Output measurements are reported after integration and do not change the weights. RGB PSF and quality values describe combined linear intensity and stay fixed when you change the channel selector.</p>
+<p>Both sources need reliable quality measurements to calculate weights. If an output diagnostic is unavailable, the created image remains usable; hover over the affected value for the reason.</p>
+<p>The output is a 32-bit floating-point image. If the integrated values fall below 0 or above 1, one common brightness transformation brings all channels into that range. The formula label indicates when this is needed. The result remains linear, and reported Sigma is converted back to the reference image's brightness scale.</p>
    </div>
 </div>
 
@@ -108,52 +112,43 @@
    <h3 class="pidoc_sectionTitle">6&emsp;Preview and blink</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_and_blink', this );">[hide]</p>
    <div id="Preview_and_blink">
-<p>Use the Output preview tab to inspect the result. The viewer has zoom-in, zoom-out, 1:1 and fit-to-window buttons. Use the mouse wheel to zoom and drag to pan.</p>
-<p>Auto stretch preview makes faint signal visible. It affects the preview only; the created image remains linear. Disable it to inspect the linear brightness.</p>
-<p>In Blink with, choose A reference or B normalized. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. The label above the viewer identifies the displayed image. Zoom and position stay fixed between frames.</p>
-<p>Blink comparisons use a common brightness scale and display stretch. Very bright or dark source details can be clipped in this comparison display; the source data remains unchanged.</p>
-<p>Changing the comparison source, switching to Fit and noise, changing the stretch or recalculating stops blinking. Changes to processing settings clear the preview; click the magnifier to update it.</p>
+<p>Use the zoom buttons or mouse wheel to inspect the Output preview. Drag to pan. Auto stretch preview affects only the display; the output remains linear.</p>
+<p>Choose Master 1 or Master 2 in Blink with. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. Zoom and position stay fixed. Changing the comparison source or opening the measurements tab stops blinking.</p>
+<p>Comparisons use a common display scale and stretch. Source values outside the display range can be clipped in the preview only. The coordinate bar shows the linear pixel value under the pointer, or separate R, G and B values. Output values use the created image's scale; source values use the reference image's brightness scale. Display stretching does not change this readout.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Fit_and_noise__">
-   <h3 class="pidoc_sectionTitle">7&emsp;Fit and noise</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Fit_and_noise', this );">[hide]</p>
-   <div id="Fit_and_noise">
-<p>The scatter plot compares B on the horizontal axis with A on the vertical axis. Blue points fall within the brightness-matching limits; gray points fall outside them. The yellow line shows the brightness match. A broad or uneven cloud can reveal noise, background differences or differences in the structures recorded by the two images.</p>
-<p>The noise table shows A, B and the output. Image units shows each image's measured noise. A units puts all three on a common brightness scale for comparison. For RGB images, use the channel selector to inspect red, green or blue.</p>
-<p>MRS or k-sigma identifies the noise-estimation method. If a value is Unavailable, hover over it for the reason. Lower noise alone does not prove better depth or detail. The measurements help you judge the result; they do not set the blend strength.</p>
-   </div>
-</div>
-
-<div class="pidoc_section" id="__Toolbar_buttons__">
-   <h3 class="pidoc_sectionTitle">8&emsp;Toolbar buttons</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_buttons', this );">[hide]</p>
-   <div id="Toolbar_buttons">
-<p>Triangle: drag onto the workspace to save the selected images and settings as a process icon. Keep those images open when running the icon globally.</p>
-<p>Magnifier: calculate or refresh the preview, fit and noise measurements.</p>
-<p>Reset: restore the default settings and clear the preview. The selected images stay selected.</p>
-<p>Green checkmark: create a new combined image.</p>
-<p>Red cross: close the script. Created output images remain open.</p>
+<div class="pidoc_section" id="__Settings_and_buttons__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Settings and buttons</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Settings_and_buttons', this );">[hide]</p>
+   <div id="Settings_and_buttons">
+<p>Master 1 / Master 2: choose the two open master images. Preview selects the reference by their measured combined FWHM; equal widths retain Master 1. Saved process instances restore your image choices in the same order.</p>
+<p>Allow k-sigma fallback: allow an alternative noise estimate if MRS fails. The Sigma tooltip identifies the estimator used.</p>
+<p>Output ID: name the new image. A suffix is added if that identifier is already in use.</p>
+<p>Triangle: drag onto the workspace to save the selected images and settings as a process icon. Run it globally with those images open.</p>
+<p>Magnifier: measure both PSFs, select the reference, and calculate a fresh preview and all measurements.</p>
+<p>Reset: restore defaults and clear the preview, keeping the selected sources.</p>
+<p>Green checkmark: create a new integrated image.</p>
+<p>Red cross: close the script and release temporary copies. Created images stay open.</p>
 <p>Document: open this guide.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Tips_and_troubleshooting__">
-   <h3 class="pidoc_sectionTitle">9&emsp;Tips and troubleshooting</h3>
+   <h3 class="pidoc_sectionTitle">8&emsp;Tips and troubleshooting</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Tips_and_troubleshooting', this );">[hide]</p>
    <div id="Tips_and_troubleshooting">
-<p>Brightness matching fails: check alignment, crop empty borders, and review the rejection limits. Both images need useful, varying signal in common.</p>
-<p>Noise estimation fails: inspect borders, gradients and heavily processed data. Try Allow k-sigma fallback if needed. A failed output noise measurement does not discard the output image.</p>
-<p>Unwanted halos or softer structures: choose the sharper source for fine detail, reduce the other image's contribution, or increase Gaussian sigma. Compare both sources and the output at the same zoom.</p>
-<p>Large images can take time and require substantial memory. Wait for preview calculation to finish before comparing the result.</p>
-<p>The script does not align images or remove gradients. Prepare these first. The output does not carry source astrometry, exposure metadata or custom color settings; restore these separately if needed.</p>
-<p>Help is missing or looks unformatted: check that the script and its documentation are up to date through PixInsight's standard update system.</p>
+<p>Insufficient stars or a failed brightness fit: check alignment, crop registration borders and use images with enough isolated, unsaturated stars. Different filters or strong processing can make stellar fluxes incompatible.</p>
+<p>Noise or quality measurement fails: inspect borders, gradients and processed data. Try Allow k-sigma fallback when appropriate. The script requires reliable source measurements rather than guessing weights.</p>
+<p>Inspect stars, halos and faint structures by blinking the output with both sources. FWHM describes stellar sharpness, not depth or every type of detail. A high quality score does not guarantee that different telescope or filter data should be mixed.</p>
+<p>Large images require time and memory. Use the console Abort control to cancel processing. Source images remain unchanged.</p>
+<p>The script does not align images or remove gradients. The output does not inherit source astrometry, exposure metadata or custom color settings; restore these separately if needed.</p>
+<p>If help is missing or unformatted, update the script and documentation through PixInsight's standard update system.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__License__">
-   <h3 class="pidoc_sectionTitle">10&emsp;License</h3>
+   <h3 class="pidoc_sectionTitle">9&emsp;License</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'License', this );">[hide]</p>
    <div id="License">
 <p>The script and guide are distributed under the MIT license in LICENSE.txt. Bundled documentation resources and fonts retain their own licenses.</p>
@@ -164,7 +159,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-11 08:26:48 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-17 15:08:07 UTC</p>
 </div>
 <br/>
 <br/>
