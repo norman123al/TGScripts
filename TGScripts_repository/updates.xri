@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="c8a32bd638c6ea5ed63b8c1fab0de89801853240" type="script" releaseDate="20261018">
+      <package fileName="TGScripts_repository.tar.gz" sha1="48d1fa651cd75a7c494ad5ba877cb47c6675ddbf" type="script" releaseDate="20261019">
          <title>
-            TGScripts snapshot - 2026 Okt 18
+            TGScripts snapshot - 2026 Okt 19
          </title>
          <remove>
             src/scripts/TGScripts
@@ -24,6 +24,7 @@
             doc/scripts/LRGBDeconvolutionMatch
             doc/scripts/ROILinearFit
             doc/scripts/StarSpikeProtectionMask
+            doc/scripts/SubframeQualityReview
             doc/scripts/TGScriptSkeleton
          </remove>
          <description>
@@ -33,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               LRGBDeconvolutionMatch: fix halo match algorithm, add option to apply deconvolution to source images
+               Add SubframeQualityReview script. Asses subframe quality after an initial WBPP run and include comparison with master file and best subframe. Optional: add autofocus time information from an ASIAIR Autorun log file to check effects of re-focussing during image acquisition.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -42,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-18T12:24:15.679Z" encoding="Base64">lFj8ZvzWJzDTeqAOUuN6Jdo3nVt7hGTAthr2p/7t5/UuTdWgESLwQYhCu3lJ+d/4bpcecSc7IGyPCRLYv1EBCQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-18T22:04:23.572Z" encoding="Base64">pwekpSh8fHHvMadgYeadA5jBnC+615sq3ny3f88Xbpj7YGQ0HW2bUTsSxCvNGOoDzSGr9OXTUL8M1jW/0CaXAA==</Signature>

@@ -1,0 +1,225 @@
+\documentclass{PIScriptDoc}
+\script{SubframeQualityReview}
+\keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.15.2.}
+
+\description{
+Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
+
+The default shortlist contains the worst 10\% of measured subframes in each group. REVIEW is a suggestion to inspect an image. Only your explicit rejection decisions are included in a move operation. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.
+
+The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from an Autorun log.
+}
+
+\section{Start and complete a review}{
+With TGScripts installed through the standard PixInsight script installation, choose Script > TG Scripts > Subframe Quality Review. The script requires PixInsight 1.9.5 or later. Use the documentation button at the lower right to reopen this guide.
+
+\list[ordered,spaced]{
+   {Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.}
+   {Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select an Autorun log and its timestamp convention.}
+   {Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.}
+   {Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Set Review worst (\%) and the quality weights as needed.}
+   {Click the magnifier button at the bottom to measure and rank the images. The measurement run covers all discovered groups and their matched masters.}
+   {Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. Inspect the images before deciding which originals to reject.}
+   {Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.}
+   {Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.}
+   {Rerun WBPP with the remaining originals. Refresh its light-frame input list so it no longer includes the moved files. Keep the rejection destination out of the new input selection.}
+}
+
+Measurements and pending rejection decisions remain in memory while the dialog is open. Closing the dialog discards them. The New Instance button saves folder and evaluation settings in a process icon; it does not save a measured review session.
+}
+
+\section{Directories and filter groups}{
+\table[header]{
+   {{Input} {What to select}}
+   {{WBPP output} {The completed output directory containing the registered subfolder and, when available, the master subfolder.}}
+   {{Original-light root} {A directory containing the original, uncalibrated light files. Subdirectories are scanned recursively. Flats, darks, bias frames, and master files are excluded from original-light matching. The original root must be outside the WBPP output directory.}}
+   {{Rejected originals} {The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
+   {{Autorun log} {An optional text log containing timestamped \[AutoFocus|Begin\] entries.}}
+}
+
+XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.
+
+The master is selected automatically from the master subfolder. Its masterLight filename must identify the group's filter. When several masters share that filter, the script looks for the corresponding WBPP group name. A missing or ambiguous match is reported instead of choosing an arbitrary master. The best scoring subframe remains available as a reference when no master is matched.
+
+Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.
+
+Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.
+}
+
+\section{Quality evaluation controls}{
+\table[header]{
+   {{Control} {Default} {Meaning}}
+   {{Review worst (\%)} {10} {Shortlist this percentage of valid field measurements independently in each group, rounded up. Images with insufficient required measurements are also flagged for inspection, so REVIEW may contain more than the percentage quota.}}
+   {{Measure corners} {Off} {Add one center and four corner measurements per image. This increases processing time. Enable it and click the magnifier to obtain missing regional measurements.}}
+   {{Corner size (\%)} {22} {Width and height of each corner and center patch, as a percentage of the common measurement field.}}
+   {{Edge guard (\%)} {2} {Inset applied inside the common valid field to reduce edge contamination.}}
+   {{Minimum stars} {20} {Minimum star and PSF support required for a valid measurement. Sparse fields or small corner patches may fail this requirement.}}
+   {{Quality weights} {See the Score section} {Relative influence of each component. A zero weight disables that component. At least one underlying quality indicator must have a positive weight.}}
+}
+
+Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Changing the region geometry or minimum-star setting clears the affected measurement state; click the magnifier to measure again.
+
+If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist.
+}
+
+\section{What is measured}{
+The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels.
+
+Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.
+
+Field measurements for all groups and masters are submitted together to SubframeSelector. Optional center and corner crops are submitted in a second batch. SubframeSelector manages processing concurrency using its normal defaults, as in WBPP; the script does not impose a fixed number of frames per batch.
+
+With corner measurements enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.
+
+Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.
+}
+
+\section{Score and Below-mean Quality}{
+Lower Score means better relative quality. The default Score sort puts the highest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, optional corner problems, and the breadth of below-mean quality across indicators.
+
+\table[header]{
+   {{Component} {Poor-quality direction} {Default weight}}
+   {{PSF signal weight} {Lower} {40}}
+   {{Star count} {Lower} {15}}
+   {{Field FWHM} {Higher} {25}}
+   {{Field eccentricity} {Higher} {20}}
+   {{Corner quality} {Higher corner severity; included when enabled} {20}}
+   {{Below-mean Quality} {Higher fraction of indicators worse than their mean} {20}}
+}
+
+For each underlying field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2\% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.
+
+For an indicator where higher is worse, the penalty is (value minus median) divided by the scale. For an indicator where lower is worse, it is (median minus value) divided by the scale. Negative penalties become zero, and penalties above 10 are capped at 10. A good result in one indicator therefore does not cancel a poor result in another.
+
+For corner quality, the script calculates these penalties for FWHM, corner-to-center FWHM ratio, and eccentricity at each corner, comparing each location with that same location across the group. Corner severity is the largest of these penalties across all four corners. It contributes once to Score with the Corner quality weight.
+
+Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, and high corner severity count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.
+
+For example, a subframe worse than the mean in three of four assessed indicators has Below-mean Quality of 75\%. Its score penalty uses the fraction 0.75 directly. With the default weight of 20, it adds 0.75 times 20 to the weighted numerator. Setting the Below-mean Quality weight to zero removes this score contribution while keeping the percentage visible.
+
+Score is the sum of each available penalty times its weight, divided by the sum of those weights. With all default field components available and corners disabled, the denominator is 120. With complete corner measurements enabled, it is 140. Score is a relative penalty value, not a percentage.
+
+The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner severity counts as one indicator when corner scoring is enabled and weighted.
+
+Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and complete comparison ranks are withheld when their required measurements are unavailable.
+
+The master receives comparable measurements and a score against the subframe baselines. It does not influence the baselines or consume a place in the REVIEW quota.
+}
+
+\section{Review and measurements}{
+\table[header]{
+   {{Column} {Meaning}}
+   {{R1} {Rank using field quality and its Below-mean Quality contribution, without corners. Rank 1 is worst.}}
+   {{R2} {Rank using field and corner quality, including the corresponding Below-mean Quality contribution. Requires complete regional measurements. Rank 1 is worst.}}
+   {{Reject} {Your manual rejection choice. Clicking this column toggles the choice for an eligible original.}}
+   {{Review} {REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data.}}
+   {{Image} {The measured registered image or integrated master.}}
+   {{Acquisition time (UTC)} {The complete date and time used for chronological sorting and quality plots. Master and unavailable timestamps are shown as a dash.}}
+   {{PSF weight, Stars, FWHM (px)} {Field measurements used in scoring.}}
+   {{Worst corner} {The corner contributing the largest regional penalty when corner scoring is enabled.}}
+   {{Score} {The current weighted penalty; lower is better.}}
+   {{Below-mean Quality} {Percentage of assessed indicators with worse-than-mean quality; lower is better.}}
+   {{Main issue} {The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, or Below-mean Quality.}}
+   {{Original association} {Whether the corresponding uncalibrated original has been verified for moving.}}
+}
+
+Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.
+
+R1 and R2 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.
+
+Use Sort by in the Sort and filter area. Score, field-width, corner-severity, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1 and R2 show rank 1 first. The direction label beside the selector states the active order. Below-mean Quality sorts complete comparisons first, from highest percentage downward, with Score resolving ties; incomplete comparisons follow.
+
+Acquisition time sorts by the full date and time from earliest to latest. Dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering.
+
+Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.
+
+Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.
+}
+
+\section{Blink frame and reference}{
+Blink against defaults to Best scoring subframe. This chooses the lowest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.
+
+The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.
+
+Press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
+
+Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.
+
+Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.
+
+The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.
+}
+
+\section{Quality indicators and acquisition order}{
+The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.
+
+Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.
+
+\table[header]{
+   {{Color or marker} {Meaning}}
+   {{Cyan} {Currently selected image. This highlight takes precedence over the normal bar color.}}
+   {{Purple} {REVIEW candidate.}}
+   {{Blue} {Other subframe.}}
+   {{Red} {Manually rejected or moved original.}}
+   {{Gold} {Master, with a master marker.}}
+   {{Green dashed line} {Mean of available values for subframes that have not been rejected or moved. The master is excluded.}}
+   {{Orange dashed line and AF tag} {Autofocus start within the current group's acquisition-time range.}}
+}
+
+Hover over a bar to see its filename, value, status, and acquisition time. Click it to select the corresponding row in Review and measurements. If necessary, the script clears REVIEW candidates only to reveal the selected image, including the master. Clicking a plot bar does not change rejection decisions.
+
+The vertical range follows the subframe values with approximately 10\% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.
+
+The green plot mean excludes rejected subframes and can change as you make decisions. The scoring baselines and the arithmetic means behind Below-mean Quality use all supported subframes in the group, including rejects. These intentionally serve different purposes.
+
+Acquisition timestamps come first from the verified original's DATE-OBS or DATEOBS metadata, then from the registered image. Separate TIME-OBS or TIMEOBS fields are supported when the date field contains only a date. Explicit timezone offsets are converted to UTC; timestamps without an offset are interpreted as UTC. The table shows the same UTC timestamp used by the plots.
+
+Acquisition filenames may show a local clock or an end time while the header records a UTC exposure start. The displayed Acquisition time (UTC) is the authoritative value used by this script. The filename counter suffix is ignored.
+}
+
+\section{Autorun log and autofocus markers}{
+Select an Autorun log in the directory section. The script reads lines such as 2026/09/05 23:08:11 \[AutoFocus|Begin\] followed by the autofocus trigger description. It extracts the start time only. Repeated entries with the same start are deduplicated, and invalid timestamps are reported as skipped.
+
+Choose the timestamp convention that matches the acquisition computer:
+
+\list[spaced]{
+   {Computer local time uses this computer's timezone and the daylight-saving rules at each log date.}
+   {UTC treats the log timestamps as UTC.}
+   {Custom UTC offset uses the specified log-time-minus-UTC offset in hours. For example, enter +2 for UTC+02:00.}
+}
+
+The console reports all extracted autofocus starts as written in the log and converted to UTC. Click Autofocus times to view and copy the same list. Changing the log or timestamp convention updates the report and markers without remeasuring the images.
+
+Autofocus markers appear only when quality plots use Acquisition time order. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, and trigger description. No autofocus end time or duration is used.
+
+All extracted starts remain in the report, including starts outside the current group's time range. If markers appear at unexpected positions, compare the UTC acquisition column with the converted times in Autofocus times and check the log's timezone setting.
+}
+
+\section{Move rejected originals and rerun WBPP}{
+The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.
+
+The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.
+
+A move journal named SQR-moves followed by a timestamp and a .json extension is written in the rejection destination before the first move and updated as files are processed. This journal records the move operation; the script does not generate a separate quality review report. If a move is interrupted, inspect the journal and the actual source and destination files before retrying. There is no automatic undo button; files can be restored manually to their recorded source paths.
+
+After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.
+}
+
+\section{Common questions}{
+\table[header]{
+   {{Situation} {What to check}}
+   {{The master is missing} {Check for an uncropped masterLight image in the WBPP master directory, with a filter identifier matching the group. Multiple possible masters require an unambiguous group-name match.}}
+   {{An original cannot be rejected or moved} {Read Original association and the row details. Check that the original-light root contains the correct exposure and that matching metadata has not been removed or changed.}}
+   {{There are more REVIEW rows than the chosen percentage} {Insufficient measurements also require review. Check sparse regions, Minimum stars, and missing eccentricity or corner data.}}
+   {{R2 or corner plots are unavailable} {Enable Measure corners and click the magnifier. R2 requires complete regional measurements; a regional plot requires a valid value for that indicator.}}
+   {{A score looks good despite missing data} {Inspect its missing-data explanation. A partial score is not a complete quality assessment; missing required data is flagged for review.}}
+   {{The master bar is clipped} {This is expected when it lies outside the subframe plotting range. Read the displayed master value or hover over its bar.}}
+   {{Acquisition times differ from filenames} {Check whether the filename uses local time or exposure end time. The script displays and orders the full metadata timestamp in UTC.}}
+   {{No autofocus markers appear} {Use Acquisition time plot order, verify the log timezone, and check that extracted starts fall within the group's known subframe time range.}}
+   {{Closing and reopening loses measurements} {Review data and decisions are held only in the open dialog. A saved process instance restores settings, not measured rows.}}
+}
+}
+
+\make
+

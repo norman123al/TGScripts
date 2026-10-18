@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | SubframeQualityReview</title>
+   <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights" />
+   <meta name="author" content="" />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.15.2." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>SubframeQualityReview</h1>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.15.2. <a href="#__contents__">[more]</a></p></div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
+<li class="pidoc_tocItem"><a href="#__Start_and_complete_a_review__">2&emsp;Start and complete a review</a></li>
+<li class="pidoc_tocItem"><a href="#__Directories_and_filter_groups__">3&emsp;Directories and filter groups</a></li>
+<li class="pidoc_tocItem"><a href="#__Quality_evaluation_controls__">4&emsp;Quality evaluation controls</a></li>
+<li class="pidoc_tocItem"><a href="#__What_is_measured__">5&emsp;What is measured</a></li>
+<li class="pidoc_tocItem"><a href="#__Score_and_Belowmean_Quality__">6&emsp;Score and Below-mean Quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Review_and_measurements__">7&emsp;Review and measurements</a></li>
+<li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">8&emsp;Blink frame and reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">9&emsp;Quality indicators and acquisition order</a></li>
+<li class="pidoc_tocItem"><a href="#__Autorun_log_and_autofocus_markers__">10&emsp;Autorun log and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">11&emsp;Move rejected originals and rerun WBPP</a></li>
+<li class="pidoc_tocItem"><a href="#__Common_questions__">12&emsp;Common questions</a></li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<p>Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.</p>
+<p>The default shortlist contains the worst 10% of measured subframes in each group. REVIEW is a suggestion to inspect an image. Only your explicit rejection decisions are included in a move operation. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.</p>
+<p>The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from an Autorun log.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Start_and_complete_a_review__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Start and complete a review</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Start_and_complete_a_review', this );">[hide]</p>
+   <div id="Start_and_complete_a_review">
+<p>With TGScripts installed through the standard PixInsight script installation, choose Script &gt; TG Scripts &gt; Subframe Quality Review. The script requires PixInsight 1.9.5 or later. Use the documentation button at the lower right to reopen this guide.</p>
+
+<ol class="pidoc_list">
+<li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
+<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select an Autorun log and its timestamp convention.</li>
+<li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
+<li class="pidoc_spaced_list_item">Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Set Review worst (%) and the quality weights as needed.</li>
+<li class="pidoc_spaced_list_item">Click the magnifier button at the bottom to measure and rank the images. The measurement run covers all discovered groups and their matched masters.</li>
+<li class="pidoc_spaced_list_item">Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. Inspect the images before deciding which originals to reject.</li>
+<li class="pidoc_spaced_list_item">Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.</li>
+<li class="pidoc_spaced_list_item">Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.</li>
+<li class="pidoc_spaced_list_item">Rerun WBPP with the remaining originals. Refresh its light-frame input list so it no longer includes the moved files. Keep the rejection destination out of the new input selection.</li>
+</ol>
+
+<p>Measurements and pending rejection decisions remain in memory while the dialog is open. Closing the dialog discards them. The New Instance button saves folder and evaluation settings in a process icon; it does not save a measured review session.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Directories_and_filter_groups__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Directories and filter groups</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Directories_and_filter_groups', this );">[hide]</p>
+   <div id="Directories_and_filter_groups">
+
+<table class="pidoc_table">
+<caption><a id="__table_1__"></a>
+<span class="pidoc_table_title">Table 1</span></caption>
+<tr>
+<th><p>Input</p>
+</th>
+<th><p>What to select</p>
+</th>
+</tr>
+<tr>
+<td><p>WBPP output</p>
+</td>
+<td><p>The completed output directory containing the registered subfolder and, when available, the master subfolder.</p>
+</td>
+</tr>
+<tr>
+<td><p>Original-light root</p>
+</td>
+<td><p>A directory containing the original, uncalibrated light files. Subdirectories are scanned recursively. Flats, darks, bias frames, and master files are excluded from original-light matching. The original root must be outside the WBPP output directory.</p>
+</td>
+</tr>
+<tr>
+<td><p>Rejected originals</p>
+</td>
+<td><p>The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.</p>
+</td>
+</tr>
+<tr>
+<td><p>Autorun log</p>
+</td>
+<td><p>An optional text log containing timestamped [AutoFocus|Begin] entries.</p>
+</td>
+</tr>
+</table>
+
+<p>XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.</p>
+<p>The master is selected automatically from the master subfolder. Its masterLight filename must identify the group's filter. When several masters share that filter, the script looks for the corresponding WBPP group name. A missing or ambiguous match is reported instead of choosing an arbitrary master. The best scoring subframe remains available as a reference when no master is matched.</p>
+<p>Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.</p>
+<p>Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Quality_evaluation_controls__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Quality evaluation controls</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_evaluation_controls', this );">[hide]</p>
+   <div id="Quality_evaluation_controls">
+
+<table class="pidoc_table">
+<caption><a id="__table_2__"></a>
+<span class="pidoc_table_title">Table 2</span></caption>
+<tr>
+<th><p>Control</p>
+</th>
+<th><p>Default</p>
+</th>
+<th><p>Meaning</p>
+</th>
+</tr>
+<tr>
+<td><p>Review worst (%)</p>
+</td>
+<td><p>10</p>
+</td>
+<td><p>Shortlist this percentage of valid field measurements independently in each group, rounded up. Images with insufficient required measurements are also flagged for inspection, so REVIEW may contain more than the percentage quota.</p>
+</td>
+</tr>
+<tr>
+<td><p>Measure corners</p>
+</td>
+<td><p>Off</p>
+</td>
+<td><p>Add one center and four corner measurements per image. This increases processing time. Enable it and click the magnifier to obtain missing regional measurements.</p>
+</td>
+</tr>
+<tr>
+<td><p>Corner size (%)</p>
+</td>
+<td><p>22</p>
+</td>
+<td><p>Width and height of each corner and center patch, as a percentage of the common measurement field.</p>
+</td>
+</tr>
+<tr>
+<td><p>Edge guard (%)</p>
+</td>
+<td><p>2</p>
+</td>
+<td><p>Inset applied inside the common valid field to reduce edge contamination.</p>
+</td>
+</tr>
+<tr>
+<td><p>Minimum stars</p>
+</td>
+<td><p>20</p>
+</td>
+<td><p>Minimum star and PSF support required for a valid measurement. Sparse fields or small corner patches may fail this requirement.</p>
+</td>
+</tr>
+<tr>
+<td><p>Quality weights</p>
+</td>
+<td><p>See the Score section</p>
+</td>
+<td><p>Relative influence of each component. A zero weight disables that component. At least one underlying quality indicator must have a positive weight.</p>
+</td>
+</tr>
+</table>
+
+<p>Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Changing the region geometry or minimum-star setting clears the affected measurement state; click the magnifier to measure again.</p>
+<p>If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__What_is_measured__">
+   <h3 class="pidoc_sectionTitle">5&emsp;What is measured</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'What_is_measured', this );">[hide]</p>
+   <div id="What_is_measured">
+<p>The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels.</p>
+<p>Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.</p>
+<p>Field measurements for all groups and masters are submitted together to SubframeSelector. Optional center and corner crops are submitted in a second batch. SubframeSelector manages processing concurrency using its normal defaults, as in WBPP; the script does not impose a fixed number of frames per batch.</p>
+<p>With corner measurements enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.</p>
+<p>Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Score_and_Belowmean_Quality__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Score and Below-mean Quality</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Score_and_Belowmean_Quality', this );">[hide]</p>
+   <div id="Score_and_Belowmean_Quality">
+<p>Lower Score means better relative quality. The default Score sort puts the highest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, optional corner problems, and the breadth of below-mean quality across indicators.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_3__"></a>
+<span class="pidoc_table_title">Table 3</span></caption>
+<tr>
+<th><p>Component</p>
+</th>
+<th><p>Poor-quality direction</p>
+</th>
+<th><p>Default weight</p>
+</th>
+</tr>
+<tr>
+<td><p>PSF signal weight</p>
+</td>
+<td><p>Lower</p>
+</td>
+<td><p>40</p>
+</td>
+</tr>
+<tr>
+<td><p>Star count</p>
+</td>
+<td><p>Lower</p>
+</td>
+<td><p>15</p>
+</td>
+</tr>
+<tr>
+<td><p>Field FWHM</p>
+</td>
+<td><p>Higher</p>
+</td>
+<td><p>25</p>
+</td>
+</tr>
+<tr>
+<td><p>Field eccentricity</p>
+</td>
+<td><p>Higher</p>
+</td>
+<td><p>20</p>
+</td>
+</tr>
+<tr>
+<td><p>Corner quality</p>
+</td>
+<td><p>Higher corner severity; included when enabled</p>
+</td>
+<td><p>20</p>
+</td>
+</tr>
+<tr>
+<td><p>Below-mean Quality</p>
+</td>
+<td><p>Higher fraction of indicators worse than their mean</p>
+</td>
+<td><p>20</p>
+</td>
+</tr>
+</table>
+
+<p>For each underlying field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.</p>
+<p>For an indicator where higher is worse, the penalty is (value minus median) divided by the scale. For an indicator where lower is worse, it is (median minus value) divided by the scale. Negative penalties become zero, and penalties above 10 are capped at 10. A good result in one indicator therefore does not cancel a poor result in another.</p>
+<p>For corner quality, the script calculates these penalties for FWHM, corner-to-center FWHM ratio, and eccentricity at each corner, comparing each location with that same location across the group. Corner severity is the largest of these penalties across all four corners. It contributes once to Score with the Corner quality weight.</p>
+<p>Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, and high corner severity count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.</p>
+<p>For example, a subframe worse than the mean in three of four assessed indicators has Below-mean Quality of 75%. Its score penalty uses the fraction 0.75 directly. With the default weight of 20, it adds 0.75 times 20 to the weighted numerator. Setting the Below-mean Quality weight to zero removes this score contribution while keeping the percentage visible.</p>
+<p>Score is the sum of each available penalty times its weight, divided by the sum of those weights. With all default field components available and corners disabled, the denominator is 120. With complete corner measurements enabled, it is 140. Score is a relative penalty value, not a percentage.</p>
+<p>The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner severity counts as one indicator when corner scoring is enabled and weighted.</p>
+<p>Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and complete comparison ranks are withheld when their required measurements are unavailable.</p>
+<p>The master receives comparable measurements and a score against the subframe baselines. It does not influence the baselines or consume a place in the REVIEW quota.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Review_and_measurements__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Review and measurements</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Review_and_measurements', this );">[hide]</p>
+   <div id="Review_and_measurements">
+
+<table class="pidoc_table">
+<caption><a id="__table_4__"></a>
+<span class="pidoc_table_title">Table 4</span></caption>
+<tr>
+<th><p>Column</p>
+</th>
+<th><p>Meaning</p>
+</th>
+</tr>
+<tr>
+<td><p>R1</p>
+</td>
+<td><p>Rank using field quality and its Below-mean Quality contribution, without corners. Rank 1 is worst.</p>
+</td>
+</tr>
+<tr>
+<td><p>R2</p>
+</td>
+<td><p>Rank using field and corner quality, including the corresponding Below-mean Quality contribution. Requires complete regional measurements. Rank 1 is worst.</p>
+</td>
+</tr>
+<tr>
+<td><p>Reject</p>
+</td>
+<td><p>Your manual rejection choice. Clicking this column toggles the choice for an eligible original.</p>
+</td>
+</tr>
+<tr>
+<td><p>Review</p>
+</td>
+<td><p>REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data.</p>
+</td>
+</tr>
+<tr>
+<td><p>Image</p>
+</td>
+<td><p>The measured registered image or integrated master.</p>
+</td>
+</tr>
+<tr>
+<td><p>Acquisition time (UTC)</p>
+</td>
+<td><p>The complete date and time used for chronological sorting and quality plots. Master and unavailable timestamps are shown as a dash.</p>
+</td>
+</tr>
+<tr>
+<td><p>PSF weight, Stars, FWHM (px)</p>
+</td>
+<td><p>Field measurements used in scoring.</p>
+</td>
+</tr>
+<tr>
+<td><p>Worst corner</p>
+</td>
+<td><p>The corner contributing the largest regional penalty when corner scoring is enabled.</p>
+</td>
+</tr>
+<tr>
+<td><p>Score</p>
+</td>
+<td><p>The current weighted penalty; lower is better.</p>
+</td>
+</tr>
+<tr>
+<td><p>Below-mean Quality</p>
+</td>
+<td><p>Percentage of assessed indicators with worse-than-mean quality; lower is better.</p>
+</td>
+</tr>
+<tr>
+<td><p>Main issue</p>
+</td>
+<td><p>The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, or Below-mean Quality.</p>
+</td>
+</tr>
+<tr>
+<td><p>Original association</p>
+</td>
+<td><p>Whether the corresponding uncalibrated original has been verified for moving.</p>
+</td>
+</tr>
+</table>
+
+<p>Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.</p>
+<p>R1 and R2 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.</p>
+<p>Use Sort by in the Sort and filter area. Score, field-width, corner-severity, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1 and R2 show rank 1 first. The direction label beside the selector states the active order. Below-mean Quality sorts complete comparisons first, from highest percentage downward, with Score resolving ties; incomplete comparisons follow.</p>
+<p>Acquisition time sorts by the full date and time from earliest to latest. Dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering.</p>
+<p>Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.</p>
+<p>Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Blink_frame_and_reference__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Blink frame and reference</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Blink_frame_and_reference', this );">[hide]</p>
+   <div id="Blink_frame_and_reference">
+<p>Blink against defaults to Best scoring subframe. This chooses the lowest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
+<p>The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.</p>
+<p>Press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
+<p>Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.</p>
+<p>Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.</p>
+<p>The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Quality_indicators_and_acquisition_order__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Quality indicators and acquisition order</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_indicators_and_acquisition_order', this );">[hide]</p>
+   <div id="Quality_indicators_and_acquisition_order">
+<p>The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.</p>
+<p>Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_5__"></a>
+<span class="pidoc_table_title">Table 5</span></caption>
+<tr>
+<th><p>Color or marker</p>
+</th>
+<th><p>Meaning</p>
+</th>
+</tr>
+<tr>
+<td><p>Cyan</p>
+</td>
+<td><p>Currently selected image. This highlight takes precedence over the normal bar color.</p>
+</td>
+</tr>
+<tr>
+<td><p>Purple</p>
+</td>
+<td><p>REVIEW candidate.</p>
+</td>
+</tr>
+<tr>
+<td><p>Blue</p>
+</td>
+<td><p>Other subframe.</p>
+</td>
+</tr>
+<tr>
+<td><p>Red</p>
+</td>
+<td><p>Manually rejected or moved original.</p>
+</td>
+</tr>
+<tr>
+<td><p>Gold</p>
+</td>
+<td><p>Master, with a master marker.</p>
+</td>
+</tr>
+<tr>
+<td><p>Green dashed line</p>
+</td>
+<td><p>Mean of available values for subframes that have not been rejected or moved. The master is excluded.</p>
+</td>
+</tr>
+<tr>
+<td><p>Orange dashed line and AF tag</p>
+</td>
+<td><p>Autofocus start within the current group's acquisition-time range.</p>
+</td>
+</tr>
+</table>
+
+<p>Hover over a bar to see its filename, value, status, and acquisition time. Click it to select the corresponding row in Review and measurements. If necessary, the script clears REVIEW candidates only to reveal the selected image, including the master. Clicking a plot bar does not change rejection decisions.</p>
+<p>The vertical range follows the subframe values with approximately 10% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.</p>
+<p>The green plot mean excludes rejected subframes and can change as you make decisions. The scoring baselines and the arithmetic means behind Below-mean Quality use all supported subframes in the group, including rejects. These intentionally serve different purposes.</p>
+<p>Acquisition timestamps come first from the verified original's DATE-OBS or DATEOBS metadata, then from the registered image. Separate TIME-OBS or TIMEOBS fields are supported when the date field contains only a date. Explicit timezone offsets are converted to UTC; timestamps without an offset are interpreted as UTC. The table shows the same UTC timestamp used by the plots.</p>
+<p>Acquisition filenames may show a local clock or an end time while the header records a UTC exposure start. The displayed Acquisition time (UTC) is the authoritative value used by this script. The filename counter suffix is ignored.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Autorun_log_and_autofocus_markers__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Autorun log and autofocus markers</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Autorun_log_and_autofocus_markers', this );">[hide]</p>
+   <div id="Autorun_log_and_autofocus_markers">
+<p>Select an Autorun log in the directory section. The script reads lines such as 2026/09/05 23:08:11 [AutoFocus|Begin] followed by the autofocus trigger description. It extracts the start time only. Repeated entries with the same start are deduplicated, and invalid timestamps are reported as skipped.</p>
+<p>Choose the timestamp convention that matches the acquisition computer:</p>
+
+<ul class="pidoc_list">
+<li>Computer local time uses this computer's timezone and the daylight-saving rules at each log date.</li>
+<li class="pidoc_spaced_list_item">UTC treats the log timestamps as UTC.</li>
+<li class="pidoc_spaced_list_item">Custom UTC offset uses the specified log-time-minus-UTC offset in hours. For example, enter +2 for UTC+02:00.</li>
+</ul>
+
+<p>The console reports all extracted autofocus starts as written in the log and converted to UTC. Click Autofocus times to view and copy the same list. Changing the log or timestamp convention updates the report and markers without remeasuring the images.</p>
+<p>Autofocus markers appear only when quality plots use Acquisition time order. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, and trigger description. No autofocus end time or duration is used.</p>
+<p>All extracted starts remain in the report, including starts outside the current group's time range. If markers appear at unexpected positions, compare the UTC acquisition column with the converted times in Autofocus times and check the log's timezone setting.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Move_rejected_originals_and_rerun_WBPP__">
+   <h3 class="pidoc_sectionTitle">11&emsp;Move rejected originals and rerun WBPP</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Move_rejected_originals_and_rerun_WBPP', this );">[hide]</p>
+   <div id="Move_rejected_originals_and_rerun_WBPP">
+<p>The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.</p>
+<p>The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.</p>
+<p>A move journal named SQR-moves followed by a timestamp and a .json extension is written in the rejection destination before the first move and updated as files are processed. This journal records the move operation; the script does not generate a separate quality review report. If a move is interrupted, inspect the journal and the actual source and destination files before retrying. There is no automatic undo button; files can be restored manually to their recorded source paths.</p>
+<p>After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Common_questions__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Common questions</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Common_questions', this );">[hide]</p>
+   <div id="Common_questions">
+
+<table class="pidoc_table">
+<caption><a id="__table_6__"></a>
+<span class="pidoc_table_title">Table 6</span></caption>
+<tr>
+<th><p>Situation</p>
+</th>
+<th><p>What to check</p>
+</th>
+</tr>
+<tr>
+<td><p>The master is missing</p>
+</td>
+<td><p>Check for an uncropped masterLight image in the WBPP master directory, with a filter identifier matching the group. Multiple possible masters require an unambiguous group-name match.</p>
+</td>
+</tr>
+<tr>
+<td><p>An original cannot be rejected or moved</p>
+</td>
+<td><p>Read Original association and the row details. Check that the original-light root contains the correct exposure and that matching metadata has not been removed or changed.</p>
+</td>
+</tr>
+<tr>
+<td><p>There are more REVIEW rows than the chosen percentage</p>
+</td>
+<td><p>Insufficient measurements also require review. Check sparse regions, Minimum stars, and missing eccentricity or corner data.</p>
+</td>
+</tr>
+<tr>
+<td><p>R2 or corner plots are unavailable</p>
+</td>
+<td><p>Enable Measure corners and click the magnifier. R2 requires complete regional measurements; a regional plot requires a valid value for that indicator.</p>
+</td>
+</tr>
+<tr>
+<td><p>A score looks good despite missing data</p>
+</td>
+<td><p>Inspect its missing-data explanation. A partial score is not a complete quality assessment; missing required data is flagged for review.</p>
+</td>
+</tr>
+<tr>
+<td><p>The master bar is clipped</p>
+</td>
+<td><p>This is expected when it lies outside the subframe plotting range. Read the displayed master value or hover over its bar.</p>
+</td>
+</tr>
+<tr>
+<td><p>Acquisition times differ from filenames</p>
+</td>
+<td><p>Check whether the filename uses local time or exposure end time. The script displays and orders the full metadata timestamp in UTC.</p>
+</td>
+</tr>
+<tr>
+<td><p>No autofocus markers appear</p>
+</td>
+<td><p>Use Acquisition time plot order, verify the log timezone, and check that extracted starts fall within the group's known subframe time range.</p>
+</td>
+</tr>
+<tr>
+<td><p>Closing and reopening loses measurements</p>
+</td>
+<td><p>Review data and decisions are held only in the open dialog. A saved process instance restores settings, not measured rows.</p>
+</td>
+</tr>
+</table>
+
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-18 21:54:03 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>
