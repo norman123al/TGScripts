@@ -1,14 +1,14 @@
 \documentclass{PIScriptDoc}
 \script{LRGBDeconvolutionMatch}
-\keywords{deconvolution, BlurXTerminator, LRGB, FWHM, reference, blink}
-\brief{Prepare registered linear luminance and RGB images with matched stellar widths.}
+\keywords{deconvolution, BlurXTerminator, LRGB, FWHM, halos, reference, blink}
+\brief{Prepare registered linear luminance and RGB images by comparing stellar halos and widths.}
 
 \description{
-LRGB Deconvolution Match prepares a luminance image and an RGB image for later LRGB processing. Choose the sharper image as the reference and set its BlurXTerminator sharpening. Inspect the reference before and after deconvolution, then let the script adjust the other image to obtain the closest measured star-width match.
+LRGB Deconvolution Match helps prepare linear Luminance and RGB images for LRGB composition, particularly when the data were acquired with different telescope setups that may have had different pixel scales. The inputs must already be registered to a common pixel grid. Choose the sharper image as the reference and set its BlurXTerminator sharpening. Inspect the reference before and after deconvolution, then let the script adjust the other image to match the measured halo profiles while checking stellar widths independently.
 
-Only Sharpen Stars and Adjust Star Halos are varied on the other image. Sharpen Nonstellar is a value you choose for both images. The reference result stays fixed during matching.
+The script estimates Sharpen Stars for the other image from the measured reference sharpening and holds that value fixed. Only Adjust Star Halos is varied, minimizing differences in the measured outer stellar profiles. FWHM agreement is checked separately. Sharpen Nonstellar is a value you choose for both images, and Automatic PSF stays enabled. The reference result stays fixed during matching.
 
-The script creates new linear image windows. The original images remain unchanged. Stretching and LRGB combination are separate steps that you perform afterward.
+After reviewing the results, choose either to create new linear image windows or to apply the results directly to both input images with Undo support. Calculating and blinking previews leave the inputs unchanged. Stretching and LRGB combination are separate steps that you perform afterward.
 }
 
 \section{Opening the script}{
@@ -43,40 +43,84 @@ Adjust Star Halos: the halo adjustment applied to the reference, from -0.50 to +
 These values are applied once to the reference. Inspect the Reference before/after tab before matching the other image. If the reference shows ringing, dark halos or excessive sharpening, revise these settings and calculate its preview again.
 }
 
-\section{Other image: search limits}{
-These controls set the allowed BlurXTerminator values for the image that is not the reference. Their defaults allow the full stellar-sharpening and halo ranges.
+\section{Other image: estimated sharpening and halo optimization}{
+Sharpen Stars is calculated after the reference preview using this empirical estimate:
 
-Maximum Sharpen Stars: default 0.70. The search can use any value from zero to this maximum. Set a lower maximum if you want to limit sharpening, or set zero to hold Sharpen Stars at zero. The initial value is 0.50, limited to the allowed range.
+S_other = S_reference * (1 - F_reference_after / F_other_before) / (1 - F_reference_after / F_reference_before).
 
-Minimum Adjust Star Halos and Maximum Adjust Star Halos: defaults -0.50 and +0.50. Narrow this interval to limit halo changes. Set both limits to the same value to hold Adjust Star Halos fixed.
+S denotes Sharpen Stars. F denotes the median combined stellar FWHM. All three median widths use the same reference-qualified star selection. If Luminance is the reference, F_other_before is measured in the original extracted linear RGB luminance. If RGB is the reference, the estimate is calculated for Luminance instead.
 
-The limits apply only to the other image. They do not change the reference settings. The final values actually used for each image appear below the preview tabs.
+The estimate assumes approximately proportional fractional sharpening and similar responses in both images. It is not an exact conversion supplied by BlurXTerminator. The estimate appears below the preview tabs and stays fixed in every trial of the other image.
+
+The script does not cap or clip this estimate. BlurXTerminator validates the value against its own supported parameter range. If the installed process rejects it, matching stops before running the other image, reports the original estimate and process error, and keeps the reference preview available. The script cannot extend a parameter range enforced by the installed process.
+
+Calibration requires a positive reference Sharpen Stars value and a measurable reduction in reference FWHM. It cannot produce a positive sharpening estimate if the other image is already narrower than the reference result. An invalid calibration is reported; no substitute sharpening value is chosen.
+
+Minimum Adjust Star Halos and Maximum Adjust Star Halos: defaults -0.50 and +0.50. Only this parameter is optimized. Narrow the interval to limit halo changes, or set both limits to the same value to hold it fixed. The initial halo setting follows the installed BlurXTerminator default, limited to this interval.
+
+The search follows measured outer-profile differences using Newton approximation. It can stop when both the halo-profile and Luminance versus extracted RGB luminance FWHM criteria are met, or when no further improvement is found within the search bounds and run budget. Every trial starts from the original image. The selected trial is retained without another BlurXTerminator run.
+
+FWHM uses fixed limits: 5 percent for the median absolute paired mismatch, and 10 percent for the 90th-percentile mismatch and supported regions' median mismatches. The final result also checks each RGB channel against Luminance using these limits. The halo profile limits are described below. No tolerance setting is required.
+
+The halo limits apply only to the other image. The reference retains its own settings. The final values actually used for each image appear below the preview tabs. A result satisfying both profile and width criteria is preferred. Otherwise, the script retains the usable trial with the closest outer profiles, preferring results without detected dark rings, and reports REVIEW. It does not enlarge halos solely to improve FWHM agreement. With Sharpen Stars fixed, matching the halo and core simultaneously may be impossible.
+}
+
+\section{Halo profile comparison}{
+Halos are measured directly from image pixels around the same isolated, unsaturated stars in Luminance and extracted linear RGB luminance. An analytic PSF FWHM alone does not describe these outer wings. Halo measurements use a reliable subset of the common stars, so the halo count can differ from the FWHM count.
+
+For each star, a circular aperture and a separate outer background annulus fit inside its isolated measurement area. The background is estimated locally and subtracted. Flux inside the circular aperture normalizes that star's measurements, allowing images with different exposure times and stellar brightnesses to be compared. This normalization affects measurements only.
+
+Six annuli sample the outer profile from a radius equal to the reference star's combined FWHM to the flux-aperture radius. Both images use the same radii in registered-image pixels, held fixed for every trial. Each profile follows its measured stellar center. Annular flux is expressed as a fraction of the flux in the full aperture. The measurement therefore responds to both the amount and radial distribution of light in the wings.
+
+The halo mismatch for a star is the sum of absolute differences between its six normalized annular fluxes, divided by the average of the two profiles' summed absolute annular fluxes. Zero means identical profiles. The halo criteria require a median mismatch of no more than 10 percent and a 90th-percentile mismatch of no more than 25 percent. These are practical acceptance limits, not statistical confidence intervals.
+
+Profile selection requires adequate total stellar and outer-wing signal, room for the background annulus, and reliable measurements in both source images and the deconvolved reference. At least 20 profiles are required. This selection stays fixed during matching; a trial must retain at least 20 profiles and 80 percent of that selection. Failed measurements incur a penalty and cannot improve the search by disappearing.
+
+Negative background-subtracted annular flux is preserved. Two adjacent annuli significantly below the local background, with a combined negative signal exceeding 0.3 percent of aperture flux, flag a possible dark ring. A full PASS requires no such flags in the accepted trial or measured reference profiles. This is a check for detectable rings, not a guarantee that every artifact has been found.
+
+The report shows the halo star count, median and 90th-percentile mismatch, dark-ring count and wing flux ratio. The ratio is the median normalized wing flux of the other image divided by that of its corresponding reference star: 1 indicates equal wing flux, greater than 1 means more light in the other image's measured wings. The mismatch also accounts for the distribution among annuli, so equal total wing flux alone is not sufficient.
+
+The comparison covers the reported finite apertures around reliable unsaturated stars. It does not measure arbitrarily large optical reflection halos or establish agreement for saturated bright stars. Background structure, noise and different spectral responses can limit the match. Inspect the blink preview across the field before accepting the images.
 }
 
 \section{Shared deconvolution}{
 Sharpen Nonstellar: choose the sharpening strength for nonstellar detail, from 0 to 1. Its default follows the installed BlurXTerminator default. The selected value is used for both images and remains fixed during matching.
 
-All remaining BlurXTerminator options use their installed defaults.
+Automatic PSF is enabled for both images and every trial. All remaining BlurXTerminator options use their installed defaults.
 }
 
 \section{Recommended workflow}{
 1. Select Luminance and RGB in the Images group, then choose the sharper reference.
 
-2. Set the reference Sharpen Stars and Adjust Star Halos values, choose Sharpen Nonstellar, and review the other image's search limits.
+2. Set the reference Sharpen Stars and Adjust Star Halos values, choose Sharpen Nonstellar, and review the other image's halo limits.
 
 3. In Reference before/after, click the magnifier inside the tab. Only the reference is deconvolved at this stage.
 
-4. Use play or step to blink BEFORE BXT and AFTER initial BXT. Inspect stars, halos and nonstellar detail at 1:1 or a higher zoom. If necessary, revise the reference settings and repeat this stage.
+4. Use play or step to blink BEFORE BXT and AFTER initial BXT. Inspect stars, halos and nonstellar detail at 1:1 or a higher zoom. Review FWHM comparison to see how the measured reference star widths changed. If necessary, revise the reference settings and repeat this stage.
 
-5. Click the bottom magnifier to match the other image. The reference result you inspected stays fixed. You can also use the bottom magnifier directly to calculate both stages without pausing for reference inspection.
+5. Review the calculated Sharpen Stars estimate below the tabs. Click the bottom magnifier to optimize the other image's halo setting while holding that estimate fixed. The reference result you inspected stays fixed. You can also use the bottom magnifier directly to calculate both stages without pausing for reference inspection.
 
-6. Inspect Matched L / RGB and FWHM scatter. Review the final settings and the PASS or REVIEW result. The Process Console provides measurements and a record of the settings tried.
+6. Inspect Matched L / RGB and FWHM comparison. Review both the halo-profile report and the final paired FWHM statistics, together with the PASS or REVIEW result and final settings. The Process Console provides measurements and a record of the settings tried.
 
-7. Click the green checkmark to create the two linear output images. Their names use the input image identifiers with a _BXT suffix; an additional numeric suffix avoids a name conflict. Apply a display STF as needed and save the images.
+7. Choose how to use the results. Click the green checkmark to create two new linear output images, or click the blue square next to it to apply the results directly to the two input images. Apply a display STF as needed and save the images when ready.
 
 Matching may require up to eleven BlurXTerminator runs including the reference. The execution count and stopping reason appear below the tabs. Use the Process Console Abort control to cancel a calculation.
 
 Changing processing settings clears the current previews. Changing display options does not rerun BlurXTerminator. After a completed match, the bottom magnifier calculates a fresh pair. Recalculate if an input image has been edited outside the script.
+}
+
+\section{Using the results}{
+Both result buttons become available after the full match, including a result marked REVIEW. Inspect the previews and the report before using either button. Neither button runs BlurXTerminator again, stretches the data, performs LRGB combination or saves files to disk.
+
+Green checkmark: create two new image windows and leave the inputs unchanged. Their names use the input image identifiers with a _BXT suffix; an additional numeric suffix avoids a name conflict.
+
+Blue square: replace the pixels of both selected input images with the reviewed deconvolved results. No new output windows are created. The input names, image metadata and display settings are retained. The full images are updated, irrespective of attached masks; the masks and their enabled states are retained.
+
+Each input receives one Undo step. Close the script, activate the relevant image and use PixInsight's Undo to restore its previous pixels. Undo each image separately to restore the pair. Save the images yourself when you are satisfied.
+
+After applying, the blue square is disabled for those results. The previews and report remain available, and the green checkmark can still create copies of the same results. Calculating again uses the current input pixels: undo the application first if you want to try different settings on the original data.
+
+If an original input has been closed or its processing history or geometry has changed, applying is refused. Select the intended inputs and calculate a fresh preview.
 }
 
 \section{Reference before/after preview}{
@@ -89,6 +133,48 @@ Display STF uses the same display stretch for both frames, based on the original
 This preview remains available after matching and continues to show the same reference result. Switching tabs stops playback. Preview display settings never change the linear output pixels.
 }
 
+\section{BlurXTerminator report}{
+The report below the tabs shows one table row for Luminance and one for RGB. The first column identifies the image and its role as reference, optimized image or pending image. Separate columns show the applied Sharpen Stars, Adjust Star Halos and Sharpen Nonstellar values. Hover over a table cell to read its full contents if an image identifier is too long to fit.
+
+After the reference-only calculation, its applied settings are shown while the other image's settings remain blank, indicated by dashes. Beneath the table, read the Automatic PSF mode, number of BlurXTerminator runs, reference before/after FWHM, paired-star count and the other image's Sharpen Stars estimate.
+
+After matching, both rows show the settings actually used for the retained results. The accompanying text shows PASS or REVIEW, Automatic PSF mode, run count, fixed sharpening estimate, halo-profile statistics and the reason the search stopped. The estimate is reported separately from the applied settings. Changing processing settings or pressing Reset clears the calculated report.
+}
+
+\section{FWHM comparison}{
+This tab first shows the reference measurements after calculating its preview. After matching finishes, one plot contains three sets of paired star measurements, each with a distinct color and symbol:
+
+Blue filled circles: Luminance before BlurXTerminator on the horizontal axis, and Luminance after BlurXTerminator on the vertical axis.
+
+Orange outlined squares: extracted RGB luminance before BlurXTerminator on the horizontal axis, and extracted RGB luminance after BlurXTerminator on the vertical axis.
+
+Green outlined diamonds: final deconvolved Luminance on the horizontal axis, and final extracted RGB luminance on the vertical axis. This series directly compares the two retained output images.
+
+The legend explicitly identifies the horizontal (x) and vertical (y) measurements for every series. Blue and orange keep their colors whichever image is the reference. The reference and optimized image are identified in the legend. The green final-image comparison is added only after matching finishes.
+
+For each star, the fitted PSF provides widths along its major and minor axes. The combined FWHM is their geometric mean: sqrt(FWHM_x * FWHM_y), the diameter of a circle with the same area as the fitted half-maximum ellipse. All widths are measured in pixels on the registered image grid. The legend reports median combined, major-axis and minor-axis widths in horizontal / vertical order.
+
+Each series has its own paired-star count and least-squares straight-line fit of its vertical widths against its horizontal widths, with a freely fitted slope and intercept. Its fitted line has the same color as its points and spans their measured horizontal range. Every displayed pair contributes equally to that series' fit.
+
+Each axis automatically fits the measurements displayed in that direction, with a small margin. All three series and all measured points are included. The axes can have different ranges and do not have to start at zero. The range updates when the other image's measurements are added.
+
+A dashed gray y = x line marks equal FWHM values. For the blue and orange before/after series, points below this line have narrower stars after deconvolution. For the green final-image comparison, points on the line have equal widths in Luminance and extracted RGB luminance; points above it have wider RGB-luminance stars. This reference line is separate from the three fitted lines. With independently scaled axes, its displayed angle need not be 45 degrees. It appears only where the displayed horizontal and vertical ranges overlap. If there is no overlap, the legend indicates that the equality line lies outside the displayed ranges.
+
+For blue and orange, the paired count is shown relative to the initial reliable common-star selection. The reference series includes valid before/after measurements; the optimized image uses reference-qualified stars with valid measurements in its retained result. The green series counts valid pairs relative to the reference-qualified selection used during matching. A star with a rejected measurement is excluded from both sides of that comparison. Counts can differ between series.
+
+The fitted equation uses x and y as defined in the legend. R-squared, also called the coefficient of determination, is the fraction of the variation in the vertical widths explained by that series' fitted line. A value of 1 means a perfect straight-line fit; 0 means the line explains none of that variation. For example, 0.60 means that the fit explains 60 percent of the measured variation in y. A high R-squared does not establish equal star widths: points can follow a straight line that differs from y = x. It also does not assess image quality or guarantee a good LRGB match. A short explanation appears below the scatter plot.
+
+If horizontal widths have insufficient spread, no fitted line is shown and the reason is displayed. R-squared is undefined when all vertical widths are equal.
+
+The reference measurements and fit stay unchanged when the additional series are added. Viewing this tab or switching display options does not run BlurXTerminator again. Changing processing settings or pressing Reset clears the plotted results.
+
+Below the plot, the final comparison reports paired-star count, median absolute mismatch and 90th-percentile mismatch between final Luminance and extracted RGB luminance. A 90th-percentile value of 10 percent means that 90 percent of the measured pairs differ by no more than that amount. Relative mismatch is the width difference divided by the average of the two widths.
+
+PASS means the halo-profile, dark-ring and star-width criteria are met, including separate FWHM comparisons of the red, green and blue channels against L. Halo profiles are compared between L and extracted RGB luminance. REVIEW means at least one criterion was not met. You can still create the images for inspection. The reference is not weakened to force agreement. The Process Console provides individual RGB-channel and regional results.
+
+Similar FWHMs do not guarantee identical star profiles, halos or appearance after stretching. Inspect bright and faint stars across the field before proceeding to LRGB combination.
+}
+
 \section{Matched L / RGB preview}{
 This tab blinks the final deconvolved L against the extracted luminance of the final deconvolved RGB image. The frame label identifies the image and whether it is the reference. The RGB output itself remains a color image.
 
@@ -97,28 +183,16 @@ Play, step, zoom and pan work as in the reference preview. Display STF uses a sh
 All display adjustments affect only the preview. They do not stretch or normalize the output images.
 }
 
-\section{FWHM scatter and matching result}{
-Each blue point represents the same star measured in both final images. The horizontal axis shows L FWHM in pixels; the vertical axis shows RGB luminance FWHM in pixels. Both axes have equal scale. The yellow line has slope 1 and passes through zero: points on it have equal measured star widths.
+\section{Automatic star measurements}{
+Star detection and PSF fitting are automatic. No fitting parameters need to be entered. As in Linear Master Blend, the script samples isolated, unsaturated stars across the image and measures corresponding stars in both inputs. It chooses a suitable Moffat or Gaussian profile for each pair and rejects unreliable or inconsistent measurements.
 
-Points above the line have wider stars in RGB luminance; points below it have wider stars in L. The plot includes outliers. Inspect the spread of the points as well as their overall position relative to the line.
+Each selected star keeps the same profile family and fitting area before and after deconvolution. RGB is measured through its extracted linear luminance, using the image's RGB working-space luminance coefficients. The separate RGB channels are also checked. Display STF and preview brightness alignment do not affect measurements.
 
-The legend reports the number of paired stars, median absolute mismatch and 90th-percentile mismatch. A 90th-percentile value of 10 percent means that 90 percent of the measured pairs differ by no more than that amount. Relative mismatch is the width difference divided by the average of the two widths.
+The reference must have at least 20 reliable before/after pairs. That reference-qualified star selection is held fixed while the other image's halo setting is optimized. Failed measurements in a trial are counted as missing; they are not replaced by newly detected stars.
 
-PASS means the measured star-width criteria are met, including separate comparisons of the red, green and blue channels against L. REVIEW means at least one criterion was not met. You can still create the images for inspection. The reference is not weakened to force agreement.
+The match requires at least 20 valid pairs and at least 80 percent of the reference-qualified stars. Both final median FWHMs must be at least 1.60 pixels. The script also checks regional agreement and each RGB channel. A region with fewer than five stars is reported as having insufficient support; it cannot establish agreement there.
 
-Similar FWHMs do not guarantee identical star profiles, halos or appearance after stretching. Inspect bright and faint stars across the field before proceeding to LRGB combination.
-}
-
-\section{Star measurement}{
-The Star measurement tab contains two groups.
-
-Match acceptance: Tolerance defaults to 5 percent for the median absolute paired FWHM mismatch. The 90th-percentile limit and regional limits are twice this value. Minimum FWHM defaults to 1.60 pixels and requires both images' median widths to meet that sampling limit.
-
-Star detection and fitting: Detection sensitivity controls star detection. Reject peaks at or above excludes stars whose peak reaches the selected value; the default is 0.85. Maximum sampled stars defaults to 250. PSF model selects Moffat beta = 4 or Gaussian for star-width measurements.
-
-Measurements require at least 20 valid paired stars and at least 80 percent of the reference-qualified stars. The script also checks different regions of the image and each RGB channel. A region with fewer than five stars is reported as having insufficient support; it cannot establish agreement there.
-
-Use consistent measurement settings for the pair. If too few stars are available, check alignment, registration borders, crowded stars and saturated peaks before relaxing rejection settings.
+The Process Console reports how many stars were accepted. The plot shows the number of pairs contributing to each comparison. If too few stars are available, check alignment, registration borders, crowding, saturation and sampling.
 }
 
 \section{Symbol buttons}{
@@ -130,21 +204,29 @@ Play/stop and step: blink or switch frames in the active preview tab.
 
 Triangle: drag onto the workspace to save your selected images and settings as a process instance. Run the instance globally with those images open.
 
-Reset: restore defaults, clear both image selections and clear the previews. Reference Sharpen Stars returns to 0.50 and Adjust Star Halos to 0.00; the other image's search limits return to 0 through 0.70 for stars and -0.50 through +0.50 for halos.
+Reset: restore defaults, clear both image selections and clear the previews and estimate. Reference Sharpen Stars returns to 0.50 and Adjust Star Halos to 0.00; the other image's halo limits return to -0.50 through +0.50.
 
 Green checkmark: create two linear output windows from the completed match. It is unavailable after the reference-only stage.
 
-Red cross: close the script. Output images already created remain open.
+Blue square: apply the completed results to both input images with one Undo step per image. It is unavailable after the reference-only stage or after the same results have already been applied.
+
+Red cross: close the script. Created output images and changes applied to input images are retained.
 
 Document: open this user manual.
 }
 
 \section{Troubleshooting}{
-Too few usable stars: verify registration and border cropping. Check detection sensitivity and the peak rejection threshold. Strong sharpening may push bright stars above the threshold. Very crowded, star-poor or undersampled images may not provide a reliable comparison.
+Too few usable stars: verify registration and border cropping. Very crowded, saturated, star-poor or undersampled images may not provide a reliable comparison. Reconsider strong reference sharpening if many reference fits are rejected. Star selection and fit rejection are automatic.
 
-Reference below Minimum FWHM: inspect whether it is oversharpened or undersampled. Reconsider reference sharpening before lowering the sampling requirement.
+Reference below the 1.60-pixel sampling requirement: inspect whether it is oversharpened or undersampled. Reconsider reference sharpening or the image pair.
 
-Search reaches a limit or reports REVIEW: inspect the FWHM scatter and Process Console. If you have narrowed the limits, consider allowing a wider range. With the full ranges already allowed, the two images may not support the desired match at the chosen reference settings. Inspect the reference and reconsider its sharpening where appropriate.
+Cannot estimate Sharpen Stars: the reference needs positive stellar sharpening and a measurable FWHM reduction. Check the reference choice and measurements. If the other image is already narrower than the reference result, reconsider which image should be the reference or the desired reference sharpening.
+
+BlurXTerminator rejects the estimate: inspect the reported value and the process's supported range. The estimate is not clipped, and no other-image BlurXTerminator run is performed. The reference preview remains available. Reconsider the reference settings or image pair; a value rejected by the installed process cannot be used by the script.
+
+Too few halo profiles: the outer wings require more space and signal than FWHM fitting. Crowding, a small isolated area, saturation, faint wings or structured background can leave fewer than 20 usable profiles. Matching stops before processing the other image, and the reference preview remains available.
+
+Halo search reaches a limit or reports REVIEW: inspect the halo-profile report, FWHM comparison and Process Console. A good halo match can coexist with a failed FWHM check. The fixed Sharpen Stars estimate is not adjusted to force agreement. If you narrowed the halo interval, consider allowing a wider interval. Inspect the reference and reconsider its sharpening where appropriate. Dark-ring flags require visual inspection and may indicate excessive sharpening or an unreliable local background.
 
 Preview is empty: select both images and calculate the required stage. Output images look dark: they remain linear; use a display STF to view them.
 

@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="e8bc8bd22bee6607a3e6cb61d14c4e5ef51c961f" type="script" releaseDate="20261017">
+      <package fileName="TGScripts_repository.tar.gz" sha1="c8a32bd638c6ea5ed63b8c1fab0de89801853240" type="script" releaseDate="20261018">
          <title>
-            TGScripts snapshot - 2026 Okt 17
+            TGScripts snapshot - 2026 Okt 18
          </title>
          <remove>
             src/scripts/TGScripts
@@ -33,8 +33,7 @@
             <p>
                Updates:
                <br/>
-               LinearMasterBlend: add parameter for sharpness preference
-               LRGBDeconvolutionMatch: fix UI message
+               LRGBDeconvolutionMatch: fix halo match algorithm, add option to apply deconvolution to source images
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +42,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-17T17:02:18.466Z" encoding="Base64">fl7tMpgDFCD+0FWgp4IUC/xbefTqeRKxYW5yCvaTlGwesz/0gqjVHxejj+b68yEnxK6Qbzk6IpoCIcqaVmWbCQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-18T12:24:15.679Z" encoding="Base64">lFj8ZvzWJzDTeqAOUuN6Jdo3nVt7hGTAthr2p/7t5/UuTdWgESLwQYhCu3lJ+d/4bpcecSc7IGyPCRLYv1EBCQ==</Signature>

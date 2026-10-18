@@ -2,7 +2,7 @@ MIT License
 
 Copyright (c) 2026 LRGB Deconvolution Match contributors
 
-Preview interaction adapted from Linear Master Blend:
+Preview interaction and automatic PSF sampling adapted from Linear Master Blend:
 Copyright (c) 2026 SNR Weighted Masters contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
