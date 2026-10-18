@@ -58,14 +58,14 @@ The update manifest accepts a broader range of PixInsight versions than the four
 | Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.0 | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
 | Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.0 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;17 |
 | Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.0 | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
-| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.4.1 | Uses BlurXTerminator to match stellar widths in linear L and RGB images, with blink previews and FWHM plots. | 2026&#8209;10&#8209;17 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.13.0 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;10&#8209;18 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.5 | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
 
 Versions follow the declarations in the repository source. EmissionLineIntegrationTG declares TG version **2.0** in its header; its interface retains the upstream **2.1.0** label.
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. For Linear Master Blend and LRGB Deconvolution Match, the dates include the local source updates made on **2026-10-17**.
+Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded.
 
 ## Script gallery
 
@@ -233,18 +233,32 @@ Creates a **local support mask for deconvolution deringing**, helping protect st
 
 ### LRGB Deconvolution Match
 
-**Version:** 1.4.1 · **Last update:** 2026-10-17
+**Version:** 1.13.0 · **Last update:** 2026-10-18
 
-Prepares **linear luminance and RGB images with matched stellar widths** for later LRGB processing. Deconvolve the sharper reference with your chosen BlurXTerminator settings, inspect its before/after preview, then let the script adjust **Sharpen Stars** and **Adjust Star Halos** on the other image to approach that reference. The reference result stays fixed during matching; **Sharpen Nonstellar** is chosen once for both images.
+Prepares **registered linear luminance and RGB images for LRGB composition**, including data from different telescopes and original pixel scales. Choose the sharper reference yourself or let the script select it from measured stellar FWHM. Set its BlurXTerminator **Sharpen Stars** and **Adjust Star Halos**, then inspect the **Reference before/after** preview.
 
-Blink the deconvolved L against luminance extracted from RGB, inspect the paired-star **FWHM scatter plot**, and review the match assessment before creating two new linear output images. The originals remain unchanged. Display stretching and brightness alignment affect only the previews; perform the final stretch and LRGB combination separately.
+The script estimates **Sharpen Stars** for the other image from the measured reference sharpening and holds that estimate fixed. It optimizes only **Adjust Star Halos**, comparing flux-normalized outer stellar profiles within your chosen halo limits. The reference result stays fixed; **Sharpen Nonstellar** is shared by both images and **Automatic PSF** remains enabled. The sharpening estimate is empirical and is not clipped; matching stops if BlurXTerminator rejects it.
 
-Requires **PixInsight 1.9.5+ with V8** and **BlurXTerminator** with a license and AI model. Supply registered, equally sized floating-point grayscale L and three-channel RGB images, without alpha channels or empty registration borders, and at least **20 reliable common stars**. [Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
+Use **Matched L / RGB** to blink the deconvolved luminance against luminance extracted from the deconvolved RGB image. **FWHM comparison** plots each image before/after and the final L/RGB width comparison, with fitted lines and paired-star statistics. The **BlurXTerminator report** lists the applied settings, halo mismatch, dark-ring flags, and stopping reason. **PASS** requires both halo-profile and stellar-width checks to pass, including separate RGB-channel width checks; **REVIEW** means the results need inspection.
+
+After reviewing the previews, use the **green checkmark** to create two new linear images, or the **blue square** to apply the results to both inputs with **one Undo step per image**. Preview calculations leave the inputs unchanged. Display stretching and brightness alignment affect only previews; neither result action stretches, combines, or saves the images to disk.
+
+Requires **PixInsight 1.9.5+ with V8** and an installed, licensed **BlurXTerminator** with its AI model. Supply registered, equally sized floating-point grayscale L and three-channel RGB images, without alpha channels or empty registration borders. At least **20 reliable common stars and 20 usable halo profiles** are required. Registration, resampling, final stretching, and LRGB combination are separate steps. [Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
 
 <details>
 <summary>View LRGB Deconvolution Match interface</summary>
 
-![LRGB Deconvolution Match 1.4.1 interface with L and RGB selection, reference deconvolution settings, matching limits, and preview and star measurement tabs](TGScripts_repository/images/LRGBDeconvolutionMatch_main_screen.jpg)
+**Reference before/after**
+
+![LRGB Deconvolution Match 1.13.0 with L_clone and RGB_registered_clone selected, reference preview, halo optimization controls, and BlurXTerminator report](TGScripts_repository/images/LRGBDeconvolutionMatch_main_screen.jpg)
+
+**Matched L / RGB**
+
+![LRGB Deconvolution Match 1.13.0 matched luminance and RGB luminance blink preview with the final settings and halo report](TGScripts_repository/images/LRGBDeconvolutionMatch_matched_preview.jpg)
+
+**FWHM comparison**
+
+![LRGB Deconvolution Match 1.13.0 FWHM comparison with before-and-after and final-image measurements, fitted lines, and match assessment](TGScripts_repository/images/LRGBDeconvolutionMatch_fwhm_comparison.jpg)
 
 </details>
 
