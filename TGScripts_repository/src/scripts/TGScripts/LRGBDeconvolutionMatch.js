@@ -5,7 +5,7 @@
 #feature-info Prepare registered linear Luminance and RGB images for LRGB composition, including data from different telescope setups and original pixel scales. Compare stellar halos and widths with BlurXTerminator and blink the results.
 #endif
 
-/* LRGB Deconvolution Match 1.13.0 -- PixInsight 1.9.5+, V8.
+/* LRGB Deconvolution Match 1.13.1 -- PixInsight 1.9.5+, V8.
  * Helps prepare linear Luminance and RGB images for LRGB composition when
  * acquired with different telescope setups, potentially at different original
  * pixel scales. Inputs must already be registered to a common pixel grid.
@@ -22,7 +22,7 @@
  * Reviewed results can be created as new windows or applied to both input
  * images with Undo support. Applying results does not save files to disk.
  */
-const LDM_VERSION = '1.13.0';
+const LDM_VERSION = '1.13.1';
 const LDM_SCRIPT_FILE = #__FILE__;
 const LDM_DEFAULT_STARS = 0.5;
 // Supported by the installed BlurXTerminator parameter interface.
@@ -1232,8 +1232,8 @@ class LDMDialog extends Dialog {
       this.play.enabled=this.step.enabled=ready;this.create.enabled=!this.running && !!(this.analysis && this.analysis.outputs);
       this.applyInputs.enabled=this.create.enabled && !this.analysis.appliedToInputs;
       this.referencePlay.enabled=this.referenceStep.enabled=!this.running && !!this.referenceFrames;
-      this.play.icon=this.scaledResource(this.blinking?':/icons/stop.png':':/icons/play.png');
-      this.referencePlay.icon=this.scaledResource(this.referenceBlinking?':/icons/stop.png':':/icons/play.png');
+      this.play.icon=this.scaledResource(this.blinking?':/icons/media-stop.png':':/icons/play.png');
+      this.referencePlay.icon=this.scaledResource(this.referenceBlinking?':/icons/media-stop.png':':/icons/play.png');
    }
    stopBlink() {this.timer.stop();this.referenceTimer.stop();this.blinking=false;this.referenceBlinking=false;this.updateButtons();}
    showReferenceFrame(index) {

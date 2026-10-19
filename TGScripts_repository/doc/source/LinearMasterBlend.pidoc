@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{LinearMasterBlend}
 \keywords{linear images, image integration, PSF, FWHM, signal weight, SNR, preview, blink}
-\brief{Integrate two aligned linear master images using measured source quality. Version 1.20.0.}
+\brief{Integrate two aligned linear master images using measured source quality. Version 1.20.1.}
 
 \description{
 Linear Master Blend matches the brightness of two aligned master images and integrates them with quality-based weights. The base quality balance uses PSF Signal Weight (40 percent), PSF SNR (40 percent) and inverse combined FWHM (20 percent). Adjustable Sharpness preference gives additional influence to the master with narrower stellar profiles. The result is a new linear image. Both source images remain unchanged.
@@ -72,7 +72,7 @@ The output is a 32-bit floating-point image. If the integrated values fall below
 \section{Preview and blink}{
 Use the zoom buttons or mouse wheel to inspect the Output preview. Drag to pan. Auto stretch preview affects only the display; the output remains linear.
 
-Choose Master 1 or Master 2 in Blink with. Play alternates between the output and that source every 0.75 seconds. Stop returns to the output. Step-forward switches once and pauses playback. Zoom and position stay fixed. Changing the comparison source or opening the measurements tab stops blinking.
+Choose Master 1 or Master 2 in Blink with. Play alternates between the output and that source every 0.75 seconds. While blinking, the Play button becomes a black square Stop button. Stop returns to the output. Step-forward switches once and pauses playback. Zoom and position stay fixed. Changing the comparison source or opening the measurements tab stops blinking.
 
 Comparisons use a common display scale and stretch. Source values outside the display range can be clipped in the preview only. The coordinate bar shows the linear pixel value under the pointer, or separate R, G and B values. Output values use the created image's scale; source values use the reference image's brightness scale. Display stretching does not change this readout.
 }

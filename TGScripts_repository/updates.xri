@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="48d1fa651cd75a7c494ad5ba877cb47c6675ddbf" type="script" releaseDate="20261019">
+      <package fileName="TGScripts_repository.tar.gz" sha1="89505208674a5dcde688b4aae79b36ec2542f0ca" type="script" releaseDate="20261019">
          <title>
             TGScripts snapshot - 2026 Okt 19
          </title>
@@ -34,7 +34,9 @@
             <p>
                Updates:
                <br/>
-               Add SubframeQualityReview script. Asses subframe quality after an initial WBPP run and include comparison with master file and best subframe. Optional: add autofocus time information from an ASIAIR Autorun log file to check effects of re-focussing during image acquisition.
+               SubframeQualityReview: print autfocus marker with focus position
+               <br/>
+               LinearMasterBlend, LRGBDeconvolutionMatch: minor UI update (replace stop button by media stop button)
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-18T22:04:23.572Z" encoding="Base64">pwekpSh8fHHvMadgYeadA5jBnC+615sq3ny3f88Xbpj7YGQ0HW2bUTsSxCvNGOoDzSGr9OXTUL8M1jW/0CaXAA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-19T17:02:17.611Z" encoding="Base64">F+UxWd5gqINZYcbveLkq8UVTtxHlS6O0A7Nk7jz8F9H3fUW7D8XMtqN9+1HpLMEPQ4SKtiDxbfBNzXXrSNFzAQ==</Signature>

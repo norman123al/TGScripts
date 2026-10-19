@@ -5,7 +5,7 @@
 #feature-info Integrate two aligned linear masters with measured quality weights and adjustable sharpness preference.
 #endif
 
-/* Linear Master Blend 1.20.0
+/* Linear Master Blend 1.20.1
  * Requires PixInsight 1.9.5+ (V8). No external libraries or image files.
  * Original implementation, 2026. Released under the MIT license (see LICENSE.txt).
  * PSF measurement places the lower-FWHM image in A as photometric reference.
@@ -19,7 +19,7 @@
  * Source windows are never process targets. Owned windows are closed on failure.
  */
 
-const LMB_VERSION = '1.20.0';
+const LMB_VERSION = '1.20.1';
 const LMB_SCRIPT_FILE = #__FILE__;
 const LMB_SIGMA_TOOLTIP = 'Estimated noise standard deviation for the selected channel, expressed on the reference image\'s brightness scale. The reference is the master with the lower combined FWHM. This common scale lets you compare noise in Master 1, Master 2 and the output independently of their brightness scaling. Lower values indicate less noise; they do not measure detail or resolution.';
 
@@ -1268,7 +1268,7 @@ class LMBDialog extends Dialog {
    updateBlinkControls() {
       let ready = !this.running && !!this.analysis && !!this.outputBitmap;
       this.blinkSource.enabled = this.blinkButton.enabled = this.stepButton.enabled = ready;
-      this.blinkButton.icon = this.scaledResource(this.blinking ? ':/icons/stop.png' : ':/icons/play.png');
+      this.blinkButton.icon = this.scaledResource(this.blinking ? ':/icons/media-stop.png' : ':/icons/play.png');
       this.blinkButton.toolTip = this.blinking ? 'Stop blinking and show output.' : 'Start blinking output/source every 0.75 seconds. Stop returns to output.';
    }
 

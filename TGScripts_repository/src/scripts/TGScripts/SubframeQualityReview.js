@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.15.2 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.16.0 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -27,7 +27,7 @@
  * Only sqrMove changes original-file locations, after an explicit confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.15.2';
+const SQR_VERSION='0.16.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -176,14 +176,28 @@ function sqrLogTime(stamp,zone='local',offset=0){
    if(zone==='offset'&&(!Number.isFinite(offset)||offset<-12||offset>14))return null;
    return Date.UTC(year,month-1,day,hour,minute,second)-(zone==='offset'?offset*3600000:0);
 }
-/** Extract unique autofocus START events, sorted by UTC time. End lines are
- * intentionally ignored. Preserve the written time and trigger for the report. */
+/** Pair each unique autofocus start with its final successful focus position.
+ * Intermediate EAF samples are not results. A new start, end, or failure closes
+ * the previous run so an incomplete run cannot borrow another run's position.
+ * Only the start timestamp is retained for marker placement and reporting. */
 function sqrParseAutorun(text,zone='local',offset=0){
-   let runs=[],seen=new Set,invalid=0;
+   let runs=[],seen=new Set,invalid=0,active=null;
    for(let line of String(text).split(/\r?\n|\r/)){
-      let m=line.match(/^\s*(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\s+\[AutoFocus\|Begin\]\s*(.*)$/i);
-      if(!m)continue;let time=sqrLogTime(m[1],zone,offset);if(time===null){++invalid;continue;}
-      if(seen.has(time))continue;seen.add(time);runs.push({start:time,startText:m[1],reason:m[2]});
+      let m=line.match(/^\s*(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})\s+(.*)$/);if(!m)continue;
+      let begin=m[2].match(/^\[AutoFocus\|Begin\]\s*(.*)$/i);
+      if(begin){
+         let time=sqrLogTime(m[1],zone,offset);
+         if(time===null){++invalid;active=null;continue;}
+         // An adjacent duplicate start keeps its open run; an old duplicate must
+         // not reopen a finished run or attach its result to a different start.
+         if(seen.has(time)){if(active?.start!==time)active=null;continue;}
+         seen.add(time);active={start:time,startText:m[1],reason:begin[1],focusPosition:null};runs.push(active);
+      }else if(/^\[AutoFocus\|End\]|^Auto focus failed\b/i.test(m[2]))active=null;
+      else if(active){
+         let result=m[2].match(/^Auto focus succeeded,\s*the focused position is\s+(\d+)\s*$/i);
+         if(result){let position=Number(result[1]),time=sqrLogTime(m[1],zone,offset);
+            if(Number.isSafeInteger(position)&&time!==null&&time>=active.start){active.focusPosition=position;active=null;}}
+      }
    }
    return {runs:runs.sort((a,b)=>a.start-b.start),invalid};
 }
@@ -208,8 +222,8 @@ function sqrAutofocusReport(path,result,zone,offset,error=''){
    let lines=['Autorun log: '+path,'Log timestamps: '+convention,''];
    if(error)return lines.concat(error).join('\n');
    lines.push(result.runs.length+' autofocus start'+(result.runs.length===1?'':'s')+' extracted'+(result.invalid?' · '+result.invalid+' invalid timestamp'+(result.invalid===1?'':'s')+' skipped':''),
-      'Log start → UTC (used in histograms)');
-   for(let i=0;i<result.runs.length;++i){let run=result.runs[i];lines.push((i+1)+'. '+run.startText+' → '+new Date(run.start).toISOString());}
+      'Log start → UTC (used in histograms) · Final focus position');
+   for(let i=0;i<result.runs.length;++i){let run=result.runs[i];lines.push((i+1)+'. '+run.startText+' → '+new Date(run.start).toISOString()+' · Focus position: '+(run.focusPosition??'not reported'));}
    if(!result.runs.length)lines.push('No valid [AutoFocus|Begin] timestamps found.');
    lines.push('','All extracted starts are listed. Histograms show only starts within the current group’s subframe time range.');
    return lines.join('\n');
@@ -330,10 +344,14 @@ function sqrPlotHTML(data,generation=0){
       if(data.average!==null){let py=y(data.average);svg.push('<g pointer-events="none"><path d="M55 '+py+'H385" stroke="#a6e3a1" stroke-width="1.5" stroke-dasharray="5,3"/><text x="60" y="'+(py-4)+'" fill="#a6e3a1" font-size="9" font-weight="bold">'+number(data.average)+'</text></g>');}
       for(let run of data.autofocus||[]){
          let start=55+run.startSlot*spacing;
-         let tip='Autofocus start: '+run.startText+' (log time)\nUTC: '+new Date(run.start).toISOString()+'\n'+run.reason;
+         let label='AF'+(run.focusPosition==null?'':' '+run.focusPosition),tagWidth=label.length*5+6;
+         // Widen the tag for the position and keep it inside the SVG viewport.
+         // The dashed line stays at the exact start slot even near an edge.
+         let tagX=Math.max(tagWidth/2+2,Math.min(398-tagWidth/2,start));
+         let tip='Autofocus start: '+run.startText+' (log time)\nUTC: '+new Date(run.start).toISOString()+'\nFocus position: '+(run.focusPosition??'not reported')+'\n'+run.reason;
          svg.push('<g class="autofocus" pointer-events="none"><path d="M'+start+' 35V175" stroke="#fab387" stroke-width="1" stroke-dasharray="2,2"/></g>');
          // Hover the AF tag below the axis; overlays leave all frame bars clickable.
-         svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(start-6)+'" y="185" width="12" height="14" rx="2" fill="#252536"/><text x="'+start+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">AF</text></g>');
+         svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(tagX-tagWidth/2)+'" y="185" width="'+tagWidth+'" height="14" rx="2" fill="#252536"/><text x="'+tagX+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">'+sqrHTML(label)+'</text></g>');
       }
       svg.push('<path d="M55 35V175H385" fill="none" stroke="#585b70"/><text x="385" y="17" text-anchor="end" fill="#f9a825" font-size="9">Master: '+number(data.master)+(data.masterClipped?' '+(data.masterClipped==='above'?'↑':'↓')+' clipped':'')+'</text>');
       body='<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
@@ -778,7 +796,7 @@ class SQRDialog extends Dialog {
       this.logUTCOffset.toolTip='Log time minus UTC: for example, +2 for UTC+02:00, or +5.5 for UTC+05:30.';this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;
       this.autorunStatus=new Label(this.inputs);this.autorunStatus.text='No log selected.';
       this.autorunTimes=sqrButton(this.inputs,'Autofocus times…',()=>this.showAutofocusTimes());
-      this.autorunTimes.toolTip='Show all extracted autofocus start times, as written in the log and converted to UTC.';
+      this.autorunTimes.toolTip='Show all extracted autofocus start times, as written in the log and converted to UTC, with their final focus positions.';
       this.logTimeZone.onItemSelected=()=>{this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;this.parseAutorun();};
       this.logUTCOffset.onValueUpdated=()=>this.parseAutorun();
       logTools.add(logLabel);logTools.add(this.logTimeZone);logTools.add(this.logUTCOffset);logTools.add(this.autorunStatus,100);logTools.add(this.autorunTimes);this.inputs.sizer.add(logTools);
@@ -1007,7 +1025,7 @@ class SQRDialog extends Dialog {
       this.histogramSummary.text=data.message||('One bar per frame · '+(data.order==='time'?'acquisition time: earliest first · master first · unknown times last':'ascending '+kpi.label)+' · '+data.count+' measured subframes'+(data.missing?' · '+data.missing+' unavailable':'')+'. Click a bar to select its image in Review and measurements.\n'+
          'Cyan: selected · purple: REVIEW · blue: other kept · red: rejected · gold: master · green dashed: kept mean.\n'+
          'Axis fits subframes. '+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
-         (data.order==='time'?' · '+data.autofocus.length+' autofocus starts in range. Orange: autofocus start; hover AF for time.':''));
+         (data.order==='time'?' · '+data.autofocus.length+' autofocus starts in range. Orange: autofocus start and focus position; hover AF for details.':''));
       this.plotReady=false;++this.plotGeneration;this.histogram.setHTML(sqrPlotHTML(data,this.plotGeneration));
    }
    // Validate asynchronous WebView messages against the current generation.
