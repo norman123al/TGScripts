@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 // ----------------------------------------------------------------------------
 // PixInsight JavaScript Runtime API - PJSR Version 1.0
 // ----------------------------------------------------------------------------
@@ -70,16 +72,11 @@
 
 #feature-info  A script that creates a mask selecting a specified color range
 
-#include <pjsr/Sizer.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/StdIcon.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 
-#define VERSION   "2.0"
+#define VERSION   "2.1"
 #define TITLE     "ColorMaskTG"
 
 #define DEBUG     false
@@ -172,7 +169,7 @@ function ColorMaskData()
          if(this.view_id)
          {
             var window = ImageWindow.windowById(this.view_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.targetView = window.mainView;
             }
@@ -213,7 +210,7 @@ function doWork()
    var image = data.targetView.image;
    var name  = data.targetView.id;
 
-   data.targetView.beginProcess(UndoFlag_NoSwapFile);
+   data.targetView.beginProcess(UndoFlag.NoSwapFile);
    var t0 = new Date;
 
    if (DEBUG)
@@ -239,13 +236,13 @@ function doWork()
    }
    else
    { // construct a mask name
-      if (ImageWindow.windowById(name + CM_SUFF + data.maskSuff).isNull)
+      if ((ImageWindow.windowById(name + CM_SUFF + data.maskSuff)?.isNull ?? true))
          MaskName = name + CM_SUFF + data.maskSuff;
       else
       {
          for (var n = 1 ; n <= 99 ; n++)
          {
-            if (ImageWindow.windowById(name + CM_SUFF + data.maskSuff + n).isNull)
+            if ((ImageWindow.windowById(name + CM_SUFF + data.maskSuff + n)?.isNull ?? true))
             {
                MaskName = name + CM_SUFF + data.maskSuff + n;
                break;
@@ -357,8 +354,8 @@ function doWork()
    PM.newImageWidth = image.width;
    PM.newImageHeight = image.height;
    PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.Gray;
-   PM.newImageSampleFormat = PixelMath.prototype.f32;
+   PM.newImageColorSpace = PixelMath.Gray;
+   PM.newImageSampleFormat = PixelMath.f32;
    PM.executeOn(data.targetView, false /*swapFile */);
 
    if (data.blurLayers > 0)
@@ -372,7 +369,7 @@ function doWork()
       layers[n] = [true, true, 0.000, false, 3.000, 1.00, 1];
       MLT.layers = layers;
 
-      MLT.transform = MultiscaleLinearTransform.prototype.StarletTransform;
+      MLT.transform = MultiscaleLinearTransform.StarletTransform;
       MLT.scaleDelta = 0;
       MLT.scalingFunctionData = [
          0.25,0.5,0.25,
@@ -401,7 +398,7 @@ function doWork()
       MLT.linearMaskSmoothness = 1.00;
       MLT.linearMaskInverted = true;
       MLT.linearMaskPreview = false;
-      MLT.largeScaleFunction = MultiscaleLinearTransform.prototype.NoFunction;
+      MLT.largeScaleFunction = MultiscaleLinearTransform.NoFunction;
       MLT.curveBreakPoint = 0.75;
       MLT.noiseThresholding = false;
       MLT.noiseThresholdingAmount = 1.00;
@@ -414,7 +411,7 @@ function doWork()
       MLT.outputDeringingMaps = false;
       MLT.lowRange = 0.0000;
       MLT.highRange = 0.0000;
-      MLT.previewMode = MultiscaleLinearTransform.prototype.Disabled;
+      MLT.previewMode = MultiscaleLinearTransform.Disabled;
       MLT.previewLayer = 0;
       MLT.toLuminance = true;
       MLT.toChrominance = true;
@@ -463,10 +460,18 @@ function excludeViews(vList)
 /*
  * ColorMaskDialog is the GUI that collects the user parameters.
  */
-function ColorMaskDialog()
+var ColorMaskDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      ColorMaskDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ColorMaskDialog_initialize()
+{
 
    var labelMinWidth = Math.round(this.font.width("Start hue:") + 2.0 * this.font.width('M'));
    var sliderMaxValue = 360;
@@ -476,7 +481,7 @@ function ColorMaskDialog()
    this.helpLabel = new Label(this);
    with( this.helpLabel )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -501,7 +506,7 @@ function ColorMaskDialog()
    with( this.targetImage_Label )
    {
       text = "Target image: ";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.targetImage_ViewList = new ViewList(this);
@@ -849,7 +854,7 @@ function ColorMaskDialog()
    with( this.maskName_Label )
    {
       text = "Mask name:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.maskName_Edit = new Edit( this );
@@ -944,7 +949,6 @@ function ColorMaskDialog()
 }
 
 // Our dialog inherits all properties and methods from the core Dialog object.
-ColorMaskDialog.prototype = new Dialog;
 
 /*
  * Script entry point.
@@ -977,7 +981,7 @@ function main()
       {
          // Get access to the active image window
          var window = ImageWindow.activeWindow;
-         if (!window.isNull)
+         if (!(window == null || window.isNull))
          {
             data.targetView = window.currentView;
             data.view_id    = window.currentView.id;

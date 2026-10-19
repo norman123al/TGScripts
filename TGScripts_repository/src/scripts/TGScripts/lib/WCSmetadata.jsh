@@ -37,11 +37,6 @@
 #define WCS_SIMPLIFIER_TARGET_SPLINE_POINTS  1800
 
 #include "Projections.js"
-#include <pjsr/PropertyType.jsh>
-#include <pjsr/PropertyAttribute.jsh>
-#include <pjsr/DataType.jsh>
-
-
 /*
  * ObjectWithSettings: Base class for persistent classes.
  */
@@ -74,13 +69,13 @@ function ObjectWithSettings( module, prefix, properties )
             }
             else if ( this.properties[i][1] == Ext_DataType_JSON )
             {
-               let value = Settings.read( this.MakeSettingsKey( property ), DataType_UCString );
+               let value = Settings.read( this.MakeSettingsKey( property ), DataType.UCString );
                if ( Settings.lastReadOK )
                   this[property] = JSON.parse( value );
             }
             else if ( this.properties[i][1] == Ext_DataType_StringArray )
             {
-               let value = Settings.read( this.MakeSettingsKey( property ), DataType_UCString );
+               let value = Settings.read( this.MakeSettingsKey( property ), DataType.UCString );
                if ( Settings.lastReadOK )
                   this[property] = value.split("|");
             }
@@ -103,12 +98,12 @@ function ObjectWithSettings( module, prefix, properties )
             if ( this.properties[i][1] == Ext_DataType_Complex )
                this[property].SaveSettings();
             else if ( this.properties[i][1] == Ext_DataType_JSON )
-               Settings.write( this.MakeSettingsKey( property ), DataType_UCString, JSON.stringify( this[property] ) );
+               Settings.write( this.MakeSettingsKey( property ), DataType.UCString, JSON.stringify( this[property] ) );
             else if ( this.properties[i][1] == Ext_DataType_StringArray )
             {
                let concatString = this.CreateStringArray( this[property] );
                if ( concatString != null )
-                  Settings.write( this.MakeSettingsKey(property), DataType_UCString, concatString );
+                  Settings.write( this.MakeSettingsKey(property), DataType.UCString, concatString );
             }
             else
                Settings.write( this.MakeSettingsKey( property ), this.properties[i][1], this[property] );
@@ -146,25 +141,25 @@ function ObjectWithSettings( module, prefix, properties )
                {
                   switch( this.properties[i][1] )
                   {
-                  case DataType_Boolean:
+                  case DataType.Boolean:
                      this[property] = Parameters.getBoolean( key );
                      break;
-                  case DataType_Int8:
-                  case DataType_UInt8:
-                  case DataType_Int16:
-                  case DataType_UInt16:
-                  case DataType_Int32:
-                  case DataType_UInt32:
-                  case DataType_Int64:
-                  case DataType_UInt64:
+                  case DataType.Int8:
+                  case DataType.Uint8:
+                  case DataType.Int16:
+                  case DataType.Uint16:
+                  case DataType.Int32:
+                  case DataType.Uint32:
+                  case DataType.Int64:
+                  case DataType.Uint64:
                      this[property] = parseInt( Parameters.get( key ) );
                      break;
-                  case DataType_Double:
-                  case DataType_Float:
+                  case DataType.Real64:
+                  case DataType.Real32:
                      this[property] = Parameters.getReal( key );
                      break;
-                  case DataType_String:
-                  case DataType_UCString:
+                  case DataType.String8:
+                  case DataType.UCString:
                      this[property] = Parameters.getString( key );
                      break;
                   case Ext_DataType_JSON:
@@ -627,20 +622,20 @@ function ImageMetadata( module, scalingFactor )
       module ? module : SETTINGS_MODULE,
       "metadata",
       new Array(
-         ["focal", DataType_Double],
-         ["useFocal", DataType_Boolean],
-         ["xpixsz", DataType_Float],
-         // ["ypixsz", DataType_Float],
-         ["resolution", DataType_Double],
-         ["referenceSystem", DataType_String],
-         ["ra", DataType_Double],
-         ["dec", DataType_Double],
-         ["epoch", DataType_Double],
-         ["observationTime", DataType_Double],
-         ["topocentric", DataType_Boolean],
-         ["obsLongitude", DataType_Double],
-         ["obsLatitude", DataType_Double],
-         ["obsHeight", DataType_Double]
+         ["focal", DataType.Real64],
+         ["useFocal", DataType.Boolean],
+         ["xpixsz", DataType.Real32],
+         // ["ypixsz", DataType.Real32],
+         ["resolution", DataType.Real64],
+         ["referenceSystem", DataType.String8],
+         ["ra", DataType.Real64],
+         ["dec", DataType.Real64],
+         ["epoch", DataType.Real64],
+         ["observationTime", DataType.Real64],
+         ["topocentric", DataType.Boolean],
+         ["obsLongitude", DataType.Real64],
+         ["obsLatitude", DataType.Real64],
+         ["obsHeight", DataType.Real64]
       )
    );
 
@@ -1208,7 +1203,7 @@ function ImageMetadata( module, scalingFactor )
    {
       console.writeln( "<end><cbr>Saving keywords..." );
       if ( beginProcess )
-         imageWindow.mainView.beginProcess( UndoFlag_Keywords );
+         imageWindow.mainView.beginProcess( UndoFlag.Keywords );
 
       let keywords = imageWindow.keywords;
       this.UpdateBasicKeywords( keywords );
@@ -1251,8 +1246,8 @@ function ImageMetadata( module, scalingFactor )
 
       imageWindow.mainView.setPropertyValue( "PCL:AstrometricSolution:Information",
                                              "source=computed,process=ImageSolver",
-                                             PropertyType_String,
-                                             PropertyAttribute_Storable | PropertyAttribute_Permanent );
+                                             PropertyType.String,
+                                             PropertyAttribute.Storable | PropertyAttribute.Permanent );
    };
 
    this.saveControlPoints = function( imageWindow )
@@ -1284,8 +1279,8 @@ function ImageMetadata( module, scalingFactor )
       //console.writeln( byteArray.toString() );
       imageWindow.mainView.setPropertyValue( "Transformation_ImageToProjection",
                                              byteArray,
-                                             PropertyType_ByteArray,
-                                             PropertyAttribute_Storable | PropertyAttribute_Permanent );
+                                             PropertyType.ByteArray,
+                                             PropertyAttribute.Storable | PropertyAttribute.Permanent );
       console.writeln( format( "Saved %d control points.", this.controlPoints.pI.length ) );
    };
 
@@ -1672,14 +1667,21 @@ Matrix.prototype.toString = function()
 
 // ----------------------------------------------------------------------------
 
-function ReferNPolyn( polDegree )
+var ReferNPolyn = class extends Matrix
 {
-   this.__base__ = Matrix;
-   this.__base__( 2, ((polDegree + 1)*(polDegree + 2))/2 );
+   constructor( polDegree )
+   {
+      super( 2, ((polDegree + 1)*(polDegree + 2))/2 );
+      ReferNPolyn_initialize.call(this,  polDegree );
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ReferNPolyn_initialize( polDegree )
+{
    this.polDegree = polDegree;
 };
 
-ReferNPolyn.prototype = new Matrix;
 
 ReferNPolyn.prototype.Apply = function( p )
 {
@@ -1850,7 +1852,7 @@ ReferSpline.prototype.InitFromControlPoints = function( p1, p2, weights )
 
          if ( ++it == 200 ) // stalled?
          {
-            gc();
+
             break;
          }
       }
@@ -1890,7 +1892,7 @@ ReferSpline.prototype.InitFromControlPoints = function( p1, p2, weights )
 
          if ( ++it == 200 ) // stalled?
          {
-            gc();
+
             break;
          }
       }

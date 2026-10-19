@@ -21,8 +21,6 @@
 #ifndef __LocalSupportMaskLib_js
 #define __LocalSupportMaskLib_js
 
-#include <pjsr/NumericControl.jsh>
-
 #include "TGDialogLib.js"
 
 #define MASK_NAME                "local_support_mask"
@@ -92,10 +90,18 @@ var lsmData = new LSMData;
 // ----------------------------------------------------------------------------
 // LocalSupportMaskSettings
 // ----------------------------------------------------------------------------
-function LocalSupportMaskSettings(dialog, selector_title)
+var LocalSupportMaskSettings = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title)
+   {
+      super(dialog, selector_title);
+      LocalSupportMaskSettings_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function LocalSupportMaskSettings_initialize(dialog, selector_title)
+{
 
    dialogData.targetViewListeners.push(this);
 
@@ -163,7 +169,7 @@ function LocalSupportMaskSettings(dialog, selector_title)
    {
       minWidth      = this.labelWidthBox1;
       text          = "Scale:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.scale_SpinBox = new SpinBox(dialog);
@@ -194,7 +200,7 @@ function LocalSupportMaskSettings(dialog, selector_title)
    {
       minWidth      = this.labelWidthBox2;
       text          = "Large-scale:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.large_scale_SpinBox = new SpinBox(dialog);
@@ -225,7 +231,7 @@ function LocalSupportMaskSettings(dialog, selector_title)
    {
       minWidth      = this.labelWidthBox2;
       text          = "Small-scale:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.small_scale_SpinBox = new SpinBox(dialog);
@@ -256,7 +262,7 @@ function LocalSupportMaskSettings(dialog, selector_title)
    {
       minWidth      = this.labelWidthBox2;
       text          = "Compensation:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.compensation_SpinBox = new SpinBox(dialog);
@@ -287,7 +293,7 @@ function LocalSupportMaskSettings(dialog, selector_title)
    {
       minWidth      = this.labelWidthBox1;
       text          = "Smoothness:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.smoothness_SpinBox = new SpinBox(dialog);
@@ -355,15 +361,22 @@ function LocalSupportMaskSettings(dialog, selector_title)
    this.addControl(this.hSizer);
 } // LocalSupportMaskSettings
 
-LocalSupportMaskSettings.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // MaskPreviewControl
 // ----------------------------------------------------------------------------
-function MaskPreviewControl(dialog, selector_title)
+var MaskPreviewControl = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title)
+   {
+      super(dialog, selector_title);
+      MaskPreviewControl_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function MaskPreviewControl_initialize(dialog, selector_title)
+{
 
    dialogData.targetViewListeners.push(this);
    dialogData.previewListeners.push(this);
@@ -428,7 +441,7 @@ function MaskPreviewControl(dialog, selector_title)
    // -------------------------------------------------------------------------
    this.resetControl = function()
    {
-      if(self.previewView && !self.previewView.window.isNull)
+      if(self.previewView && !(self.previewView.window == null || self.previewView.window.isNull))
       {
          self.previewView.window.forceClose();
       }
@@ -455,7 +468,6 @@ function MaskPreviewControl(dialog, selector_title)
    this.addControl(this.preview_hSizer);
 } // MaskPreviewControl
 
-MaskPreviewControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // createIntermediateMask - MLT + stretch
@@ -464,7 +476,7 @@ function createIntermediateMask(view, basename)
 {
    Console.show();
 
-   view.beginProcess(UndoFlag_NoSwapFile);
+   view.beginProcess(UndoFlag.NoSwapFile);
 
    let MaskName = uniqueViewId(basename);
    var IntermediateMaskWindow = createImageLuminanceCopyWindow( MaskName, view.image );
@@ -472,7 +484,7 @@ function createIntermediateMask(view, basename)
 
    view.endProcess();
 
-   targetView.beginProcess(UndoFlag_NoSwapFile);
+   targetView.beginProcess(UndoFlag.NoSwapFile);
 
    var MLT = new MultiscaleLinearTransform;
    MLT.layers = [ // enabled, biasEnabled, bias, noiseReductionEnabled, noiseReductionThreshold, noiseReductionAmount, noiseReductionIterations
@@ -483,7 +495,7 @@ function createIntermediateMask(view, basename)
       [true , true, 0.000, false, 3.000, 1.00, 1],
       [false, true, 0.000, false, 3.000, 1.00, 1]
    ];
-   MLT.transform = MultiscaleLinearTransform.prototype.StarletTransform;
+   MLT.transform = MultiscaleLinearTransform.StarletTransform;
    MLT.scaleDelta = 0;
    MLT.scalingFunctionData = [
       0.25,0.5,0.25,
@@ -512,7 +524,7 @@ function createIntermediateMask(view, basename)
    MLT.linearMaskSmoothness      = 1.00;
    MLT.linearMaskInverted        = true;
    MLT.linearMaskPreview         = false;
-   MLT.largeScaleFunction        = MultiscaleLinearTransform.prototype.NoFunction;
+   MLT.largeScaleFunction        = MultiscaleLinearTransform.NoFunction;
    MLT.curveBreakPoint           = 0.75;
    MLT.noiseThresholding         = false;
    MLT.noiseThresholdingAmount   = 1.00;
@@ -525,7 +537,7 @@ function createIntermediateMask(view, basename)
    MLT.outputDeringingMaps       = false;
    MLT.lowRange                  = 0.0000;
    MLT.highRange                 = 0.0000;
-   MLT.previewMode               = MultiscaleLinearTransform.prototype.Disabled;
+   MLT.previewMode               = MultiscaleLinearTransform.Disabled;
    MLT.previewLayer              = 0;
    MLT.toLuminance               = true;
    MLT.toChrominance             = true;
@@ -559,7 +571,7 @@ function createMask(bPreview, view, basename)
    Console.show();
 
 
-   view.beginProcess(UndoFlag_NoSwapFile);
+   view.beginProcess(UndoFlag.NoSwapFile);
 
    var SM = new StarMask;
    SM.shadowsClipping     = 0.20000;
@@ -577,7 +589,7 @@ function createMask(bPreview, view, basename)
    SM.invert              = false;
    SM.truncation          = 1.00000;
    SM.limit               = 1.00000;
-   SM.mode                = bPreview ? StarMask.prototype.StarMaskOverlay : StarMask.prototype.StarMask;
+   SM.mode                = bPreview ? StarMask.StarMaskOverlay : StarMask.StarMask;
 
    SM.executeOn(view, false /*swapFile */);
 

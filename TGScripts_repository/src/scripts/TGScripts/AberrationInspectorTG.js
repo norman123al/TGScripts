@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 // ****************************************************************************
 // PixInsight JavaScript Runtime API - PJSR Version 1.0
 // ****************************************************************************
@@ -54,7 +56,9 @@
 */
 
 #define TITLE "AberrationInspectorTG"
-#define VERSION "2.0"
+#define VERSION "2.1"
+
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #feature-id AberrationInspectorTG : TG Scripts > AberrationInspectorTG
 
@@ -67,14 +71,6 @@
    <br/>Copyright &copy; 2012-2015 Mike Schuster. All Rights Reserved.\
    <br/>\
    Modified 2022 by Thorsten Glebe
-
-#include <pjsr/ColorSpace.jsh>
-#include <pjsr/DataType.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/SampleType.jsh>
-#include <pjsr/Sizer.jsh>
-#include <pjsr/UndoFlag.jsh>
 
 #define DEFAULT_PANEL_SIZE       256
 #define DEFAULT_MOSAIC_SIZE      3
@@ -100,7 +96,7 @@ function clipValueRange(value, min, max)
 function uniqueViewId(baseId)
 {
    var id = baseId;
-   for (var i = 1; !View.viewById(id).isNull; ++i)
+   for (var i = 1; !(View.viewById(id)?.isNull ?? true); ++i)
    {
       id = baseId + format("%02d", i);
    }
@@ -121,8 +117,8 @@ function createImageWindow(width, height, viewId, baseImage)
       height,
       baseImage.numberOfChannels,
       baseImage.bitsPerSample,
-      baseImage.sampleType == SampleType_Real,
-      baseImage.colorSpace != ColorSpace_Gray,
+      baseImage.sampleType == PixelSampleType.Float,
+      baseImage.colorSpace != ColorSpace.Gray,
       viewId
    );
 }
@@ -161,7 +157,7 @@ function parametersPrototype()
          if(this.view_id)
          {
             var window = ImageWindow.windowById(this.view_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.targetView = window.mainView;
             }
@@ -192,10 +188,18 @@ function pushButtonWithTextOnClick(parent, text_, onClick_)
 }
 
 // The script's parameters dialog prototype.
-function parametersDialogPrototype()
+var parametersDialogPrototype = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      parametersDialogPrototype_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function parametersDialogPrototype_initialize()
+{
 
    var labelMinWidth = Math.round(this.font.width("Separation color:") + 2.0 * this.font.width('M'));
 
@@ -210,7 +214,7 @@ function parametersDialogPrototype()
    this.titlePane = new Label (this);
    with( this.titlePane )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -257,7 +261,7 @@ function parametersDialogPrototype()
    with( this.mosaicLabel )
    {
       text = "Mosaic size:";
-      textAlignment = TextAlign_Right | TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right | TextAlignment.VertCenter;
       setFixedWidth(labelMinWidth);
 
       toolTip = "<p>Number of rows and columns in the mosaic.</p>";
@@ -386,7 +390,6 @@ function parametersDialogPrototype()
    this.setFixedSize();
 }
 
-parametersDialogPrototype.prototype = new Dialog;
 
 // The script's process prototype.
 function processPrototype()
@@ -407,7 +410,7 @@ function processPrototype()
          view.image.width, view.image.height, uniqueViewId(mainViewIdOfView(view)), view.image
       );
 
-      imageWindow.mainView.beginProcess(UndoFlag_NoSwapFile);
+      imageWindow.mainView.beginProcess(UndoFlag.NoSwapFile);
 
       imageWindow.mainView.image.selectedPoint = new Point(0, 0);
       imageWindow.mainView.image.apply(view.image);
@@ -430,8 +433,8 @@ function processPrototype()
          (new MessageBox(
             "<p>Source view is too small for the given mosaic generation parameters.</p>",
             TITLE,
-            StdIcon_Error,
-            StdButton_Ok
+            StdIcon.Error,
+            StdButton.Ok
          )).execute();
          return null;
       }
@@ -456,7 +459,7 @@ function processPrototype()
       var targetBounds = new Rect(0, 0, panelSize, panelSize);
       var targetViewId = "_";
 
-      mosaicImageWindow.mainView.beginProcess(UndoFlag_NoSwapFile);
+      mosaicImageWindow.mainView.beginProcess(UndoFlag.NoSwapFile);
 
       mosaicImageWindow.mainView.image.fill(ai_data.separationColor);
 
@@ -488,7 +491,7 @@ function processPrototype()
 
    this.execute = function()
    {
-      ai_data.targetView.beginProcess(UndoFlag_NoSwapFile);
+      ai_data.targetView.beginProcess(UndoFlag.NoSwapFile);
       var targetImageWindow = this.createImageWindowOfView(ai_data.targetView);
       var mosaicImageWindow = this.createMosaicImageWindowOfImageWindow(targetImageWindow);
       targetImageWindow.forceClose();
@@ -517,7 +520,7 @@ function main()
       {
          // Get access to the active image window
          var window = ImageWindow.activeWindow;
-         if (!window.isNull)
+         if (!(window == null || window.isNull))
          {
             ai_data.targetView = window.currentView;
             ai_data.view_id    = window.currentView.id;
@@ -535,7 +538,7 @@ function main()
       if ( !ai_data.targetView )
       {
          var msg = new MessageBox( "You must select a view to apply this script.",
-                                   TITLE, StdIcon_Error, StdButton_Ok );
+                                   TITLE, StdIcon.Error, StdButton.Ok );
          msg.execute();
          continue;
       }

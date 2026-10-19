@@ -856,10 +856,18 @@ function ProjectionFactory( configObject, ra, dec )
 // ConfigProjectionDialog
 // ******************************************************************
 
-function ConfigProjectionDialog( object, projection )
+var ConfigProjectionDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor( object, projection )
+   {
+      super();
+      ConfigProjectionDialog_initialize.call(this,  object, projection );
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ConfigProjectionDialog_initialize( object, projection )
+{
 
    this.restyle();
    this.labelWidth = this.font.width( "Right Ascension (hms):M" );
@@ -949,6 +957,5 @@ function ConfigProjectionDialog( object, projection )
    //this.setFixedSize();
 }
 
-ConfigProjectionDialog.prototype = new Dialog();
 
 #endif

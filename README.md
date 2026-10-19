@@ -37,36 +37,35 @@ To try a newly added script before the next updater release, download or clone t
 
 ### Requirements
 
-- **PixInsight:** scripts run inside PixInsight using its JavaScript Runtime (PJSR).
-- **Linear Master Blend, LRGB Deconvolution Match, ROI Linear Fit, Star Spike Protection Mask, and Subframe Quality Review:** use PixInsight **1.9.5 or later with the V8 scripting engine**. Star Spike Protection Mask targets and was tested with 1.9.5. Older scripts have their own requirements; LocalSupportMask and TGScriptSkeleton explicitly require at least 1.8.9-1.
+- **PixInsight:** all current repository scripts require **PixInsight 1.9.5 or later with the V8 scripting engine**. The older scripts and their shared libraries have been migrated to V8, including their dialogs, preview controls, and process constants.
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) to be installed and configured with an AI model. The script requires an image or preview of at least **256 × 256 pixels**.
 
-The update manifest accepts a broader range of PixInsight versions than these V8 scripts support. Being offered the package by the updater does not establish compatibility with every script.
+The packaged updater release may lag behind the repository source. To use the V8 migration before it is packaged, follow the manual execution instructions above and keep the scripts together with their `lib` folder. The update manifest currently accepts older PixInsight versions; this does not establish compatibility with the current source.
 
 ## Script overview
 
 | Task | Script | Version | What it does | Last&nbsp;update |
 | --- | --- | --- | --- | --- |
-| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2022&#8209;10&#8209;31 |
-| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.0 | Combines the four corners and, optionally, the center in one inspection image. | 2022&#8209;10&#8209;31 |
-| Reduce stars | [BBStarReduction](#bbstarreduction) | 1.1 | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2022&#8209;11&#8209;18 |
-| Select colors | [ColorMaskTG](#colormasktg) | 2.0 | Creates masks from hue, intensity, and saturation ranges. | 2022&#8209;11&#8209;14 |
-| Isolate emission | [CSTG](#cstg) | 2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2023&#8209;10&#8209;08 |
-| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | 2.2 | Increases the visibility of dark structures such as dust lanes. | 2022&#8209;11&#8209;18 |
-| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | 2.1 | Compares deconvolution results across synthetic point spread function settings. | 2022&#8209;11&#8209;18 |
-| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.0 | Adds continuum-subtracted narrowband emission to RGB channels. | 2022&#8209;11&#8209;18 |
-| Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.0 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;17 |
-| Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.0 | Generates a local support mask for deconvolution deringing. | 2022&#8209;12&#8209;12 |
-| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.13.0 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;10&#8209;18 |
+| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.1 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;10&#8209;19 |
+| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.1 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;10&#8209;19 |
+| Reduce stars | [BBStarReduction](#bbstarreduction) | 1.2 | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2026&#8209;10&#8209;19 |
+| Select colors | [ColorMaskTG](#colormasktg) | 2.1 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;10&#8209;19 |
+| Isolate emission | [CSTG](#cstg) | 2.1 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;19 |
+| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | 2.3 | Increases the visibility of dark structures such as dust lanes. | 2026&#8209;10&#8209;19 |
+| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | 2.2 | Compares deconvolution results across synthetic point spread function settings. | 2026&#8209;10&#8209;19 |
+| Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.1 | Adds continuum-subtracted narrowband emission to RGB channels. | 2026&#8209;10&#8209;19 |
+| Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.1 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;19 |
+| Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.1 | Generates a local support mask for deconvolution deringing. | 2026&#8209;10&#8209;19 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.13.1 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;10&#8209;19 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.15.2 | Ranks registered lights, provides blink comparisons and quality plots, and moves manually rejected originals after confirmation. | 2026&#8209;10&#8209;19 |
-| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.5 | Provides a reusable dialog, image preview, and process-instance framework. | 2022&#8209;12&#8209;12 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.16.0 | Ranks registered lights, provides blink comparisons and quality plots, and moves manually rejected originals after confirmation. | 2026&#8209;10&#8209;19 |
+| Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
-Versions follow the declarations in the repository source. EmissionLineIntegrationTG declares TG version **2.0** in its header; its interface retains the upstream **2.1.0** label.
+Versions follow the declarations in the repository source.
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded.
+Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. The ten migrated legacy scripts include the local V8 compatibility update made on **2026-10-19**.
 
 ## Script gallery
 
@@ -74,7 +73,7 @@ Each entry links to its source file. Most scripts also provide a documentation b
 
 ### AberrationInspectorTG
 
-**Last update:** 2022-10-31
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Creates an **n × n mosaic** of crops sampled across an image, including its corners, edges, and center. Use it to compare star shapes and assess field-dependent aberrations without navigating a large image. The TG version supports panels up to **2048 × 2048 pixels** and saving settings as a process icon.
 
@@ -89,7 +88,7 @@ Based on Mike Schuster's AberrationInspector. [Source](TGScripts_repository/src/
 
 ### AberrationSpotterTG
 
-**Last update:** 2022-10-31
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Collects the **four corners of the active image**, with an optional center crop, into a single inspection image. Set the horizontal and vertical crop sizes, spacing, and background brightness to make comparisons easier. The TG version supports crops up to **2048 × 2048 pixels** and reusable process icons.
 
@@ -104,7 +103,7 @@ Based on David Serrano's AberrationSpotter. [Source](TGScripts_repository/src/sc
 
 ### BBStarReduction
 
-**Last update:** 2022-11-18
+**Version:** 1.2 · **Last update:** 2026-10-19
 
 Reduces the prominence of stars in a **stretched image** using Bill Blanshan's **Transfer, Halo, or Star** method. It automates starless-image generation with StarXTerminator and offers a preview for comparing reduction settings before applying them to the target.
 
@@ -119,7 +118,7 @@ Requires StarXTerminator; see [troubleshooting](#starxterminator-io-error-in-bbs
 
 ### ColorMaskTG
 
-**Last update:** 2022-11-14
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Creates masks that select a **color range**, refined by **intensity and saturation limits**. Choose a preset color or a custom hue interval, then control mask weighting, strength, and smoothing. The expanded options include chrominance, lightness, inverse lightness, and linear mask types for selective image adjustments.
 
@@ -134,7 +133,7 @@ Based on Rick Stevenson's ColorMask, with fixes and additional mask-generation c
 
 ### CSTG
 
-**Last update:** 2023-10-08
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Performs **continuum subtraction** to separate emission-line signal from the continuum contribution in a narrowband image. Supply a grayscale narrowband image and a corresponding broadband image or RGB channel. Optional controls include a star mask, noise reduction, and diagnostic curves for the subtraction-factor evaluation.
 
@@ -149,7 +148,7 @@ Based on Hartmut V. Bornemann's CS script, with process-icon support and bundled
 
 ### DarkStructureEnhanceTG
 
-**Last update:** 2022-11-18
+**Version:** 2.3 · **Last update:** 2026-10-19
 
 Enhances **dark structures**, such as dust lanes, using a generated mask and adjustable enhancement strength and iterations. It can also extract the mask and preview the effect on a selected image preview. The bundled guide recommends linear data; the script warns when the selected image appears nonlinear.
 
@@ -164,7 +163,7 @@ Based on DarkStructureEnhance by Carlos Sonnenstein and Oriol Lehmkuhl, with pre
 
 ### DeconvolutionPreviewTG
 
-**Last update:** 2022-11-18
+**Version:** 2.2 · **Last update:** 2026-10-19
 
 Generates a comparison of deconvolution results while varying the **sigma and shape of a synthetic point spread function (PSF)**. Work on a PixInsight image preview to inspect a representative region at a useful scale. Controls include deconvolution iterations, deringing, and a local support mask; the current settings can also be applied to the selected preview.
 
@@ -179,7 +178,7 @@ Based on Juan M. Gómez's DeconvolutionPreview, adapted for preview-based evalua
 
 ### EmissionLineIntegrationTG
 
-**Last update:** 2022-11-18
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Combines **narrowband emission with a broadband RGB image**. It estimates and subtracts the continuum contribution, then adds the emission signal to the selected RGB channels with independent amplification controls. Start with an active RGB image and corresponding, registered narrowband data for at least one channel. The dialog provides an image preview and options to retain the emission views.
 
@@ -194,7 +193,7 @@ Based on Hartmut V. Bornemann's EmissionLineIntegration, with changes to speed u
 
 ### Linear Master Blend
 
-**Version:** 1.20.0 · **Last update:** 2026-10-17
+**Version:** 1.20.1 · **Last update:** 2026-10-19
 
 Normalizes and integrates **two aligned linear master images** using measured source quality. Preview automatically chooses the master with the lower combined stellar **FWHM** as the brightness reference. It matches the other master's stellar flux and local background to that reference independently in each channel.
 
@@ -219,7 +218,7 @@ Use registered, cropped floating-point images with identical dimensions and matc
 
 ### LocalSupportMask
 
-**Last update:** 2022-12-12
+**Version:** 2.1 · **Last update:** 2026-10-19
 
 Creates a **local support mask for deconvolution deringing**, helping protect stars during deconvolution. Adjust mask strength, scale, smoothness, and structure growth, then inspect the mask preview. Use a **linear main image**; both grayscale and RGB are supported, with luminance data recommended in the guide.
 
@@ -234,7 +233,7 @@ Creates a **local support mask for deconvolution deringing**, helping protect st
 
 ### LRGB Deconvolution Match
 
-**Version:** 1.13.0 · **Last update:** 2026-10-18
+**Version:** 1.13.1 · **Last update:** 2026-10-19
 
 Prepares **registered linear luminance and RGB images for LRGB composition**, including data from different telescopes and original pixel scales. Choose the sharper reference yourself or let the script select it from measured stellar FWHM. Set its BlurXTerminator **Sharpen Stars** and **Adjust Star Halos**, then inspect the **Reference before/after** preview.
 
@@ -265,7 +264,7 @@ Requires **PixInsight 1.9.5+ with V8** and an installed, licensed **BlurXTermina
 
 ### ROI Linear Fit
 
-**Last update:** 2026-10-04
+**Version:** 1.1.6 · **Last update:** 2026-10-04
 
 Matches a target image's **intensity scale** to a reference using a rectangular **region of interest (ROI)**. The script measures PixInsight's native LinearFit transformation inside that region and applies it to the **entire target**, with separate fits for RGB channels. Enter coordinates or copy them from an existing preview; inspect the fit with a scatter plot before applying it.
 
@@ -280,7 +279,7 @@ Use two registered main images with identical dimensions and matching color type
 
 ### Star Spike Protection Mask
 
-**Last update:** 2026-10-10
+**Version:** 1.7.2 · **Last update:** 2026-10-10
 
 Creates a **full-size grayscale protection mask for bright stars and diffraction spikes**. It follows the luminance profiles of stellar cores and spikes, with controls for star selection, spike detection, core size, mask growth, and blur. Preview the mask, compare it with the source, and optionally save the result as a 32-bit floating-point XISF image.
 
@@ -295,11 +294,11 @@ Designed for a **stretched stars-only image** with roughly straight spikes on tw
 
 ### Subframe Quality Review
 
-**Version:** 0.15.2 · **Last update:** 2026-10-19
+**Version:** 0.16.0 · **Last update:** 2026-10-19
 
 Reviews **registered light frames from a completed WeightedBatchPreprocessing (WBPP) run** to help decide which original exposures to exclude before rerunning WBPP. PixInsight's SubframeSelector measures PSF signal weight, star count, FWHM, and eccentricity, with optional center and corner measurements. Adjustable weights combine these into a relative quality score within each comparable filter/exposure group; **lower Score is better**. **Below-mean Quality** shows the percentage of assessed indicators worse than their group mean.
 
-The **Review and measurements** table shortlists the worst **10%** by default and flags insufficient measurements for inspection. Use **Blink frame / reference** to compare an image with the best scoring subframe or the corresponding linear filter master, across the field, center, or corners. Preview stretching and brightness alignment aid comparison without changing image pixels. **Quality indicators** plots measurements by value or acquisition sequence, with optional autofocus-start markers imported from an Autorun log.
+The **Review and measurements** table shortlists the worst **10%** by default and flags insufficient measurements for inspection. Use **Blink frame / reference** to compare an image with the best scoring subframe or the corresponding linear filter master, across the field, center, or corners. Preview stretching and brightness alignment aid comparison without changing image pixels. **Quality indicators** plots measurements by value or acquisition sequence, with optional autofocus-start markers imported from an Autorun log. Markers include the final successful focus position when available (for example, **AF 692**), while remaining positioned at the autofocus start time.
 
 **REVIEW is a suggestion, not a rejection decision.** Mark unwanted originals manually, then use the green checkmark to inspect and confirm the move plan. Only uniquely verified original lights are moved to the chosen rejection folder, preserving relative subdirectories and recording a move journal; calibrated images, registered images, and masters remain in place. Refresh WBPP's input list before rerunning it. Measurements and pending decisions last only while the dialog stays open; saved process instances retain settings, not the measured review session.
 
@@ -318,13 +317,13 @@ Requires **PixInsight 1.9.5+ with V8**. Supports XISF/FITS monochrome and regist
 
 **Quality indicators**
 
-![Subframe Quality Review 0.15.2 quality scores in acquisition order with review candidates, a mean line, master comparison, and autofocus markers](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
+![Subframe Quality Review 0.16.0 Score plot in acquisition order with review candidates, a mean line, master comparison, and autofocus markers labeled with final focus positions](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
 
 </details>
 
 ### TGScriptSkeleton
 
-**Last update:** 2022-12-12
+**Version:** 1.6 · **Last update:** 2026-10-19
 
 A **development template** for building PixInsight scripts. It provides image selection, a zoomable preview with display stretching, image statistics and properties, parameter storage in process icons, and standard reset, execution, and documentation controls. Use it as a starting point for a new tool rather than as an image-processing operation.
 

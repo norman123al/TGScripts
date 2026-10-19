@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="89505208674a5dcde688b4aae79b36ec2542f0ca" type="script" releaseDate="20261019">
+      <package fileName="TGScripts_repository.tar.gz" sha1="813db31eee84eda63a56f59f6e005daccbc26673" type="script" releaseDate="20261019">
          <title>
             TGScripts snapshot - 2026 Okt 19
          </title>
@@ -34,9 +34,27 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: print autfocus marker with focus position
+               Migration to Pixinsight V8 script engine:
                <br/>
-               LinearMasterBlend, LRGBDeconvolutionMatch: minor UI update (replace stop button by media stop button)
+               AberrationInspectorTG
+               <br/>
+               AberrationSpotterTG
+               <br/>
+               BBStarReduction
+               <br/>
+               ColorMaskTG
+               <br/>
+               CSTG
+               <br/>
+               DarkStructureEnhanceTG
+               <br/>
+               DeconvolutionPreviewTG
+               <br/>
+               EmissionLineIntegrationTG
+               <br/>
+               LocalSupportMask
+               <br/>
+               TGScriptSkeleton
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +63,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-19T17:02:17.611Z" encoding="Base64">F+UxWd5gqINZYcbveLkq8UVTtxHlS6O0A7Nk7jz8F9H3fUW7D8XMtqN9+1HpLMEPQ4SKtiDxbfBNzXXrSNFzAQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-19T17:50:34.707Z" encoding="Base64">Qz6zYZ/wegxwSSLqDF0ZtTK1J0KYnXDHMRGpRtAlOykbxocwO00GmgV6rYNErNVZSXKmYOEvbHa1dFATxLdqAQ==</Signature>

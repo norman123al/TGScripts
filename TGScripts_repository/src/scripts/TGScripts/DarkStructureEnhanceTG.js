@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
    DarkStructureEnhance v1.1
 
@@ -39,12 +41,7 @@
       2. code refactoring
 */
 
-#include <pjsr/Sizer.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/StdIcon.jsh>
-#include <pjsr/NumericControl.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 
@@ -61,7 +58,7 @@
 
 #define nStarMask 6
 
-#define VERSION "2.2"
+#define VERSION "2.3"
 #define TITLE "DarkStructureEnhanceTG"
 
 #define DEFAULT_LAYERS       8
@@ -130,7 +127,7 @@ function DarkMaskLayersData()
          if(this.view_id)
          {
             var window = ImageWindow.windowById(this.view_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.targetView = window.mainView;
             }
@@ -234,13 +231,13 @@ function doWaveletTransform(auxLayers, view)
        scalingFunctionData       = scalingFunctions[data.scalingFunction].kernel;
        scalingFunctionKernelSize = scalingFunctions[data.scalingFunction].size;
        scalingFunctionName       = scalingFunctions[data.scalingFunction].name;
-       largeScaleFunction        = NoFunction;
+       largeScaleFunction        = ATrousWaveletTransformV1.NoFunction;
        curveBreakPoint           = 0.75;
        noiseThresholdingAmount   = 0.00;
        noiseThreshold            = 3.00;
        lowRange                  = 0.000;
        highRange                 = 0.000;
-       previewMode               = Disabled;
+       previewMode               = ATrousWaveletTransformV1.Disabled;
        previewLayer              = 0;
        toLuminance               = true;
        toChrominance             = true;
@@ -343,13 +340,13 @@ function doMask( image, view_id, numberOfLayers )
        newImageId = "";
        newImageWidth = 0;
        newImageHeight = 0;
-       newImageColorSpace = SameAsTarget;
-       newImageSampleFormat = SameAsTarget;
+       newImageColorSpace = PixelMath.SameAsTarget;
+       newImageSampleFormat = PixelMath.SameAsTarget;
    }
    pm.executeOn( maskView, false/*swapFile*/ );
 
    // Convert to gray
-   if(image.colorSpace != ColorSpace_Gray)
+   if(image.colorSpace != ColorSpace.Gray)
    {
        var toGray = new ConvertToGrayscale;
        toGray.executeOn( maskView, false/*swapFile*/ );
@@ -359,7 +356,7 @@ function doMask( image, view_id, numberOfLayers )
    var rescale = new Rescale;
    with ( rescale )
    {
-       mode = RGBK;
+       mode = Rescale.RGBK;
    }
    rescale.executeOn( maskView, false/*swapFile*/ );
 
@@ -370,14 +367,14 @@ function doMask( image, view_id, numberOfLayers )
        version = 257;
        layers = // enabled, biasEnabled, structureDetectionThreshold, structureDetectionRange, bias, noiseReductionEnabled, noiseReductionFilter, noiseReductionAmount, noiseReductionIterations, noiseReductionKernelSize, noiseReductionProtectSignificant, deringingEnabled, deringingAmount, deringingThreshold
            [
-           [false, true, 1.00, 3.00, 0.000, false, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
-           [true, true, 1.00, 3.00, 0.000, true, Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
-           [true, true, 1.00, 3.00, 0.000, false, Recursive, 0.50, 2, 5, false, false, 0.50, 0.02000]];
+           [false, true, 1.00, 3.00, 0.000, false, ATrousWaveletTransformV1.Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
+           [true, true, 1.00, 3.00, 0.000, true, ATrousWaveletTransformV1.Recursive, 1.00, 5, 5, false, false, 0.50, 0.02000],
+           [true, true, 1.00, 3.00, 0.000, false, ATrousWaveletTransformV1.Recursive, 0.50, 2, 5, false, false, 0.50, 0.02000]];
        scaleDelta                = 0;
        scalingFunctionData       = scalingFunctions[0].kernel;
        scalingFunctionKernelSize = scalingFunctions[0].size;
        scalingFunctionName       = scalingFunctions[0].name;
-       largeScaleFunction        = NoFunction;
+       largeScaleFunction        = ATrousWaveletTransformV1.NoFunction;
        toLuminance               = true;
        toChrominance             = false;
        linear                    = false;
@@ -471,8 +468,8 @@ function createPreview()
       yWidth,
       prevImage.numberOfChannels,
       prevImage.bitsPerSample,
-      prevImage.sampleType == SampleType_Real,
-      prevImage.colorSpace != ColorSpace_Gray,
+      prevImage.sampleType == PixelSampleType.Float,
+      prevImage.colorSpace != ColorSpace.Gray,
       pvid
    );
 
@@ -487,7 +484,7 @@ function createPreview()
          // refresh copy of preview
          with( copyWindow.mainView )
          {
-            beginProcess( UndoFlag_NoSwapFile );
+            beginProcess( UndoFlag.NoSwapFile );
             image.apply( prevImage );
             endProcess();
          }
@@ -498,7 +495,7 @@ function createPreview()
          // draw current settings into copy
          with( copyWindow.mainView )
          {
-            beginProcess( UndoFlag_NoSwapFile );
+            beginProcess( UndoFlag.NoSwapFile );
             var signature_data = new DrawSignatureData( copyWindow.mainView, signatureText );
             DrawSignature( signature_data );
             endProcess();
@@ -507,7 +504,7 @@ function createPreview()
          // place preview copy in preview window
          with ( prevWindow.mainView )
          {
-            beginProcess( UndoFlag_NoSwapFile );
+            beginProcess( UndoFlag.NoSwapFile );
             image.selectedPoint = new Point( prevImage.width  * i + i * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH,
                                              prevImage.height * j + j * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH );
             image.apply( copyWindow.mainView.image );
@@ -552,10 +549,18 @@ function doWork()
 }
 
 // -----------------------------------------------------------------------------
-function DarkMaskLayersDialog()
+var DarkMaskLayersDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      DarkMaskLayersDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function DarkMaskLayersDialog_initialize()
+{
 
    data.dialog = this;
    var emWidth = this.font.width( 'M' );
@@ -565,7 +570,7 @@ function DarkMaskLayersDialog()
    this.helpLabel = new Label( this );
    with( this.helpLabel )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -585,7 +590,7 @@ function DarkMaskLayersDialog()
    {
       minWidth = labelWidth + this.logicalPixelsToPhysical( 6+1 ); // align with labels inside group boxes below
       text = "Target image:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.targetImage_ViewList = new ViewList( this );
@@ -637,7 +642,7 @@ function DarkMaskLayersDialog()
    {
       minWidth = labelWidth;
       text = "Layers to remove:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.numberOfLayers_SpinBox = new SpinBox( this );
@@ -683,7 +688,7 @@ function DarkMaskLayersDialog()
    {
       minWidth = labelWidth;
       text = "Scaling function:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.scalingFunction_ComboBox = new ComboBox( this );
@@ -743,7 +748,7 @@ function DarkMaskLayersDialog()
    {
       minWidth = labelWidth;
       text = "Iterations:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.iter_SpinBox = new SpinBox( this );
@@ -786,7 +791,7 @@ function DarkMaskLayersDialog()
    {
       minWidth = labelWidth;
       text = "Preview:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.previewViewList = new ViewList( this );
@@ -930,7 +935,6 @@ function DarkMaskLayersDialog()
    this.setFixedSize();
 }
 
-DarkMaskLayersDialog.prototype = new Dialog;
 
 /*
  * Script entry point.
@@ -954,7 +958,7 @@ function main()
       {
          // Get access to the active image window
          var window = ImageWindow.activeWindow;
-         if (!window.isNull)
+         if (!(window == null || window.isNull))
          {
             data.targetView = window.currentView;
             data.view_id    = window.currentView.id;

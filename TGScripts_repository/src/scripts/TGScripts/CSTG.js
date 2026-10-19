@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
  *		CS.js
  *
@@ -56,29 +58,13 @@
    Copyright &copy; 2017 Hartmut V. Bornemann / 2022 Thorsten Glebe
 
 
-#include <pjsr/StdButton.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/Sizer.jsh>
-#include <pjsr/Slider.jsh>
-#include <pjsr/UndoFlag.jsh>
-#include <pjsr/SampleType.jsh>
-#include <pjsr/DataType.jsh>
-#include <pjsr/Color.jsh>
-#include <pjsr/FileMode.jsh>
-#include <pjsr/StdIcon.jsh>
-#include <pjsr/StdCursor.jsh>
-#include <pjsr/MaskMode.jsh>
-#include <pjsr/ColorSpace.jsh>
-#include <pjsr/FontFamily.jsh>
-#include <pjsr/ImageOp.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 
 #define TITLE "Continuum Subtraction"
 #define SCRIPTNAME "CSTG"
-#define VERSION "2.0"
+#define VERSION "2.1"
 
 // original step size
 //#define DEFAULT_STEP_SIZE 0.00025
@@ -139,7 +125,7 @@ function CSData()
          if(this.nb_id)
          {
             var window = ImageWindow.windowById(this.nb_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.nb = window.mainView;
             }
@@ -151,7 +137,7 @@ function CSData()
          if(this.bb_id)
          {
             var window = ImageWindow.windowById(this.bb_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.bb = window.mainView;
             }
@@ -163,7 +149,7 @@ function CSData()
          if(this.mask_id)
          {
             var window = ImageWindow.windowById(this.mask_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.mask = window.mainView;
             }
@@ -326,7 +312,7 @@ function ContinuumSubtraction(dlg)
          //
          var keywords = [];
          keywords.push(new FITSKeyword("EMISSION", "T", "Emission line image"));
-         this.csImage.beginProcess(UndoFlag_NoSwapFile);
+         this.csImage.beginProcess(UndoFlag.NoSwapFile);
          this.csImage.window.keywords = keywords;
          this.csImage.endProcess();
       }
@@ -372,7 +358,7 @@ function ContinuumSubtraction(dlg)
 		{
 			ii += 1;							// 0..
 
-         processEvents();
+         CoreApplication.processEvents();
          if (data.cancel)
          {
             Console.writeln("***cancel*** mue = " + this.mue.toFixed(4) +
@@ -453,7 +439,7 @@ function ContinuumSubtraction(dlg)
 
       //var fXY = File.systemTempDirectory + "/XY.csv";
       //if (File.exists(fXY)) File.remove(fXY);
-      //var csv = new File(fXY, FileMode_Create);
+      //var csv = new File(fXY, FileMode.Create);
       //csv.outTextLn('x' + '\t' + 'y');
 
       for (var k = 4; k < xy.length; k++)
@@ -624,8 +610,8 @@ function ContinuumSubtraction(dlg)
          newImageWidth = nb.image.width;
          newImageHeight = nb.image.height;
          newImageAlpha = false;
-         newImageColorSpace = PixelMath.prototype.Gray;
-         newImageSampleFormat = PixelMath.prototype.f32;
+         newImageColorSpace = PixelMath.Gray;
+         newImageSampleFormat = PixelMath.f32;
          setDescription(d);
    		//Console.noteln("Pixelmath............" + name + " = " + expression);
          executeOn(nb);
@@ -670,7 +656,7 @@ function ContinuumSubtraction(dlg)
             0.001
          ];
          scalingFunctionName = "Linear Interpolation (3)";
-         largeScaleFunction = ATrousWaveletTransform.prototype.NoFunction;
+         largeScaleFunction = ATrousWaveletTransform.NoFunction;
          curveBreakPoint = 0.75;
          noiseThresholding = true;
          noiseThresholdingAmount = 1.00;
@@ -683,7 +669,7 @@ function ContinuumSubtraction(dlg)
          outputDeringingMaps = false;
          lowRange = 0.0000;
          highRange = 0.0000;
-         previewMode = ATrousWaveletTransform.prototype.Disabled;
+         previewMode = ATrousWaveletTransform.Disabled;
          previewLayer = 0;
          toLuminance = true;
          toChrominance = true;
@@ -745,7 +731,7 @@ function ContinuumSubtraction(dlg)
    {
       var newName = name + suffix;
       let n = 1;
-      while (!ImageWindow.windowById(newName).isNull)
+      while (!(ImageWindow.windowById(newName)?.isNull ?? true))
       {
          ++n;
          newName = name + suffix + n.toString();
@@ -780,8 +766,8 @@ function ContinuumSubtraction(dlg)
          newImageWidth = 0;
          newImageHeight = 0;
          newImageAlpha = false;
-         newImageColorSpace = PixelMath.prototype.Gray;
-         newImageSampleFormat = PixelMath.prototype.SameAsTarget;
+         newImageColorSpace = PixelMath.Gray;
+         newImageSampleFormat = PixelMath.SameAsTarget;
          executeOn(view);
       }
       return View.viewById(newName);
@@ -906,7 +892,7 @@ function ContinuumSubtraction(dlg)
          {
             var bm = new Bitmap(imagePath);
             var window = new ImageWindow(bm.width, bm.height, 3, 32, true, true, "CS_Plot");
-            window.mainView.beginProcess(UndoFlag_NoSwapFile);
+            window.mainView.beginProcess(UndoFlag.NoSwapFile);
             window.mainView.image.blend( bm );
             window.mainView.endProcess();
             window.show();
@@ -941,11 +927,6 @@ function ContinuumSubtraction(dlg)
          return filename;
       }
    }
-
-   String.prototype.replaceAll = function(search, replacement) {
-       var target = this;
-       return target.split(search).join(replacement);
-   };
 
    function lstqr()
    {
@@ -1073,7 +1054,7 @@ function ContinuumSubtraction(dlg)
       function getSx() // get sum of x
       {
         var Sx = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sx += ppair[0];
         }
@@ -1083,7 +1064,7 @@ function ContinuumSubtraction(dlg)
       function getSy() // get sum of y
       {
         var Sy = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sy += ppair[1];
         }
@@ -1093,7 +1074,7 @@ function ContinuumSubtraction(dlg)
       function getSx2() // get sum of x^2
       {
         var Sx2 = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sx2 += Math.pow(ppair[0], 2); // sum of x^2
         }
@@ -1103,7 +1084,7 @@ function ContinuumSubtraction(dlg)
       function getSx3() // get sum of x^3
       {
         var Sx3 = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sx3 += Math.pow(ppair[0], 3); // sum of x^3
         }
@@ -1113,7 +1094,7 @@ function ContinuumSubtraction(dlg)
       function getSx4() // get sum of x^4
       {
         var Sx4 = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sx4 += Math.pow(ppair[0], 4); // sum of x^4
         }
@@ -1123,7 +1104,7 @@ function ContinuumSubtraction(dlg)
       function getSxy() // get sum of x*y
       {
         var Sxy = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sxy += ppair[0] * ppair[1]; // sum of x*y
         }
@@ -1133,7 +1114,7 @@ function ContinuumSubtraction(dlg)
       function getSx2y() // get sum of x^2*y
       {
         var Sx2y = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             Sx2y += Math.pow(ppair[0], 2) * ppair[1]; // sum of x^2*y
         }
@@ -1143,7 +1124,7 @@ function ContinuumSubtraction(dlg)
       function getYMean() // mean value of y
       {
         var y_tot = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             y_tot += ppair[1];
         }
@@ -1155,7 +1136,7 @@ function ContinuumSubtraction(dlg)
         //the sum of the squares of the differences between
         //the measured y values and the mean y value
         var ss_tot = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             ss_tot += Math.pow(ppair[1] - getYMean(), 2);
         }
@@ -1167,7 +1148,7 @@ function ContinuumSubtraction(dlg)
         //the sum of the squares of te difference between
         //the measured y values and the values of y predicted by the equation
         var ss_err = 0;
-        for each (var ppair in pointArray)
+        for (var ppair of pointArray)
         {
             ss_err += Math.pow(ppair[1] - getPredictedY(ppair[0]), 2);
         }
@@ -1283,17 +1264,25 @@ function ContinuumSubtraction(dlg)
 //
 // +++ End of object ContinuumSubtraction() +++
 
-function infoDialog()
+var infoDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      infoDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function infoDialog_initialize()
+{
 
    var dlg = this;
 
    this.helpLabel = new Label( this );
    with ( this.helpLabel )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -1324,7 +1313,7 @@ function infoDialog()
    {
       icon = this.scaledResource(":/icons/ok.png");
       text = "OK";
-      onPress = function() parent.done(0);
+      onPress = function() { parent.done(0); };
    }
 
    var buttonsSizer = new HorizontalSizer();
@@ -1343,15 +1332,22 @@ function infoDialog()
 
 //	this.adjustToContents();
 // 	this.userResizable = true;
-   processEvents();
+   CoreApplication.processEvents();
    this.bringToFront();
 }
 
-function showDialog()
+var showDialog = class extends Dialog
 {
-   // Add all properties and methods of the core Dialog object to this object.
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      showDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function showDialog_initialize()
+{
 
    data.dialog = this;
 
@@ -1382,7 +1378,7 @@ function showDialog()
       {
          var dialog = new infoDialog();
 	      dialog.execute();
-         processEvents();
+         CoreApplication.processEvents();
          dlg.bringToFront();
       }
    }
@@ -1461,7 +1457,7 @@ function showDialog()
       onPress = function()
       {
          data.cancel = true;
-			dlg.cursor = new Cursor(StdCursor_Arrow);
+			dlg.cursor = new Cursor(StdCursor.Arrow);
          dlg.done(0);
 		}
 	}
@@ -1469,8 +1465,8 @@ function showDialog()
 	this.lblTick = new Label(this);
 	with (this.lblTick)
 	{
-      frameStyle = FrameStyle_Box;
-		textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      frameStyle = FrameStyle.Box;
+		textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
       var w = this.font.width( 'MLinearFit' );
       setFixedWidth( w );
    }
@@ -1795,7 +1791,7 @@ function showDialog()
 		singleShot = true;
 		onTimeout = function()
 		{
-			dlg.cursor = new Cursor(StdCursor_Arrow);
+			dlg.cursor = new Cursor(StdCursor.Arrow);
          dlg.done(0);
 		}
 	}
@@ -1803,7 +1799,7 @@ function showDialog()
    function callback(progress)
    {
       dlg.lblTick.text = (progress * 100).toFixed(2) + '%';
-      processEvents();
+      CoreApplication.processEvents();
    }
 }
 
@@ -2096,8 +2092,6 @@ function excludeViews(vList)
    }
 }
 
-showDialog.prototype = new Dialog;
-infoDialog.prototype = new Dialog;
 
 //////////////////////////////////////////////////////////////////////////////
 //

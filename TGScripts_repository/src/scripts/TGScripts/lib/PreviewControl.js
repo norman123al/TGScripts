@@ -34,13 +34,18 @@
  * - minor bug fixes
  */
 
-#include <pjsr/ButtonCodes.jsh>
-#include <pjsr/StdCursor.jsh>
-
-function PreviewControl( parent )
+var PreviewControl = class extends Frame
 {
-   this.__base__ = Frame;
-   this.__base__( parent );
+   constructor( parent )
+   {
+      super( parent );
+      PreviewControl_initialize.call(this,  parent );
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function PreviewControl_initialize( parent )
+{
 
    this.SetImage = function( image, metadata )
    {
@@ -73,7 +78,6 @@ function PreviewControl( parent )
 
       this.zoom = newZoom;
       this.scaledImage = null;
-      gc( true );
 
       if ( this.zoom > 0 )
       {
@@ -147,7 +151,7 @@ function PreviewControl( parent )
    this.scrollbox = new ScrollBox( this );
    this.scrollbox.autoScroll = true;
    this.scrollbox.tracking = true;
-   this.scrollbox.cursor = new Cursor( StdCursor_UpArrow );
+   this.scrollbox.cursor = new Cursor( StdCursor.UpArrow );
 
    this.scroll_Sizer = new HorizontalSizer;
    this.scroll_Sizer.add( this.scrollbox );
@@ -184,13 +188,13 @@ function PreviewControl( parent )
    this.scrollbox.viewport.onMousePress = function( x, y, button, buttonState, modifiers )
    {
       let preview = this.parent.parent;
-      if ( preview.scrolling || button != MouseButton_Left )
+      if ( preview.scrolling || button != MouseButton.Left )
          return;
       preview.scrolling = {
          orgCursor: new Point( x, y ),
          orgScroll: new Point( preview.scrollbox.horizontalScrollPosition, preview.scrollbox.verticalScrollPosition )
       };
-      this.cursor = new Cursor( StdCursor_ClosedHand );
+      this.cursor = new Cursor( StdCursor.ClosedHand );
    };
 
    this.scrollbox.viewport.onMouseMove = function( x, y, buttonState, modifiers )
@@ -248,12 +252,12 @@ function PreviewControl( parent )
    this.scrollbox.viewport.onMouseRelease = function( x, y, button, buttonState, modifiers )
    {
       let preview = this.parent.parent;
-      if ( preview.scrolling && button == MouseButton_Left )
+      if ( preview.scrolling && button == MouseButton.Left )
       {
          preview.scrollbox.horizontalScrollPosition = preview.scrolling.orgScroll.x - (x - preview.scrolling.orgCursor.x);
          preview.scrollbox.verticalScrollPosition = preview.scrolling.orgScroll.y - (y - preview.scrolling.orgCursor.y);
          preview.scrolling = null;
-         this.cursor = new Cursor( StdCursor_UpArrow );
+         this.cursor = new Cursor( StdCursor.UpArrow );
       }
    };
 
@@ -273,7 +277,7 @@ function PreviewControl( parent )
    this.scrollbox.viewport.onPaint = function( x0, y0, x1, y1 )
    {
       let preview = this.parent.parent;
-      let graphics = new VectorGraphics( this );
+      let graphics = new Graphics( this );
 
       graphics.fillRect( x0, y0, x1, y1, new Brush( 0xff202020 ) );
 
@@ -357,5 +361,3 @@ function PreviewControl( parent )
    this.sizer.add( this.scroll_Sizer );
    this.sizer.add( this.coords_Frame );
 }
-
-PreviewControl.prototype = new Frame;

@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
    AberrationSpotter.js v0.3
 
@@ -31,18 +33,13 @@
    3. removed "delete settings" functionality (replaced by "new instance" functionality)
 */
 
-#define VERSION         "2.0"
+#define VERSION         "2.1"
+
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 #define SURNAME         "_corners"
 #define SET_PREFIX      "aberration_spotter"
 #define MAX_PANEL_SIZE  2048
 #define TITLE           "AberrationSpotterTG"
-
-#include <pjsr/DataType.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/SampleType.jsh>
-#include <pjsr/Sizer.jsh>
-#include <pjsr/UndoFlag.jsh>
 
 #feature-id AberrationSpotterTG : TG Scripts > AberrationSpotterTG
 
@@ -111,7 +108,7 @@ function AS_engine()
     // --------- set_win -----------
     this.set_win = function (w)
     {
-        if (w.isNull)
+        if ((w == null || w.isNull))
         {
             throw Error ("Invalid/No image window.");
         }
@@ -205,12 +202,12 @@ function AS_engine()
             2 * user_data.hsize + this.sep,
             2 * user_data.vsize + this.sep,
             this.nchannels, v.image.bitsPerSample,
-            v.image.sampleType == SampleType_Real,
+            v.image.sampleType == PixelSampleType.Float,
             this.has_colour, v.id + SURNAME
         );
         with (dest.mainView)
         {
-            beginProcess (UndoFlag_NoSwapFile);
+            beginProcess (UndoFlag.NoSwapFile);
             with (image)
             {
                 fill (user_data.bgcolor);
@@ -258,7 +255,7 @@ function AS_engine()
             this.win.deletePreview(this.win.previewById (preview_ids[i]));
         }
         rect = null;
-        gc();
+
     }
 
     // --------- work -----------
@@ -273,9 +270,18 @@ function AS_engine()
 }
 var engine = new AS_engine;
 
-function AS_dialog() {
-    this.__base__ = Dialog;
-    this.__base__();
+var AS_dialog = class extends Dialog
+{
+   constructor()
+   {
+      super();
+      AS_dialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function AS_dialog_initialize()
+{
 
     var labelWidth1 = this.font.width( "Separation between portions (%):" );
 
@@ -283,7 +289,7 @@ function AS_dialog() {
     this.helpLabel = new Label (this);
     with (this.helpLabel)
     {
-        frameStyle = FrameStyle_Box;
+        frameStyle = FrameStyle.Box;
         margin = this.logicalPixelsToPhysical( 4 );
         wordWrapping = true;
         useRichText = true;
@@ -437,7 +443,6 @@ function AS_dialog() {
     this.adjustToContents();
     this.setFixedSize();
 }
-AS_dialog.prototype = new Dialog;
 
 function main()
 {

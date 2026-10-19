@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
 	EmissionLineIntegration.js: Narrow-band application on RGB images
 ================================================================================
@@ -102,23 +104,14 @@ History
 
 #feature-id    EmissionLineIntegrationTG : TG Scripts > EmissionLineIntegrationTG
 
-#include <pjsr/StdButton.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/Sizer.jsh>
-#include <pjsr/Slider.jsh>
-#include <pjsr/Color.jsh>
-#include <pjsr/FileMode.jsh>
-#include <pjsr/StdIcon.jsh>
-#include <pjsr/MaskMode.jsh>
-#include <pjsr/FontFamily.jsh>
-#include <pjsr/ImageOp.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdCursor.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 #include "lib/TGContinuumSubtractionLib.js"
 
+
+// TG script version is independent of the upstream shared-library VERSION.
+#define ELI_TG_VERSION "2.1"
 
 #define TAB '\t'
 #define TEST 0
@@ -141,26 +134,34 @@ function eliParms()
    this.amplify_R = 1;
    this.amplify_G = 1;
    this.amplify_B = 1;
-   this.version = VERSION;
+   this.version = ELI_TG_VERSION;
 }
 
 // ----------------------------------------------------------------------------
 // showDialog
 // ----------------------------------------------------------------------------
-function showDialog(viewRGB)
+var showDialog = class extends Dialog
 {
-   // Add all properties and methods of the core Dialog object to this object.
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor(viewRGB)
+   {
+      super();
+      showDialog_initialize.call(this, viewRGB);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function showDialog_initialize(viewRGB)
+{
    this.userResizable = true;
 
    var RGB = "RGBM"
 
    var dialog = this;
 
-   var setVal = Settings.read('EmissionLineIntegration', DataType_String);
+   var setVal = Settings.read('EmissionLineIntegration', DataType.String8);
    var parms  = new eliParms();
    if (setVal != null) parms = JSON.parse(setVal);
+   parms.version = ELI_TG_VERSION;
 
    this.cancel = false;
 
@@ -248,7 +249,7 @@ function showDialog(viewRGB)
    // my ©
    // -------------------------------------------------------------------------
    this.lblCopyright = new Label(this)
-   this.lblCopyright.text = "© 2017, Hartmut V. Bornemann, ver. " + VERSION;
+   this.lblCopyright.text = "© 2017, Hartmut V. Bornemann · TG version " + ELI_TG_VERSION;
 
 	for (var i = 0; i < 4; i++)
 	{
@@ -323,7 +324,7 @@ function showDialog(viewRGB)
 
             dialog.advanceProgress(0);
 
-            processEvents();
+            CoreApplication.processEvents();
 
 				if (dialog.csChannels[i].getEmission())
 				{
@@ -371,8 +372,8 @@ function showDialog(viewRGB)
 	with (this.lblTick)
 	{
       backgroundColor = 0xff8fcfef;
-      frameStyle = FrameStyle_Box;
-		textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      frameStyle = FrameStyle.Box;
+		textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
       var w = this.font.width( 'MMMMMM' );
       setFixedWidth( w * 2);
 
@@ -380,7 +381,7 @@ function showDialog(viewRGB)
       {
          var g = new Graphics(dialog.lblTick);
          var str = (dialog.progress * 100).toFixed() + '%';
-         var r = g.textRect( x0, y0, x1, y1, str, TextAlign_Center );
+         var r = g.textRect( x0, y0, x1, y1, str, (TextAlignment.HorzCenter | TextAlignment.VertCenter) );
          g.drawTextRect( r, str);
          if (dialog.progress > 0)
          {
@@ -447,12 +448,12 @@ function showDialog(viewRGB)
 							+ "'Cancel' continues '\r\n'"
 							+ "'No' quits without updating",
 							"Save view",
-											StdIcon_Question,
-											StdButton_Yes,
-											StdButton_No,
-											StdButton_Cancel);
+											StdIcon.Question,
+											StdButton.Yes,
+											StdButton.No,
+											StdButton.Cancel);
 				var answ = query.execute();
-				if (answ == StdButton_Yes)
+				if (answ == StdButton.Yes)
 				{
 					if (dialog.NRGB.apply())
 					{
@@ -463,7 +464,7 @@ function showDialog(viewRGB)
 						Console.writeln("Update failed");
 					}
 				}
-				else if (answ == StdButton_Cancel)
+				else if (answ == StdButton.Cancel)
 				{
 					return; // continue script
 				}
@@ -497,7 +498,7 @@ function showDialog(viewRGB)
          parms.amplify_G = dialog.csChannels[1].contingent;
          parms.amplify_B = dialog.csChannels[2].contingent;
          var strVal = JSON.stringify(parms);
-         Settings.write('EmissionLineIntegration', DataType_String, strVal);
+         Settings.write('EmissionLineIntegration', DataType.String8, strVal);
 
 			//
 			// write files in test-mode
@@ -510,7 +511,7 @@ function showDialog(viewRGB)
 					{
 						var filename = File.systemTempDirectory +
 											"\\XYEmission" + "RGB"[i] + ".csv";
-						var f = new File(filename,FileMode_Create);
+						var f = new File(filename,FileMode.Create);
 						f.outTextLn( "mue" + TAB + "count")
 						for (var j = 0; j < dialog.csChannels[i].xy.length; j++)
 						{
@@ -523,7 +524,7 @@ function showDialog(viewRGB)
 					{
 						var filename = File.systemTempDirectory +
 											"\\DXYEmission" + "RGB"[i] + ".csv";
-						var f = new File(filename,FileMode_Create);
+						var f = new File(filename,FileMode.Create);
 						f.outTextLn( "mue" + TAB + "count")
 						for (var j = 0; j < dialog.csChannels[i].dxy.length; j++)
 						{
@@ -578,7 +579,7 @@ function showDialog(viewRGB)
 
          onViewSelected = function( view )
 			{
-         	this.cursor = new Cursor(StdCursor_Wait);
+            this.cursor = new Cursor(StdCursor.Watch);
 				if (this.index < 3)
 				{
 					dialog.csChannels[this.index].setNarrowBand(view);
@@ -603,7 +604,7 @@ function showDialog(viewRGB)
                //
                dialog.resetLights();
 				}
-         	this.cursor = new Cursor(StdCursor_Arrow);
+            this.cursor = new Cursor(StdCursor.Arrow);
 				//
 				// at least one channel selected?
 				//
@@ -856,7 +857,7 @@ function showDialog(viewRGB)
       //dialog.lblTick.text = (progress * 100).toFixed() + '%';
       dialog.progress = progress;
       dialog.lblTick.repaint();
-      processEvents();
+      CoreApplication.processEvents();
    }
 
    // -------------------------------------------------------------------------
@@ -885,7 +886,7 @@ function showDialog(viewRGB)
    }
 
    // dialog window
-   this.windowTitle = TITLE + " " + VERSION;
+   this.windowTitle = TITLE + " " + ELI_TG_VERSION;
    this.adjustToContents();
 
    this.panelRight.setFixedWidth(this.panelRight.width);
@@ -902,10 +903,18 @@ function showDialog(viewRGB)
 // ----------------------------------------------------------------------------
 // Display with ImageView Control
 // ----------------------------------------------------------------------------
-function ImageView(parent, dialog)
+var ImageView = class extends Frame
 {
-   this.__base__ = Frame;
-  	this.__base__(parent);
+   constructor(parent, dialog)
+   {
+      super(parent);
+      ImageView_initialize.call(this, parent, dialog);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ImageView_initialize(parent, dialog)
+{
 
    var frame   = parent;
 
@@ -933,7 +942,7 @@ function ImageView(parent, dialog)
    {
       if (bitmap == null) return;
 
-      var graphics = new VectorGraphics(this);
+      var graphics = new Graphics(this);
 
       graphics.fillRect(x0,y0, x1, y1, new Brush(0xff000000));
 
@@ -968,7 +977,6 @@ function ImageView(parent, dialog)
    }
 }
 
-ImageView.prototype = new Frame();
 
 // ----------------------------------------------------------------------------
 // ApplyHistogram
@@ -1017,11 +1025,6 @@ function ApplyHistogram(view)
 // ----------------------------------------------------------------------------
 // replaceAll
 // ----------------------------------------------------------------------------
-String.prototype.replaceAll = function(search, replacement)
-{
-    var target = this;
-    return target.split(search).join(replacement);
-}
 
 
 // Helper functions
@@ -1062,7 +1065,6 @@ function houseKeeping()
 }
 
 
-showDialog.prototype = new Dialog;
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -1074,7 +1076,7 @@ function main()
 	houseKeeping();
    // get active image window.
    var window = ImageWindow.activeWindow;
-   if ( window.isNull )
+   if ( (window == null || window.isNull) )
    {
       errorMessageOk( "No active image", TITLE );
    }
@@ -1101,7 +1103,7 @@ function main()
             Console.writeln(ex);
          }
          houseKeeping();
-         gc();
+
       }
    }
 }

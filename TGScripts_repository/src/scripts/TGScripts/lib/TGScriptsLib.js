@@ -21,14 +21,6 @@
 #ifndef __TGScriptsLib_js
 #define __TGScriptsLib_js
 
-#include <pjsr/ColorSpace.jsh>
-#include <pjsr/SampleType.jsh>
-#include <pjsr/UndoFlag.jsh>
-#include <pjsr/StdIcon.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/PropertyType.jsh>
-#include <pjsr/PropertyAttribute.jsh>
-
 #define MIN_IMAGE_WIDTH         256
 #define MIN_IMAGE_HEIGHT        256
 #define TMP_STF_WINDOW_NAME     "tmpSTFWindow"
@@ -46,7 +38,7 @@
 // ----------------------------------------------------------------------------
 function errorMessageOk(txt, title)
 {
-   var msg = new MessageBox(txt, title, StdIcon_Error, StdButton_Ok );
+   var msg = new MessageBox(txt, title, StdIcon.Error, StdButton.Ok );
    msg.execute();
 }
 
@@ -55,8 +47,8 @@ function errorMessageOk(txt, title)
 // ----------------------------------------------------------------------------
 function errorMessageOkCancel(txt, title)
 {
-   var msg = new MessageBox( txt, title, StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-   return (msg.execute() == StdButton_Cancel);
+   var msg = new MessageBox( txt, title, StdIcon.Error, StdButton.Ok, StdButton.Cancel );
+   return (msg.execute() == StdButton.Cancel);
 }
 
 // ----------------------------------------------------------------------------
@@ -81,7 +73,7 @@ function isStretched(view)
 function uniqueViewId(baseId)
 {
    var id = baseId;
-   for (var i = 1; !View.viewById(id).isNull; ++i)
+   for (var i = 1; !(View.viewById(id)?.isNull ?? true); ++i)
    {
       id = baseId + format("%02d", i);
    }
@@ -98,8 +90,8 @@ function createRawImageWindow(viewId, baseImage)
       baseImage.height,
       baseImage.numberOfChannels,
       baseImage.bitsPerSample,
-      baseImage.sampleType == SampleType_Real,
-      baseImage.colorSpace != ColorSpace_Gray,
+      baseImage.sampleType == PixelSampleType.Float,
+      baseImage.colorSpace != ColorSpace.Gray,
       viewId
    );
 
@@ -116,7 +108,7 @@ function createGrayscaleImageWindow(viewId, baseImage)
       baseImage.height,
       1,
       baseImage.bitsPerSample,
-      baseImage.sampleType == SampleType_Real,
+      baseImage.sampleType == PixelSampleType.Float,
       false /*isColorSpace*/,
       viewId
    );
@@ -129,7 +121,7 @@ function createGrayscaleImageWindow(viewId, baseImage)
 // ----------------------------------------------------------------------------
 function applyImageToWindow(window, image)
 {
-   window.mainView.beginProcess(UndoFlag_NoSwapFile);
+   window.mainView.beginProcess(UndoFlag.NoSwapFile);
    window.mainView.image.selectedPoint = new Point(0, 0);
    window.mainView.image.apply(image);
    window.mainView.endProcess();
@@ -175,7 +167,7 @@ function createImageLuminanceCopyWindow(viewId, baseImage)
    var window = createGrayscaleImageWindow(viewId, baseImage);
 
    var orig_colorSpace                  = baseImage.colorSpace;
-   baseImage.colorSpace                 = ColorSpace_CIELab;
+   baseImage.colorSpace                 = ColorSpace.CIELab;
 
    // copy content of provided image into new image
    applyImageToWindow(window, baseImage);
@@ -403,8 +395,8 @@ function equalizeMean(view, targetView)
    PM.truncateUpper = 1;
    PM.createNewImage = false;
    PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.SameAsTarget;
-   PM.newImageSampleFormat = PixelMath.prototype.SameAsTarget;
+   PM.newImageColorSpace = PixelMath.SameAsTarget;
+   PM.newImageSampleFormat = PixelMath.SameAsTarget;
 
    PM.executeOn(view);
 }
@@ -428,7 +420,7 @@ function extractChannels(view, newBaseName)
 		view.image.selectedChannel = i;
 		var image = new Image(view.image);
 		var w = new ImageWindow(image.width, image.height );
-		w.mainView.beginProcess( UndoFlag_NoSwapFile );
+		w.mainView.beginProcess( UndoFlag.NoSwapFile );
 		w.mainView.image.apply(image);
 		w.mainView.endProcess();
 		w.mainView.id = nameArr[i];
@@ -593,9 +585,9 @@ function applySTFHT( img, stf )
    //Console.writeln("L  : ",  stf[3][0], ",", stf[3][1], ",", stf[3][2], ",", stf[3][3], ",", stf[3][4]);
    //Console.writeln("width: ", img.width, " height: ", img.height, " , channels: " , img.numberOfChannels, " , bitsperpixel: ", img.bitsPerSample, " , sample: ", img.sampleType, " ,is color: ", img.isColor);
 
-   var wtmp = new ImageWindow( img.width, img.height, img.numberOfChannels, img.bitsPerSample, img.sampleType == SampleType_Real, img.isColor, uniqueViewId(TMP_STF_WINDOW_NAME) );
+   var wtmp = new ImageWindow( img.width, img.height, img.numberOfChannels, img.bitsPerSample, img.sampleType == PixelSampleType.Float, img.isColor, uniqueViewId(TMP_STF_WINDOW_NAME) );
    var v = wtmp.mainView;
-   v.beginProcess( UndoFlag_NoSwapFile );
+   v.beginProcess( UndoFlag.NoSwapFile );
    v.image.assign( img );
    v.image.resetSelections();
    v.endProcess();
@@ -692,7 +684,7 @@ function ScaledNoiseEvaluation( image )
 function storeArrayAsPropertyValue(view, property_key, array)
 {
    var vector = new Vector(array);
-   var ret = view.setPropertyValue(property_key, vector, PropertyType_Auto, PropertyAttribute_Storable);
+   var ret = view.setPropertyValue(property_key, vector, PropertyType.Auto, PropertyAttribute.Storable);
    if(!ret)
    {
       throw Error( "Failed to store " + property_key + " as property!" );

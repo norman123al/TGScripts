@@ -21,11 +21,6 @@
 #ifndef __TGDialogLib_js
 #define __TGDialogLib_js
 
-#include <pjsr/Sizer.jsh>
-#include <pjsr/SectionBar.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/StdCursor.jsh>
-
 #include "TGScriptsLib.js"
 #include "PreviewControl.js"
 
@@ -102,10 +97,18 @@ var dialogData = new DialogData;
 // ----------------------------------------------------------------------------
 // ToolButtonBar
 // ----------------------------------------------------------------------------
-function ToolButtonBar(dialog, scriptname, bPreview)
+var ToolButtonBar = class extends HorizontalSizer
 {
-   this.__base__ = HorizontalSizer;
-  	this.__base__();
+   constructor(dialog, scriptname, bPreview)
+   {
+      super();
+      ToolButtonBar_initialize.call(this, dialog, scriptname, bPreview);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ToolButtonBar_initialize(dialog, scriptname, bPreview)
+{
 
    // -------------------------------------------------------------------------
    this.newInstance_Button = new ToolButton(dialog);
@@ -188,22 +191,29 @@ function ToolButtonBar(dialog, scriptname, bPreview)
    this.add(this.reset_Button);
 }
 
-ToolButtonBar.prototype = new HorizontalSizer();
 
 // ----------------------------------------------------------------------------
 // HelpAndCopyrightLabel
 // ----------------------------------------------------------------------------
-function HelpAndCopyrightLabel(dialog, maxheight, scriptname, version, description)
+var HelpAndCopyrightLabel = class extends Label
 {
-   this.__base__ = Label;
-  	this.__base__(dialog);
+   constructor(dialog, maxheight, scriptname, version, description)
+   {
+      super(dialog);
+      HelpAndCopyrightLabel_initialize.call(this, dialog, maxheight, scriptname, version, description);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function HelpAndCopyrightLabel_initialize(dialog, maxheight, scriptname, version, description)
+{
 
    var versionspec = "<b>" + scriptname + " v" + version + "</b> &mdash;"
    var copyright   = "<p>Copyright &copy; 2022 Thorsten Glebe</p>";
 
    // set label properties
    // -------------------------------------------------------------------------
-   this.frameStyle   = FrameStyle_Box;
+   this.frameStyle   = FrameStyle.Box;
    this.margin       = MARGIN;
    this.wordWrapping = true;
    this.useRichText  = true;
@@ -211,15 +221,22 @@ function HelpAndCopyrightLabel(dialog, maxheight, scriptname, version, descripti
    this.text = "<p>" + versionspec + " " + description + copyright + "</p>";
 }
 
-HelpAndCopyrightLabel.prototype = new Label();
 
 // ----------------------------------------------------------------------------
 // VerticalSection
 // ----------------------------------------------------------------------------
-function VerticalSection(dialog, selector_title)
+var VerticalSection = class extends VerticalSizer
 {
-   this.__base__ = VerticalSizer;
-  	this.__base__();
+   constructor(dialog, selector_title)
+   {
+      super();
+      VerticalSection_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function VerticalSection_initialize(dialog, selector_title)
+{
 
    // -------------------------------------------------------------------------
    this.imageSection = new Control(dialog);
@@ -259,7 +276,6 @@ function VerticalSection(dialog, selector_title)
    this.add( this.imageSection );
 } // VerticalSection
 
-VerticalSection.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // ViewSelect enum
@@ -274,10 +290,18 @@ ViewSelect = {
 // ----------------------------------------------------------------------------
 // TargetViewSelector
 // ----------------------------------------------------------------------------
-function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
+var TargetViewSelector = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title, view_select, excludePattern)
+   {
+      super(dialog, selector_title);
+      TargetViewSelector_initialize.call(this, dialog, selector_title, view_select, excludePattern);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function TargetViewSelector_initialize(dialog, selector_title, view_select, excludePattern)
+{
 
    // register as event listener
    dialogData.targetViewListeners.push(this);
@@ -311,7 +335,7 @@ function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
             if(view_id)
             {
                var window = ImageWindow.windowById(view_id);
-               if(!window.isNull)
+               if(!(window == null || window.isNull))
                {
                   dialogData.targetView = window.mainView;
                }
@@ -321,7 +345,7 @@ function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
          {
             // Get access to the active image window
             var window = ImageWindow.activeWindow;
-            if (!window.isNull)
+            if (!(window == null || window.isNull))
             {
                dialogData.targetView = window.currentView;
                view_id               = window.currentView.id;
@@ -342,7 +366,7 @@ function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
    {
       minWidth = 9;
       text = "Target image:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.targetImage_ViewList = new ViewList( dialog );
@@ -434,15 +458,22 @@ function TargetViewSelector(dialog, selector_title, view_select, excludePattern)
    this.addControl(this.paramVSizer);
 } // TargetViewSelector
 
-TargetViewSelector.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // ImagePreviewControl
 // ----------------------------------------------------------------------------
-function ImagePreviewControl(dialog, basename, selector_title)
+var ImagePreviewControl = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, basename, selector_title)
+   {
+      super(dialog, selector_title);
+      ImagePreviewControl_initialize.call(this, dialog, basename, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ImagePreviewControl_initialize(dialog, basename, selector_title)
+{
 
    // register as dependent object to targetView control
    dialogData.targetViewListeners.push(this);
@@ -567,15 +598,22 @@ function ImagePreviewControl(dialog, basename, selector_title)
    this.addControl(this.preview_hSizer);
 } // ImagePreviewControl
 
-ImagePreviewControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // TargetViewStatBox
 // ----------------------------------------------------------------------------
-function TargetViewStatBox(dialog, selector_title)
+var TargetViewStatBox = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title)
+   {
+      super(dialog, selector_title);
+      TargetViewStatBox_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function TargetViewStatBox_initialize(dialog, selector_title)
+{
 
    // register as dependent object to targetView control
    dialogData.targetViewListeners.push(this);
@@ -612,10 +650,10 @@ function TargetViewStatBox(dialog, selector_title)
       headerVisible     = true;
       indentSize        = 0;
 
-      setHeaderAlignment(0, Align_Left | TextAlign_VertCenter);
+      setHeaderAlignment(0, TextAlignment.Left | TextAlignment.VertCenter);
       setColumnWidth(0, this.treeBox.font.width("ParameterMM"));
       setHeaderText(0, "");
-      setHeaderAlignment(1, Align_Left | TextAlign_VertCenter);
+      setHeaderAlignment(1, TextAlignment.Left | TextAlignment.VertCenter);
 
       var rows     = 6;
       self.treeBox.setFixedHeight(2*rows*this.treeBox.font.height); // always set box height
@@ -864,15 +902,22 @@ function TargetViewStatBox(dialog, selector_title)
    this.addControl(this.snrCheckbox_Sizer);
 } // TargetViewStatBox
 
-TargetViewStatBox.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // TargetViewPropBox
 // ----------------------------------------------------------------------------
-function TargetViewPropBox(dialog, selector_title)
+var TargetViewPropBox = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title)
+   {
+      super(dialog, selector_title);
+      TargetViewPropBox_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function TargetViewPropBox_initialize(dialog, selector_title)
+{
 
    dialogData.targetViewListeners.push(this);
 
@@ -900,9 +945,9 @@ function TargetViewPropBox(dialog, selector_title)
       headerVisible     = false;
       indentSize        = 0;
 
-      setHeaderAlignment(0, Align_Left | TextAlign_VertCenter);
+      setHeaderAlignment(0, TextAlignment.Left | TextAlignment.VertCenter);
       setHeaderText(0, "");
-      setHeaderAlignment(1, Align_Left | TextAlign_VertCenter);
+      setHeaderAlignment(1, TextAlignment.Left | TextAlignment.VertCenter);
 
       var rows       = 5;
       var fontheight = 2*this.treeBox.font.height;
@@ -936,7 +981,7 @@ function TargetViewPropBox(dialog, selector_title)
          var arrString = "";
          var node = new TreeBoxNode(this.treeBox);
          node.setText(0, key);
-         if(type == PropertyType_F64Vector || type == PropertyType_UI64Vector)
+         if(type == PropertyType.F64Vector || type == PropertyType.UI64Vector)
          {
             arrString = "{" + value.toArray().toString() + "}";
          }
@@ -971,15 +1016,22 @@ function TargetViewPropBox(dialog, selector_title)
    this.addControl(this.treeBox);
 } // TargetViewPropBox
 
-TargetViewPropBox.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // TargetViewControl
 // ----------------------------------------------------------------------------
-function TargetViewControl(dialog, viewSelect, excludePattern)
+var TargetViewControl = class extends VerticalSizer
 {
-   this.__base__ = VerticalSizer;
-  	this.__base__();
+   constructor(dialog, viewSelect, excludePattern)
+   {
+      super();
+      TargetViewControl_initialize.call(this, dialog, viewSelect, excludePattern);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function TargetViewControl_initialize(dialog, viewSelect, excludePattern)
+{
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
@@ -1008,15 +1060,22 @@ function TargetViewControl(dialog, viewSelect, excludePattern)
    this.add( this.targetViewPropBox );
 } // TargetViewControl
 
-TargetViewControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // SimpleTargetViewControl
 // ----------------------------------------------------------------------------
-function SimpleTargetViewControl(dialog, viewSelect, excludePattern)
+var SimpleTargetViewControl = class extends VerticalSizer
 {
-   this.__base__ = VerticalSizer;
-  	this.__base__();
+   constructor(dialog, viewSelect, excludePattern)
+   {
+      super();
+      SimpleTargetViewControl_initialize.call(this, dialog, viewSelect, excludePattern);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function SimpleTargetViewControl_initialize(dialog, viewSelect, excludePattern)
+{
 
    // TargetViewSelector
    // -------------------------------------------------------------------------
@@ -1027,15 +1086,22 @@ function SimpleTargetViewControl(dialog, viewSelect, excludePattern)
    this.add( this.targetViewSelector );
 } // SimpleTargetViewControl
 
-SimpleTargetViewControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 // DummyControl - copy and paste control skeleton
 // ----------------------------------------------------------------------------
-function DummyControl(dialog, selector_title)
+var DummyControl = class extends VerticalSection
 {
-   this.__base__ = VerticalSection;
-  	this.__base__(dialog, selector_title);
+   constructor(dialog, selector_title)
+   {
+      super(dialog, selector_title);
+      DummyControl_initialize.call(this, dialog, selector_title);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function DummyControl_initialize(dialog, selector_title)
+{
 
    dialogData.targetViewListeners.push(this);
 
@@ -1070,7 +1136,6 @@ function DummyControl(dialog, selector_title)
 //   this.addControl(this.treeBox);
 } // DummyControl
 
-DummyControl.prototype = new VerticalSizer();
 
 // ----------------------------------------------------------------------------
 #endif   // __TGDialogLib_js

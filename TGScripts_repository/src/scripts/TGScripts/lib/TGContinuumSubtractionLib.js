@@ -98,9 +98,6 @@ History
 	27.04.18	Release and introduced on PI-Workshop in Austria (Attersee)
 */
 
-#include <pjsr/DataType.jsh>
-#include <pjsr/UndoFlag.jsh>
-
 #define TITLE "Emission Line Integration"
 #define VERSION "2.1.0"
 
@@ -521,7 +518,7 @@ function plotter(curves, mue, nbId, bbId, csId, smId)
       {
          var bm = new Bitmap(imagePath);
          var window = new ImageWindow(bm.width, bm.height, 3, 32, true, true, PLOTVIEW);
-         window.mainView.beginProcess(UndoFlag_NoSwapFile);
+         window.mainView.beginProcess(UndoFlag.NoSwapFile);
          window.mainView.image.blend( bm );
          window.mainView.endProcess();
          window.show();
@@ -1023,7 +1020,7 @@ function csChannel(NRGB, channelIndex)
             //
             var keywords = [];
             keywords.push(new FITSKeyword("EMISSION", "T", "Emission line image"));
-            this.emission.beginProcess(UndoFlag_NoSwapFile);
+            this.emission.beginProcess(UndoFlag.NoSwapFile);
             this.emission.window.keywords = keywords;
             this.emission.endProcess();
          }
@@ -1108,7 +1105,7 @@ function csChannel(NRGB, channelIndex)
 		{
 			ii += 1;							// 0..
 
-         processEvents();
+         CoreApplication.processEvents();
          if (dlg.cancel)
          {
             Console.writeln("***cancel*** mue = " + this.mue.toFixed(4) +
@@ -1343,8 +1340,8 @@ function csChannel(NRGB, channelIndex)
          newImageWidth = nb.image.width;
          newImageHeight = nb.image.height;
          newImageAlpha = false;
-         newImageColorSpace = PixelMath.prototype.Gray;
-         newImageSampleFormat = PixelMath.prototype.f32;
+         newImageColorSpace = PixelMath.Gray;
+         newImageSampleFormat = PixelMath.f32;
          setDescription(d);
          executeOn(nb);
 			var view = View.viewById(name);

@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
    LocalSupportMask v1.1
 
@@ -33,7 +35,7 @@
 
 #include "lib/LocalSupportMaskLib.js"
 
-#define VERSION    "2.0"
+#define VERSION    "2.1"
 #define SCRIPTNAME "LocalSupportMask"
 
 #feature-id    LocalSupportMask : TG Scripts > LocalSupportMask
@@ -42,25 +44,23 @@
    Copyright &copy; 2022 Thorsten Glebe. All Rights Reserved.
 
 // ----------------------------------------------------------------------------
-// version check
-// ----------------------------------------------------------------------------
-if ( CoreApplication === undefined ||
-     CoreApplication.versionRevision === undefined ||
-     CoreApplication.versionMajor*1e11
-   + CoreApplication.versionMinor*1e8
-   + CoreApplication.versionRelease*1e5
-   + CoreApplication.versionRevision*1e2 < 100800900100 )
-{
-   throw new Error( "This script requires PixInsight core version 1.8.9-1 or higher." );
-}
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 // ----------------------------------------------------------------------------
 // ScriptDialog
 // ----------------------------------------------------------------------------
-function ScriptDialog()
+var ScriptDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      ScriptDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ScriptDialog_initialize()
+{
 
    dialogData.dialog = this;
 
@@ -121,7 +121,6 @@ function ScriptDialog()
 } // ScriptDialog
 
 // Our dialog inherits all properties and methods from the core Dialog object.
-ScriptDialog.prototype = new Dialog;
 
 // ----------------------------------------------------------------------------
 // doWork

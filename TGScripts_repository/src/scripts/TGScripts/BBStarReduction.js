@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
    BBStarReduction v1.1
 
@@ -29,16 +31,11 @@
       bug fixes, code cleanup
 */
 
-#include <pjsr/Sizer.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/NumericControl.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/StdIcon.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 
-#define VERSION   "1.1"
+#define VERSION   "1.2"
 #define TITLE     "BBStarReduction"
 
 #define METHOD_transfer 0
@@ -107,7 +104,7 @@ function ScriptData()
          if(this.view_id)
          {
             var window = ImageWindow.windowById(this.view_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.targetView = window.mainView;
             }
@@ -191,7 +188,7 @@ function createStarless(targetView)
    SXT.unscreen = true;
    SXT.overlap = 0.20;
 
-   if (starlessWindow.mainView.isNull || !SXT.executeOn(starlessWindow.mainView, false /*swapFile */))
+   if ((starlessWindow.mainView == null || starlessWindow.mainView.isNull) || !SXT.executeOn(starlessWindow.mainView, false /*swapFile */))
    {
       errorMessageOk("Starless image creation failed!", TITLE);
       return null;
@@ -232,8 +229,8 @@ function transferMethod_V2(strength, starless_id, targetView)
    PM.newImageWidth = 0;
    PM.newImageHeight = 0;
    PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.SameAsTarget;
-   PM.newImageSampleFormat = PixelMath.prototype.SameAsTarget;
+   PM.newImageColorSpace = PixelMath.SameAsTarget;
+   PM.newImageSampleFormat = PixelMath.SameAsTarget;
    PM.executeOn(targetView, false /*swapFile */);
 
    targetView.endProcess();
@@ -271,8 +268,8 @@ function haloMethod_V2(strength, starless_id, targetView)
    PM.newImageWidth = 0;
    PM.newImageHeight = 0;
    PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.SameAsTarget;
-   PM.newImageSampleFormat = PixelMath.prototype.SameAsTarget;
+   PM.newImageColorSpace = PixelMath.SameAsTarget;
+   PM.newImageSampleFormat = PixelMath.SameAsTarget;
    PM.executeOn(targetView, false /*swapFile */);
 
    targetView.endProcess();
@@ -326,8 +323,8 @@ function starMethod_V2(iterations, mode, starless_id, targetView)
    PM.newImageWidth = 0;
    PM.newImageHeight = 0;
    PM.newImageAlpha = false;
-   PM.newImageColorSpace = PixelMath.prototype.SameAsTarget;
-   PM.newImageSampleFormat = PixelMath.prototype.i8;
+   PM.newImageColorSpace = PixelMath.SameAsTarget;
+   PM.newImageSampleFormat = PixelMath.i8;
    PM.executeOn(targetView, false /*swapFile */);
 
    targetView.endProcess();
@@ -374,8 +371,8 @@ function createPreview()
       yWidth,
       prevImage.numberOfChannels,
       prevImage.bitsPerSample,
-      prevImage.sampleType == SampleType_Real,
-      prevImage.colorSpace != ColorSpace_Gray,
+      prevImage.sampleType == PixelSampleType.Float,
+      prevImage.colorSpace != ColorSpace.Gray,
       pvid
    );
 
@@ -407,7 +404,7 @@ function createPreview()
 
             with( copyWindow.mainView )
             {
-               beginProcess( UndoFlag_NoSwapFile );
+               beginProcess( UndoFlag.NoSwapFile );
                image.apply( prevImage );
                endProcess();
             }
@@ -416,7 +413,7 @@ function createPreview()
 
             with( copyWindow.mainView )
             {
-               beginProcess( UndoFlag_NoSwapFile );
+               beginProcess( UndoFlag.NoSwapFile );
                var signature_data = new DrawSignatureData( copyWindow.mainView, signatureText );
                DrawSignature( signature_data );
                endProcess();
@@ -424,7 +421,7 @@ function createPreview()
 
             with ( prevWindow.mainView )
             {
-               beginProcess( UndoFlag_NoSwapFile );
+               beginProcess( UndoFlag.NoSwapFile );
                image.selectedPoint = new Point( prevImage.width  * i + i * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH,
                                                 prevImage.height * j + j * PREV_SEPARATOR_WIDTH + PREV_SEPARATOR_WIDTH );
                image.apply( copyWindow.mainView.image );
@@ -433,7 +430,7 @@ function createPreview()
          }
       }
 
-      if(!starlessPrevWindow.isNull)
+      if(!(starlessPrevWindow == null || starlessPrevWindow.isNull))
       {  // if gui is closed while previews are processed, starlessPrevWindow might be null
          starlessPrevWindow.forceClose();
       }
@@ -484,7 +481,7 @@ function check_window(image)
    if(image.width <= MIN_IMAGE_WIDTH || image.height <= MIN_IMAGE_HEIGHT)
    {
       Console.criticalln( format( "<end><cbr>The image size too small: %ix%i (should be at least %ix%i)", image.width, image.height, MIN_IMAGE_WIDTH, MIN_IMAGE_HEIGHT ) );
-      var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon_Error, StdButton_Cancel );
+      var msg = new MessageBox( "Image too small, should be at least 512x512", TITLE, StdIcon.Error, StdButton.Cancel );
       msg.execute();
       return false;
    }
@@ -501,8 +498,8 @@ function doWork()
    if (median <= 0.01)
    {
       Console.writeln( format( "<end><cbr>The median is: %.5f", median ) );
-      var msg = new MessageBox( "Image seems to be linear, continue?", TITLE, StdIcon_Error, StdButton_Ok, StdButton_Cancel );
-      if(msg.execute() == StdButton_Cancel)
+      var msg = new MessageBox( "Image seems to be linear, continue?", TITLE, StdIcon.Error, StdButton.Ok, StdButton.Cancel );
+      if(msg.execute() == StdButton.Cancel)
          return;
    }
 
@@ -532,10 +529,18 @@ function doWork()
 // ----------------------------------------------------------------------------
 // ScriptDialog
 // ----------------------------------------------------------------------------
-function ScriptDialog()
+var ScriptDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      ScriptDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function ScriptDialog_initialize()
+{
 
    data.dialog = this;
    var labelWidth  = 9 * this.font.width("M");
@@ -544,7 +549,7 @@ function ScriptDialog()
    this.helpLabel = new Label( this );
    with( this.helpLabel )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -560,7 +565,7 @@ function ScriptDialog()
    {
       minWidth = labelWidth;
       text = "Target image:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.targetImageViewList = new ViewList( this );
@@ -721,7 +726,7 @@ function ScriptDialog()
    {
       minWidth = labelWidth;
       text = "Iterations:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.iterationsSpinBox = new SpinBox( this );
@@ -752,7 +757,7 @@ function ScriptDialog()
    {
       minWidth = labelWidth;
       text = "Mode:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.modeComboBox = new ComboBox( this );
@@ -797,7 +802,7 @@ function ScriptDialog()
    {
       minWidth = labelWidth;
       text = "Preview:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.previewViewList = new ViewList( this );
@@ -948,7 +953,6 @@ function ScriptDialog()
 }
 
 // Our dialog inherits all properties and methods from the core Dialog object.
-ScriptDialog.prototype = new Dialog;
 
 // ----------------------------------------------------------------------------
 // main
@@ -972,7 +976,7 @@ function main()
       {
          // Get access to the active image window
          var window = ImageWindow.activeWindow;
-         if (!window.isNull)
+         if (!(window == null || window.isNull))
          {
             data.targetView = window.currentView;
             data.view_id    = window.currentView.id;

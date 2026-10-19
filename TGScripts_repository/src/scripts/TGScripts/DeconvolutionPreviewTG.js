@@ -1,3 +1,5 @@
+#engine v8
+// V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
    DeconvolutionPreview v1.01
 
@@ -64,17 +66,11 @@
 
 #feature-icon  DeconvolutionPreview.xpm
 
-#include <pjsr/Sizer.jsh>
-#include <pjsr/FrameStyle.jsh>
-#include <pjsr/TextAlign.jsh>
-#include <pjsr/StdButton.jsh>
-#include <pjsr/StdIcon.jsh>
-#include <pjsr/StdCursor.jsh>
-#include <pjsr/NumericControl.jsh>
+CoreApplication.ensureMinimumVersion(1, 9, 5);
 
 #include "lib/TGScriptsLib.js"
 
-#define VERSION "2.1"
+#define VERSION "2.2"
 #define TITLE "DeconvolutionPreviewTG"
 
 #define DEFAULT_GAUSSIAN_START      1.50;
@@ -177,7 +173,7 @@ function DeconvolutionPreviewData()
             var parent_id = this.prev_id.substring (0, arrow);
             Console.writeln("parent_id: ", parent_id);
             var pwindow = ImageWindow.windowById(parent_id);
-            if(!pwindow.isNull)
+            if(!(pwindow == null || pwindow.isNull))
             {
                var pid = this.prev_id.substring(arrow + 2, this.prev_id.length);
                var preview = pwindow.previewById(pid);
@@ -194,7 +190,7 @@ function DeconvolutionPreviewData()
          if(this.lsm_id)
          {
             var window = ImageWindow.windowById(this.lsm_id);
-            if(!window.isNull)
+            if(!(window == null || window.isNull))
             {
                this.localsupportmaskView = window.mainView;
             }
@@ -236,7 +232,7 @@ function createImageWindowOfView(view)
 {
    var imageWindow = createRawImageWindow(uniqueViewId(mainViewIdOfView(view)), view.image);
 
-   imageWindow.mainView.beginProcess(UndoFlag_NoSwapFile);
+   imageWindow.mainView.beginProcess(UndoFlag.NoSwapFile);
 
    imageWindow.mainView.image.selectedPoint = new Point(0, 0);
    imageWindow.mainView.image.apply(view.image);
@@ -268,7 +264,7 @@ function generateImagesFromPreview( data )
 function doDeconvolutionPreview( data )
 {
    var v = data.prevWindow.mainView;
-   if ( v.isNull )
+   if ( (v == null || v.isNull) )
       throw Error( "No target view has been specified." );
 
    var img_width   = v.image.width;
@@ -280,15 +276,15 @@ function doDeconvolutionPreview( data )
             prev_width,
             prev_height,
             v.image.numberOfChannels,
-            v.image.bitsPerSample, v.image.sampleType == SampleType_Real,
-            v.image.colorSpace != ColorSpace_Gray, "DeconvolutionPreview");
+            v.image.bitsPerSample, v.image.sampleType == PixelSampleType.Float,
+            v.image.colorSpace != ColorSpace.Gray, "DeconvolutionPreview");
 
    var copy_img = new ImageWindow (
             img_width,
             img_height,
             v.image.numberOfChannels,
-            v.image.bitsPerSample, v.image.sampleType == SampleType_Real,
-            v.image.colorSpace != ColorSpace_Gray, "WorkingWindow");
+            v.image.bitsPerSample, v.image.sampleType == PixelSampleType.Float,
+            v.image.colorSpace != ColorSpace.Gray, "WorkingWindow");
 
    for ( var j = 0; j < data.GaussianIterations; j++ )
    {
@@ -296,7 +292,7 @@ function doDeconvolutionPreview( data )
       {
          with ( copy_img.mainView )
          {
-            beginProcess( UndoFlag_NoSwapFile );
+            beginProcess( UndoFlag.NoSwapFile );
             image.apply( v.image );
             var GaussianSigma = data.GaussianStart + data.GaussianAmount*j;
             var GaussianShape = data.ShapeStart + data.ShapeAmount*i;
@@ -310,7 +306,7 @@ function doDeconvolutionPreview( data )
 
          with ( preview_img.mainView )
          {
-            beginProcess( UndoFlag_NoSwapFile );
+            beginProcess( UndoFlag.NoSwapFile );
             image.selectedPoint = new Point( img_width *j + j*3 + 3,
                                              img_height*i + i*3 + 3 );
             image.apply( copy_img.mainView.image );
@@ -333,7 +329,7 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
    var p = new Deconvolution;
    with ( p )
    {
-      algorithm = RichardsonLucy;
+      algorithm = Deconvolution.RichardsonLucy;
       numberOfIterations = data.deconiterations;
       deringing = true;
       deringingDark = data.globaldark;
@@ -351,7 +347,7 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
       deringingSupportAmount = data.localsupportamount;
 
       toLuminance = true;
-      psfMode = Deconvolution.prototype.Parametric;
+      psfMode = Deconvolution.Parametric;
       psfSigma = GaussianSigma;
       psfShape = GaussianShape;
       psfAspectRatio = 1.00;
@@ -368,9 +364,9 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
          [1.00, 0.70],
          [1.00, 0.70]
       ];
-      noiseModel = Deconvolution.prototype.Gaussian;
+      noiseModel = Deconvolution.Gaussian;
       numberOfWaveletLayers = 3;
-      scalingFunction = Deconvolution.prototype.B3Spline5x5;
+      scalingFunction = Deconvolution.B3Spline5x5;
       convergence = 0.0000;
       rangeLow = 0.0000000;
       rangeHigh = 0.0000000;
@@ -404,10 +400,18 @@ function doWork(data)
 }
 
 // ----------------------------------------------------------------------------
-function DeconvolutionPreviewDialog()
+var DeconvolutionPreviewDialog = class extends Dialog
 {
-   this.__base__ = Dialog;
-   this.__base__();
+   constructor()
+   {
+      super();
+      DeconvolutionPreviewDialog_initialize.call(this);
+   }
+};
+
+// Keep legacy with-based control setup outside the strict class body.
+function DeconvolutionPreviewDialog_initialize()
+{
 
    data.dialog = this;
    var emWidth = this.font.width( 'M' );
@@ -417,7 +421,7 @@ function DeconvolutionPreviewDialog()
    this.helpLabel = new Label( this );
    with ( this.helpLabel )
    {
-      frameStyle = FrameStyle_Box;
+      frameStyle = FrameStyle.Box;
       margin = 4;
       wordWrapping = true;
       useRichText = true;
@@ -436,7 +440,7 @@ function DeconvolutionPreviewDialog()
    {
       minWidth = labelWidth1 + this.logicalPixelsToPhysical( 6+1 ); // align with labels inside group boxes below
       text = "Target preview:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.targetPreview_ViewList = new ViewList( this );
@@ -518,7 +522,7 @@ function DeconvolutionPreviewDialog()
    {
       minWidth = labelWidth1;
       text = "Iterations:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.Gaussianiter_SpinBox = new SpinBox( this );
@@ -605,7 +609,7 @@ function DeconvolutionPreviewDialog()
    {
       minWidth = labelWidth1;
       text = "Iterations:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.Shapeiter_SpinBox = new SpinBox( this );
@@ -654,7 +658,7 @@ function DeconvolutionPreviewDialog()
    {
       minWidth = labelWidth1;
       text = "Decon Iterations:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.Deconiter_SpinBox = new SpinBox( this );
@@ -707,7 +711,7 @@ function DeconvolutionPreviewDialog()
    {
       minWidth = labelWidth1;
       text = "Local support mask:";
-      textAlignment = TextAlign_Right|TextAlign_VertCenter;
+      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
    }
 
    this.localsupportmask_ViewList = new ViewList( this );
@@ -904,7 +908,6 @@ function DeconvolutionPreviewDialog()
    this.setFixedSize();
 }
 
-DeconvolutionPreviewDialog.prototype = new Dialog;
 
 /*
  * Script entry point.
@@ -932,7 +935,7 @@ function main()
          // Get access to the active image window
          var window = ImageWindow.activeWindow;
 
-         if (!window.isNull && window.currentView.isPreview)
+         if (!(window == null || window.isNull) && window.currentView.isPreview)
          {
             data.targetPreview = window.currentView;
             data.prev_id       = window.currentView.fullId;
