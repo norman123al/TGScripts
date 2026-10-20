@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.16.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.18.2." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.16.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.18.2. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights</p>
@@ -383,8 +383,8 @@
 
 <p>Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.</p>
 <p>R1 and R2 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.</p>
-<p>Use Sort by in the Sort and filter area. Score, field-width, corner-severity, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1 and R2 show rank 1 first. The direction label beside the selector states the active order. Below-mean Quality sorts complete comparisons first, from highest percentage downward, with Score resolving ties; incomplete comparisons follow.</p>
-<p>Acquisition time sorts by the full date and time from earliest to latest. Dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering.</p>
+<p>Use Sort by in the Sort and filter area. Score, field-width, corner-severity, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1 and R2 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.</p>
+<p>Acquisition time starts with the earliest full date and time. Toggle to Descending for latest first. In both directions, dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering. Sorting preserves the selected image and manual rejection choices. The quality plots retain their own order.</p>
 <p>Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.</p>
 <p>Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.</p>
    </div>
@@ -394,9 +394,11 @@
    <h3 class="pidoc_sectionTitle">8&emsp;Blink frame and reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Blink_frame_and_reference', this );">[hide]</p>
    <div id="Blink_frame_and_reference">
-<p>Blink against defaults to Best scoring subframe. This chooses the lowest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
+<p>Blink mode defaults to Best scoring subframe. This chooses the lowest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
 <p>The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.</p>
-<p>Press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
+<p>Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.</p>
+<p>In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Each subframe is displayed for 0.75 seconds before the next is loaded; loading time depends on image size and storage speed. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.</p>
+<p>With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
 <p>Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.</p>
 <p>Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.</p>
 <p>The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.</p>
@@ -577,7 +579,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-19 16:21:30 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-20 20:59:15 UTC</p>
 </div>
 <br/>
 <br/>

@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="813db31eee84eda63a56f59f6e005daccbc26673" type="script" releaseDate="20261019">
+      <package fileName="TGScripts_repository.tar.gz" sha1="6e5cccc8863f9c1149d5122595744ec3bfd56a96" type="script" releaseDate="20261019">
          <title>
             TGScripts snapshot - 2026 Okt 19
          </title>
@@ -34,27 +34,7 @@
             <p>
                Updates:
                <br/>
-               Migration to Pixinsight V8 script engine:
-               <br/>
-               AberrationInspectorTG
-               <br/>
-               AberrationSpotterTG
-               <br/>
-               BBStarReduction
-               <br/>
-               ColorMaskTG
-               <br/>
-               CSTG
-               <br/>
-               DarkStructureEnhanceTG
-               <br/>
-               DeconvolutionPreviewTG
-               <br/>
-               EmissionLineIntegrationTG
-               <br/>
-               LocalSupportMask
-               <br/>
-               TGScriptSkeleton
+               SubframeQualityReview: Added a sort-direction toggle and subframe rotation following Review order, excluding the master. Fixed control flicker during blinking, navigation, and mode changes.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -63,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-19T17:50:34.707Z" encoding="Base64">Qz6zYZ/wegxwSSLqDF0ZtTK1J0KYnXDHMRGpRtAlOykbxocwO00GmgV6rYNErNVZSXKmYOEvbHa1dFATxLdqAQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-20T21:13:46.390Z" encoding="Base64">SCpgCop5M4qmCngpWkKHH0m9RgiuZdCnLGpNcYsq9KvgTo3JHprdhE4lty+QwCMaPHUAhcJVLwMINL3gC7afCA==</Signature>

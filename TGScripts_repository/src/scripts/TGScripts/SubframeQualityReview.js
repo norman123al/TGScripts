@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.16.0 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.18.2 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -27,7 +27,7 @@
  * Only sqrMove changes original-file locations, after an explicit confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.16.0';
+const SQR_VERSION='0.18.2';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -35,7 +35,7 @@ const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom
  * corner measurement is opt-in, and no rejection flag is an option. */
 function sqrDefaults(){return {wbpp:'',originals:'',destination:'',percent:10,measureCorners:false,reference:'best',
    patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,belowMeanWeight:20,
-   maxFits:2000,displaySTF:true,alignBrightness:true,histogramOrder:'value',autorunLog:'',logTimeZone:'local',logUTCOffset:0};}
+   maxFits:2000,displaySTF:true,alignBrightness:true,reviewOrder:0,reviewReverse:false,histogramOrder:'value',autorunLog:'',logTimeZone:'local',logUTCOffset:0};}
 // Normalize paths for I/O, then compare case-insensitively for this Windows
 // workflow. The trailing slash in sqrUnder prevents matching a sibling prefix.
 function sqrPath(p){return File.fullPath(String(p).trim()).replace(/\\/g,'/').replace(/\/$/,'');}
@@ -229,31 +229,42 @@ function sqrAutofocusReport(path,result,zone,offset,error=''){
    return lines.join('\n');
 }
 /** Return a filtered/sorted copy without changing group membership or decisions.
- * Numeric modes correspond to the dialog's Sort by entries. Chronological table
- * order is earliest first with the master last; plots have their own ordering. */
-function sqrReviewRows(group,candidatesOnly,mode){
+ * Reverse measured values while retaining the default missing-data priorities.
+ * Acquisition-time sorting keeps undated frames and the master at the end;
+ * incomplete Below-mean Quality comparisons remain last in either direction.
+ * Stable timestamp ties and filename tie-breaks are independent of direction.
+ */
+function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
    if(!group)return [];
+   const direction=reverse?-1:1;
+   const compare=(x,y)=>{
+      // Signed infinity encodes existing unavailable-value placement. Do not
+      // reverse these sentinels or subtract equal infinities (which yields NaN).
+      if(x===y)return 0;
+      if(!Number.isFinite(x)||!Number.isFinite(y))return x<y?-1:x>y?1:0;
+      return direction*(x-y);
+   };
    return sqrGroupRows(group).filter(r=>!candidatesOnly||(!r.isMaster&&r.candidate)).sort((a,b)=>{
       let x,y;if(mode===1){x=a.metrics[0]?.signal??Infinity;y=b.metrics[0]?.signal??Infinity;}
       else if(mode===2){x=a.metrics[0]?.stars??Infinity;y=b.metrics[0]?.stars??Infinity;}
       else if(mode===3){x=-(a.metrics[0]?.fwhm??-Infinity);y=-(b.metrics[0]?.fwhm??-Infinity);}
       else if(mode===4){x=-(a.cornerSeverity??-Infinity);y=-(b.cornerSeverity??-Infinity);}
-      else if(mode===5)return a.registered.path.localeCompare(b.registered.path);
+      else if(mode===5)return direction*a.registered.path.localeCompare(b.registered.path);
       else if(mode===6){x=a.rankWithoutCorners??Infinity;y=b.rankWithoutCorners??Infinity;}
       else if(mode===7){x=a.rankWithCorners??Infinity;y=b.rankWithCorners??Infinity;}
       else if(mode===8){
          if(!!a.isMaster!==!!b.isMaster)return a.isMaster?1:-1;
          let aTime=sqrAcquisitionTime(a),bTime=sqrAcquisitionTime(b);
          if((aTime===null)!==(bTime===null))return aTime===null?1:-1;
-         // Earliest full timestamp first; undated subframes follow, then the master.
+         // Reverse only known timestamps; undated subframes follow, then the master.
          // Equal timestamps retain their input order; filename suffixes do not rank them.
-         return (aTime??0)-(bTime??0);
+         return direction*((aTime??0)-(bTime??0));
       }
       else if(mode===9){if(!!a.belowMeanComplete!==!!b.belowMeanComplete)return a.belowMeanComplete?-1:1;
          x=-(a.belowMeanFraction??-Infinity);y=-(b.belowMeanFraction??-Infinity);
-         return x-y||((b.score??-Infinity)-(a.score??-Infinity))||a.registered.path.localeCompare(b.registered.path);}
+         return compare(x,y)||compare(-(a.score??-Infinity),-(b.score??-Infinity))||a.registered.path.localeCompare(b.registered.path);}
       else{x=-(a.score??Infinity);y=-(b.score??Infinity);}
-      return x-y||a.registered.path.localeCompare(b.registered.path);
+      return compare(x,y)||a.registered.path.localeCompare(b.registered.path);
    });
 }
 // Plot descriptors separate stored metrics from derived row-level indicators.
@@ -768,18 +779,42 @@ function sqrFrames(path,reference,o,rect,isMaster=false){
    }finally{if(a)a.free();if(b)b.free();da.free();db.free();}
 }
 
+/** Render one subframe for rotation, retaining only numeric display calibration.
+ * The first displayed subframe supplies the common brightness/STF baseline.
+ * Subsequent steps read only their own image; no master or full sequence is held.
+ * A changed group, region or display option starts a new calibration. */
+function sqrRotationFrame(path,o,rect,display=null){
+   let source=null,image=new Image;
+   try{
+      source=sqrReadImage(path);let channels=source.numberOfNominalChannels;
+      if(display&&(source.width!==display.width||source.height!==display.height||channels!==display.channels))
+         throw new Error('Rotating subframes must have identical dimensions and channels.');
+      image.assign(source,new Rect(...rect),0,channels-1);
+      let whole=new Rect(0,0,image.width,image.height),stats=[];
+      if(o.alignBrightness)for(let c=0;c<channels;++c){let median=image.median(whole,c,c);stats.push({median,mad:image.MAD(median,whole,c,c)});}
+      if(!display)display={width:source.width,height:source.height,channels,stats,stretch:o.displaySTF?image.computeAutoStretch():null};
+      else if(o.alignBrightness)for(let c=0;c<channels;++c){
+         let a=stats[c],b=display.stats[c],scale=a.mad>0&&b.mad>0?Math.max(.1,Math.min(10,b.mad/a.mad)):1;
+         image.apply(a.median,ImageOp.Sub,whole,c,c);image.apply(scale,ImageOp.Mul,whole,c,c);image.apply(b.median,ImageOp.Add,whole,c,c);
+      }
+      if(o.displaySTF)image.applyDisplayFunction(display.stretch);
+      image.truncate();return {bitmap:image.render(),display};
+   }finally{if(source)source.free();image.free();}
+}
+
 /** Own UI state and keep selection, REVIEW candidacy and rejection independent.
  * current points to a row object; visibleRows is only the current table view.
  * populating guards programmatic table changes against selection callbacks.
  * selectionCleared preserves an intentional deselection across refreshes.
  * running prevents conflicting operations while processEvents keeps the UI alive.
  * frames holds rendered previews; frame selects image/reference; blinking and
- * the timer control alternation without rereading image files on each tick. */
+ * the timer control pair alternation without rereading files. Rotation loads one
+ * subframe per tick and retains a common numeric display calibration. */
 class SQRDialog extends Dialog {
    constructor(o,session=null){
       super();o={...sqrDefaults(),...o};this.windowTitle='Subframe Quality Review '+SQR_VERSION;
       this.session=session;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;
-      this.timer=new Timer(.75,false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running){this.showFrame(1-this.frame);this.timer.start();}};
+      this.timer=new Timer(.75,false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running){if(this.isRotating())this.navigate(1);else{this.showFrame(1-this.frame);this.timer.start();}}};
       this.intro=new Label(this);this.intro.wordWrapping=true;
       this.intro.text='Rank registered WBPP lights, blink against the filter master or best subframe, and move the originals you manually reject. Corner measurements are optional.';
       this.inputs=sqrGroup(this,'WBPP run and original lights');
@@ -852,15 +887,15 @@ class SQRDialog extends Dialog {
       let reviewTools=new HorizontalSizer;reviewTools.spacing=10;
       let sortLabel=new Label(this.reviewOptions);sortLabel.text='Sort by:';
       this.order=new ComboBox(this.reviewOptions);for(let s of ['Score','PSF signal weight','Star count','Field FWHM','Corner severity','Filename','R1: field rank','R2: rank with corners','Acquisition time','Below-mean Quality'])this.order.addItem(s);
-      this.order.setScaledMinWidth(165);this.order.toolTip='R1 and R2 put rank 1 (worst) first. Below-mean Quality puts the largest percentage first, ties by Score, incomplete comparisons last. Acquisition time compares the full date and time: earliest first, undated subframes after dated subframes, master at the end. Uses the original observation timestamp, then the registered timestamp; filename suffixes do not affect this order.';
-      this.sortDirection=new Label(this.reviewOptions);
+      this.order.setScaledMinWidth(165);this.order.toolTip='Choose a criterion, then use the direction button to switch ascending or descending order. A new criterion starts in its default direction: poorest quality first, filename A to Z, or earliest acquisition first. R1 and R2 use rank 1 for worst. Acquisition time uses the original observation timestamp, then registered metadata; filename suffixes do not affect this order.';
+      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<10?o.reviewOrder:0;
+      this.reviewReverse=!!o.reviewReverse;
+      this.sortDirection=sqrButton(this.reviewOptions,'',()=>{if(this.running)return;this.reviewReverse=!this.reviewReverse;this.changeReviewSort();});
+      this.sortDirection.setScaledMinWidth(125);
       let filterLabel=new Label(this.reviewOptions);filterLabel.text='Filter:';
       this.candidatesOnly=new CheckBox(this.reviewOptions);this.candidatesOnly.text='REVIEW candidates only';this.candidatesOnly.onCheck=()=>this.populateRows();
       this.candidatesOnly.toolTip='Show only subframes flagged REVIEW. The master is hidden. This does not select originals for rejection.';
-      this.order.onItemSelected=()=>{this.populateRows();
-         // TreeBox needs its native node-scrolling method; assigning the ScrollBox
-         // verticalScrollPosition property has no effect on this control.
-         if(this.table.numberOfChildren)this.table.setNodeAtViewportTop(this.table.child(0));};
+      this.order.onItemSelected=()=>{this.reviewReverse=false;this.changeReviewSort();};
       reviewTools.add(sortLabel);reviewTools.add(this.order);reviewTools.add(this.sortDirection);reviewTools.addStretch();reviewTools.add(filterLabel);reviewTools.add(this.candidatesOnly);
       this.reviewSummary=new Label(this.reviewOptions);this.reviewOptions.sizer.add(reviewTools);this.reviewOptions.sizer.add(this.reviewSummary);
       let reviewHint=new Label(this.reviewPage);reviewHint.text='R1 = field-only rank · R2 = rank including corners · 1 = worst; — = unavailable. Below-mean Quality = % of assessed indicators worse than mean; * = incomplete.\nClick a selected row to deselect it. Click Reject (or press Space) to mark an original. Double-click an image to blink.';
@@ -870,16 +905,16 @@ class SQRDialog extends Dialog {
       this.displaySTF=new CheckBox(this.blinkPage);this.displaySTF.text='Display STF';this.displaySTF.checked=o.displaySTF;
       this.alignBrightness=new CheckBox(this.blinkPage);this.alignBrightness.text='Align preview brightness';this.alignBrightness.checked=o.alignBrightness;
       this.alignBrightness.toolTip='Display-only background and contrast alignment. Turn off to compare transparency differences. Source pixels and quality measurements are unchanged.';
-      this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe'])this.reference.addItem(n);this.reference.currentItem=o.reference==='best'?1:0;
-      this.reference.toolTip='The master is detected in WBPP/master by filter and retained for this group. Best uses the lowest Score among measured, kept frames in this group; ties prefer higher PSF signal weight.';
+      this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe','Rotate subframes (Review order)'])this.reference.addItem(n);this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));
+      this.reference.toolTip='Compare with the filter master or best scoring kept subframe, or rotate through the visible subframes in Review order. Rotation follows the current sort direction and REVIEW-only filter, always skips the master, and wraps at the end.';
       this.reference.onItemSelected=()=>this.reloadBlink(true);
       this.region=new ComboBox(this.blinkPage);for(let n of ['Usable field','Center','Top left','Top right','Bottom left','Bottom right'])this.region.addItem(n);
       this.region.onItemSelected=()=>this.reloadBlink(false);
       this.displaySTF.onCheck=this.alignBrightness.onCheck=()=>{if(this.current)this.inspect();};
       this.play=sqrTool(this.blinkPage,':/icons/play.png','Start blinking the selected image and reference every 0.75 seconds.',()=>{if(this.blinking)this.stopBlink();else this.startBlink();});
-      this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and switch frame / reference.',()=>{this.stopBlink();this.showFrame(1-this.frame);});
+      this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and switch frame / reference.',()=>{this.stopBlink();if(this.isRotating())this.navigate(1);else this.showFrame(1-this.frame);});
       this.frameLabel=new Label(this.blinkPage);this.frameLabel.text='No frame loaded';this.frameLabel.minHeight=2*this.font.height;this.frameLabel.wordWrapping=true;
-      let referenceLabel=new Label(this.blinkPage);referenceLabel.text='Blink against:';
+      let referenceLabel=new Label(this.blinkPage);referenceLabel.text='Blink mode:';
       let display=new HorizontalSizer;display.spacing=8;display.add(referenceLabel);display.add(this.reference);display.add(this.region);display.add(this.displaySTF);display.add(this.alignBrightness);display.addStretch();display.add(this.play);display.add(this.step);
       let decisions=new HorizontalSizer;decisions.spacing=8;
       this.previous=sqrButton(this.blinkPage,'Previous',()=>this.navigate(-1));this.next=sqrButton(this.blinkPage,'Next',()=>this.navigate(1));
@@ -923,32 +958,45 @@ class SQRDialog extends Dialog {
       let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.reset);actions.addStretch();actions.add(this.moveButton);actions.add(this.closeButton);actions.add(this.helpButton);
       this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(this.intro);this.sizer.add(this.inputs);this.sizer.add(this.settings);this.sizer.add(this.groupRow);this.sizer.add(this.tabs,100);this.sizer.add(this.status);this.sizer.add(actions);
       this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
-      this.onHide=()=>this.plotTimer.stop();
-      this.tabs.onPageSelected=()=>{this.stopBlink();if(this.tabs.currentPageIndex===2)this.plotTimer.start();else this.plotTimer.stop();this.ensurePreview();};this.loadAutorun();this.populateGroups();this.updateButtons();this.adjustToContents();
+      this.onHide=()=>{this.plotTimer.stop();this.stopBlink();};
+      this.tabs.onPageSelected=()=>{this.stopBlink();if(this.tabs.currentPageIndex===2){this.updateHistogram();this.plotTimer.start();}else this.plotTimer.stop();this.ensurePreview();};this.loadAutorun();this.populateGroups();this.updateButtons();this.adjustToContents();
    }
    // Snapshot controls into serializable settings; derived measurements and
    // rejection decisions stay in the session and are never process parameters.
    options(){let o=sqrDefaults();for(let k of Object.keys(this.folders))o[k]=this.folders[k].edit.text.trim();
       for(let k of ['percent','patch','margin','minStars'])o[k]=this[k].value;for(let k of Object.keys(this.weights))o[k]=this.weights[k].value;
-      o.measureCorners=this.cornerMeasurements.checked;o.reference=this.reference.currentItem===1?'best':'master';
+      o.measureCorners=this.cornerMeasurements.checked;o.reference=['master','best','sequence'][this.reference.currentItem];
       o.autorunLog=this.autorun.edit.text.trim();o.logTimeZone=['local','utc','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
+      o.reviewOrder=this.order.currentItem;o.reviewReverse=this.reviewReverse;
       o.maxFits=this.maxFits;o.displaySTF=this.displaySTF.checked;o.alignBrightness=this.alignBrightness.checked;o.histogramOrder=this.histogramOrder.currentItem===1?'time':'value';return o;}
    updateCornerControls(){this.patch.enabled=this.weights.cornerWeight.enabled=this.cornerMeasurements.checked;}
    syncOptions(){if(this.session)this.session.options=this.options();}
    group(){return this.session?.groups[this.groupSelect.currentItem]||null;}
    setStatus(s){this.status.text=s;CoreApplication.processEvents();}
    error(e){this.status.text='Error: '+(e.message||String(e));new MessageBox(this.status.text,'Subframe Quality Review',StdIcon.Error,StdButton.Ok).execute();}
-   updateBlinkButton(){if(this.play){this.play.icon=this.scaledResource(this.blinking?':/icons/media-stop.png':':/icons/play.png');this.play.toolTip=this.blinking?'Stop blinking.':'Start blinking the selected image and reference every 0.75 seconds.';}}
-   startBlink(){if(this.frames&&!this.running){this.blinking=true;this.updateBlinkButton();this.timer.start();}}
+   isRotating(){return this.reference?.currentItem===2;}
+   rotationRows(){return (this.visibleRows||[]).filter(r=>!r.isMaster);}
+   updateBlinkButton(){if(this.play){this.play.icon=this.scaledResource(this.blinking?':/icons/media-stop.png':':/icons/play.png');
+      this.play.toolTip=this.blinking?'Stop blinking.':this.isRotating()?'Rotate through subframes in Review order, skipping the master. Each image is shown for 0.75 seconds before loading the next.':'Start blinking the selected image and reference every 0.75 seconds.';
+      this.step.toolTip=this.isRotating()?'Pause and show the next subframe in Review order. The master is skipped.':'Pause and switch frame / reference.';}}
+   startBlink(){
+      if(this.running)return;
+      if(this.isRotating()){
+         if(this.rotationRows().length<2){this.stopBlink();return;}
+         if((!this.frames||!this.rotationRows().includes(this.current))&&!this.inspect(true,true))return;
+      }
+      if(this.frames){this.blinking=true;this.updateBlinkButton();this.timer.start();}
+   }
    stopBlink(){this.blinking=false;this.timer.stop();this.updateBlinkButton();}
    // Stop the timer before releasing its bitmaps. Navigation can retain the
    // ImageView transform while replacing pixels by passing resetView=false.
-   clearFrames(resetView=true){this.stopBlink();if(resetView)this.viewer.reset();if(this.frames)for(let b of this.frames)b.clear();this.frames=null;this.loadedReference=null;}
+   // Preview reloads can pause only the timer, keeping the Stop icon steady.
+   clearFrames(resetView=true,preserveRotation=false,preservePlayback=false){if(preservePlayback)this.timer.stop();else this.stopBlink();if(!preserveRotation)this.rotationDisplay=null;if(resetView)this.viewer.reset();if(this.frames)for(let b of this.frames)b.clear();this.frames=null;this.loadedReference=null;}
    selectRow(row){let changed=this.current!==row;if(changed)this.clearFrames();this.current=row;this.selectionCleared=false;
       this.updateDetails();this.updateButtons();if(changed&&this.histogram)this.updateHistogram();}
    clearSelection(){this.clearFrames();this.current=null;this.selectionCleared=true;this.populating=true;
       this.table.deselectAllNodes();this.populating=false;this.updateDetails();this.updateButtons();this.updateHistogram();}
-   ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.current?.metrics[0]&&this.group()?.regions)this.inspect(false);}
+   ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))this.inspect(false);}
    loadAutorun(){
       this.autofocusRuns=[];this.autorunText='';this.autorunError='';this.loadedAutorunPath=this.autorun.edit.text.trim();
       if(this.loadedAutorunPath)try{this.autorunText=File.readTextFile(this.loadedAutorunPath);}catch(e){this.autorunError='Cannot read log: '+(e.message||String(e));}
@@ -982,17 +1030,35 @@ class SQRDialog extends Dialog {
    busy(value){this.running=value;for(let c of [...this.inputControls,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===2;this.autorunTimes.enabled=!value&&!!this.loadedAutorunPath;this.updateButtons();}
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
       this.moveButton.enabled=ready&&this.session.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
-      this.play.enabled=this.step.enabled=!!this.frames&&!this.running;this.rejectButton.enabled=this.keepButton.enabled=ready&&original;
-      this.previous.enabled=this.next.enabled=ready&&selected;}
+      let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
+      this.play.enabled=rotation?canRotate&&count>1:!!this.frames&&!this.running;
+      this.step.enabled=rotation?canRotate&&count>0:!!this.frames&&!this.running;
+      this.rejectButton.enabled=this.keepButton.enabled=ready&&original;
+      this.previous.enabled=this.next.enabled=rotation?canRotate&&count>0:ready&&selected;
+      this.updateBlinkButton();
+      this.sortDirection.enabled=ready&&this.visibleRows?.length>1;}
    populateGroups(){this.selectionCleared=false;this.groupSelect.clear();for(let g of this.session?.groups||[])this.groupSelect.addItem((g.filter||'Group')+' · '+g.exposure+' s · '+g.rows.length+' frames — '+g.directoryName);
       if(this.groupSelect.numberOfItems)this.groupSelect.currentItem=0;this.populateRows();}
+   // Sort presentation only: retain selection, decisions, measurements and the
+   // existing blink frames. The next/previous controls use the rebuilt row order.
+   changeReviewSort(){
+      if(this.running)return;
+      this.syncOptions();this.populateRows(false);
+      // TreeBox needs its native node-scrolling method to expose the new start.
+      if(this.table.numberOfChildren)this.table.setNodeAtViewportTop(this.table.child(0));
+   }
    // Rebuild native nodes while preserving row-object selection. Respect an
    // explicit deselection, or choose a visible fallback if a filter hides it.
    populateRows(loadPreview=true){
       this.populating=true;this.table.clear();let g=this.group();
-      let rows=sqrReviewRows(g,this.candidatesOnly.checked,this.order.currentItem);
+      let rows=sqrReviewRows(g,this.candidatesOnly.checked,this.order.currentItem,this.reviewReverse);
       this.visibleRows=rows;
-      this.sortDirection.text=['Highest first (worst first)','Lowest first (worst first)','Fewest first (worst first)','Largest first (worst first)','Highest first (worst first)','A to Z','Rank 1 first (worst first)','Rank 1 first (worst first)','Earliest first · master last','Highest % first (worst first) · incomplete last'][this.order.currentItem];
+      let descending=[0,3,4,9].includes(this.order.currentItem)!==this.reviewReverse;
+      this.sortDirection.text=descending?'Descending ↓':'Ascending ↑';
+      let directions=this.reviewReverse?
+         ['Lowest first (best first)','Highest first (best first)','Most first (best first)','Smallest first (best first)','Lowest first (best first)','Z to A','Highest rank first (best first)','Highest rank first (best first)','Latest first · undated frames next · master last','Lowest % first · incomplete last']:
+         ['Highest first (worst first)','Lowest first (worst first)','Fewest first (worst first)','Largest first (worst first)','Highest first (worst first)','A to Z','Rank 1 first (worst first)','Rank 1 first (worst first)','Earliest first · undated frames next · master last','Highest % first · incomplete last'];
+      this.sortDirection.toolTip=directions[this.order.currentItem]+'. Click to reverse the order. Sorting preserves the selected image and rejection decisions.';
       this.reviewSummary.text=g?'Showing '+rows.filter(r=>!r.isMaster).length+' of '+g.rows.length+' subframes · '+g.rows.filter(r=>r.candidate).length+' REVIEW candidates'+(g.master?(this.candidatesOnly.checked?' · master hidden by filter':' · master included for comparison'):''):'Scan files to populate the review list.';
       if(g)for(let r of rows){let node=new TreeBoxNode(this.table);node.row=r;if(!r.isMaster&&!r.moved)node.setIcon(2,this.rejectIcons[r.reject?1:0]);
          let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(m.signal),Number.isFinite(m.stars)?String(m.stars):'—',sqrFmt(m.fwhm),r.worstCorner||'—',sqrFmt(r.score,2),sqrMeanQualityLabel(r),r.mainIssue||'—',r.match];
@@ -1043,7 +1109,7 @@ class SQRDialog extends Dialog {
       let metrics=SQR_REGIONS.map((n,i)=>{let m=r.metrics[i];return n+': '+(m?.valid?sqrFmt(m.fwhm,2)+' px, e='+sqrFmt(m.eccentricity,2)+', '+m.stars+' stars':m?'insufficient data':'not measured');});
       this.details.text=(r.reasons||[]).slice(0,2).join(' · ')+'\n'+(this.cornerMeasurements.checked?metrics.slice(0,2).join(' | ')+'\n'+metrics.slice(2).join(' | '):metrics[0]+'\nCorner measurements off')+'\n'+
          (r.isMaster?'Master: '+r.registered.path:r.moved?'Moved to: '+r.movedTo:'Original: '+(r.original?.path||r.match));
-      this.frameLabel.text=(this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+'\n'+(r.isMaster?'INTEGRATED MASTER · cannot be rejected':r.reject?'REJECT ORIGINAL':'KEEP ORIGINAL')+(r.moved?' · already moved':'');
+      this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+'\n'+(r.isMaster?'INTEGRATED MASTER · cannot be rejected':r.reject?'REJECT ORIGINAL':'KEEP ORIGINAL')+(r.moved?' · already moved':'');
    }
    scan(){this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
       try{this.clearFrames();this.session=sqrScan(this.options(),s=>this.setStatus(s));this.current=null;this.populateGroups();let rows=this.session.groups.flatMap(g=>g.rows);
@@ -1061,44 +1127,76 @@ class SQRDialog extends Dialog {
       }catch(e){this.populateRows();this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
       if(measured){let n=this.session.groups.reduce((s,g)=>s+g.rows.filter(r=>r.candidate).length,0);
          let summary='Measured. '+n+' review candidates; no originals selected automatically.';this.status.text=summary;
-         if(this.inspect(false))this.status.text=summary+' Blink reference ready; open the Blink tab or inspect another frame.';
+         if(this.inspect(false))this.status.text=summary+(this.isRotating()?' Subframe rotation ready; open the Blink tab.':' Blink reference ready; open the Blink tab or inspect another frame.');
       }}
-   // Load both comparison bitmaps once. A successful preserved-view reload uses
-   // ImageView.regenerate to retain zoom and scroll; a new region is fitted.
-   inspect(openBlink=true,preserveView=false){
+   // Load both comparison bitmaps once. Use only a reentry guard during these
+   // synchronous reads, just as in rotation: do not disable controls or pump
+   // events midway through a preview replacement. Retain zoom/pan on navigation.
+   inspect(openBlink=true,preserveView=false,preservePlayback=false){
+      if(this.isRotating())return this.inspectRotation(openBlink,preserveView,preservePlayback);
       let r=this.current,g=this.group();if(!r||!g||this.running)return false;
       let keepView=preserveView&&this.viewer.isValid;
-      this.clearFrames(!keepView);this.updateButtons();let reference=sqrReference(g,this.options().reference);
-      if(!reference.path){this.clearFrames();if(openBlink)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
-      if(!g.regions){this.clearFrames();this.status.text='Measure this group before using the registered comparison regions.';return false;}
-      this.busy(true);try{this.setStatus('Loading registered frame and '+reference.label.toLowerCase()+'…');
+      this.running=true;try{
+         this.clearFrames(!keepView,false,preservePlayback);let reference=sqrReference(g,this.options().reference);
+         if(!reference.path){this.clearFrames();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
+         if(!g.regions){this.clearFrames();this.status.text='Measure this group before using the registered comparison regions.';return false;}
          this.frames=sqrFrames(r.registered.path,reference.path,this.options(),g.regions[this.region.currentItem],!!r.isMaster);this.loadedReference=reference;this.frame=0;
          // ImageView.regenerate replaces pixels while retaining its native zoom and
          // scroll positions. Navigation stays within one group and preview region.
          if(keepView)this.viewer.regenerate(this.frames[0]);else{this.viewer.setImage(this.frames[0]);this.viewer.zoomToFit();}
-         if(openBlink)this.tabs.currentPageIndex=1;this.showFrame(0);
+         if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.showFrame(0);
          this.viewer.setStatusMessage('Blink against '+reference.label.toLowerCase()+': '+sqrFileName(reference.path));
          this.status.text=sqrKey(reference.path)===sqrKey(r.registered.path)?'This image is also the selected blink reference.':r.isMaster?'Integrated master compared with the selected reference. The master cannot be rejected.':'Blink uses identical coordinates and zoom. Mark Keep or Reject, then review the next frame.';
          return true;
-      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.busy(false);}}
-   showFrame(index){if(!this.frames)return;this.frame=index;this.viewer.regenerate(this.frames[index]);this.updateDetails();}
+      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}}
+   // Synchronize selection without rebuilding the table or hidden quality plot
+   // on every timer tick. The plot is refreshed when its tab is opened.
+   selectBlinkRow(row){
+      this.current=row;this.selectionCleared=false;this.populating=true;
+      try{this.table.deselectAllNodes();for(let i=0;i<this.table.numberOfChildren;++i){let node=this.table.child(i);if(node.row===row){this.table.currentNode=node;node.selected=true;break;}}}
+      finally{this.populating=false;}
+   }
+   inspectRotation(openBlink=true,preserveView=false,preservePlayback=false){
+      if(this.running)return false;
+      let rows=this.rotationRows(),g=this.group();
+      if(!rows.length||!g?.regions){this.clearFrames();this.updateDetails();this.updateButtons();this.status.text=rows.length?'Measure this group before rotating subframes.':'No subframes are visible in the Review list.';return false;}
+      let r=rows.includes(this.current)?this.current:rows[0];this.selectBlinkRow(r);
+      let keepView=preserveView&&this.viewer.isValid,o=this.options(),rect=g.regions[this.region.currentItem];
+      let key=JSON.stringify([g.directoryName,g.rows[0]?.registered.path,rect,o.displaySTF,o.alignBrightness]);
+      let display=this.rotationDisplay?.key===key?this.rotationDisplay.data:null;
+      // A synchronous frame read needs the reentry guard, not the whole-dialog
+      // busy state. Do not pump UI events or change enabled states mid-frame.
+      this.clearFrames(!keepView,true,preservePlayback);this.running=true;
+      try{
+         let rendered=sqrRotationFrame(r.registered.path,o,rect,display);
+         this.rotationDisplay={key,data:rendered.display};this.frames=[rendered.bitmap];this.frame=0;
+         if(keepView)this.viewer.regenerate(this.frames[0]);else{this.viewer.setImage(this.frames[0]);this.viewer.zoomToFit();}
+         if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
+         this.updateDetails();this.viewer.setStatusMessage('Subframes in Review order · master excluded');
+         this.status.text='Subframe '+(rows.indexOf(r)+1)+' / '+rows.length+' in Review order. Keep and Reject apply to the displayed subframe.';
+         return true;
+      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
+   }
+   showFrame(index){if(!this.frames||!this.frames[index])return;this.frame=index;this.viewer.regenerate(this.frames[index]);this.updateDetails();}
    // Save blink status before loading the next visible row, then resume only
    // if the replacement preview succeeded. Navigation wraps at either list end.
-   navigate(step){let rows=this.visibleRows;if(this.running||!rows?.length)return;let resume=this.blinking,i=rows.indexOf(this.current);
-      this.stopBlink();this.current=rows[(i+step+rows.length)%rows.length];this.selectionCleared=false;this.populateRows(false);
-      if(this.inspect(true,true)&&resume)this.startBlink();}
+   navigate(step){let rows=this.isRotating()?this.rotationRows():this.visibleRows;if(this.running||!rows?.length)return;let resume=this.blinking,i=rows.indexOf(this.current);
+      let preservePlayback=resume;
+      if(preservePlayback)this.timer.stop();else this.stopBlink();this.selectBlinkRow(rows[i<0?(step<0?rows.length-1:0):(i+step+rows.length)%rows.length]);
+      if(this.inspect(true,true,preservePlayback)&&resume)this.startBlink();}
    // Reference/region changes share this path so active blinking survives them.
-   reloadBlink(preserveView=false){if(this.running||!this.current)return;let resume=this.blinking;
-      if(this.inspect(true,preserveView)&&resume)this.startBlink();}
+   reloadBlink(preserveView=false){if(this.running)return;if(!this.current&&!this.isRotating()){this.updateButtons();return;}let resume=this.blinking;this.rotationDisplay=null;
+      if(this.inspect(true,preserveView,resume)&&resume)this.startBlink();}
    decide(reject){if(!this.current||this.current.isMaster||this.current.moved)return;this.current.reject=reject;this.populateRows();this.updateDetails();}
    setSession(s){this.clearFrames();this.session=s;this.current=null;let o={...sqrDefaults(),...s.options};
       for(let k of Object.keys(this.folders))this.folders[k].edit.text=o[k];for(let k of ['percent','patch','margin','minStars'])this[k].setValue(o[k]);
       this.autorun.edit.text=o.autorunLog;this.logTimeZone.currentItem=Math.max(0,['local','utc','offset'].indexOf(o.logTimeZone));this.logUTCOffset.setValue(o.logUTCOffset);this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;this.loadAutorun();
-      for(let k of Object.keys(this.weights))this.weights[k].setValue(o[k]);this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=o.reference==='best'?1:0;this.updateCornerControls();
-      this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;this.populateGroups();}
+      for(let k of Object.keys(this.weights))this.weights[k].setValue(o[k]);this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));this.updateCornerControls();
+      this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;
+      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<10?o.reviewOrder:0;this.reviewReverse=!!o.reviewReverse;this.populateGroups();}
    resetSettings(){let defaults=sqrDefaults(),folders=this.options();for(let k of ['percent','patch','margin','minStars'])this[k].setValue(defaults[k]);for(let k of Object.keys(this.weights))this.weights[k].setValue(defaults[k]);
       this.cornerMeasurements.checked=defaults.measureCorners;this.reference.currentItem=defaults.reference==='best'?1:0;this.updateCornerControls();
-      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.invalidateMeasurements();this.status.text='Evaluation defaults restored. Folder paths retained.';}
+      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=defaults.reviewOrder;this.reviewReverse=defaults.reviewReverse;this.invalidateMeasurements();this.status.text='Evaluation defaults restored. Folder paths retained.';}
    // Confirmation is the boundary between a read-only review and file changes.
    // The engine independently validates the plan again when executing it.
    moveRejected(){
