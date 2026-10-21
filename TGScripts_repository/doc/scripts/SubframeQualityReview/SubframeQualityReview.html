@@ -3,9 +3,9 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
-   <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights" />
+   <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.20.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.24.2." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,10 +25,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.20.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.24.2. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights</p>
+<p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, PHD2, guiding, original lights</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -44,9 +44,11 @@
 <li class="pidoc_tocItem"><a href="#__Review_and_measurements__">7&emsp;Review and measurements</a></li>
 <li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">8&emsp;Blink frame and reference</a></li>
 <li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">9&emsp;Quality indicators and acquisition order</a></li>
-<li class="pidoc_tocItem"><a href="#__Log_folder_and_autofocus_markers__">10&emsp;Log folder and autofocus markers</a></li>
-<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">11&emsp;Move rejected originals and rerun WBPP</a></li>
-<li class="pidoc_tocItem"><a href="#__Common_questions__">12&emsp;Common questions</a></li>
+<li class="pidoc_tocItem"><a href="#__Correlation_plot__">10&emsp;Correlation plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">11&emsp;Log folder, timing, and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">12&emsp;Guiding measurements and quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">13&emsp;Move rejected originals and rerun WBPP</a></li>
+<li class="pidoc_tocItem"><a href="#__Common_questions__">14&emsp;Common questions</a></li>
 </ul>
 </div>
 
@@ -70,7 +72,7 @@
 
 <ol class="pidoc_list">
 <li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
-<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder and its timestamp convention.</li>
+<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder containing the acquisition and guiding logs.</li>
 <li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
 <li class="pidoc_spaced_list_item">Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Set Review worst (%) and the quality weights as needed.</li>
 <li class="pidoc_spaced_list_item">Click the magnifier button at the bottom to measure and rank the images. The measurement run covers all discovered groups and their matched masters.</li>
@@ -119,13 +121,15 @@
 <tr>
 <td><p>Log folder</p>
 </td>
-<td><p>An optional folder containing one or more Autorun_log files. Files marked _CHN are ignored.</p>
+<td><p>An optional folder containing Autorun_log and PHD2_GuideLog files for the acquisition sessions. Files marked _CHN are ignored.</p>
 </td>
 </tr>
 </table>
 
 <p>XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.</p>
 <p>The master is selected automatically from the master subfolder. Its masterLight filename must identify the group's filter. When several masters share that filter, the script looks for the corresponding WBPP group name. A missing or ambiguous match is reported instead of choosing an arbitrary master. The best scoring subframe remains available as a reference when no master is matched.</p>
+<p>The bottom message area shows one shared pixel scale in arcseconds per pixel and the camera name, independent of the selected filter. The scale comes from the master metadata's focal length and effective pixel size; X and Y values appear separately when they differ. Hover over the scale to see the master filenames and calculation inputs. Scan again after changing a master file.</p>
+<p>The registered images, their associated originals, and matched masters must identify the same camera. A scan stops if different cameras are found. Missing camera names are reported as not fully verified. The same camera can still have a different pixel scale with different focal lengths or binning. Conflicting master scales or different master and registered-image dimensions are reported instead of assuming one shared scale. If no usable master scale metadata is available, the scale is shown as unavailable.</p>
 <p>Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.</p>
 <p>Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.</p>
    </div>
@@ -135,6 +139,8 @@
    <h3 class="pidoc_sectionTitle">4&emsp;Quality evaluation controls</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_evaluation_controls', this );">[hide]</p>
    <div id="Quality_evaluation_controls">
+<p>Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.</p>
+<p>The controls are arranged in three groups: Measurements and review contains the shortlist percentage, minimum-star requirement, edge guard, and optional corner measurements. Score weights sets the relative influence of the image-quality indicators. Guiding contains its scoring mode, weight, and the Good, Medium, and Bad limits in arcseconds.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_2__"></a>
@@ -198,7 +204,7 @@
 </table>
 
 <p>Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Changing the region geometry or minimum-star setting clears the affected measurement state; click the magnifier to measure again.</p>
-<p>If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist.</p>
+<p>If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist. In the Correlation plot, only measurements from the current group's subframes enable regional choices; master-only measurements do not.</p>
    </div>
 </div>
 
@@ -218,7 +224,7 @@
    <h3 class="pidoc_sectionTitle">6&emsp;Score and Below-mean Quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Score_and_Belowmean_Quality', this );">[hide]</p>
    <div id="Score_and_Belowmean_Quality">
-<p>Lower Score means better relative quality. The default Score sort puts the highest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, optional corner problems, and the breadth of below-mean quality across indicators.</p>
+<p>Lower Score means better relative quality. The default Score sort puts the highest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, optional corner problems, guiding errors when logs are available, and the breadth of below-mean quality across indicators.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_3__"></a>
@@ -272,6 +278,14 @@
 </td>
 </tr>
 <tr>
+<td><p>Guiding quality</p>
+</td>
+<td><p>Larger combined guiding error relative to image pixel scale</p>
+</td>
+<td><p>25</p>
+</td>
+</tr>
+<tr>
 <td><p>Below-mean Quality</p>
 </td>
 <td><p>Higher fraction of indicators worse than their mean</p>
@@ -281,15 +295,15 @@
 </tr>
 </table>
 
-<p>For each underlying field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.</p>
+<p>For each image-based field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.</p>
 <p>For an indicator where higher is worse, the penalty is (value minus median) divided by the scale. For an indicator where lower is worse, it is (median minus value) divided by the scale. Negative penalties become zero, and penalties above 10 are capped at 10. A good result in one indicator therefore does not cancel a poor result in another.</p>
 <p>For corner quality, the script calculates these penalties for FWHM, corner-to-center FWHM ratio, and eccentricity at each corner, comparing each location with that same location across the group. Corner severity is the largest of these penalties across all four corners. It contributes once to Score with the Corner quality weight.</p>
-<p>Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, and high corner severity count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.</p>
+<p>Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, high corner severity, and high guiding error count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.</p>
 <p>For example, a subframe worse than the mean in three of four assessed indicators has Below-mean Quality of 75%. Its score penalty uses the fraction 0.75 directly. With the default weight of 20, it adds 0.75 times 20 to the weighted numerator. Setting the Below-mean Quality weight to zero removes this score contribution while keeping the percentage visible.</p>
-<p>Score is the sum of each available penalty times its weight, divided by the sum of those weights. With all default field components available and corners disabled, the denominator is 120. With complete corner measurements enabled, it is 140. Score is a relative penalty value, not a percentage.</p>
+<p>Score is the sum of each available penalty times its weight, divided by the sum of those weights. With all default field components available and corners disabled, the denominator is 120 without guiding and 145 with guiding. Complete corner measurements add 20 to the denominator. Score is a relative penalty value, not a percentage.</p>
 <p>The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner severity counts as one indicator when corner scoring is enabled and weighted.</p>
 <p>Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and complete comparison ranks are withheld when their required measurements are unavailable.</p>
-<p>The master receives comparable measurements and a score against the subframe baselines. It does not influence the baselines or consume a place in the REVIEW quota.</p>
+<p>The master receives comparable measurements and a score against the subframe baselines. It does not influence the baselines or consume a place in the REVIEW quota. Guiding measurements apply only to individual exposures, so the master has no guiding contribution.</p>
    </div>
 </div>
 
@@ -344,21 +358,21 @@
 </td>
 </tr>
 <tr>
-<td><p>PSF weight, Stars, FWHM (px)</p>
+<td><p>Score</p>
+</td>
+<td><p>The current weighted penalty; lower is better.</p>
+</td>
+</tr>
+<tr>
+<td><p>PSF weight, FWHM (px), Stars</p>
 </td>
 <td><p>Field measurements used in scoring.</p>
 </td>
 </tr>
 <tr>
-<td><p>Worst corner</p>
+<td><p>Main issue</p>
 </td>
-<td><p>The corner contributing the largest regional penalty when corner scoring is enabled.</p>
-</td>
-</tr>
-<tr>
-<td><p>Score</p>
-</td>
-<td><p>The current weighted penalty; lower is better.</p>
+<td><p>The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, Medium guiding, Bad guiding, or Below-mean Quality. Good guiding is reported when no enabled quality penalty applies.</p>
 </td>
 </tr>
 <tr>
@@ -368,9 +382,15 @@
 </td>
 </tr>
 <tr>
-<td><p>Main issue</p>
+<td><p>Guide avg, Guide min, Guide max</p>
 </td>
-<td><p>The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, or Below-mean Quality.</p>
+<td><p>Arithmetic average, minimum, and maximum combined RA/Dec displacement during the exposure, in arcseconds. These are not RMS values. Hover for coverage and guiding quality. An asterisk marks partial statistics excluded from Score.</p>
+</td>
+</tr>
+<tr>
+<td><p>Worst corner</p>
+</td>
+<td><p>The corner contributing the largest regional penalty when corner scoring is enabled.</p>
 </td>
 </tr>
 <tr>
@@ -385,6 +405,7 @@
 <p>R1 and R2 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.</p>
 <p>Use Sort by in the Sort and filter area. Score, field-width, corner-severity, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1 and R2 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.</p>
 <p>Acquisition time starts with the earliest full date and time. Toggle to Descending for latest first. In both directions, dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering. Sorting preserves the selected image and manual rejection choices. The quality plots retain their own order.</p>
+<p>Choose Guide minimum, Guide maximum, or Guide average to sort by the corresponding guiding column. These start with the largest error first; use the direction button to put the smallest error first. Values are sorted numerically in arcseconds, including partial measurements marked with an asterisk. Unavailable values follow measured values in both directions, and the master is last. The choice and direction are saved in process instances and also determine the sequence for Rotate subframes (Review order).</p>
 <p>Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.</p>
 <p>Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.</p>
    </div>
@@ -401,6 +422,7 @@
 <p>With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
 <p>Interval (s) sets how long each image is displayed, for both reference blinking and subframe rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. You can change the interval while playing without losing your zoom or pan position. In rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.</p>
 <p>Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.</p>
+<p>Switching to another tab and returning to Blink frame / reference retains the zoom and pan position of the current preview. Switching tabs pauses playback; press Play to resume.</p>
 <p>Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.</p>
 <p>The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.</p>
    </div>
@@ -474,29 +496,157 @@
    </div>
 </div>
 
-<div class="pidoc_section" id="__Log_folder_and_autofocus_markers__">
-   <h3 class="pidoc_sectionTitle">10&emsp;Log folder and autofocus markers</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_and_autofocus_markers', this );">[hide]</p>
-   <div id="Log_folder_and_autofocus_markers">
-<p>Select Log folder in the directory section. All files whose names start with Autorun_log are read directly from this folder, regardless of letter case. Files marked _CHN are ignored because they are translated copies. Subfolders and other logs, including PHD2 guide logs, are not processed. Select the folder again to refresh its contents.</p>
+<div class="pidoc_section" id="__Correlation_plot__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Correlation plot</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Correlation_plot', this );">[hide]</p>
+   <div id="Correlation_plot">
+<p>Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.</p>
+<p>Regional KPIs appear in both selectors only when corresponding subframe measurements are available in the current group. Enable Measure corners and measure the images to add these choices. Stored regional results remain selectable when corner scoring is turned off. If a selected KPI becomes unavailable after changing groups or clearing measurements, that axis returns to its initial selection; the other axis is retained when available.</p>
+<p>Each point represents one subframe with both measurements available. The plot and correlation use the same subframes in the selected filter group, including rejected frames, independently of the review table's filter and sort order. The master is always excluded. Frames missing either measurement are omitted, and the count below the plot reports how many could not be plotted. Enable Measure corners and measure the images for regional indicators; load matching guiding logs for guiding indicators. Guiding values use arcseconds, FWHM uses pixels, and Below-mean Quality uses percentages.</p>
+<p>Hover over a point to see its filename and both values. Click it to select the image in Review and measurements. If necessary, the REVIEW-only filter is cleared to reveal that image. Cyan identifies the selected image, purple a REVIEW candidate, blue another kept frame, and red a rejected frame. Plot selection does not change rejection decisions. Identical measurements can overlap; keyboard focus and Enter also select points.</p>
+<p>The highlighted banner above the plot displays Pearson r and its interpretation. Pearson r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_6__"></a>
+<span class="pidoc_table_title">Table 6</span></caption>
+<tr>
+<th><p>Absolute r value</p>
+</th>
+<th><p>Strength</p>
+</th>
+</tr>
+<tr>
+<td><p>1</p>
+</td>
+<td><p>Perfect</p>
+</td>
+</tr>
+<tr>
+<td><p>0.7 up to, but not including, 1</p>
+</td>
+<td><p>Strong</p>
+</td>
+</tr>
+<tr>
+<td><p>0.3 up to, but not including, 0.7</p>
+</td>
+<td><p>Moderate</p>
+</td>
+</tr>
+<tr>
+<td><p>Above 0 and below 0.3</p>
+</td>
+<td><p>Weak</p>
+</td>
+</tr>
+<tr>
+<td><p>0</p>
+</td>
+<td><p>None: no linear relationship</p>
+</td>
+</tr>
+</table>
+
+<p>The sign of r determines the positive or negative direction. Zero means no linear relationship; a nonlinear relationship may still exist. With fewer than two paired subframes, or no variation in either selected KPI, r is unavailable and the display explains why.</p>
+<p>Axis choices are saved in process instances. Changing the plot uses the existing measurements and does not require another measurement run.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Log_folder_timing_and_autofocus_markers__">
+   <h3 class="pidoc_sectionTitle">11&emsp;Log folder, timing, and autofocus markers</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_timing_and_autofocus_markers', this );">[hide]</p>
+   <div id="Log_folder_timing_and_autofocus_markers">
+<p>Select Log folder in the directory section. All Autorun_log and PHD2_GuideLog files are read directly from this folder, regardless of letter case. Include continuation logs if acquisition was restarted. Files marked _CHN are ignored because they are translated copies. Subfolders and unrelated logs are not processed. Select the folder again to refresh its contents.</p>
 <p>Autofocus starts from all matching logs are combined in chronological order. Overlapping logs produce one marker per start. An unreadable log is listed in Autofocus times; readable logs are still used. The report lists the source filenames for every start. If duplicate logs report different final positions for the same start, the position is marked as conflicting and the plot shows AF without a position.</p>
 <p>The script reads lines such as 2026/09/05 23:08:11 [AutoFocus|Begin] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.</p>
-<p>Choose the timestamp convention that matches the acquisition computer:</p>
-
-<ul class="pidoc_list">
-<li>Computer local time uses this computer's timezone and the daylight-saving rules at each log date.</li>
-<li class="pidoc_spaced_list_item">UTC treats the log timestamps as UTC.</li>
-<li class="pidoc_spaced_list_item">Custom UTC offset uses the specified log-time-minus-UTC offset in hours. For example, enter +2 for UTC+02:00.</li>
-</ul>
-
+<p>Both log types use local time. Infer from image timestamps compares the local timestamp in each subframe filename with its UTC exposure-start metadata. It accounts for filenames that record exposure completion. The inferred offset appears below the log controls and applies to both autofocus markers and guiding samples. The filename timestamp must have the form YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS.</p>
+<p>If the offset cannot be determined unambiguously, choose Custom UTC offset and enter local time minus UTC in hours, such as +2 for UTC+02:00 or +5.5 for UTC+05:30. The current computer's timezone is never assumed. At a daylight-saving transition, ambiguous times remain unresolved rather than being assigned to an exposure by guesswork.</p>
 <p>The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the folder or timestamp convention updates the report and markers without remeasuring the images. Clearing the folder removes the markers and retains image measurements.</p>
-<p>Autofocus markers appear only when quality plots use Acquisition time order. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, final focus position, and trigger description. Markers use the start time even though the final position is reported later; no end time or duration is displayed.</p>
+<p>Autofocus markers appear only when image-quality plots use Acquisition time order. The guiding minimum, maximum, average, and quality plots omit autofocus markers and their legend. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, final focus position, and trigger description. Markers use the start time even though the final position is reported later; no end time or duration is displayed.</p>
 <p>All extracted starts remain in the report, including starts outside the current group's time range. If markers appear at unexpected positions, compare the UTC acquisition column with the converted times in Autofocus times and check the log's timezone setting.</p>
    </div>
 </div>
 
+<div class="pidoc_section" id="__Guiding_measurements_and_quality__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Guiding measurements and quality</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Guiding_measurements_and_quality', this );">[hide]</p>
+   <div id="Guiding_measurements_and_quality">
+<p>The script matches PHD2 samples to each subframe's UTC exposure start and duration. Guide min, Guide max, and Guide avg report the combined RA/Dec displacement in arcseconds. The guider's recorded pixel scale converts its measurements to arcseconds; the imaging camera's pixel scale sets the quality thresholds.</p>
+<p>Let p be the image pixel scale in arcseconds per pixel. The guiding quality value is:</p>
+
+<pre>G = (minimum + 2 * average + maximum) / 4</pre>
+
+<p>The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. This balances typical performance with the observed extremes. For unequal X/Y image scales, the smaller available scale is used. The UI displays the Good, Medium, and Bad boundaries in arcseconds for your setup. For example, an image scale of approximately 0.507 arcseconds per pixel gives a Good limit of approximately 0.507 arcseconds and a Medium limit of approximately 0.887 arcseconds; larger errors are Bad.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_7__"></a>
+<span class="pidoc_table_title">Table 7</span></caption>
+<tr>
+<th><p>Category</p>
+</th>
+<th><p>Guiding quality value</p>
+</th>
+</tr>
+<tr>
+<td><p>Good guiding</p>
+</td>
+<td><p>G is equal to or below p.</p>
+</td>
+</tr>
+<tr>
+<td><p>Medium guiding</p>
+</td>
+<td><p>G is above p and equal to or below 1.75 times p.</p>
+</td>
+</tr>
+<tr>
+<td><p>Bad guiding</p>
+</td>
+<td><p>G is above 1.75 times p.</p>
+</td>
+</tr>
+</table>
+
+<p>Guiding adds a penalty of (G / p minus 1) divided by 0.75, bounded between zero and 10. Good guiding therefore has zero penalty; the upper medium boundary has a penalty of one. Weight in the Guiding group sets its relative Score weight, with a default of 25. Set it to zero to exclude guiding from Score while retaining the measurements. The quality plots show the three guiding statistics and the combined guiding quality value G, all in arcseconds.</p>
+<p>Choose how Guiding in Score handles the measurements:</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_8__"></a>
+<span class="pidoc_table_title">Table 8</span></caption>
+<tr>
+<th><p>Mode</p>
+</th>
+<th><p>Effect</p>
+</th>
+</tr>
+<tr>
+<td><p>Require guiding data</p>
+</td>
+<td><p>Default. Use valid guiding measurements in Score. Missing or incomplete guiding data flags the subframe for review.</p>
+</td>
+</tr>
+<tr>
+<td><p>Use available guiding data</p>
+</td>
+<td><p>Use valid guiding measurements. For a subframe without a usable guiding KPI, omit guiding from its Score and Below-mean Quality calculation. Missing guiding alone does not flag it for review.</p>
+</td>
+</tr>
+<tr>
+<td><p>Ignore guiding KPI</p>
+</td>
+<td><p>Exclude guiding from every Score, Below-mean Quality calculation, and review flag. The measurements remain visible for inspection.</p>
+</td>
+</tr>
+</table>
+
+<p>Changing this mode recalculates the rankings immediately, preserves the measurements and manual rejection choices, and is saved in process instances. Image-quality issues can still flag frames for review in every mode.</p>
+<p>Only valid guide measurements are used. Lost-star and rejected samples do not count as zero error. Settling samples inside an actual exposure remain part of its measurements. Guiding needs at least three valid samples, at least 90 percent time coverage, and no long uncovered interval or conflicting duplicate samples to contribute to Score. Partial statistics are marked with an asterisk. Missing timestamps, an unknown image pixel scale, or insufficient coverage require inspection in Require guiding data mode. Rejected guide samples also flag an exposure for review when its guiding KPI is in use.</p>
+<p>Hover over a guiding column for its category, sample count, coverage, and thresholds. The selected-row details also show the guiding category or the reason it is unavailable. If an exposure is outside the loaded log coverage, add the missing continuation log and reselect the folder. Refreshing logs or changing their offset updates guiding and rankings without repeating image measurements or changing manual rejection choices.</p>
+   </div>
+</div>
+
 <div class="pidoc_section" id="__Move_rejected_originals_and_rerun_WBPP__">
-   <h3 class="pidoc_sectionTitle">11&emsp;Move rejected originals and rerun WBPP</h3>
+   <h3 class="pidoc_sectionTitle">13&emsp;Move rejected originals and rerun WBPP</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Move_rejected_originals_and_rerun_WBPP', this );">[hide]</p>
    <div id="Move_rejected_originals_and_rerun_WBPP">
 <p>The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.</p>
@@ -507,13 +657,13 @@
 </div>
 
 <div class="pidoc_section" id="__Common_questions__">
-   <h3 class="pidoc_sectionTitle">12&emsp;Common questions</h3>
+   <h3 class="pidoc_sectionTitle">14&emsp;Common questions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Common_questions', this );">[hide]</p>
    <div id="Common_questions">
 
 <table class="pidoc_table">
-<caption><a id="__table_6__"></a>
-<span class="pidoc_table_title">Table 6</span></caption>
+<caption><a id="__table_9__"></a>
+<span class="pidoc_table_title">Table 9</span></caption>
 <tr>
 <th><p>Situation</p>
 </th>
@@ -565,7 +715,7 @@
 <tr>
 <td><p>No autofocus markers appear</p>
 </td>
-<td><p>Use Acquisition time plot order, verify the log timezone, and check that extracted starts fall within the group's known subframe time range.</p>
+<td><p>Guiding plots intentionally omit autofocus information. For image-quality plots, use Acquisition time order, verify the log timezone, and check that extracted starts fall within the group's known subframe time range.</p>
 </td>
 </tr>
 <tr>
@@ -582,7 +732,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-21 16:44:32 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-21 21:35:02 UTC</p>
 </div>
 <br/>
 <br/>

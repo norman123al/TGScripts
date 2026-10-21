@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="071e1843032629a0c39df6c5cd1f136197ece9c7" type="script" releaseDate="20261021">
+      <package fileName="TGScripts_repository.tar.gz" sha1="4c8bf6c7a670df22831701f37966c6bdcf5e319c" type="script" releaseDate="20261021">
          <title>
             TGScripts snapshot - 2026 Okt 21
          </title>
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Read all Autorun_log files from a selected folder, excluding _CHN translations. Added an adjustable interval for blinking and subframe rotation.
+               SubframeQualityReview: Add subframe correlation plots with prominent Pearson correlation results and hide unavailable corner KPIs. Preserve blink zoom and pan across tabs. Reorder Review columns and update documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
