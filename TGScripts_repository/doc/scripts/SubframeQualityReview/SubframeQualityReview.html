@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.18.2." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.20.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.18.2. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.20.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights</p>
@@ -44,7 +44,7 @@
 <li class="pidoc_tocItem"><a href="#__Review_and_measurements__">7&emsp;Review and measurements</a></li>
 <li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">8&emsp;Blink frame and reference</a></li>
 <li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">9&emsp;Quality indicators and acquisition order</a></li>
-<li class="pidoc_tocItem"><a href="#__Autorun_log_and_autofocus_markers__">10&emsp;Autorun log and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Log_folder_and_autofocus_markers__">10&emsp;Log folder and autofocus markers</a></li>
 <li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">11&emsp;Move rejected originals and rerun WBPP</a></li>
 <li class="pidoc_tocItem"><a href="#__Common_questions__">12&emsp;Common questions</a></li>
 </ul>
@@ -58,7 +58,7 @@
    <div id="Description">
 <p>Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.</p>
 <p>The default shortlist contains the worst 10% of measured subframes in each group. REVIEW is a suggestion to inspect an image. Only your explicit rejection decisions are included in a move operation. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.</p>
-<p>The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from an Autorun log.</p>
+<p>The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from the Autorun logs in a selected folder.</p>
    </div>
 </div>
 
@@ -70,7 +70,7 @@
 
 <ol class="pidoc_list">
 <li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
-<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select an Autorun log and its timestamp convention.</li>
+<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder and its timestamp convention.</li>
 <li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
 <li class="pidoc_spaced_list_item">Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Set Review worst (%) and the quality weights as needed.</li>
 <li class="pidoc_spaced_list_item">Click the magnifier button at the bottom to measure and rank the images. The measurement run covers all discovered groups and their matched masters.</li>
@@ -117,9 +117,9 @@
 </td>
 </tr>
 <tr>
-<td><p>Autorun log</p>
+<td><p>Log folder</p>
 </td>
-<td><p>An optional text log containing timestamped [AutoFocus|Begin] entries.</p>
+<td><p>An optional folder containing one or more Autorun_log files. Files marked _CHN are ignored.</p>
 </td>
 </tr>
 </table>
@@ -397,8 +397,9 @@
 <p>Blink mode defaults to Best scoring subframe. This chooses the lowest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
 <p>The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.</p>
 <p>Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.</p>
-<p>In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Each subframe is displayed for 0.75 seconds before the next is loaded; loading time depends on image size and storage speed. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.</p>
-<p>With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
+<p>In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.</p>
+<p>With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
+<p>Interval (s) sets how long each image is displayed, for both reference blinking and subframe rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. You can change the interval while playing without losing your zoom or pan position. In rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.</p>
 <p>Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.</p>
 <p>Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.</p>
 <p>The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.</p>
@@ -473,11 +474,13 @@
    </div>
 </div>
 
-<div class="pidoc_section" id="__Autorun_log_and_autofocus_markers__">
-   <h3 class="pidoc_sectionTitle">10&emsp;Autorun log and autofocus markers</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Autorun_log_and_autofocus_markers', this );">[hide]</p>
-   <div id="Autorun_log_and_autofocus_markers">
-<p>Select an Autorun log in the directory section. The script reads lines such as 2026/09/05 23:08:11 [AutoFocus|Begin] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.</p>
+<div class="pidoc_section" id="__Log_folder_and_autofocus_markers__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Log folder and autofocus markers</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_and_autofocus_markers', this );">[hide]</p>
+   <div id="Log_folder_and_autofocus_markers">
+<p>Select Log folder in the directory section. All files whose names start with Autorun_log are read directly from this folder, regardless of letter case. Files marked _CHN are ignored because they are translated copies. Subfolders and other logs, including PHD2 guide logs, are not processed. Select the folder again to refresh its contents.</p>
+<p>Autofocus starts from all matching logs are combined in chronological order. Overlapping logs produce one marker per start. An unreadable log is listed in Autofocus times; readable logs are still used. The report lists the source filenames for every start. If duplicate logs report different final positions for the same start, the position is marked as conflicting and the plot shows AF without a position.</p>
+<p>The script reads lines such as 2026/09/05 23:08:11 [AutoFocus|Begin] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.</p>
 <p>Choose the timestamp convention that matches the acquisition computer:</p>
 
 <ul class="pidoc_list">
@@ -486,7 +489,7 @@
 <li class="pidoc_spaced_list_item">Custom UTC offset uses the specified log-time-minus-UTC offset in hours. For example, enter +2 for UTC+02:00.</li>
 </ul>
 
-<p>The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the log or timestamp convention updates the report and markers without remeasuring the images.</p>
+<p>The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the folder or timestamp convention updates the report and markers without remeasuring the images. Clearing the folder removes the markers and retains image measurements.</p>
 <p>Autofocus markers appear only when quality plots use Acquisition time order. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, final focus position, and trigger description. Markers use the start time even though the final position is reported later; no end time or duration is displayed.</p>
 <p>All extracted starts remain in the report, including starts outside the current group's time range. If markers appear at unexpected positions, compare the UTC acquisition column with the converted times in Autofocus times and check the log's timezone setting.</p>
    </div>
@@ -579,7 +582,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-20 20:59:15 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-21 16:44:32 UTC</p>
 </div>
 <br/>
 <br/>

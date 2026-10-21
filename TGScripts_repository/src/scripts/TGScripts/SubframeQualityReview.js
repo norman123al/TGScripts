@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.18.2 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.20.0 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -27,7 +27,7 @@
  * Only sqrMove changes original-file locations, after an explicit confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.18.2';
+const SQR_VERSION='0.20.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -35,13 +35,21 @@ const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom
  * corner measurement is opt-in, and no rejection flag is an option. */
 function sqrDefaults(){return {wbpp:'',originals:'',destination:'',percent:10,measureCorners:false,reference:'best',
    patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,belowMeanWeight:20,
-   maxFits:2000,displaySTF:true,alignBrightness:true,reviewOrder:0,reviewReverse:false,histogramOrder:'value',autorunLog:'',logTimeZone:'local',logUTCOffset:0};}
+   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,reviewOrder:0,reviewReverse:false,histogramOrder:'value',logFolder:'',logTimeZone:'local',logUTCOffset:0};}
+// Validate saved intervals as well as UI input; legacy instances use the default.
+function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.min(10,value)):sqrDefaults().blinkInterval;}
 // Normalize paths for I/O, then compare case-insensitively for this Windows
 // workflow. The trailing slash in sqrUnder prevents matching a sibling prefix.
 function sqrPath(p){return File.fullPath(String(p).trim()).replace(/\\/g,'/').replace(/\/$/,'');}
 function sqrKey(p){let s=String(p).replace(/\\/g,'/').replace(/\/$/,'');return s.toLowerCase();}
 function sqrUnder(p,root){return sqrKey(p)===sqrKey(root)||sqrKey(p).startsWith(sqrKey(root)+'/');}
 function sqrDir(p){return File.extractDrive(p)+File.extractDirectory(p);}
+// New instances save one shared log folder. Import an older single-log setting
+// as its parent folder; an explicit new (even empty) folder takes precedence.
+function sqrLogFolderOption(o={}){
+   if(typeof o.logFolder==='string')return o.logFolder.trim();
+   let old=String(o.autorunLog||'').trim();return old?sqrDir(old):'';
+}
 /** Resolve the standard installed PIDoc manual first. The remaining paths
  * support a repository checkout or a local bundle without registering it.
  * Explicit parameters make the same path rules usable by validation harnesses. */
@@ -176,6 +184,26 @@ function sqrLogTime(stamp,zone='local',offset=0){
    if(zone==='offset'&&(!Number.isFinite(offset)||offset<-12||offset>14))return null;
    return Date.UTC(year,month-1,day,hour,minute,second)-(zone==='offset'?offset*3600000:0);
 }
+// Select only Autorun logs in the chosen directory. Do not recurse or read
+// translated _CHN copies, PHD2 guide logs, or unrelated files.
+function sqrIsAutorunLog(name){return /^Autorun_log(?:_|\.|$)/i.test(name);}
+function sqrIsTranslatedLog(name){return /_CHN(?:_|\.|$)/i.test(name);}
+function sqrReadAutorunFolder(folder){
+   let dir=sqrPath(folder),paths=[],ignoredCHN=0;
+   if(!File.directoryExists(dir))throw new Error('Log folder does not exist or is not accessible: '+folder);
+   let find=new FileFind;
+   if(find.begin(dir+'/*'))try{do{
+      if(find.isDirectory||find.isSymbolicLink||!sqrIsAutorunLog(find.name))continue;
+      if(sqrIsTranslatedLog(find.name)){++ignoredCHN;continue;}
+      paths.push(dir+'/'+find.name);
+   }while(find.next());}finally{find.end();}
+   paths.sort((a,b)=>sqrKey(a).localeCompare(sqrKey(b)));
+   let files=paths.map(path=>{
+      try{return {path,text:File.readTextFile(path)};}
+      catch(e){return {path,text:'',error:e.message||String(e)};}
+   });
+   return {files,ignoredCHN};
+}
 /** Pair each unique autofocus start with its final successful focus position.
  * Intermediate EAF samples are not results. A new start, end, or failure closes
  * the previous run so an incomplete run cannot borrow another run's position.
@@ -201,6 +229,30 @@ function sqrParseAutorun(text,zone='local',offset=0){
    }
    return {runs:runs.sort((a,b)=>a.start-b.start),invalid};
 }
+/** Parse each log independently: an unfinished run must not borrow a focus
+ * result from the next file. Merge duplicate starts after parsing, retaining
+ * provenance and any available result. Conflicting results stay unavailable. */
+function sqrParseAutorunFiles(files,zone='local',offset=0){
+   let merged=new Map,invalid=0,duplicates=0,details=[];
+   for(let file of files.slice().sort((a,b)=>sqrKey(a.path).localeCompare(sqrKey(b.path)))){
+      if(file.error){details.push({path:file.path,error:file.error,starts:0,invalid:0});continue;}
+      let parsed=sqrParseAutorun(file.text,zone,offset);invalid+=parsed.invalid;
+      details.push({path:file.path,starts:parsed.runs.length,invalid:parsed.invalid});
+      for(let run of parsed.runs){
+         let known=merged.get(run.start);
+         if(!known){merged.set(run.start,{...run,sourcePaths:[file.path]});continue;}
+         ++duplicates;if(!known.sourcePaths.includes(file.path))known.sourcePaths.push(file.path);
+         if(!known.reason)known.reason=run.reason;
+         if(!known.focusConflict&&run.focusPosition!==null){
+            if(known.focusPosition===null)known.focusPosition=run.focusPosition;
+            else if(known.focusPosition!==run.focusPosition){known.focusPosition=null;known.focusConflict=true;}
+         }
+      }
+   }
+   let runs=Array.from(merged.values()).sort((a,b)=>a.start-b.start);
+   return {runs,invalid,duplicates,conflicts:runs.filter(r=>r.focusConflict).length,files:details,errors:details.filter(f=>f.error).length};
+}
+function sqrFocusPositionText(run){return run.focusConflict?'conflicting log results':run.focusPosition??'not reported';}
 function sqrAutofocusMarkers(items,runs){
    // Frame slots are equally spaced. Interpolate AF times between the surrounding
    // acquisition timestamps; master and unknown-time slots never set the range.
@@ -219,11 +271,20 @@ function sqrAutofocusMarkers(items,runs){
 // so an event outside the current filter group remains visible in the report.
 function sqrAutofocusReport(path,result,zone,offset,error=''){
    let convention=zone==='local'?'Computer local time':zone==='utc'?'UTC':'UTC offset '+(offset>=0?'+':'')+offset+' hours';
-   let lines=['Autorun log: '+path,'Log timestamps: '+convention,''];
+   let lines=[(result.files?'Log folder: ':'Autorun log: ')+path,'Log timestamps: '+convention,''];
    if(error)return lines.concat(error).join('\n');
+   if(result.files){
+      lines.push('Autorun logs read: '+(result.files.length-result.errors)+' / '+result.files.length);
+      for(let file of result.files)lines.push('  '+sqrFileName(file.path)+': '+(file.error?'could not read — '+file.error:file.starts+' autofocus starts'+(file.invalid?' · '+file.invalid+' invalid timestamps skipped':'')));
+      if(!result.files.length)lines.push('No matching Autorun_log files found in this folder.');
+      if(result.ignoredCHN)lines.push('Ignored _CHN translations: '+result.ignoredCHN);
+      if(result.duplicates)lines.push('Duplicate starts merged: '+result.duplicates);
+      if(result.conflicts)lines.push('Starts with conflicting focus positions: '+result.conflicts);
+      lines.push('');
+   }
    lines.push(result.runs.length+' autofocus start'+(result.runs.length===1?'':'s')+' extracted'+(result.invalid?' · '+result.invalid+' invalid timestamp'+(result.invalid===1?'':'s')+' skipped':''),
       'Log start → UTC (used in histograms) · Final focus position');
-   for(let i=0;i<result.runs.length;++i){let run=result.runs[i];lines.push((i+1)+'. '+run.startText+' → '+new Date(run.start).toISOString()+' · Focus position: '+(run.focusPosition??'not reported'));}
+   for(let i=0;i<result.runs.length;++i){let run=result.runs[i];lines.push((i+1)+'. '+run.startText+' → '+new Date(run.start).toISOString()+' · Focus position: '+sqrFocusPositionText(run)+(run.sourcePaths?.length?' · Logs: '+run.sourcePaths.map(sqrFileName).join(', '):''));}
    if(!result.runs.length)lines.push('No valid [AutoFocus|Begin] timestamps found.');
    lines.push('','All extracted starts are listed. Histograms show only starts within the current group’s subframe time range.');
    return lines.join('\n');
@@ -359,7 +420,7 @@ function sqrPlotHTML(data,generation=0){
          // Widen the tag for the position and keep it inside the SVG viewport.
          // The dashed line stays at the exact start slot even near an edge.
          let tagX=Math.max(tagWidth/2+2,Math.min(398-tagWidth/2,start));
-         let tip='Autofocus start: '+run.startText+' (log time)\nUTC: '+new Date(run.start).toISOString()+'\nFocus position: '+(run.focusPosition??'not reported')+'\n'+run.reason;
+         let tip='Autofocus start: '+run.startText+' (log time)\nUTC: '+new Date(run.start).toISOString()+'\nFocus position: '+sqrFocusPositionText(run)+'\n'+run.reason+(run.sourcePaths?.length?'\nLogs: '+run.sourcePaths.map(sqrFileName).join(', '):'');
          svg.push('<g class="autofocus" pointer-events="none"><path d="M'+start+' 35V175" stroke="#fab387" stroke-width="1" stroke-dasharray="2,2"/></g>');
          // Hover the AF tag below the axis; overlays leave all frame bars clickable.
          svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(tagX-tagWidth/2)+'" y="185" width="'+tagWidth+'" height="14" rx="2" fill="#252536"/><text x="'+tagX+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">'+sqrHTML(label)+'</text></g>');
@@ -748,14 +809,6 @@ function sqrFolderRow(parent,label,value,changed){
    let browse=sqrTool(parent,':/icons/select-file.png','Choose '+label.toLowerCase(),()=>{let d=new GetDirectoryDialog;d.caption=label;d.initialPath=edit.text;if(d.execute()){edit.text=d.directoryPath;changed(edit.text);}});
    row.add(l);row.add(edit,100);row.add(browse);parent.sizer.add(row);return {edit:edit,browse:browse};
 }
-function sqrLogRow(parent,value,changed){
-   let row=new HorizontalSizer;row.spacing=8;let label=new Label(parent);label.text='Autorun log (optional):';label.setScaledFixedWidth(135);
-   let edit=new Edit(parent);edit.text=value;edit.toolTip='Text log containing [AutoFocus|Begin]. Clear the path to remove autofocus markers. Measurements are retained.';
-   edit.onEditCompleted=()=>changed();
-   let browse=sqrTool(parent,':/icons/select-file.png','Choose an Autorun text log',()=>{let d=new OpenFileDialog;d.caption='Select Autorun log';d.multipleSelections=false;
-      d.filters=[['Text logs','*.txt','*.log'],['All files','*.*']];d.initialPath=edit.text;if(d.execute()){edit.text=d.filePath;changed();}});
-   row.add(label);row.add(edit,100);row.add(browse);parent.sizer.add(row);return {edit,browse};
-}
 /** Return two rendered preview bitmaps for identical image coordinates.
  * Brightness alignment and the shared reference-derived stretch modify temporary
  * images only. The dialog owns the returned bitmaps and releases them on reload. */
@@ -812,30 +865,31 @@ function sqrRotationFrame(path,o,rect,display=null){
  * subframe per tick and retains a common numeric display calibration. */
 class SQRDialog extends Dialog {
    constructor(o,session=null){
-      super();o={...sqrDefaults(),...o};this.windowTitle='Subframe Quality Review '+SQR_VERSION;
+      super();o={...sqrDefaults(),...o,logFolder:sqrLogFolderOption(o)};this.windowTitle='Subframe Quality Review '+SQR_VERSION;
       this.session=session;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;
-      this.timer=new Timer(.75,false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running){if(this.isRotating())this.navigate(1);else{this.showFrame(1-this.frame);this.timer.start();}}};
+      this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running){if(this.isRotating())this.navigate(1);else{this.showFrame(1-this.frame);this.timer.start();}}};
       this.intro=new Label(this);this.intro.wordWrapping=true;
       this.intro.text='Rank registered WBPP lights, blink against the filter master or best subframe, and move the originals you manually reject. Corner measurements are optional.';
       this.inputs=sqrGroup(this,'WBPP run and original lights');
       this.folders={};for(let [key,label] of [['wbpp','WBPP output:'],['originals','Original-light root:'],['destination','Rejected originals:']])
          this.folders[key]=sqrFolderRow(this.inputs,label,o[key],value=>{if(['wbpp','originals'].includes(key)&&this.session&&sqrKey(value.trim())!==sqrKey(this.session.options[key].trim()))this.invalidate();});
       this.inputControls=Object.values(this.folders).flatMap(x=>[x.edit,x.browse]);
-      this.autofocusRuns=[];this.autorunText='';this.loadedAutorunPath='';
-      this.autorun=sqrLogRow(this.inputs,o.autorunLog,()=>this.loadAutorun());
+      this.autofocusRuns=[];this.autorunFiles=[];this.loadedLogFolder='';
+      this.logFolder=sqrFolderRow(this.inputs,'Log folder (optional):',o.logFolder,()=>this.loadAutorun());
+      this.logFolder.edit.toolTip='Read all Autorun_log files directly in this folder, excluding _CHN translations. Other logs, including PHD2 guide logs, are ignored. Select the folder again to refresh. Clear it to remove autofocus markers; measurements are retained.';
       let logTools=new HorizontalSizer;logTools.spacing=8;let logLabel=new Label(this.inputs);logLabel.text='Log timestamps:';logLabel.setScaledFixedWidth(135);
       this.logTimeZone=new ComboBox(this.inputs);for(let name of ['Computer local time','UTC','Custom UTC offset'])this.logTimeZone.addItem(name);
       this.logTimeZone.currentItem=Math.max(0,['local','utc','offset'].indexOf(o.logTimeZone));
       this.logTimeZone.toolTip='Computer local time uses this computer’s time zone and daylight-saving rules at each log date. Use UTC or a custom offset if the acquisition computer used another zone.';
       this.logUTCOffset=sqrNumber(this.inputs,'UTC offset (hours):',o.logUTCOffset,-12,14,2);
       this.logUTCOffset.toolTip='Log time minus UTC: for example, +2 for UTC+02:00, or +5.5 for UTC+05:30.';this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;
-      this.autorunStatus=new Label(this.inputs);this.autorunStatus.text='No log selected.';
+      this.autorunStatus=new Label(this.inputs);this.autorunStatus.text='No log folder selected.';
       this.autorunTimes=sqrButton(this.inputs,'Autofocus times…',()=>this.showAutofocusTimes());
       this.autorunTimes.toolTip='Show all extracted autofocus start times, as written in the log and converted to UTC, with their final focus positions.';
       this.logTimeZone.onItemSelected=()=>{this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;this.parseAutorun();};
       this.logUTCOffset.onValueUpdated=()=>this.parseAutorun();
       logTools.add(logLabel);logTools.add(this.logTimeZone);logTools.add(this.logUTCOffset);logTools.add(this.autorunStatus,100);logTools.add(this.autorunTimes);this.inputs.sizer.add(logTools);
-      this.inputControls.push(this.autorun.edit,this.autorun.browse,this.logTimeZone,this.logUTCOffset,this.autorunTimes);
+      this.inputControls.push(this.logFolder.edit,this.logFolder.browse,this.logTimeZone,this.logUTCOffset,this.autorunTimes);
       this.settings=sqrGroup(this,'Quality evaluation');
       this.percent=sqrNumber(this.settings,'Review worst (%):',o.percent,0,100,1);
       this.patch=sqrNumber(this.settings,'Corner size (%):',o.patch,10,40,0);
@@ -911,11 +965,14 @@ class SQRDialog extends Dialog {
       this.region=new ComboBox(this.blinkPage);for(let n of ['Usable field','Center','Top left','Top right','Bottom left','Bottom right'])this.region.addItem(n);
       this.region.onItemSelected=()=>this.reloadBlink(false);
       this.displaySTF.onCheck=this.alignBrightness.onCheck=()=>{if(this.current)this.inspect();};
-      this.play=sqrTool(this.blinkPage,':/icons/play.png','Start blinking the selected image and reference every 0.75 seconds.',()=>{if(this.blinking)this.stopBlink();else this.startBlink();});
+      this.blinkInterval=sqrNumber(this.blinkPage,'Interval (s):',this.timer.interval,.1,10,2);this.blinkInterval.edit.setScaledFixedWidth(64);
+      this.blinkInterval.toolTip='Time each image is displayed before switching: 0.10–10 seconds. Smaller values are faster. Applies to reference blinking and subframe rotation, including during playback. Rotation adds the time needed to load each image.';
+      this.blinkInterval.onValueUpdated=value=>{this.setBlinkInterval(value);this.syncOptions();};
+      this.play=sqrTool(this.blinkPage,':/icons/play.png','Start blinking.',()=>{if(this.blinking)this.stopBlink();else this.startBlink();});
       this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and switch frame / reference.',()=>{this.stopBlink();if(this.isRotating())this.navigate(1);else this.showFrame(1-this.frame);});
       this.frameLabel=new Label(this.blinkPage);this.frameLabel.text='No frame loaded';this.frameLabel.minHeight=2*this.font.height;this.frameLabel.wordWrapping=true;
       let referenceLabel=new Label(this.blinkPage);referenceLabel.text='Blink mode:';
-      let display=new HorizontalSizer;display.spacing=8;display.add(referenceLabel);display.add(this.reference);display.add(this.region);display.add(this.displaySTF);display.add(this.alignBrightness);display.addStretch();display.add(this.play);display.add(this.step);
+      let display=new HorizontalSizer;display.spacing=8;display.add(referenceLabel);display.add(this.reference);display.add(this.region);display.add(this.displaySTF);display.add(this.alignBrightness);display.addStretch();display.add(this.blinkInterval);display.add(this.play);display.add(this.step);
       let decisions=new HorizontalSizer;decisions.spacing=8;
       this.previous=sqrButton(this.blinkPage,'Previous',()=>this.navigate(-1));this.next=sqrButton(this.blinkPage,'Next',()=>this.navigate(1));
       this.rejectButton=sqrButton(this.blinkPage,'Reject original',()=>this.decide(true));this.keepButton=sqrButton(this.blinkPage,'Keep original',()=>this.decide(false));
@@ -965,8 +1022,8 @@ class SQRDialog extends Dialog {
    // rejection decisions stay in the session and are never process parameters.
    options(){let o=sqrDefaults();for(let k of Object.keys(this.folders))o[k]=this.folders[k].edit.text.trim();
       for(let k of ['percent','patch','margin','minStars'])o[k]=this[k].value;for(let k of Object.keys(this.weights))o[k]=this.weights[k].value;
-      o.measureCorners=this.cornerMeasurements.checked;o.reference=['master','best','sequence'][this.reference.currentItem];
-      o.autorunLog=this.autorun.edit.text.trim();o.logTimeZone=['local','utc','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
+      o.measureCorners=this.cornerMeasurements.checked;o.reference=['master','best','sequence'][this.reference.currentItem];o.blinkInterval=this.blinkInterval.value;
+      o.logFolder=this.logFolder.edit.text.trim();o.logTimeZone=['local','utc','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
       o.reviewOrder=this.order.currentItem;o.reviewReverse=this.reviewReverse;
       o.maxFits=this.maxFits;o.displaySTF=this.displaySTF.checked;o.alignBrightness=this.alignBrightness.checked;o.histogramOrder=this.histogramOrder.currentItem===1?'time':'value';return o;}
    updateCornerControls(){this.patch.enabled=this.weights.cornerWeight.enabled=this.cornerMeasurements.checked;}
@@ -977,8 +1034,13 @@ class SQRDialog extends Dialog {
    isRotating(){return this.reference?.currentItem===2;}
    rotationRows(){return (this.visibleRows||[]).filter(r=>!r.isMaster);}
    updateBlinkButton(){if(this.play){this.play.icon=this.scaledResource(this.blinking?':/icons/media-stop.png':':/icons/play.png');
-      this.play.toolTip=this.blinking?'Stop blinking.':this.isRotating()?'Rotate through subframes in Review order, skipping the master. Each image is shown for 0.75 seconds before loading the next.':'Start blinking the selected image and reference every 0.75 seconds.';
+      let interval=this.timer.interval.toFixed(2);
+      this.play.toolTip=this.blinking?'Stop blinking.':this.isRotating()?'Rotate through subframes in Review order, skipping the master. Each image is shown for '+interval+' seconds before loading the next.':'Start blinking the selected image and reference every '+interval+' seconds.';
       this.step.toolTip=this.isRotating()?'Pause and show the next subframe in Review order. The master is skipped.':'Pause and switch frame / reference.';}}
+   // Restart the current dwell time without reloading images, changing selection,
+   // toggling controls, or disturbing zoom/pan and the active Stop symbol.
+   setBlinkInterval(value){this.timer.stop();this.blinkInterval.setValue(sqrBlinkInterval(value));this.timer.interval=this.blinkInterval.value;
+      if(this.blinking&&!this.running)this.timer.start();this.updateBlinkButton();}
    startBlink(){
       if(this.running)return;
       if(this.isRotating()){
@@ -998,18 +1060,22 @@ class SQRDialog extends Dialog {
       this.table.deselectAllNodes();this.populating=false;this.updateDetails();this.updateButtons();this.updateHistogram();}
    ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))this.inspect(false);}
    loadAutorun(){
-      this.autofocusRuns=[];this.autorunText='';this.autorunError='';this.loadedAutorunPath=this.autorun.edit.text.trim();
-      if(this.loadedAutorunPath)try{this.autorunText=File.readTextFile(this.loadedAutorunPath);}catch(e){this.autorunError='Cannot read log: '+(e.message||String(e));}
+      if(this.running)return;
+      this.autofocusRuns=[];this.autorunFiles=[];this.ignoredAutorunCHN=0;this.autorunError='';this.loadedLogFolder=this.logFolder.edit.text.trim();
+      if(this.loadedLogFolder)try{let loaded=sqrReadAutorunFolder(this.loadedLogFolder);this.autorunFiles=loaded.files;this.ignoredAutorunCHN=loaded.ignoredCHN;}
+      catch(e){this.autorunError='Cannot read log folder: '+(e.message||String(e));}
       this.parseAutorun();
    }
    // Reparse cached log text when its timezone changes; no image measurement is
    // needed. Log a report only when its content changes to avoid console noise.
    parseAutorun(){
-      let zone=['local','utc','offset'][this.logTimeZone.currentItem],result=sqrParseAutorun(this.autorunText,zone,this.logUTCOffset.value);this.autofocusRuns=result.runs;
-      this.autorunStatus.text=this.autorunError?'Log could not be read.':!this.loadedAutorunPath?'No log selected.':result.runs.length+' autofocus starts'+(result.invalid?' · see tooltip':'');
-      this.autorunStatus.toolTip=this.autorunError||'Parsed '+result.runs.length+' run starts; '+result.invalid+' invalid timestamps. Only start times are used. Markers appear only in acquisition-time plots, within the current group’s subframe time range.';
-      this.autorunReport=this.loadedAutorunPath?sqrAutofocusReport(this.loadedAutorunPath,result,zone,this.logUTCOffset.value,this.autorunError):'';
-      this.autorunTimes.enabled=!!this.loadedAutorunPath&&!this.running;
+      let zone=['local','utc','offset'][this.logTimeZone.currentItem],result=sqrParseAutorunFiles(this.autorunFiles,zone,this.logUTCOffset.value);
+      result.ignoredCHN=this.ignoredAutorunCHN;this.autofocusRuns=result.runs;this.autorunResult=result;
+      this.autorunStatus.text=this.autorunError?'Log folder could not be read.':!this.loadedLogFolder?'No log folder selected.':!result.files.length?'No Autorun_log files found.':
+         (result.files.length-result.errors)+(result.errors?'/'+result.files.length:'')+' Autorun logs · '+result.runs.length+' autofocus starts'+(result.errors||result.invalid||result.conflicts?' · see report':'');
+      this.autorunStatus.toolTip=this.autorunError||'Read '+(result.files.length-result.errors)+' of '+result.files.length+' Autorun logs; ignored '+result.ignoredCHN+' _CHN translations; '+result.duplicates+' duplicate starts merged; '+result.invalid+' invalid timestamps skipped; '+result.errors+' read errors; '+result.conflicts+' conflicting focus positions. Open Autofocus times for file details.';
+      this.autorunReport=this.loadedLogFolder?sqrAutofocusReport(this.loadedLogFolder,result,zone,this.logUTCOffset.value,this.autorunError):'';
+      this.autorunTimes.enabled=!!this.loadedLogFolder&&!this.running;
       if(this.autorunReport&&this.autorunReport!==this.reportedAutorunText)console.writeln('<end><cbr><b>Extracted autofocus start times</b>\n'+sqrHTML(this.autorunReport));
       this.reportedAutorunText=this.autorunReport;
       if(this.histogram)this.updateHistogram();
@@ -1027,7 +1093,7 @@ class SQRDialog extends Dialog {
    invalidateMeasurements(){if(this.running||!this.session)return;for(let g of this.session.groups){g.measureSignature='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}
       this.syncOptions();this.clearFrames();this.populateRows();this.status.text='Evaluation regions changed. Measure again before using the ranking.';}
    rerank(){if(this.running||!this.session)return;try{this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
-   busy(value){this.running=value;for(let c of [...this.inputControls,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===2;this.autorunTimes.enabled=!value&&!!this.loadedAutorunPath;this.updateButtons();}
+   busy(value){this.running=value;for(let c of [...this.inputControls,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===2;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
       this.moveButton.enabled=ready&&this.session.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
       let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
@@ -1188,14 +1254,16 @@ class SQRDialog extends Dialog {
    reloadBlink(preserveView=false){if(this.running)return;if(!this.current&&!this.isRotating()){this.updateButtons();return;}let resume=this.blinking;this.rotationDisplay=null;
       if(this.inspect(true,preserveView,resume)&&resume)this.startBlink();}
    decide(reject){if(!this.current||this.current.isMaster||this.current.moved)return;this.current.reject=reject;this.populateRows();this.updateDetails();}
-   setSession(s){this.clearFrames();this.session=s;this.current=null;let o={...sqrDefaults(),...s.options};
+   setSession(s){this.clearFrames();this.session=s;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
       for(let k of Object.keys(this.folders))this.folders[k].edit.text=o[k];for(let k of ['percent','patch','margin','minStars'])this[k].setValue(o[k]);
-      this.autorun.edit.text=o.autorunLog;this.logTimeZone.currentItem=Math.max(0,['local','utc','offset'].indexOf(o.logTimeZone));this.logUTCOffset.setValue(o.logUTCOffset);this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;this.loadAutorun();
+      this.logFolder.edit.text=o.logFolder;this.logTimeZone.currentItem=Math.max(0,['local','utc','offset'].indexOf(o.logTimeZone));this.logUTCOffset.setValue(o.logUTCOffset);this.logUTCOffset.enabled=this.logTimeZone.currentItem===2;this.loadAutorun();
       for(let k of Object.keys(this.weights))this.weights[k].setValue(o[k]);this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));this.updateCornerControls();
+      this.setBlinkInterval(o.blinkInterval);
       this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;
       this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<10?o.reviewOrder:0;this.reviewReverse=!!o.reviewReverse;this.populateGroups();}
    resetSettings(){let defaults=sqrDefaults(),folders=this.options();for(let k of ['percent','patch','margin','minStars'])this[k].setValue(defaults[k]);for(let k of Object.keys(this.weights))this.weights[k].setValue(defaults[k]);
       this.cornerMeasurements.checked=defaults.measureCorners;this.reference.currentItem=defaults.reference==='best'?1:0;this.updateCornerControls();
+      this.setBlinkInterval(defaults.blinkInterval);
       this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=defaults.reviewOrder;this.reviewReverse=defaults.reviewReverse;this.invalidateMeasurements();this.status.text='Evaluation defaults restored. Folder paths retained.';}
    // Confirmation is the boundary between a read-only review and file changes.
    // The engine independently validates the plan again when executing it.
@@ -1215,7 +1283,7 @@ class SQRDialog extends Dialog {
 // point so validation harnesses can exercise the engine without opening the UI.
 function sqrMain(){
    CoreApplication.ensureMinimumVersion(1,9,5);
-   let o=sqrDefaults();if(Parameters.has('configJSON'))o={...o,...JSON.parse(Parameters.getString('configJSON'))};
+   let o=sqrDefaults();if(Parameters.has('configJSON')){let saved=JSON.parse(Parameters.getString('configJSON'));o={...o,...saved,logFolder:sqrLogFolderOption(saved)};}
    if(Parameters.isViewTarget)throw new Error('Run this file-based review script globally.');
    let dialog=new SQRDialog(o);console.hide();dialog.execute();dialog.clearFrames();
 }

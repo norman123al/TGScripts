@@ -1,14 +1,14 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.18.2.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.20.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
 
 The default shortlist contains the worst 10\% of measured subframes in each group. REVIEW is a suggestion to inspect an image. Only your explicit rejection decisions are included in a move operation. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.
 
-The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from an Autorun log.
+The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from the Autorun logs in a selected folder.
 }
 
 \section{Start and complete a review}{
@@ -16,7 +16,7 @@ With TGScripts installed through the standard PixInsight script installation, ch
 
 \list[ordered,spaced]{
    {Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.}
-   {Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select an Autorun log and its timestamp convention.}
+   {Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder and its timestamp convention.}
    {Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.}
    {Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Set Review worst (\%) and the quality weights as needed.}
    {Click the magnifier button at the bottom to measure and rank the images. The measurement run covers all discovered groups and their matched masters.}
@@ -35,7 +35,7 @@ Measurements and pending rejection decisions remain in memory while the dialog i
    {{WBPP output} {The completed output directory containing the registered subfolder and, when available, the master subfolder.}}
    {{Original-light root} {A directory containing the original, uncalibrated light files. Subdirectories are scanned recursively. Flats, darks, bias frames, and master files are excluded from original-light matching. The original root must be outside the WBPP output directory.}}
    {{Rejected originals} {The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
-   {{Autorun log} {An optional text log containing timestamped \[AutoFocus|Begin\] entries.}}
+   {{Log folder} {An optional folder containing one or more Autorun_log files. Files marked _CHN are ignored.}}
 }
 
 XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.
@@ -144,9 +144,11 @@ The region selector offers the field, center, and four corners. The preview can 
 
 Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.
 
-In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Each subframe is displayed for 0.75 seconds before the next is loaded; loading time depends on image size and storage speed. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.
+In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.
 
-With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference at 0.75-second intervals. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
+With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
+
+Interval (s) sets how long each image is displayed, for both reference blinking and subframe rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. You can change the interval while playing without losing your zoom or pan position. In rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.
 
 Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.
 
@@ -182,8 +184,12 @@ Acquisition timestamps come first from the verified original's DATE-OBS or DATEO
 Acquisition filenames may show a local clock or an end time while the header records a UTC exposure start. The displayed Acquisition time (UTC) is the authoritative value used by this script. The filename counter suffix is ignored.
 }
 
-\section{Autorun log and autofocus markers}{
-Select an Autorun log in the directory section. The script reads lines such as 2026/09/05 23:08:11 \[AutoFocus|Begin\] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.
+\section{Log folder and autofocus markers}{
+Select Log folder in the directory section. All files whose names start with Autorun_log are read directly from this folder, regardless of letter case. Files marked _CHN are ignored because they are translated copies. Subfolders and other logs, including PHD2 guide logs, are not processed. Select the folder again to refresh its contents.
+
+Autofocus starts from all matching logs are combined in chronological order. Overlapping logs produce one marker per start. An unreadable log is listed in Autofocus times; readable logs are still used. The report lists the source filenames for every start. If duplicate logs report different final positions for the same start, the position is marked as conflicting and the plot shows AF without a position.
+
+ The script reads lines such as 2026/09/05 23:08:11 \[AutoFocus|Begin\] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.
 
 Choose the timestamp convention that matches the acquisition computer:
 
@@ -193,7 +199,7 @@ Choose the timestamp convention that matches the acquisition computer:
    {Custom UTC offset uses the specified log-time-minus-UTC offset in hours. For example, enter +2 for UTC+02:00.}
 }
 
-The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the log or timestamp convention updates the report and markers without remeasuring the images.
+The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the folder or timestamp convention updates the report and markers without remeasuring the images. Clearing the folder removes the markers and retains image measurements.
 
 Autofocus markers appear only when quality plots use Acquisition time order. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, final focus position, and trigger description. Markers use the start time even though the final position is reported later; no end time or duration is displayed.
 
