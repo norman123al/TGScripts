@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.24.2.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.25.3.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -30,6 +30,8 @@ Measurements and pending rejection decisions remain in memory while the dialog i
 }
 
 \section{Directories and filter groups}{
+Click the WBPP run and original lights bar to collapse or expand the folder and log controls. It opens expanded by default. The window keeps its size, and the active tab uses the space released by a collapsed section. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.
+
 \table[header]{
    {{Input} {What to select}}
    {{WBPP output} {The completed output directory containing the registered subfolder and, when available, the master subfolder.}}
@@ -52,7 +54,7 @@ Changing the WBPP output or original-light root invalidates the current review; 
 }
 
 \section{Quality evaluation controls}{
-Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.
+Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.
 
 The controls are arranged in three groups: Measurements and review contains the shortlist percentage, minimum-star requirement, edge guard, and optional corner measurements. Score weights sets the relative influence of the image-quality indicators. Guiding contains its scoring mode, weight, and the Good, Medium, and Bad limits in arcseconds.
 
@@ -128,11 +130,16 @@ The master receives comparable measurements and a score against the subframe bas
    {{Score} {The current weighted penalty; lower is better.}}
    {{PSF weight, FWHM (px), Stars} {Field measurements used in scoring.}}
    {{Main issue} {The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, Medium guiding, Bad guiding, or Below-mean Quality. Good guiding is reported when no enabled quality penalty applies.}}
+   {{Field eccentricity} {Field star elongation, from zero for round stars toward one for elongated stars. Lower is rounder.}}
+   {{Corner quality} {The largest corner-quality penalty, also called Corner severity in the plots. Lower is better. Stored results remain visible when corner scoring is turned off.}}
    {{Below-mean Quality} {Percentage of assessed indicators with worse-than-mean quality; lower is better.}}
+   {{Guiding quality} {Combined guiding error: (minimum + 2 times average + maximum) / 4, in arcseconds. Lower is better. A value requires usable guiding coverage.}}
    {{Guide avg, Guide min, Guide max} {Arithmetic average, minimum, and maximum combined RA/Dec displacement during the exposure, in arcseconds. These are not RMS values. Hover for coverage and guiding quality. An asterisk marks partial statistics excluded from Score.}}
    {{Worst corner} {The corner contributing the largest regional penalty when corner scoring is enabled.}}
    {{Original association} {Whether the corresponding uncalibrated original has been verified for moving.}}
 }
+
+All seven weighted Score components have columns: PSF weight, FWHM, Stars, Field eccentricity, Corner quality, Below-mean Quality, and Guiding quality. Missing measurements remain marked as unavailable. Measurements remain visible when their Score contribution is disabled. The quality-column tooltips explain their meaning and current inclusion in Score.
 
 Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.
 
@@ -154,25 +161,42 @@ Blink mode defaults to Best scoring subframe. This chooses the lowest-scoring el
 
 The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.
 
+The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value is the displayed preview pixel normalized to 0–1, including any display stretch and brightness alignment, with separate R/G/B values for color images. It has 8-bit display precision. Coordinates are relative to the selected region. The readout follows the displayed image during blinking and updates after zooming, panning, and changing regions; it clears outside the image.
+
 Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.
 
 In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.
 
-With Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While blinking, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
+With Rotate regions set to Off and Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While playing, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
 
-Interval (s) sets how long each image is displayed, for both reference blinking and subframe rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. You can change the interval while playing without losing your zoom or pan position. In rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.
+Rotate regions offers two ways to inspect all regions of the selected image:
 
-Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Changing the region preserves blink status and fits the newly selected region to the preview.
+\table[header]{
+   {{Choice} {Playback}}
+   {{Off} {Keep the selected region while blinking or rotating subframes.}}
+   {{Image only} {Cycle through Center, Top left, Top right, Bottom left, and Bottom right, then repeat. Usable field is skipped. No reference image is required; Blink mode is inactive.}}
+   {{Blink with reference} {Show the selected image and its reference at the same region, then advance to the next region, including Usable field. Choose Filter master or Best scoring subframe as the reference.}}
+}
 
-Switching to another tab and returning to Blink frame / reference retains the zoom and pan position of the current preview. Switching tabs pauses playback; press Play to resume.
+Region rotation starts at the currently selected region, keeps the same image selected, and preserves zoom. Image only starts at Center when Usable field is selected. Press Play to start or Stop to pause. Step pauses playback and advances one displayed view: the next preview region for Image only, or the reference followed by the next region for Blink with reference. Choosing a preview region manually continues from that region. Previous and Next select another image while keeping the rotation mode. An integrated master can be inspected with Image only, but cannot be rejected.
+
+Region rotation and subframe rotation are alternatives. Enabling region rotation while Rotate subframes is selected changes Blink mode to Best scoring subframe. Choosing Rotate subframes switches region rotation off. Region rotation is off by default, and its choice is saved in process instances.
+
+Interval (s) sets how long each displayed view remains visible, for reference blinking, subframe rotation, and region rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. Regional blinking displays the image for one interval and the reference for another before advancing. You can change the interval while playing without losing your zoom or pan position. In subframe rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.
+
+Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.
+
+Switching to another tab and returning to Blink frame / reference retains the zoom and pan position. Selecting another image in Review or through either plot also preserves this view when its preview loads. The position is limited to the new image or region's bounds. The first preview is fitted automatically; use Zoom to Fit whenever you want to refit it. Switching tabs pauses playback; press Play to resume.
 
 Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.
 
-The preview requires matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration or the best scoring subframe.
+Reference comparisons require matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration, the best scoring subframe, or Image only region rotation to inspect a subframe without a reference.
 }
 
 \section{Quality indicators and acquisition order}{
 The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.
+
+The note beside the selected indicator shows whether higher or lower values are preferable and whether it is included in Score under the current settings. A zero weight, disabled corner scoring, or excluded guiding is identified. Regional measurements contribute through corner quality; Center FWHM is used in corner/center ratios. Guide minimum, average, and maximum contribute through combined guiding quality when coverage is usable. Score itself is the combined result. Plotted measurements remain available even when their scoring contribution is disabled.
 
 Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.
 
@@ -191,6 +215,10 @@ Hover over a bar to see its filename, value, status, and acquisition time. Click
 
 The vertical range follows the subframe values with approximately 10\% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.
 
+For Guide minimum, Guide average, and Guide maximum, green, amber, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. The vertical range includes zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.
+
+The Guiding quality plot shows the combined indicator without category bands. Its definition appears above the plot: G = (minimum + 2 times average + maximum) / 4, in arcseconds. The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. Lower values are better. The displayed minimum, average, and maximum categories help inspect individual guiding measurements; the combined value G determines the guiding penalty used in Score.
+
 The green plot mean excludes rejected subframes and can change as you make decisions. The scoring baselines and the arithmetic means behind Below-mean Quality use all supported subframes in the group, including rejects. These intentionally serve different purposes.
 
 Acquisition timestamps come first from the verified original's DATE-OBS or DATEOBS metadata, then from the registered image. Separate TIME-OBS or TIMEOBS fields are supported when the date field contains only a date. Explicit timezone offsets are converted to UTC; timestamps without an offset are interpreted as UTC. The table shows the same UTC timestamp used by the plots.
@@ -207,7 +235,7 @@ Each point represents one subframe with both measurements available. The plot an
 
 Hover over a point to see its filename and both values. Click it to select the image in Review and measurements. If necessary, the REVIEW-only filter is cleared to reveal that image. Cyan identifies the selected image, purple a REVIEW candidate, blue another kept frame, and red a rejected frame. Plot selection does not change rejection decisions. Identical measurements can overlap; keyboard focus and Enter also select points.
 
-The highlighted banner above the plot displays Pearson r and its interpretation. Pearson r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:
+The highlighted banner above the plot displays Correlation (Pearson) and its interpretation. The coefficient r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:
 
 \table[header]{
    {{Absolute r value} {Strength}}

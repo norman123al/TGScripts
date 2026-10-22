@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.24.2 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.25.3 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -27,7 +27,7 @@
  * Only sqrMove changes original-file locations, after an explicit confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.24.2';
+const SQR_VERSION='0.25.3';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -35,7 +35,7 @@ const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom
  * corner measurement is opt-in, and no rejection flag is an option. */
 function sqrDefaults(){return {wbpp:'',originals:'',destination:'',percent:10,measureCorners:false,reference:'best',
    patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,belowMeanWeight:20,guideWeight:25,
-   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'require',qualityCollapsed:false};}
+   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'require',qualityCollapsed:false,inputsCollapsed:false};}
 // Validate saved intervals as well as UI input; legacy instances use the default.
 function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.min(10,value)):sqrDefaults().blinkInterval;}
 // Normalize paths for I/O, then compare case-insensitively for this Windows
@@ -531,14 +531,14 @@ const SQR_KPIS=[
    {label:'Star count',metric:'stars',region:0,integer:true,direction:'Higher is better'},
    {label:'Field FWHM (px)',metric:'fwhm',region:0,direction:'Lower is better'},
    {label:'Corner severity',key:'cornerSeverity',corners:true,direction:'Lower is better'},
-   {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder; included in Score when weighted'},
+   {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder'},
    ...[1,2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' FWHM (px)',metric:'fwhm',region,corners:true,direction:'Lower is better'})),
-   ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder; included in corner quality'})),
+   ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder'})),
    {label:'Below-mean Quality',key:'belowMeanFraction',percentage:true,direction:'Lower is better; percentage of assessed indicators with worse-than-mean quality'},
    {label:'Guide minimum (arcsec)',key:'guideMin',guiding:true,direction:'Lower is better; minimum combined RA/Dec displacement'},
    {label:'Guide maximum (arcsec)',key:'guideMax',guiding:true,direction:'Lower is better; maximum combined RA/Dec displacement'},
    {label:'Guide average (arcsec)',key:'guideAvg',guiding:true,direction:'Lower is better; arithmetic mean of combined RA/Dec displacement'},
-   {label:'Guiding quality (arcsec)',key:'guideQuality',guiding:true,direction:'Lower is better'}
+   {label:'Guiding quality (arcsec)',key:'guideQuality',guiding:true,direction:'Lower is better',definition:'Guiding quality G = (minimum + 2 × average + maximum) / 4, in arcseconds.'}
 ];
 function sqrEccentricityValid(m){return !!m?.valid&&Number.isFinite(m.eccentricity)&&m.eccentricity>=0&&m.eccentricity<1;}
 // null means unavailable, while zero is a real value. Stored corner severity
@@ -553,10 +553,28 @@ function sqrAvailableKPIs(group,includeMaster=true){
    let rows=group?(includeMaster?sqrGroupRows(group):group.rows.filter(row=>!row.isMaster)):[];
    return SQR_KPIS.filter(kpi=>!kpi.corners||rows.some(row=>sqrKPIValue(row,kpi)!==null));
 }
+// Describe the current scoring configuration, independently of plot availability.
+// Regional and individual guiding values feed a composite, not extra weights.
+function sqrKPIScoreInfo(kpi,o,guidingEnabled=false){
+   if(kpi.key==='score')return 'Combined Score';
+   if(kpi.corners){
+      if(!o.measureCorners)return 'Excluded from Score (corners off)';
+      if(!(o.cornerWeight>0))return 'Excluded from Score (corner weight 0)';
+      return kpi.region===1?'Included via corner / center FWHM ratios':kpi.key==='cornerSeverity'?'Included in Score':'Included via corner quality';
+   }
+   if(kpi.guiding){
+      if(o.guidingMode==='ignore')return 'Excluded from Score (guiding ignored)';
+      if(!(o.guideWeight>0))return 'Excluded from Score (guiding weight 0)';
+      if(!guidingEnabled)return 'Excluded from Score (no guiding logs)';
+      return kpi.key==='guideQuality'?'Included in Score':'Included via guiding quality';
+   }
+   let weight=kpi.key==='belowMeanFraction'?o.belowMeanWeight:o[({signal:'signalWeight',stars:'starsWeight',fwhm:'fwhmWeight',eccentricity:'eccentricityWeight'})[kpi.metric]];
+   return weight>0?'Included in Score':'Excluded from Score (weight 0)';
+}
 /** Build a plot model independent of the review-table filter and sort order.
  * One slot represents one image; this is a WBPP-style metric plot, not frequency
  * binning. The visible mean excludes rejected rows, unlike scoring baselines. */
-function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',autofocusRuns=[]){
+function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',autofocusRuns=[],guideScale=null){
    let chronological=order==='time';
    let data={kpi,order:chronological?'time':'value',showAutofocus:chronological&&!kpi.guiding,items:[],autofocus:[],master:null,hasMaster:!!group?.master,missing:0,message:'',average:null};
    if(!group){data.message='Scan files and measure a group to view its quality indicators.';return data;}
@@ -575,6 +593,16 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
    let padding=(max-min||max*.1||1)*.1;data.low=min-padding;data.high=max+padding;
    if(data.low<0&&min>=0)data.low=0;
    if(kpi.percentage)data.high=Math.min(1,data.high);
+   // Apply absolute categories to the measured min/average/max errors. The
+   // combined guiding quality is a derived indicator with a separate definition.
+   // Only a validated imaging scale can define these limits.
+   if(['guideMin','guideAvg','guideMax'].includes(kpi.key)&&Number.isFinite(guideScale)&&guideScale>0){
+      data.low=0;data.high=Math.max(data.high,2*guideScale);
+      data.guideBands=[
+         {label:'Good',low:0,high:guideScale,color:'#a6e3a1'},
+         {label:'Medium',low:guideScale,high:1.75*guideScale,color:'#f9e2af'},
+         {label:'Bad',low:1.75*guideScale,high:data.high,color:'#f38ba8'}];
+   }
    data.masterClipped=data.master===null?'':data.master>data.high?'above':data.master<data.low?'below':'';
    let kept=valid.filter(item=>!item.master&&!item.rejected);
    if(kept.length)data.average=kept.reduce((sum,item)=>sum+item.value,0)/kept.length;
@@ -615,13 +643,13 @@ function sqrPearson(items){
 }
 function sqrCorrelationStrength(r){let a=Math.abs(r);return a===1?'Perfect':a>=.7?'Strong':a>=.3?'Moderate':a>0?'Weak':'None';}
 function sqrCorrelationText(correlation){
-   let r=correlation.r;if(r===null)return 'Pearson r: unavailable · '+correlation.reason;
+   let r=correlation.r;if(r===null)return 'Correlation (Pearson): unavailable · '+correlation.reason;
    let a=Math.abs(r),rounded=Number(a.toFixed(4));
    // Show extra digits if four-place rounding would suggest a different band.
    let number=a!==rounded&&[0,.3,.7,1].includes(rounded)?a.toPrecision(12):a.toFixed(4);
    let value=(r>0?'+':r<0?'-':'')+number;
-   if(r===0)return 'Pearson r = '+value+' · None · No linear relationship';
-   return 'Pearson r = '+value+' · '+sqrCorrelationStrength(r)+' · '+(r>0?'Positive (both increase together)':'Negative (as X increases, Y decreases)');
+   if(r===0)return 'Correlation (Pearson) = '+value+' · None · No linear relationship';
+   return 'Correlation (Pearson) = '+value+' · '+sqrCorrelationStrength(r)+' · '+(r>0?'Positive (both increase together)':'Negative (as X increases, Y decreases)');
 }
 /** Pair only finite measurements from the same subframe. Table filtering and
  * sort order never change the sample; rejection only changes point color.
@@ -683,6 +711,8 @@ function sqrPlotHTML(data,generation=0){
    else if(data){
       let svg=[],y=value=>175-(value-data.low)/(data.high-data.low)*140,number=value=>sqrKPIPlotNumber(value,data.kpi);
       svg.push('<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".4"/></filter></defs><rect x="55" y="35" width="330" height="140" rx="3" fill="#252536"/>');
+      for(let band of data.guideBands||[])
+         svg.push('<rect class="guide-band" data-category="'+band.label+'" x="55" y="'+y(band.high)+'" width="330" height="'+(y(band.low)-y(band.high))+'" fill="'+band.color+'" fill-opacity=".18" pointer-events="none"/>');
       for(let i=0;i<=5;++i){let value=data.low+(data.high-data.low)*i/5,py=y(value);
          svg.push('<path d="M50 '+py+'H55" stroke="#585b70"/><path d="M55 '+py+'H385" stroke="#3a3a4a" stroke-width=".5" stroke-dasharray="3,3"/><text x="47" y="'+(py+3)+'" text-anchor="end" fill="#6c7086" font-size="9">'+number(value)+'</text>');}
       let spacing=330/data.items.length,width=Math.max(2,spacing-1);
@@ -701,6 +731,8 @@ function sqrPlotHTML(data,generation=0){
             else svg.push('<circle cx="'+cx.toFixed(1)+'" cy="'+(py-5).toFixed(1)+'" r="3" fill="#f9a825"/>');
          }
          svg.push('</g>');});
+      for(let band of (data.guideBands||[]).slice(0,2))
+         svg.push('<path class="guide-limit" d="M55 '+y(band.high)+'H385" stroke="'+band.color+'" stroke-width="1" stroke-dasharray="2,3" pointer-events="none"/>');
       if(data.average!==null){let py=y(data.average);svg.push('<g pointer-events="none"><path d="M55 '+py+'H385" stroke="#a6e3a1" stroke-width="1.5" stroke-dasharray="5,3"/><text x="60" y="'+(py-4)+'" fill="#a6e3a1" font-size="9" font-weight="bold">'+number(data.average)+'</text></g>');}
       for(let run of data.autofocus||[]){
          let start=55+run.startSlot*spacing;
@@ -714,10 +746,12 @@ function sqrPlotHTML(data,generation=0){
          svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(tagX-tagWidth/2)+'" y="185" width="'+tagWidth+'" height="14" rx="2" fill="#252536"/><text x="'+tagX+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">'+sqrHTML(label)+'</text></g>');
       }
       svg.push('<path d="M55 35V175H385" fill="none" stroke="#585b70"/><text x="385" y="17" text-anchor="end" fill="#f9a825" font-size="9">Master: '+number(data.master)+(data.masterClipped?' '+(data.masterClipped==='above'?'↑':'↓')+' clipped':'')+'</text>');
-      body='<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
+      let legend=data.guideBands?'<div style="text-align:center;font-size:12px;flex-shrink:0;padding:0 8px 4px">'+data.guideBands.map((band,i)=>'<span style="color:'+band.color+'">'+band.label+' '+(i===0?'≤ '+number(band.high):i===1?'> '+number(band.low)+' to '+number(band.high):'> '+number(band.low))+'″</span>').join(' &nbsp;·&nbsp; ')+'</div>':'';
+      body=legend+'<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
    }
    let script='window.sqrSelection=null;document.querySelectorAll(".frame").forEach(function(el){function select(){window.sqrSelection={generation:'+generation+',index:Number(el.dataset.index)};}el.addEventListener("click",select);el.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();select();}});});';
-   return '<!doctype html><html><head><meta charset="UTF-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1e1e2e;color:#cdd6f4;font-family:"Segoe UI",system-ui,sans-serif}.container{height:100%;display:flex;flex-direction:column}.title{height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:.5px}.chart{flex:1;min-height:0;padding:0 5px 5px}svg{width:100%;height:100%}.frame{cursor:pointer}.frame:hover>[data-frame],.frame:focus>[data-frame]{stroke:#cdd6f4;stroke-width:1.2}.empty{margin:auto;padding:24px;text-align:center;color:#6c7086}</style></head><body><div class="container"><div class="title">'+sqrHTML(title)+'</div>'+body+'</div><script>'+script+'</script></body></html>';
+   let definition=data?.kpi.definition?'<div class="definition">'+sqrHTML(data.kpi.definition)+'</div>':'';
+   return '<!doctype html><html><head><meta charset="UTF-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1e1e2e;color:#cdd6f4;font-family:"Segoe UI",system-ui,sans-serif}.container{height:100%;display:flex;flex-direction:column}.title{height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:.5px}.definition{flex-shrink:0;text-align:center;padding:0 12px 6px;font-size:12px;line-height:18px;color:#cdd6f4}.chart{flex:1;min-height:0;padding:0 5px 5px}svg{width:100%;height:100%}.frame{cursor:pointer}.frame:hover>[data-frame],.frame:focus>[data-frame]{stroke:#cdd6f4;stroke-width:1.2}.empty{margin:auto;padding:24px;text-align:center;color:#6c7086}</style></head><body><div class="container"><div class="title">'+sqrHTML(title)+'</div>'+definition+body+'</div><script>'+script+'</script></body></html>';
 }
 /** Build an in-memory session from header reads. Group registered lights by
  * WBPP directory, exposure and geometry, then attach uniquely verified originals
@@ -1110,17 +1144,47 @@ function sqrFolderRow(parent,label,value,changed){
    let browse=sqrTool(parent,':/icons/select-file.png','Choose '+label.toLowerCase(),()=>{let d=new GetDirectoryDialog;d.caption=label;d.initialPath=edit.text;if(d.execute()){edit.text=d.directoryPath;changed(edit.text);}});
    row.add(l);row.add(edit,100);row.add(browse);parent.sizer.add(row);return {edit:edit,browse:browse};
 }
+// Read the displayed, unscaled bitmap without copying an Image or rereading a
+// source file. The channel tag distinguishes grayscale from neutral RGB pixels.
+function sqrPreviewPixel(bitmap,x,y){
+   if(!bitmap||x<0||y<0||x>=bitmap.width||y>=bitmap.height)return null;
+   let pixel=bitmap.pixel(x,y),rgb=[(pixel>>>16)&255,(pixel>>>8)&255,pixel&255];
+   return (bitmap.sqrChannels===1?[rgb[0]]:rgb).map(v=>v/255);
+}
+// Extend the bundled viewer while preserving its navigation handlers. Repaint
+// refreshes a stationary pointer after zoom, pan, blinking or region changes.
+function sqrInstallPixelReadout(viewer,bitmapProvider){
+   viewer.pixelName_Label=new Label(viewer);viewer.pixelName_Label.text='Value:';
+   viewer.pixelValue_Label=new Label(viewer);viewer.pixelValue_Label.text='---';
+   let row=viewer.coords_Control.sizer;row.insert(row.numberOfItems-1,viewer.pixelName_Label);row.insert(row.numberOfItems-1,viewer.pixelValue_Label);
+   viewer.pixelValue_Label.toolTip='Displayed preview pixel value, normalized to 0–1, with 8-bit display precision. Includes Display STF and preview brightness alignment when enabled. X/Y are relative to the selected region. RGB images show all three channels.';
+   let pointer=null;
+   const label=(control,text)=>{if(control.text!==text)control.text=text;};
+   viewer.refreshPixelReadout=()=>{
+      let pos=pointer&&viewer.isValid?viewer.viewportToImage(pointer.x,pointer.y):null;
+      let values=pos?sqrPreviewPixel(bitmapProvider(),Math.floor(pos.x),Math.floor(pos.y)):null;
+      label(viewer.xValue_Label,values?format('%8.2f',pos.x):'---');label(viewer.yValue_Label,values?format('%8.2f',pos.y):'---');
+      label(viewer.pixelValue_Label,values?values.map((v,c)=>(values.length===3?['R ','G ','B '][c]:'')+v.toFixed(6)).join('  '):'---');
+   };
+   viewer.clearPixelReadout=()=>{pointer=null;viewer.refreshPixelReadout();};
+   let viewport=viewer.scrollbox.viewport,move=viewport.onMouseMove,wheel=viewport.onMouseWheel,leave=viewport.onLeave,paint=viewport.onPaint,hide=viewport.onHide;
+   viewport.tracking=true;
+   viewport.onMouseMove=function(x,y,buttons,modifiers){if(move)move.call(this,x,y,buttons,modifiers);pointer={x,y};viewer.refreshPixelReadout();};
+   viewport.onMouseWheel=function(x,y,delta,buttons,modifiers){if(wheel)wheel.call(this,x,y,delta,buttons,modifiers);pointer={x,y};viewer.refreshPixelReadout();};
+   viewport.onLeave=function(){if(leave)leave.call(this);viewer.clearPixelReadout();};
+   viewport.onHide=function(){if(hide)hide.call(this);viewer.clearPixelReadout();};
+   viewport.onPaint=function(x0,y0,x1,y1){if(paint)paint.call(this,x0,y0,x1,y1);viewer.refreshPixelReadout();};
+}
 /** Return two rendered preview bitmaps for identical image coordinates.
  * Brightness alignment and the shared reference-derived stretch modify temporary
  * images only. The dialog owns the returned bitmaps and releases them on reload. */
-function sqrFrames(path,reference,o,rect,isMaster=false){
-   let a=null,b=null,da=new Image,db=new Image;
+function sqrRenderFrames(a,b,o,rect){
+   let da=new Image,db=b?new Image:null,frames=[];
    try{
-      a=sqrReadImage(path,isMaster);b=sqrReadImage(reference,true);
-      if(a.width!==b.width||a.height!==b.height||a.numberOfNominalChannels!==b.numberOfNominalChannels)
+      if(b&&(a.width!==b.width||a.height!==b.height||a.numberOfNominalChannels!==b.numberOfNominalChannels))
          throw new Error('Reference and registered frame must have identical dimensions and channels.');
-      let r=new Rect(...rect);da.assign(a,r,0,a.numberOfNominalChannels-1);db.assign(b,r,0,b.numberOfNominalChannels-1);
-      if(o.alignBrightness){
+      let r=new Rect(...rect);da.assign(a,r,0,a.numberOfNominalChannels-1);if(b)db.assign(b,r,0,b.numberOfNominalChannels-1);
+      if(b&&o.alignBrightness){
          // Robust affine background/contrast alignment for display only.
          for(let c=0;c<da.numberOfNominalChannels;++c){
             let whole=new Rect(0,0,da.width,da.height),ma=da.median(whole,c,c),mb=db.median(whole,c,c),sa=da.MAD(ma,whole,c,c),sb=db.MAD(mb,whole,c,c);
@@ -1128,9 +1192,23 @@ function sqrFrames(path,reference,o,rect,isMaster=false){
             da.apply(ma,ImageOp.Sub,whole,c,c);da.apply(scale,ImageOp.Mul,whole,c,c);da.apply(mb,ImageOp.Add,whole,c,c);
          }
       }
-      if(o.displaySTF){let stretch=db.computeAutoStretch();da.applyDisplayFunction(stretch);db.applyDisplayFunction(stretch);}
-      da.truncate();db.truncate();return [da.render(),db.render()];
-   }finally{if(a)a.free();if(b)b.free();da.free();db.free();}
+      if(o.displaySTF){let stretch=(db||da).computeAutoStretch();da.applyDisplayFunction(stretch);if(db)db.applyDisplayFunction(stretch);}
+      da.truncate();frames.push(da.render());if(db){db.truncate();frames.push(db.render());}for(let frame of frames)frame.sqrChannels=da.numberOfNominalChannels;return frames;
+   }catch(e){for(let frame of frames)frame.clear();throw e;}finally{da.free();if(db)db.free();}
+}
+function sqrFrames(path,reference,o,rect,isMaster=false){
+   let a=null,b=null;
+   try{a=sqrReadImage(path,isMaster);b=sqrReadImage(reference,true);return sqrRenderFrames(a,b,o,rect);}
+   finally{if(a)a.free();if(b)b.free();}
+}
+// Read each source once for a complete regional cycle. Keep only rendered
+// bitmaps afterwards; temporary images are released on success and failure.
+function sqrRegionFrames(path,reference,o,regions,isMaster=false){
+   let a=null,b=null,frames=[];
+   try{a=sqrReadImage(path,isMaster);if(reference)b=sqrReadImage(reference,true);
+      for(let rect of regions)frames.push(sqrRenderFrames(a,b,o,rect));return frames;
+   }catch(e){for(let pair of frames)for(let frame of pair)frame.clear();throw e;}
+   finally{if(a)a.free();if(b)b.free();}
 }
 
 /** Render one subframe for rotation, retaining only numeric display calibration.
@@ -1152,7 +1230,7 @@ function sqrRotationFrame(path,o,rect,display=null){
          image.apply(a.median,ImageOp.Sub,whole,c,c);image.apply(scale,ImageOp.Mul,whole,c,c);image.apply(b.median,ImageOp.Add,whole,c,c);
       }
       if(o.displaySTF)image.applyDisplayFunction(display.stretch);
-      image.truncate();return {bitmap:image.render(),display};
+      image.truncate();let bitmap=image.render();bitmap.sqrChannels=channels;return {bitmap,display};
    }finally{if(source)source.free();image.free();}
 }
 
@@ -1162,16 +1240,20 @@ function sqrRotationFrame(path,o,rect,display=null){
  * selectionCleared preserves an intentional deselection across refreshes.
  * running prevents conflicting operations while processEvents keeps the UI alive.
  * frames holds rendered previews; frame selects image/reference; blinking and
- * the timer control pair alternation without rereading files. Rotation loads one
- * subframe per tick and retains a common numeric display calibration. */
+ * the timer control pair alternation without rereading files. Subframe rotation
+ * loads one image per tick with a common numeric display calibration. Regional
+ * playback borrows frames from regionFrames; the cache owns their lifetime. */
 class SQRDialog extends Dialog {
    constructor(o,session=null){
       super();o={...sqrDefaults(),...o,logFolder:sqrLogFolderOption(o)};this.windowTitle='Subframe Quality Review '+SQR_VERSION;
-      this.session=session;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;this.qualityCollapsed=!!o.qualityCollapsed;this.fitPreviewOnShow=false;
-      this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running){if(this.isRotating())this.navigate(1);else{this.showFrame(1-this.frame);this.timer.start();}}};
+      this.session=session;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;this.qualityCollapsed=!!o.qualityCollapsed;this.inputsCollapsed=!!o.inputsCollapsed;this.fitPreviewOnShow=false;
+      this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running)this.advancePlayback();};
       this.intro=new Label(this);this.intro.wordWrapping=true;
       this.intro.text='Rank registered WBPP lights, blink against the filter master or best subframe, and move the originals you manually reject. Corner measurements are optional.';
-      this.inputs=sqrGroup(this,'WBPP run and original lights');
+      this.inputs=new Control(this);this.inputs.sizer=new VerticalSizer;this.inputs.sizer.margin=10;this.inputs.sizer.spacing=8;
+      this.inputsBar=new SectionBar(this,'WBPP run and original lights');this.inputsBar.setSection(this.inputs);
+      this.inputsBar.toolTip='Click to collapse or expand the folders and log controls. Your paths, settings and measurements are retained.';
+      this.inputsBar.toggleSection=()=>this.setInputsCollapsed(!this.inputsCollapsed);
       this.folders={};for(let [key,label] of [['wbpp','WBPP output:'],['originals','Original-light root:'],['destination','Rejected originals:']])
          this.folders[key]=sqrFolderRow(this.inputs,label,o[key],value=>{if(['wbpp','originals'].includes(key)&&this.session&&sqrKey(value.trim())!==sqrKey(this.session.options[key].trim()))this.invalidate();});
       this.inputControls=Object.values(this.folders).flatMap(x=>[x.edit,x.browse]);
@@ -1201,8 +1283,8 @@ class SQRDialog extends Dialog {
       for(let group of [this.measurementSettings,this.scoreSettings,this.guideSettings]){group.sizer.margin=8;group.sizer.spacing=6;this.settings.sizer.add(group,100);}
       this.qualityBar=new SectionBar(this,'Quality evaluation');this.qualityBar.setSection(this.settings);
       this.qualityBar.toolTip='Click to collapse or expand the quality controls. Your settings and measurements are retained.';
-      this.qualityBar.onToggleSection=(bar,begin)=>{if(!begin){this.qualityCollapsed=!this.settings.visible;this.syncOptions();}};
-      const qualityRow=(parent,controls)=>{let row=new HorizontalSizer;row.spacing=12;for(let c of controls)row.add(c);row.addStretch();parent.sizer.add(row);};
+      this.qualityBar.toggleSection=()=>this.setQualityCollapsed(!this.qualityCollapsed);
+      const qualityRow=(parent,controls,spacing=12)=>{let row=new HorizontalSizer;row.spacing=spacing;for(let c of controls)row.add(c);row.addStretch();parent.sizer.add(row);};
       this.percent=sqrNumber(this.measurementSettings,'Review worst (%):',o.percent,0,100,1);
       this.patch=sqrNumber(this.measurementSettings,'Corner size (%):',o.patch,10,40,0);
       this.margin=sqrNumber(this.measurementSettings,'Edge guard (%):',o.margin,0,15,1);
@@ -1226,14 +1308,16 @@ class SQRDialog extends Dialog {
       this.weights.eccentricityWeight.toolTip='Weight of field star elongation compared with the group. Higher eccentricity increases Score. Zero disables this component; no extra measurement pass is needed.';
       this.weights.cornerWeight.toolTip='Weight of the worst corner deviation in FWHM, corner/center FWHM ratio or eccentricity. Each metric is compared with that same corner across the group. Zero disables the corner contribution.';
       this.weights.belowMeanWeight.toolTip='Relative weight of the fraction of underlying indicators with worse-than-mean quality. For example, 75% contributes 0.75 times this weight before normalization. Score and this fraction itself are excluded from the comparison. Zero removes this Score component without hiding the percentage.';
-      let guideModeLabel=new Label(this.guideSettings);guideModeLabel.text='Guiding in Score:';guideModeLabel.setScaledFixedWidth(115);
+      this.guideModeLabel=new Label(this.guideSettings);this.guideModeLabel.text='Guiding in Score:';this.guideModeLabel.setScaledFixedWidth(115);
       this.guidingMode=new ComboBox(this.guideSettings);for(let label of ['Require guiding data','Use available guiding data','Ignore guiding KPI'])this.guidingMode.addItem(label);
       this.guidingMode.currentItem=Math.max(0,['require','available','ignore'].indexOf(o.guidingMode));
       this.guidingMode.toolTip='Require: missing or incomplete guiding data flags the frame for review. Use available: omit missing guiding from that frame’s Score and Below-mean Quality, without a missing-guiding review flag. Ignore: omit guiding from all scores and review flags. Measurements remain visible in every mode.';
       this.weights.guideWeight=sqrNumber(this.guideSettings,'Weight:',o.guideWeight,0,100,0);this.weights.guideWeight.label.setScaledFixedWidth(115);this.weights.guideWeight.edit.setScaledFixedWidth(36);this.weights.guideWeight.onValueUpdated=()=>this.rerank();
       this.guideHint=new Label(this.guideSettings);this.guideHint.wordWrapping=true;this.guideHint.text=sqrGuideThresholdText(null);
       this.guidingMode.onItemSelected=()=>{this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;this.rerank();};this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
-      qualityRow(this.guideSettings,[guideModeLabel,this.guidingMode]);
+      // Match both the label alignment and label-to-control spacing of NumericEdit.
+      this.guideModeLabel.textAlignment=this.weights.guideWeight.label.textAlignment;
+      qualityRow(this.guideSettings,[this.guideModeLabel,this.guidingMode],this.weights.guideWeight.sizer.spacing);
       qualityRow(this.guideSettings,[this.weights.guideWeight]);this.guideSettings.sizer.add(this.guideHint);
       this.cornerMeasurements.onCheck=()=>{this.updateCornerControls();this.rerank();this.status.text=this.cornerMeasurements.checked?'Corner analysis enabled. Use the magnifier to measure any missing center and corner data.':'Corner analysis disabled. Ranking uses field measurements only.';};
       this.updateCornerControls();
@@ -1246,9 +1330,9 @@ class SQRDialog extends Dialog {
       this.scanButton=sqrButton(this,'Scan files',()=>this.scan());
       this.groupRow.add(groupLabel);this.groupRow.add(this.groupSelect,100);this.groupRow.add(this.scanButton);
       this.tabs=new TabBox(this);this.reviewPage=new Control(this.tabs);this.blinkPage=new Control(this.tabs);this.histogramPage=new Control(this.tabs);this.scatterPage=new Control(this.tabs);
-      this.table=new TreeBox(this.reviewPage);this.table.numberOfColumns=17;this.table.headerVisible=true;this.table.rootDecoration=false;
+      this.table=new TreeBox(this.reviewPage);this.table.numberOfColumns=20;this.table.headerVisible=true;this.table.rootDecoration=false;
       this.table.alternateRowColor=true;this.table.multipleSelection=false;this.table.setScaledMinSize(1280,320);
-      let headers=['R1','R2','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Below-mean Quality','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association'];
+      let headers=['R1','R2','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Field eccentricity','Corner quality','Below-mean Quality','Guiding quality (″)','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association'];
       for(let i=0;i<headers.length;++i)this.table.setHeaderText(i,headers[i]);
       this.rejectIcons=[sqrRejectIcon(this,false),sqrRejectIcon(this,true)];
       // Native mouse focus changes precede onMousePress/onNodeClicked. Mouse selection
@@ -1283,6 +1367,7 @@ class SQRDialog extends Dialog {
       this.reviewPage.sizer=new VerticalSizer;this.reviewPage.sizer.margin=6;this.reviewPage.sizer.spacing=8;
       this.reviewPage.sizer.add(this.reviewOptions);this.reviewPage.sizer.add(this.table,100);this.reviewPage.sizer.add(reviewHint);this.reviewPage.sizer.add(this.details);
       this.viewer=new ImageView(this.blinkPage);this.viewer.setScaledMinSize(1280,320);this.viewer.setStatusMessage('Double-click a registered frame in the Review table.');
+      sqrInstallPixelReadout(this.viewer,()=>this.frames?.[this.frame]||null);
       // ImageView normally fits on every reveal. Fit a newly loaded hidden
       // preview once its viewport is visible, then retain zoom on later tab visits.
       this.viewer.onShow=()=>{if(this.fitPreviewOnShow&&this.viewer.isValid){this.fitPreviewOnShow=false;this.viewer.zoomToFit();}this.viewer.scrollbox.viewport.update();};
@@ -1291,18 +1376,23 @@ class SQRDialog extends Dialog {
       this.alignBrightness.toolTip='Display-only background and contrast alignment. Turn off to compare transparency differences. Source pixels and quality measurements are unchanged.';
       this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe','Rotate subframes (Review order)'])this.reference.addItem(n);this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));
       this.reference.toolTip='Compare with the filter master or best scoring kept subframe, or rotate through the visible subframes in Review order. Rotation follows the current sort direction and REVIEW-only filter, always skips the master, and wraps at the end.';
-      this.reference.onItemSelected=()=>this.reloadBlink(true);
+      this.reference.onItemSelected=()=>{if(this.running)return;if(this.reference.currentItem===2)this.regionRotation.currentItem=0;this.updateButtons();this.reloadBlink(true);this.syncOptions();};
       this.region=new ComboBox(this.blinkPage);for(let n of ['Usable field','Center','Top left','Top right','Bottom left','Bottom right'])this.region.addItem(n);
-      this.region.onItemSelected=()=>this.reloadBlink(false);
+      this.region.onItemSelected=()=>this.reloadBlink(true);
+      this.regionRotation=new ComboBox(this.blinkPage);for(let n of ['Off','Image only','Blink with reference'])this.regionRotation.addItem(n);
+      this.regionRotation.currentItem=Math.max(0,['off','image','blink'].indexOf(o.regionRotation));this.normalizeRegionRotation();
+      this.regionRotation.toolTip='Image only cycles Center, Top left, Top right, Bottom left and Bottom right, skipping Usable field; no reference is needed. Blink with reference includes Usable field and shows image then reference in each region before advancing. Rotation keeps the selected image and zoom. Choosing Rotate subframes switches region rotation off.';
+      this.regionRotation.onItemSelected=()=>{if(this.running)return;this.normalizeRegionRotation();this.updateButtons();this.reloadBlink(true);this.syncOptions();};
       this.displaySTF.onCheck=this.alignBrightness.onCheck=()=>{if(this.current)this.inspect();};
       this.blinkInterval=sqrNumber(this.blinkPage,'Interval (s):',this.timer.interval,.1,10,2);this.blinkInterval.edit.setScaledFixedWidth(64);
-      this.blinkInterval.toolTip='Time each image is displayed before switching: 0.10–10 seconds. Smaller values are faster. Applies to reference blinking and subframe rotation, including during playback. Rotation adds the time needed to load each image.';
+      this.blinkInterval.toolTip='Time each image is displayed before switching: 0.10–10 seconds. Applies to blinking, subframe rotation and region rotation. Region blinking spends one interval on the image and one on its reference before advancing. Subframe rotation adds the time needed to load each image.';
       this.blinkInterval.onValueUpdated=value=>{this.setBlinkInterval(value);this.syncOptions();};
       this.play=sqrTool(this.blinkPage,':/icons/play.png','Start blinking.',()=>{if(this.blinking)this.stopBlink();else this.startBlink();});
-      this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and switch frame / reference.',()=>{this.stopBlink();if(this.isRotating())this.navigate(1);else this.showFrame(1-this.frame);});
+      this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and advance the preview.',()=>{this.stopBlink();this.advancePlayback();});
       this.frameLabel=new Label(this.blinkPage);this.frameLabel.text='No frame loaded';this.frameLabel.minHeight=2*this.font.height;this.frameLabel.wordWrapping=true;
       let referenceLabel=new Label(this.blinkPage);referenceLabel.text='Blink mode:';
-      let display=new HorizontalSizer;display.spacing=8;display.add(referenceLabel);display.add(this.reference);display.add(this.region);display.add(this.displaySTF);display.add(this.alignBrightness);display.addStretch();display.add(this.blinkInterval);display.add(this.play);display.add(this.step);
+      let rotationLabel=new Label(this.blinkPage);rotationLabel.text='Rotate regions:';
+      let display=new HorizontalSizer;display.spacing=8;display.add(referenceLabel);display.add(this.reference);display.add(rotationLabel);display.add(this.regionRotation);display.add(this.region);display.add(this.displaySTF);display.add(this.alignBrightness);display.addStretch();display.add(this.blinkInterval);display.add(this.play);display.add(this.step);
       let decisions=new HorizontalSizer;decisions.spacing=8;
       this.previous=sqrButton(this.blinkPage,'Previous',()=>this.navigate(-1));this.next=sqrButton(this.blinkPage,'Next',()=>this.navigate(1));
       this.rejectButton=sqrButton(this.blinkPage,'Reject original',()=>this.decide(true));this.keepButton=sqrButton(this.blinkPage,'Keep original',()=>this.decide(false));
@@ -1313,7 +1403,7 @@ class SQRDialog extends Dialog {
       let kpiLabel=new Label(this.histogramPage);kpiLabel.text='Quality indicator:';
       this.availableKPIs=[];this.kpiSelect=new ComboBox(this.histogramPage);this.kpiSelect.setScaledMinWidth(200);
       this.kpiSelect.onItemSelected=()=>{if(!this.updatingKPIs)this.updateHistogram();};
-      this.kpiDirection=new Label(this.histogramPage);histogramTools.add(kpiLabel);histogramTools.add(this.kpiSelect);histogramTools.add(this.kpiDirection);histogramTools.addStretch();
+      this.kpiDirection=new Label(this.histogramPage);this.kpiDirection.wordWrapping=true;histogramTools.add(kpiLabel);histogramTools.add(this.kpiSelect);histogramTools.add(this.kpiDirection,100);
       let plotOrderLabel=new Label(this.histogramPage);plotOrderLabel.text='Order by:';
       this.histogramOrder=new ComboBox(this.histogramPage);this.histogramOrder.addItem('KPI value');this.histogramOrder.addItem('Acquisition time');
       this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;this.histogramOrder.setScaledMinWidth(150);
@@ -1373,19 +1463,27 @@ class SQRDialog extends Dialog {
       this.closeButton=sqrTool(this,':/process-interface/cancel.png','Close the review. Measurements and pending decisions are kept only while this dialog is open.',()=>this.cancel());
       this.helpButton=sqrTool(this,':/process-interface/browse-documentation.png','Open the PIDoc user guide.',sqrShowDocumentation);
       let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.reset);actions.addStretch();actions.add(this.moveButton);actions.add(this.closeButton);actions.add(this.helpButton);
-      this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(this.intro);this.sizer.add(this.inputs);this.sizer.add(this.qualityBar);this.sizer.add(this.settings);this.sizer.add(this.groupRow);this.sizer.add(this.tabs,100);this.sizer.add(messages);this.sizer.add(actions);
+      let content=new VerticalSizer;content.margin=10;content.spacing=8;content.add(this.intro);content.add(this.inputsBar);content.add(this.inputs);content.add(this.qualityBar);content.add(this.settings);content.add(this.groupRow);content.add(this.tabs,100);content.add(messages);content.add(actions);
+      // A zero-width spacer reserves the expanded minimum height. Native layouts
+      // recompute a dialog/TabBox minimum when children hide, so their minHeight
+      // properties alone cannot prevent a collapsed window being made too small.
+      this.sectionSizeGuard=new Control(this);this.sectionSizeGuard.setFixedSize(0,0);
+      this.sizer=new HorizontalSizer;this.sizer.add(content,100);this.sizer.add(this.sectionSizeGuard);
       this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
       this.onHide=()=>{this.plotTimer.stop();this.stopBlink();};
-      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();};this.loadAutorun(false);this.populateGroups();this.updateButtons();this.adjustToContents();this.setQualityCollapsed(o.qualityCollapsed);
+      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();};this.loadAutorun(false);this.populateGroups();this.updateButtons();this.adjustToContents();
+      // Leave two physical pixels for native layout rounding on first show.
+      this.sectionSizeGuard.setFixedHeight(Math.max(this.height,this.smartMinHeight)+2);this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);
    }
    // Snapshot controls into serializable settings; derived measurements and
    // rejection decisions stay in the session and are never process parameters.
    options(){let o=sqrDefaults();for(let k of Object.keys(this.folders))o[k]=this.folders[k].edit.text.trim();
       for(let k of ['percent','patch','margin','minStars'])o[k]=this[k].value;for(let k of Object.keys(this.weights))o[k]=this.weights[k].value;
       o.measureCorners=this.cornerMeasurements.checked;o.reference=['master','best','sequence'][this.reference.currentItem];o.blinkInterval=this.blinkInterval.value;
+      o.regionRotation=['off','image','blink'][this.regionRotation.currentItem];
       o.logFolder=this.logFolder.edit.text.trim();o.logTimeZone=['auto','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
       o.guidingMode=['require','available','ignore'][this.guidingMode.currentItem];
-      o.qualityCollapsed=this.qualityCollapsed;
+      o.qualityCollapsed=this.qualityCollapsed;o.inputsCollapsed=this.inputsCollapsed;
       o.scatterX=sqrKPIKey(this.scatterKPIs[this.scatterX.currentItem]);o.scatterY=sqrKPIKey(this.scatterKPIs[this.scatterY.currentItem]);
       o.reviewOrder=this.order.currentItem;o.reviewReverse=this.reviewReverse;
       o.maxFits=this.maxFits;o.displaySTF=this.displaySTF.checked;o.alignBrightness=this.alignBrightness.checked;o.histogramOrder=this.histogramOrder.currentItem===1?'time':'value';return o;}
@@ -1393,7 +1491,10 @@ class SQRDialog extends Dialog {
    // Visibility also depends on ancestors: before the dialog is shown, every
    // child reports hidden. Persist the requested state independently, and set
    // the body visibility explicitly when restoring a saved process instance.
-   setQualityCollapsed(collapsed){this.qualityCollapsed=!!collapsed;this.settings.visible=!this.qualityCollapsed;this.qualityBar.updateIcon();this.ensureLayoutUpdated();this.adjustToContents();this.syncOptions();}
+   // SectionBar normally calls dialog.adjustToContents(), resizing the window.
+   // Our toggles change only visibility; the stretchable tab absorbs the space.
+   setQualityCollapsed(collapsed){this.qualityCollapsed=!!collapsed;this.settings.visible=!this.qualityCollapsed;this.qualityBar.updateIcon();this.ensureLayoutUpdated();this.syncOptions();}
+   setInputsCollapsed(collapsed){this.inputsCollapsed=!!collapsed;this.inputs.visible=!this.inputsCollapsed;this.inputsBar.updateIcon();this.ensureLayoutUpdated();this.syncOptions();}
    syncOptions(){if(this.session)this.session.options=this.options();}
    group(){return this.session?.groups[this.groupSelect.currentItem]||null;}
    updatePixelScale(){let s=sqrSessionPixelScale(this.session);this.pixelScaleStatus.text=sqrPixelScaleText(s);
@@ -1407,12 +1508,28 @@ class SQRDialog extends Dialog {
          '\nScan files again to refresh the metadata and camera check.';}
    setStatus(s){this.status.text=s;CoreApplication.processEvents();}
    error(e){this.status.text='Error: '+(e.message||String(e));new MessageBox(this.status.text,'Subframe Quality Review',StdIcon.Error,StdButton.Ok).execute();}
-   isRotating(){return this.reference?.currentItem===2;}
+   isRegionRotating(){return this.regionRotation?.currentItem>0;}
+   isRotating(){return this.reference?.currentItem===2&&!this.isRegionRotating();}
+   // Region and subframe rotation are alternatives. Restore a usable comparison
+   // reference when entering regional playback from the subframe sequence.
+   normalizeRegionRotation(){if(this.isRegionRotating()&&this.reference.currentItem===2)this.reference.currentItem=1;if(this.regionRotation.currentItem===1&&this.region.currentItem===0)this.region.currentItem=1;}
    rotationRows(){return (this.visibleRows||[]).filter(r=>!r.isMaster);}
    updateBlinkButton(){if(this.play){this.play.icon=this.scaledResource(this.blinking?':/icons/media-stop.png':':/icons/play.png');
       let interval=this.timer.interval.toFixed(2);
-      this.play.toolTip=this.blinking?'Stop blinking.':this.isRotating()?'Rotate through subframes in Review order, skipping the master. Each image is shown for '+interval+' seconds before loading the next.':'Start blinking the selected image and reference every '+interval+' seconds.';
-      this.step.toolTip=this.isRotating()?'Pause and show the next subframe in Review order. The master is skipped.':'Pause and switch frame / reference.';}}
+      this.play.toolTip=this.blinking?'Stop playback.':this.isRegionRotating()?(this.regionRotation.currentItem===1?'Rotate Center and the four corners every '+interval+' seconds, skipping Usable field.':'Show the selected image and reference for '+interval+' seconds each, then advance to the next region.'):this.isRotating()?'Rotate through subframes in Review order, skipping the master. Each image is shown for '+interval+' seconds before loading the next.':'Start blinking the selected image and reference every '+interval+' seconds.';
+      this.step.toolTip=this.isRegionRotating()?(this.regionRotation.currentItem===1?'Pause and show the next region of this image.':'Pause and advance one step: image, reference, then next region.'):this.isRotating()?'Pause and show the next subframe in Review order. The master is skipped.':'Pause and switch frame / reference.';}}
+   // One timer drives every playback mode. In regional blink mode a complete
+   // image/reference pair is shown before advancing the region, with wraparound.
+   advancePlayback(){
+      if(this.running)return;
+      if(this.isRotating()){this.navigate(1);return;}
+      if(!this.frames)return;
+      if(this.isRegionRotating()&&(this.regionRotation.currentItem===1||this.frame===1)){
+         let next=(this.region.currentItem+1)%this.region.numberOfItems;this.region.currentItem=this.regionRotation.currentItem===1&&next===0?1:next;
+         if(!this.inspect(true,true,this.blinking))return;
+      }else this.showFrame(1-this.frame);
+      if(this.blinking)this.timer.start();
+   }
    // Restart the current dwell time without reloading images, changing selection,
    // toggling controls, or disturbing zoom/pan and the active Stop symbol.
    setBlinkInterval(value){this.timer.stop();this.blinkInterval.setValue(sqrBlinkInterval(value));this.timer.interval=this.blinkInterval.value;
@@ -1422,6 +1539,9 @@ class SQRDialog extends Dialog {
       if(this.isRotating()){
          if(this.rotationRows().length<2){this.stopBlink();return;}
          if((!this.frames||!this.rotationRows().includes(this.current))&&!this.inspect(true,true))return;
+      }else if(this.isRegionRotating()){
+         if(this.regionRotation.currentItem===1&&this.region.currentItem===0){this.region.currentItem=1;if(!this.inspect(true,true))return;}
+         else if(!this.frames&&!this.inspect(true,true))return;
       }
       if(this.frames){this.blinking=true;this.updateBlinkButton();this.timer.start();}
    }
@@ -1429,13 +1549,31 @@ class SQRDialog extends Dialog {
    // Stop the timer before releasing its bitmaps. Navigation can retain the
    // ImageView transform while replacing pixels by passing resetView=false.
    // Preview reloads can pause only the timer, keeping the Stop icon steady.
-   clearFrames(resetView=true,preserveRotation=false,preservePlayback=false){if(preservePlayback)this.timer.stop();else this.stopBlink();if(!preserveRotation)this.rotationDisplay=null;if(resetView){this.viewer.reset();this.fitPreviewOnShow=false;}if(this.frames)for(let b of this.frames)b.clear();this.frames=null;this.loadedReference=null;}
+   clearFrames(resetView=true,preserveRotation=false,preservePlayback=false,preserveRegions=false){if(preservePlayback)this.timer.stop();else this.stopBlink();if(!preserveRotation)this.rotationDisplay=null;if(resetView){this.viewer.reset();this.viewer.clearPixelReadout();this.fitPreviewOnShow=false;this.savedPreviewView=null;}if(this.frames&&!this.framesFromRegions)for(let b of this.frames)b.clear();this.frames=null;this.framesFromRegions=false;this.loadedReference=null;if(!preserveRegions)this.clearRegionFrames();}
+   // Regional views borrow cached bitmaps. Release each exactly once when the
+   // image, reference, geometry, display settings or playback mode changes.
+   clearRegionFrames(){if(this.regionFrames)for(let pair of this.regionFrames)for(let frame of pair)frame.clear();this.regionFrames=null;this.regionFramesKey='';}
    // A hidden tab can still have a provisional viewport size. Refit only this
    // initial view when it becomes visible; navigation keeps the established view.
    fitPreview(){this.fitPreviewOnShow=!this.viewer.visible;this.viewer.zoomToFit();}
-   selectRow(row){let changed=this.current!==row;if(changed)this.clearFrames();this.current=row;this.selectionCleared=false;
-      this.updateDetails();this.updateButtons();if(changed&&this.histogram)this.updatePlots();}
-   clearSelection(){this.clearFrames();this.current=null;this.selectionCleared=true;this.populating=true;
+   // Deselecting clears the displayed bitmap, but a following selection (including
+   // the click sequence of a double-click) can still restore its view. Derive zoom
+   // from the public coordinate mapping rather than reading ImageView internals.
+   previewTransform(){if(!this.viewer.isValid)return this.savedPreviewView||null;
+      let scale=this.viewer.imageToViewport(1,0).x-this.viewer.imageToViewport(0,0).x;
+      return {zoom:scale>=1?Math.round(scale):-Math.round(1/scale),x:this.viewer.scrollbox.horizontalScrollPosition,y:this.viewer.scrollbox.verticalScrollPosition,fitOnShow:this.fitPreviewOnShow};}
+   setPreviewImage(bitmap,keepView){
+      if(keepView&&this.viewer.isValid)this.viewer.regenerate(bitmap);
+      else{this.viewer.setImage(bitmap);let saved=keepView?this.savedPreviewView:null;
+         if(saved){this.viewer.regenerate(null,saved.zoom);this.viewer.scrollbox.horizontalScrollPosition=saved.x;this.viewer.scrollbox.verticalScrollPosition=saved.y;this.fitPreviewOnShow=saved.fitOnShow;}
+         else this.fitPreview();}
+      this.savedPreviewView=null;
+   }
+   // ImageView owns a separate bitmap copy. Retain its transform while releasing
+   // the old frame cache; the next load replaces its pixels at the same zoom/pan.
+   selectRow(row){let changed=this.current!==row;if(changed)this.clearFrames(false);this.current=row;this.selectionCleared=false;
+      this.updateDetails();this.updateButtons();if(changed&&this.histogram)this.updatePlots();if(changed)this.ensurePreview();}
+   clearSelection(){let view=this.previewTransform();this.clearFrames();this.savedPreviewView=view;this.current=null;this.selectionCleared=true;this.populating=true;
       this.table.deselectAllNodes();this.populating=false;this.updateDetails();this.updateButtons();this.updatePlots();}
    ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))this.inspect(false);}
    loadAutorun(refresh=true){
@@ -1479,9 +1617,10 @@ class SQRDialog extends Dialog {
    // keep original associations and the user's manual rejection decisions.
    invalidateMeasurements(){if(this.running||!this.session)return;for(let g of this.session.groups){g.measureSignature='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}
       this.syncOptions();this.clearFrames();this.populateRows();this.status.text='Evaluation regions changed. Measure again before using the ranking.';}
-   rerank(){if(this.running||!this.session)return;try{this.syncOptions();for(let g of this.session.groups)for(let r of sqrGroupRows(g))r.guidingIgnored=sqrIgnoreGuiding(r,this.session.options);if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
-   busy(value){this.running=value;for(let c of [...this.inputControls,this.qualityBar,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===1;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
+   rerank(){if(this.running)return;if(!this.session){this.updateHistogram();return;}try{this.syncOptions();for(let g of this.session.groups)for(let r of sqrGroupRows(g))r.guidingIgnored=sqrIgnoreGuiding(r,this.session.options);if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
+   busy(value){this.running=value;for(let c of [...this.inputControls,this.inputsBar,this.qualityBar,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===1;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
+      this.reference.enabled=!this.running&&this.regionRotation.currentItem!==1;this.regionRotation.enabled=!this.running;
       this.moveButton.enabled=ready&&this.session.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
       let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
       this.play.enabled=rotation?canRotate&&count>1:!!this.frames&&!this.running;
@@ -1515,21 +1654,30 @@ class SQRDialog extends Dialog {
       let guideDirection=(this.reviewReverse?'Smallest error first (best first)':'Largest error first (worst first)')+' · unavailable next · master last';
       this.sortDirection.toolTip=(this.order.currentItem>=10?guideDirection:directions[this.order.currentItem])+'. Click to reverse the order. Sorting preserves the selected image and rejection decisions.';
       this.reviewSummary.text=g?'Showing '+rows.filter(r=>!r.isMaster).length+' of '+g.rows.length+' subframes · '+g.rows.filter(r=>r.candidate).length+' REVIEW candidates'+(g.master?(this.candidatesOnly.checked?' · master hidden by filter':' · master included for comparison'):''):'Scan files to populate the review list.';
+      let kpiCell=value=>Number.isFinite(value)?sqrFmt(value):'—';
       if(g)for(let r of rows){let node=new TreeBoxNode(this.table);node.row=r;if(!r.isMaster&&!r.moved)node.setIcon(2,this.rejectIcons[r.reject?1:0]);
-         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,2),sqrFmt(m.signal),sqrFmt(m.fwhm),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',sqrMeanQualityLabel(r),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match];
-         for(let i=0;i<cells.length;++i){node.setText(i,cells[i]);node.setToolTip(i,i===4?r.registered.path+(r.isMaster?'':'\n'+sqrAcquisitionLabel(r)):i===16?(r.original?.path||r.match):cells[i]);}
+         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,2),sqrFmt(m.signal),sqrFmt(m.fwhm),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',kpiCell(sqrEccentricityValid(m)?m.eccentricity:null),kpiCell(sqrKPIValue(r,SQR_KPIS.find(k=>k.key==='cornerSeverity'))),sqrMeanQualityLabel(r),kpiCell(r.guideQuality),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match];
+         for(let i=0;i<cells.length;++i){node.setText(i,cells[i]);node.setToolTip(i,i===4?r.registered.path+(r.isMaster?'':'\n'+sqrAcquisitionLabel(r)):i===19?(r.original?.path||r.match):cells[i]);}
          node.setToolTip(0,'Field-only rank: 1 = worst Score. Includes the master; independent of table filters. Field-only Score: '+sqrFmt(r.scoreWithoutCorners));
          node.setToolTip(1,Number.isFinite(r.rankWithCorners)?'Rank including corner FWHM and eccentricity: 1 = worst Score. Includes the master; computed from available measurements even when Measure corners is off. Score: '+sqrFmt(r.scoreWithCorners):'Requires valid field, center and all four corner measurements including corner eccentricity, and a positive enabled weight.');
          node.setToolTip(2,r.isMaster?'The master cannot be rejected.':r.moved?'Original already moved.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
          node.setToolTip(5,r.isMaster?'Integrated master: no single acquisition time.':sqrAcquisitionLabel(r)+'\nSame timestamp used for acquisition-time sorting and histograms. Original observation time, with registered metadata as fallback.');
-         for(let i=12;i<=14;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-12]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):''));
+         for(let i=15;i<=17;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-15]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):''));
+         for(let [column,key,meaning] of [
+            [11,'0:eccentricity','Field star eccentricity, from 0 (round) toward 1 (elongated). Lower is rounder.'],
+            [12,'cornerSeverity','Largest corner-quality penalty from corner FWHM, corner/center FWHM ratio, or eccentricity, relative to the group. Lower is better. Stored measurements remain visible when corner scoring is off.'],
+            [14,'guideQuality','Combined guiding quality = (minimum + 2 × average + maximum) / 4, in arcseconds. Lower is better. Only usable exposure coverage produces a value.']]){
+            let kpi=SQR_KPIS.find(k=>sqrKPIKey(k)===key);
+            let inclusion=column===14&&r.isMaster?'Excluded from Score (master has no guiding interval)':sqrKPIScoreInfo(kpi,this.session.options,!!this.session.guiding?.enabled);
+            node.setToolTip(column,meaning+'\n'+inclusion+'.'+(column===14?'\n'+sqrGuideReport(r):'')+(sqrKPIValue(r,kpi)===null?'\nMeasurement unavailable for this image.':''));
+         }
          node.setToolTip(6,r.mainIssueDetail||'Measure the image to calculate its weighted quality Score.');
-         node.setToolTip(11,r.belowMeanDetail||'Measure the image to calculate the percentage of assessed indicators with worse-than-mean quality. Score is excluded.');
+         node.setToolTip(13,r.belowMeanDetail||'Measure the image to calculate the percentage of assessed indicators with worse-than-mean quality. Score is excluded.');
          node.setToolTip(10,r.mainIssueDetail||'Measure the image to identify the largest weighted contribution to Score.');
       }
       for(let i=0;i<this.table.numberOfColumns;++i)this.table.adjustColumnWidthToContents(i);this.table.setColumnWidth(4,Math.round(250*this.displayPixelRatio));
       let found=false;for(let i=0;i<this.table.numberOfChildren;++i)if(this.table.child(i).row===this.current){this.table.currentNode=this.table.child(i);found=true;break;}
-      if(!found){let next=this.selectionCleared?null:rows[0]||null;if(this.current!==next)this.clearFrames();this.current=next;if(next)this.table.currentNode=this.table.child(0);else this.table.deselectAllNodes();}
+      if(!found){let next=this.selectionCleared?null:rows[0]||null;if(this.current!==next)this.clearFrames(!next);this.current=next;if(next)this.table.currentNode=this.table.child(0);else this.table.deselectAllNodes();}
       this.populating=false;
       this.updateDetails();this.updateButtons();this.updatePlots();
       if(loadPreview)this.ensurePreview();
@@ -1572,12 +1720,13 @@ class SQRDialog extends Dialog {
          this.availableKPIs=available;this.kpiSelect.currentItem=Math.max(0,available.indexOf(kpi));this.updatingKPIs=false;
          kpi=available[this.kpiSelect.currentItem];
       }
-      let data=this.histogramData=sqrMetricPlot(g,kpi,this.cornerMeasurements.checked,this.current,this.histogramOrder.currentItem===1?'time':'value',this.autofocusRuns||[]);this.kpiDirection.text=kpi.direction;
-      if(kpi.key==='guideQuality')this.kpiDirection.text+=' · '+this.guideHint.text;
-      if(kpi.corners&&!this.cornerMeasurements.checked)this.kpiDirection.text+=' · stored measurement; corners excluded from Score';
+      let data=this.histogramData=sqrMetricPlot(g,kpi,this.cornerMeasurements.checked,this.current,this.histogramOrder.currentItem===1?'time':'value',this.autofocusRuns||[],sqrGuidingScale(sqrSessionPixelScale(this.session)));
+      this.kpiDirection.text=kpi.direction+' · '+sqrKPIScoreInfo(kpi,this.options(),!!this.session?.guiding?.enabled);
+      if(kpi.guiding&&kpi.key!=='guideQuality')this.kpiDirection.text+=' · '+this.guideHint.text;
+      this.kpiDirection.toolTip=this.kpiDirection.text+(kpi.definition?'\n'+kpi.definition:'')+'\nInclusion follows the current quality settings. Each image requires valid measurements; unavailable values do not count as good quality.\nCenter FWHM is used in corner/center ratios. Corner measurements feed the worst corner-quality penalty. Guide minimum, average and maximum feed the combined guiding-quality penalty, only where guiding coverage is usable. The master has no guiding contribution.';
       this.histogramSummary.text=data.message||('One bar per frame · '+(data.order==='time'?'acquisition time: earliest first · master first · unknown times last':'ascending '+kpi.label)+' · '+data.count+' measured subframes'+(data.missing?' · '+data.missing+' unavailable':'')+'. Click a bar to select its image in Review and measurements.\n'+
          'Cyan: selected · purple: REVIEW · blue: other kept · red: rejected · gold: master · green dashed: kept mean.\n'+
-         'Axis fits subframes. '+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
+         (data.guideBands?'Background: green = Good · amber = Medium · red = Bad. Axis includes all three guiding ranges. ':'Axis fits subframes. ')+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
          (data.showAutofocus?' · '+data.autofocus.length+' autofocus starts in range. Orange: autofocus start and focus position; hover AF for details.':''));
       this.plotReady=false;++this.plotGeneration;this.histogram.setHTML(sqrPlotHTML(data,this.plotGeneration));
    }
@@ -1588,7 +1737,7 @@ class SQRDialog extends Dialog {
       let item=(scatter?this.scatterData:this.histogramData)?.items[selection.index],g=this.group();if(!item||!g||!sqrGroupRows(g).includes(item.row))return false;
       let reveal=this.candidatesOnly.checked&&(item.row.isMaster||!item.row.candidate);
       if(reveal)this.candidatesOnly.checked=false;
-      this.clearFrames();this.current=item.row;this.selectionCleared=false;this.tabs.currentPageIndex=0;this.plotTimer.stop();this.populateRows();this.table.hasFocus=true;
+      this.clearFrames(false);this.current=item.row;this.selectionCleared=false;this.tabs.currentPageIndex=0;this.plotTimer.stop();this.populateRows();this.table.hasFocus=true;
       this.status.text='Selected '+sqrFileName(item.row.registered.path)+' from the plot.'+(reveal?' REVIEW-only filter cleared to show this image.':'');
       return true;
    }
@@ -1597,7 +1746,7 @@ class SQRDialog extends Dialog {
       let guide=r.guiding?(r.guiding.scorable?r.guiding.category:r.guiding.reason)+(r.guidingIgnored?' (excluded from Score)':'')+(r.guiding.dropped?' · '+r.guiding.dropped+' rejected guide samples':''):'';
       this.details.text=(r.reasons||[]).slice(0,2).join(' · ')+(guide?' | '+guide:'')+'\n'+(this.cornerMeasurements.checked?metrics.slice(0,2).join(' | ')+'\n'+metrics.slice(2).join(' | '):metrics[0]+'\nCorner measurements off')+'\n'+
          (r.isMaster?'Master: '+r.registered.path:r.moved?'Moved to: '+r.movedTo:'Original: '+(r.original?.path||r.match));
-      this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+'\n'+(r.isMaster?'INTEGRATED MASTER · cannot be rejected':r.reject?'REJECT ORIGINAL':'KEEP ORIGINAL')+(r.moved?' · already moved':'');
+      this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+(this.isRegionRotating()?' · '+(this.region.currentItem?SQR_REGIONS[this.region.currentItem]:'Usable field'):'')+'\n'+(r.isMaster?'INTEGRATED MASTER · cannot be rejected':r.reject?'REJECT ORIGINAL':'KEEP ORIGINAL')+(r.moved?' · already moved':'');
    }
    scan(){this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
       try{this.clearFrames();this.session=sqrScan(this.options(),s=>this.setStatus(s));this.current=null;this.parseAutorun(false);this.populateGroups();let rows=this.session.groups.flatMap(g=>g.rows);
@@ -1620,18 +1769,19 @@ class SQRDialog extends Dialog {
    // Load both comparison bitmaps once. Use only a reentry guard during these
    // synchronous reads, just as in rotation: do not disable controls or pump
    // events midway through a preview replacement. Retain zoom/pan on navigation.
-   inspect(openBlink=true,preserveView=false,preservePlayback=false){
+   inspect(openBlink=true,preserveView=true,preservePlayback=false){
+      if(this.isRegionRotating())return this.inspectRegions(openBlink,preserveView,preservePlayback);
       if(this.isRotating())return this.inspectRotation(openBlink,preserveView,preservePlayback);
       let r=this.current,g=this.group();if(!r||!g||this.running)return false;
-      let keepView=preserveView&&this.viewer.isValid;
+      let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView);
       this.running=true;try{
          this.clearFrames(!keepView,false,preservePlayback);let reference=sqrReference(g,this.options().reference);
          if(!reference.path){this.clearFrames();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
          if(!g.regions){this.clearFrames();this.status.text='Measure this group before using the registered comparison regions.';return false;}
          this.frames=sqrFrames(r.registered.path,reference.path,this.options(),g.regions[this.region.currentItem],!!r.isMaster);this.loadedReference=reference;this.frame=0;
          // ImageView.regenerate replaces pixels while retaining its native zoom and
-         // scroll positions. Navigation stays within one group and preview region.
-         if(keepView)this.viewer.regenerate(this.frames[0]);else{this.viewer.setImage(this.frames[0]);this.fitPreview();}
+         // scroll positions, clamped to the new bounds when changing regions.
+         this.setPreviewImage(this.frames[0],keepView);
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.showFrame(0);
          this.viewer.setStatusMessage('Blink against '+reference.label.toLowerCase()+': '+sqrFileName(reference.path));
          this.status.text=sqrKey(reference.path)===sqrKey(r.registered.path)?'This image is also the selected blink reference.':r.isMaster?'Integrated master compared with the selected reference. The master cannot be rejected.':'Blink uses identical coordinates and zoom. Mark Keep or Reject, then review the next frame.';
@@ -1644,12 +1794,29 @@ class SQRDialog extends Dialog {
       try{this.table.deselectAllNodes();for(let i=0;i<this.table.numberOfChildren;++i){let node=this.table.child(i);if(node.row===row){this.table.currentNode=node;node.selected=true;break;}}}
       finally{this.populating=false;}
    }
-   inspectRotation(openBlink=true,preserveView=false,preservePlayback=false){
+   inspectRegions(openBlink=true,preserveView=true,preservePlayback=false){
+      let r=this.current,g=this.group();if(this.running||!r||!g)return false;
+      let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView);this.running=true;
+      try{
+         this.clearFrames(!keepView,false,preservePlayback,true);
+         if(!g.regions){this.clearFrames();this.status.text='Measure this group before rotating its preview regions.';return false;}
+         let reference=this.regionRotation.currentItem===2?sqrReference(g,this.options().reference):null;
+         if(reference&&!reference.path){this.clearFrames();this.status.text='No matching reference is available. Choose another reference or Rotate regions: Image only.';return false;}
+         let o=this.options(),key=JSON.stringify([r.registered.path,!!r.isMaster,reference?.path||'',g.regions,o.displaySTF,o.alignBrightness]);
+         if(this.regionFramesKey!==key){this.clearRegionFrames();this.regionFrames=sqrRegionFrames(r.registered.path,reference?.path||'',o,g.regions,!!r.isMaster);this.regionFramesKey=key;}
+         this.frames=this.regionFrames[this.region.currentItem];this.framesFromRegions=true;this.loadedReference=reference;this.frame=0;
+         this.setPreviewImage(this.frames[0],keepView);
+         if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
+         this.viewer.refreshPixelReadout();this.updateDetails();this.viewer.setStatusMessage('Rotate regions · '+(reference?'blink against '+reference.label.toLowerCase():'selected image only'));
+         this.status.text='Region rotation keeps the selected image and zoom. '+(reference?'Image and reference are shown in each region before advancing.':'Each interval advances to the next region.');return true;
+      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
+   }
+   inspectRotation(openBlink=true,preserveView=true,preservePlayback=false){
       if(this.running)return false;
       let rows=this.rotationRows(),g=this.group();
       if(!rows.length||!g?.regions){this.clearFrames();this.updateDetails();this.updateButtons();this.status.text=rows.length?'Measure this group before rotating subframes.':'No subframes are visible in the Review list.';return false;}
       let r=rows.includes(this.current)?this.current:rows[0];this.selectBlinkRow(r);
-      let keepView=preserveView&&this.viewer.isValid,o=this.options(),rect=g.regions[this.region.currentItem];
+      let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView),o=this.options(),rect=g.regions[this.region.currentItem];
       let key=JSON.stringify([g.directoryName,g.rows[0]?.registered.path,rect,o.displaySTF,o.alignBrightness]);
       let display=this.rotationDisplay?.key===key?this.rotationDisplay.data:null;
       // A synchronous frame read needs the reentry guard, not the whole-dialog
@@ -1658,14 +1825,14 @@ class SQRDialog extends Dialog {
       try{
          let rendered=sqrRotationFrame(r.registered.path,o,rect,display);
          this.rotationDisplay={key,data:rendered.display};this.frames=[rendered.bitmap];this.frame=0;
-         if(keepView)this.viewer.regenerate(this.frames[0]);else{this.viewer.setImage(this.frames[0]);this.fitPreview();}
+         this.setPreviewImage(this.frames[0],keepView);
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
-         this.updateDetails();this.viewer.setStatusMessage('Subframes in Review order · master excluded');
+         this.viewer.refreshPixelReadout();this.updateDetails();this.viewer.setStatusMessage('Subframes in Review order · master excluded');
          this.status.text='Subframe '+(rows.indexOf(r)+1)+' / '+rows.length+' in Review order. Keep and Reject apply to the displayed subframe.';
          return true;
       }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
    }
-   showFrame(index){if(!this.frames||!this.frames[index])return;this.frame=index;this.viewer.regenerate(this.frames[index]);this.updateDetails();}
+   showFrame(index){if(!this.frames||!this.frames[index])return;this.frame=index;this.viewer.regenerate(this.frames[index]);this.viewer.refreshPixelReadout();this.updateDetails();}
    // Save blink status before loading the next visible row, then resume only
    // if the replacement preview succeeded. Navigation wraps at either list end.
    navigate(step){let rows=this.isRotating()?this.rotationRows():this.visibleRows;if(this.running||!rows?.length)return;let resume=this.blinking,i=rows.indexOf(this.current);
@@ -1680,17 +1847,19 @@ class SQRDialog extends Dialog {
       for(let k of Object.keys(this.folders))this.folders[k].edit.text=o[k];for(let k of ['percent','patch','margin','minStars'])this[k].setValue(o[k]);
       this.logFolder.edit.text=o.logFolder;this.logTimeZone.currentItem=o.logTimeZone==='offset'?1:0;this.logUTCOffset.setValue(o.logUTCOffset);this.logUTCOffset.enabled=this.logTimeZone.currentItem===1;
       for(let k of Object.keys(this.weights))this.weights[k].setValue(o[k]);this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));this.updateCornerControls();
+      this.regionRotation.currentItem=Math.max(0,['off','image','blink'].indexOf(o.regionRotation));this.normalizeRegionRotation();
       this.guidingMode.currentItem=Math.max(0,['require','available','ignore'].indexOf(o.guidingMode));this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
       this.setBlinkInterval(o.blinkInterval);
       this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;
       this.setScatterOptions(o);
-      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<this.order.numberOfItems?o.reviewOrder:0;this.reviewReverse=!!o.reviewReverse;this.loadAutorun(false);this.populateGroups();this.setQualityCollapsed(o.qualityCollapsed);}
+      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<this.order.numberOfItems?o.reviewOrder:0;this.reviewReverse=!!o.reviewReverse;this.loadAutorun(false);this.populateGroups();this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);}
    resetSettings(){let defaults=sqrDefaults(),folders=this.options();for(let k of ['percent','patch','margin','minStars'])this[k].setValue(defaults[k]);for(let k of Object.keys(this.weights))this.weights[k].setValue(defaults[k]);
       this.setScatterOptions(defaults);this.updateScatter();
       this.guidingMode.currentItem=0;this.weights.guideWeight.enabled=true;
       this.cornerMeasurements.checked=defaults.measureCorners;this.reference.currentItem=defaults.reference==='best'?1:0;this.updateCornerControls();
+      this.regionRotation.currentItem=0;
       this.setBlinkInterval(defaults.blinkInterval);
-      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=defaults.reviewOrder;this.reviewReverse=defaults.reviewReverse;this.setQualityCollapsed(defaults.qualityCollapsed);this.invalidateMeasurements();this.status.text='Evaluation defaults restored. Folder paths retained.';}
+      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=defaults.reviewOrder;this.reviewReverse=defaults.reviewReverse;this.setInputsCollapsed(defaults.inputsCollapsed);this.setQualityCollapsed(defaults.qualityCollapsed);this.invalidateMeasurements();if(!this.session)this.updateHistogram();this.status.text='Evaluation defaults restored. Folder paths retained.';}
    // Confirmation is the boundary between a read-only review and file changes.
    // The engine independently validates the plan again when executing it.
    moveRejected(){

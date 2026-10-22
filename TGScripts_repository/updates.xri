@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="3561763aa641757473cc70a03105ccb7ec51e867" type="script" releaseDate="20261021">
+      <package fileName="TGScripts_repository.tar.gz" sha1="81d7fdbbe8d52ec9e86ea0569a136b3844d818ea" type="script" releaseDate="20261022">
          <title>
-            TGScripts snapshot - 2026 Okt 21
+            TGScripts snapshot - 2026 Okt 22
          </title>
          <remove>
             src/scripts/TGScripts
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Add subframe correlation plots with prominent Pearson correlation results and hide unavailable corner KPIs. Preserve blink zoom and pan across tabs. Reorder Review columns and update documentation.
+               SubframeQualityReview: Added all scoring KPIs to the Review table, aligned guiding controls, and preserved window size when collapsing sections. Image selection now retains preview zoom and position. Guiding min/avg/max plots highlight Good/Medium/Bad ranges in arcseconds; the Guiding quality plot displays its formula without category bands. Updated documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-21T21:57:46.760Z" encoding="Base64">Y+bstFMUXVjCgb231FK4i4ZMjatgkDoFpR5Dhioxp+bQk67+x9p8YRxR6FF3JVV9ISCpexeIZGTZCh2cy3hTAA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-22T18:47:50.037Z" encoding="Base64">htQsOdajh5TcLCGpV7djUElw4cKtyfAVTZmxaRvDlI9hmQUtL3OQn1RgZgqDShEu6IQ0BJWL5kqco1j3MjBgDg==</Signature>
