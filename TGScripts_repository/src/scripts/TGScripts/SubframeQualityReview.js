@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.25.3 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.27.0 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -27,15 +27,15 @@
  * Only sqrMove changes original-file locations, after an explicit confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.25.3';
+const SQR_VERSION='0.27.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
 /** Defaults shared by the UI and saved process instances. Weights are relative;
  * corner measurement is opt-in, and no rejection flag is an option. */
 function sqrDefaults(){return {wbpp:'',originals:'',destination:'',percent:10,measureCorners:false,reference:'best',
-   patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,belowMeanWeight:20,guideWeight:25,
-   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'require',qualityCollapsed:false,inputsCollapsed:false};}
+   patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,belowMeanWeight:20,guideWeight:25,correlationOnly:false,
+   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'available',qualityCollapsed:false,inputsCollapsed:false};}
 // Validate saved intervals as well as UI input; legacy instances use the default.
 function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.min(10,value)):sqrDefaults().blinkInterval;}
 // Normalize paths for I/O, then compare case-insensitively for this Windows
@@ -483,6 +483,14 @@ function sqrAutofocusReport(path,result,zone,offset,error='',timeDescription='')
  * incomplete Below-mean Quality comparisons remain last in either direction.
  * Stable timestamp ties and filename tie-breaks are independent of direction.
  */
+// Display order is independent of saved mode numbers, so rearranging the menu
+// preserves the sorting criterion in existing process instances and sessions.
+const SQR_REVIEW_SORTS=[
+   [0,'Score'],[1,'PSF signal weight'],[2,'Star count'],[3,'Field FWHM'],[4,'Corner quality'],[5,'Filename'],
+   [6,'R1: field rank'],[7,'R2: rank with corners'],[13,'R3: correlation rank'],[8,'Acquisition time'],
+   [9,'Below-mean Quality'],[10,'Guide minimum'],[11,'Guide maximum'],[12,'Guide average']
+];
+function sqrReviewOrderIndex(mode){return Math.max(0,SQR_REVIEW_SORTS.findIndex(item=>item[0]===mode));}
 function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
    if(!group)return [];
    const direction=reverse?-1:1;
@@ -501,6 +509,7 @@ function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
       else if(mode===5)return direction*a.registered.path.localeCompare(b.registered.path);
       else if(mode===6){x=a.rankWithoutCorners??Infinity;y=b.rankWithoutCorners??Infinity;}
       else if(mode===7){x=a.rankWithCorners??Infinity;y=b.rankWithCorners??Infinity;}
+      else if(mode===13){x=a.rankCorrelated??Infinity;y=b.rankCorrelated??Infinity;}
       else if(mode===8){
          if(!!a.isMaster!==!!b.isMaster)return a.isMaster?1:-1;
          let aTime=sqrAcquisitionTime(a),bTime=sqrAcquisitionTime(b);
@@ -511,7 +520,7 @@ function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
       }
       else if(mode===9){if(!!a.belowMeanComplete!==!!b.belowMeanComplete)return a.belowMeanComplete?-1:1;
          x=-(a.belowMeanFraction??-Infinity);y=-(b.belowMeanFraction??-Infinity);
-         return compare(x,y)||compare(-(a.score??-Infinity),-(b.score??-Infinity))||a.registered.path.localeCompare(b.registered.path);}
+         return compare(x,y)||compare(a.score??Infinity,b.score??Infinity)||a.registered.path.localeCompare(b.registered.path);}
       else if(mode>=10&&mode<=12){
          // Guide values are numeric arcseconds, including displayed partial
          // measurements. Missing values follow in both directions; master last.
@@ -519,18 +528,18 @@ function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
          let key=['guideMin','guideMax','guideAvg'][mode-10];
          x=Number.isFinite(a[key])?-a[key]:Infinity;y=Number.isFinite(b[key])?-b[key]:Infinity;
       }
-      else{x=-(a.score??Infinity);y=-(b.score??Infinity);}
+      else{x=a.score??Infinity;y=b.score??Infinity;}
       return compare(x,y)||a.registered.path.localeCompare(b.registered.path);
    });
 }
 // Plot descriptors separate stored metrics from derived row-level indicators.
 // Corner descriptors are offered only when actual values exist in the group.
 const SQR_KPIS=[
-   {label:'Score',key:'score',direction:'Lower is better'},
+   {label:'Score',key:'score',direction:'Higher is better (0–1)',definition:'Score = 1 − weighted mean penalty / 10. Higher is better; 1.000 means no measured penalty.'},
    {label:'PSF signal weight',metric:'signal',region:0,direction:'Higher is better'},
    {label:'Star count',metric:'stars',region:0,integer:true,direction:'Higher is better'},
    {label:'Field FWHM (px)',metric:'fwhm',region:0,direction:'Lower is better'},
-   {label:'Corner severity',key:'cornerSeverity',corners:true,direction:'Lower is better'},
+   {label:'Corner quality',key:'cornerSeverity',corners:true,direction:'Lower is better',definition:'Corner quality is the worst penalty for star size, corner-to-center size ratio, or elongation across the four corners. Lower is better.'},
    {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder'},
    ...[1,2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' FWHM (px)',metric:'fwhm',region,corners:true,direction:'Lower is better'})),
    ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder'})),
@@ -540,8 +549,25 @@ const SQR_KPIS=[
    {label:'Guide average (arcsec)',key:'guideAvg',guiding:true,direction:'Lower is better; arithmetic mean of combined RA/Dec displacement'},
    {label:'Guiding quality (arcsec)',key:'guideQuality',guiding:true,direction:'Lower is better',definition:'Guiding quality G = (minimum + 2 × average + maximum) / 4, in arcseconds.'}
 ];
+// Stable component identities connect manual weights, automatic selection and
+// the public KPI descriptors. Manual scoring uses the corner-quality composite.
+const SQR_SCORE_COMPONENTS=[
+   {weight:'signalWeight',kpi:'0:signal',label:'PSF signal weight'},
+   {weight:'starsWeight',kpi:'0:stars',label:'Star count'},
+   {weight:'fwhmWeight',kpi:'0:fwhm',label:'Field FWHM'},
+   {weight:'eccentricityWeight',kpi:'0:eccentricity',label:'Field eccentricity'},
+   {weight:'cornerWeight',kpi:'cornerSeverity',label:'Corner quality'},
+   {weight:'guideWeight',kpi:'guideQuality',label:'Guiding quality'},
+   {weight:'belowMeanWeight',kpi:'belowMeanFraction',label:'Below-mean Quality'}
+];
+// Automatic-only components: assess each measured corner independently. Their
+// effective 0/1 weights are derived per group, never saved as manual settings.
+const SQR_CORNER_COMPONENTS=[2,3,4,5].flatMap(region=>['fwhm','eccentricity'].map(metric=>({
+   weight:'corner'+region+'_'+metric,kpi:region+':'+metric,region,metric,corner:true,
+   label:SQR_REGIONS[region]+(metric==='fwhm'?' FWHM':' eccentricity')
+})));
 function sqrEccentricityValid(m){return !!m?.valid&&Number.isFinite(m.eccentricity)&&m.eccentricity>=0&&m.eccentricity<1;}
-// null means unavailable, while zero is a real value. Stored corner severity
+// null means unavailable, while zero is a real value. Stored corner quality
 // stays inspectable even when corner scoring is temporarily disabled.
 function sqrKPIValue(row,kpi){
    if(!row)return null;
@@ -554,9 +580,17 @@ function sqrAvailableKPIs(group,includeMaster=true){
    return SQR_KPIS.filter(kpi=>!kpi.corners||rows.some(row=>sqrKPIValue(row,kpi)!==null));
 }
 // Describe the current scoring configuration, independently of plot availability.
-// Regional and individual guiding values feed a composite, not extra weights.
-function sqrKPIScoreInfo(kpi,o,guidingEnabled=false){
+// Automatic scoring can include a corner metric directly; manual scoring and
+// the center/individual guiding values retain their composite contribution.
+function sqrKPIScoreInfo(kpi,o,guidingEnabled=false,correlation=null){
    if(kpi.key==='score')return 'Combined Score';
+   if(o.correlationOnly){
+      let key=kpi.corners&&!(kpi.region>=2)?'cornerSeverity':kpi.guiding?'guideQuality':sqrKPIKey(kpi),component=correlation?.components.find(c=>c.kpi===key);
+      if(!component)return 'Correlation selection pending';
+      let viaComposite=kpi.region>=2&&correlation.weights.cornerWeight>0;
+      if(!component.included)return viaComposite?'Excluded as an individual KPI ('+component.reason+'); included via corner quality':'Excluded from Score ('+component.reason+')';
+      return (sqrKPIKey(kpi)===key?'Included in Score':kpi.corners?'Included via corner quality':'Included via guiding quality')+' (equal weight)';
+   }
    if(kpi.corners){
       if(!o.measureCorners)return 'Excluded from Score (corners off)';
       if(!(o.cornerWeight>0))return 'Excluded from Score (corner weight 0)';
@@ -592,7 +626,7 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
    let subframes=valid.filter(item=>!item.master),values=(subframes.length?subframes:valid).map(item=>item.value),min=Math.min(...values),max=Math.max(...values);
    let padding=(max-min||max*.1||1)*.1;data.low=min-padding;data.high=max+padding;
    if(data.low<0&&min>=0)data.low=0;
-   if(kpi.percentage)data.high=Math.min(1,data.high);
+   if(kpi.percentage||kpi.key==='score')data.high=Math.min(1,data.high);
    // Apply absolute categories to the measured min/average/max errors. The
    // combined guiding quality is a derived indicator with a separate definition.
    // Only a validated imaging scale can define these limits.
@@ -610,14 +644,14 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
 }
 function sqrPlotNumber(value){if(!Number.isFinite(value))return 'unavailable';let a=Math.abs(value);return value.toFixed(a>=1000?0:a>=100?1:a>=10?2:a>=1?3:4);}
 function sqrPercent(value){return Number.isFinite(value)?(100*value).toFixed(1).replace(/\.0$/,'')+'%':'unavailable';}
-function sqrKPIPlotNumber(value,kpi){return kpi?.percentage?sqrPercent(value):sqrPlotNumber(value);}
+function sqrKPIPlotNumber(value,kpi){return kpi?.percentage?sqrPercent(value):kpi?.key==='score'&&Number.isFinite(value)?value.toFixed(3):sqrPlotNumber(value);}
 function sqrHTML(text){return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 // Save metric identities, not menu positions, so new indicators do not change
 // the axes in an existing process instance. Regional choices require measurements.
 function sqrKPIKey(kpi){return kpi.key||kpi.region+':'+kpi.metric;}
 function sqrScatterAxis(values,kpi){
    let min=Math.min(...values),max=Math.max(...values),padding=(max-min||Math.abs(min)||1)*.08;
-   return {low:min>=0?Math.max(0,min-padding):min-padding,high:kpi.percentage?Math.min(1,max+padding):max+padding};
+   return {low:min>=0?Math.max(0,min-padding):min-padding,high:kpi.percentage||kpi.key==='score'?Math.min(1,max+padding):max+padding};
 }
 /** Pearson correlation of the exact paired sample used for the plot. Rescaling
  * each axis before centering preserves r while avoiding cancellation from a
@@ -669,7 +703,7 @@ function sqrScatterPlot(group,xKPI,yKPI,selectedRow=null){
    return data;
 }
 // Retain meaningful digits for small signal weights as well as ordinary values.
-function sqrScatterNumber(value,kpi){return kpi.percentage?sqrPercent(value):value!==0&&(Math.abs(value)<.001||Math.abs(value)>=1e6)?value.toExponential(2):sqrPlotNumber(value);}
+function sqrScatterNumber(value,kpi){return kpi.key==='score'?sqrFmt(value,3):kpi.percentage?sqrPercent(value):value!==0&&(Math.abs(value)<.001||Math.abs(value)>=1e6)?value.toExponential(2):sqrPlotNumber(value);}
 /** Scatter coordinates remain numeric and unmodified, including overlapping
  * measurements. Draw the selected point last; all points support keyboard
  * focus and tooltips. Click messages use the same generation guard as bars. */
@@ -836,6 +870,9 @@ function sqrMeasurement(row,minStars,requireSignal=true){
    if(!m.valid)m.error='Insufficient valid PSF measurements';return m;
 }
 function sqrActiveRegions(o){return o.measureCorners?[0,1,2,3,4,5]:[0];}
+// An attempted but invalid measurement is still a result. Do not repeatedly
+// launch the same unsuccessful measurement when toggling the checkbox.
+function sqrMissingCornerMeasurements(session){return !session||session.groups.some(g=>sqrGroupRows(g).some(r=>[1,2,3,4,5].some(i=>!r.metrics[i])));}
 /** Measure every submitted job in one native process invocation. Each job
  * identifies a temporary path and its destination row/region. Disable the file
  * cache because temporary crop paths must not reuse another image's metrics. */
@@ -945,11 +982,11 @@ function sqrAnalyze(session,notify){
    sqrMeasureGroups(session.groups,o,active,notify);
    sqrRank(session);return session;
 }
-// Rank 1 is the largest (worst) finite score. Missing scores receive no rank.
+// Rank 1 is the lowest (worst) finite score. Missing scores receive no rank.
 // Caller supplies comparison rows including the master; table filtering is later.
 function sqrAssignRanks(rows,scoreKey,rankKey){
    for(let r of rows)r[rankKey]=null;
-   let ranked=rows.filter(r=>Number.isFinite(r[scoreKey])).sort((a,b)=>b[scoreKey]-a[scoreKey]||a.registered.path.localeCompare(b.registered.path));
+   let ranked=rows.filter(r=>Number.isFinite(r[scoreKey])).sort((a,b)=>a[scoreKey]-b[scoreKey]||a.registered.path.localeCompare(b.registered.path));
    for(let i=0;i<ranked.length;++i)ranked[i][rankKey]=i+1;
 }
 /** Calculate the breadth of poor quality before Score, avoiding a dependency
@@ -966,6 +1003,8 @@ function sqrMeanComparisons(group,o,guideEnabled=false){
       {label:'Field eccentricity',weight:o.eccentricityWeight,value:r=>sqrKPIValue(r,SQR_KPIS[5])},
       {label:'Corner quality',corner:true,weight:o.cornerWeight,value:r=>r.metrics[0]?.valid&&r.metrics[1]?.valid&&[2,3,4,5].every(i=>sqrEccentricityValid(r.metrics[i]))?r.measuredCornerSeverity:null}
    ];if(guideEnabled)components.push({label:'Guiding quality (arcsec)',guiding:true,weight:o.guideWeight,value:r=>r.guideQuality});
+   if(o.correlationOnly&&o.measureCorners)for(let c of SQR_CORNER_COMPONENTS)
+      components.push({label:c.label,corner:true,weight:o[c.weight],value:r=>sqrKPIValue(r,c)});
    components=components.filter(c=>c.weight>0);
    for(let c of components){let values=group.rows.map(c.value).filter(Number.isFinite);c.mean=values.length?values.reduce((sum,v)=>sum+v,0)/values.length:null;}
    for(let r of sqrGroupRows(group)){
@@ -987,21 +1026,88 @@ function sqrMeanComparisons(group,o,guideEnabled=false){
    }
 }
 function sqrMeanQualityLabel(row){return Number.isFinite(row.belowMeanFraction)?sqrPercent(row.belowMeanFraction)+(row.belowMeanComplete?'':'*'):'—';}
-/** Recompute derived quality data without changing manual reject decisions.
- * For each group: build robust subframe baselines, evaluate field/corner penalties,
- * compute Below-mean Quality, combine weighted penalties, assign ranks and flag
- * the requested worst fraction. Required missing data adds REVIEW candidates.
- * Lower Score is better. Corner severity is the single worst spatial component;
- * Below-mean Quality contributes its 0..1 fraction directly, not another z-score. */
+/** Convert the existing capped penalties to a quality score. Using a fixed cap
+ * (not a group min/max) preserves relative manual weights and ranking ties. */
+function sqrWeightedScore(parts){
+   let weight=parts.reduce((sum,p)=>sum+p.w,0);
+   return weight>0?Math.max(0,Math.min(1,1-parts.reduce((sum,p)=>sum+p.z*p.w,0)/(10*weight))):null;
+}
+// Compare a component with the signal anchor using paired subframes only.
+// Three pairs are the minimum: two points always give a spurious perfect r.
+function sqrScoreCorrelation(group,component,o,guideAvailable){
+   let kpi=SQR_KPIS.find(k=>sqrKPIKey(k)===component.kpi),pairs=[];
+   for(let r of group.rows.filter(r=>!r.isMaster)){
+      let x=sqrKPIValue(r,SQR_KPIS[1]),y=sqrKPIValue(r,kpi);
+      if(component.weight==='cornerWeight'&&(!r.metrics[1]?.valid||![2,3,4,5].every(i=>sqrEccentricityValid(r.metrics[i]))))y=null;
+      if(component.weight==='guideWeight'&&!r.guiding?.scorable)y=null;
+      if(Number.isFinite(x)&&Number.isFinite(y))pairs.push({x,y});
+   }
+   let result=sqrPearson(pairs),included=false,reason='';
+   if(component.weight==='signalWeight'){included=true;reason='PSF signal anchor';}
+   else if((component.weight==='cornerWeight'||component.corner)&&!o.measureCorners)reason='corners off';
+   else if(component.weight==='guideWeight'&&o.guidingMode==='ignore')reason='guiding ignored';
+   else if(component.weight==='guideWeight'&&!guideAvailable)reason='no guiding logs';
+   else if(result.count<3)reason='fewer than 3 paired subframes';
+   else if(!Number.isFinite(result.r))reason='constant or unavailable measurements';
+   else if(Math.abs(result.r)<.7-1e-12)reason='|r| < 0.7';
+   else {included=true;reason='|r| ≥ 0.7';}
+   return {...component,...result,included,reason};
+}
+function sqrScoreCorrelationReport(selection){
+   if(!selection)return 'Enable correlation scoring after measuring the group.';
+   return 'Equal weights; |r| ≥ 0.7; at least 3 paired subframes. The master is excluded from correlation. PSF signal weight is retained as the anchor.\n'+
+      selection.components.map(c=>c.label+': '+(c.included?'included':'excluded')+'; r = '+sqrFmt(c.r)+', n = '+c.count+' ('+c.reason+')').join('\n');
+}
+// Build the same components for manual and correlation scoring. Missing values
+// never become zero-quality measurements; the UI retains explicit review flags.
+function sqrScoreParts(r,data,o,withCorners){
+   let parts=data.parts.map(p=>({...p,w:o[p.key]}));
+   if(data.corner&&withCorners)parts.push({key:'cornerWeight',issue:data.corner.issue,name:data.corner.name,z:data.corner.value,w:o.cornerWeight});
+   if(o.correlationOnly&&withCorners)for(let part of data.regionalParts||[])parts.push({...part,w:o[part.key]});
+   let fraction=withCorners?r.belowMeanCornerFraction:r.belowMeanFieldFraction;
+   if(Number.isFinite(fraction))parts.push({key:'belowMeanWeight',issue:'Below-mean Quality',name:'Below-mean Quality',z:fraction,w:o.belowMeanWeight,percentage:true});
+   return parts;
+}
+function sqrApplyScore(r,data,o,guideEnabled){
+   let cornerRequired=o.measureCorners&&(!o.correlationOnly||o.cornerWeight>0),missingFieldShape=o.eccentricityWeight>0&&!sqrEccentricityValid(r.metrics[0]);
+   r.guidingIgnored=sqrIgnoreGuiding(r,o);
+   r.needsDataReview=!r.metrics[0]?.valid||missingFieldShape||cornerRequired&&(!r.metrics[1]?.valid||data.cornerCount!==4||data.missingShape);
+   // A selected corner KPI requires only its own measurement. Missing unrelated
+   // corners or eccentricities do not invalidate an independently usable FWHM.
+   if(o.correlationOnly&&o.measureCorners&&SQR_CORNER_COMPONENTS.some(c=>o[c.weight]>0&&sqrKPIValue(r,c)===null))r.needsDataReview=true;
+   if(guideEnabled&&!r.isMaster&&!r.guidingIgnored&&(!r.guiding?.scorable||r.guiding.dropped>0))r.needsDataReview=true;
+   if(o.belowMeanWeight>0&&!r.belowMeanComplete)r.needsDataReview=true;
+   let parts=sqrScoreParts(r,data,o,o.measureCorners),denominator=parts.reduce((sum,p)=>sum+p.w,0);
+   r.score=sqrWeightedScore(parts);
+   let impacts=parts.filter(p=>p.z>0&&p.w>0).sort((a,b)=>b.z*b.w-a.z*a.w);
+   r.scoreContributions=impacts.map(p=>({...p,contribution:p.z*p.w/(10*denominator)}));
+   r.mainIssue=impacts.length?impacts[0].issue:r.needsDataReview?'Missing data':guideEnabled&&r.guiding?.scorable?r.guiding.category:'None';
+   let penaltyText=p=>p.percentage?sqrPercent(p.z):p.z.toFixed(2)+(p.guiding?' guiding penalty':' robust deviations');
+   r.mainIssueDetail='Score: '+sqrFmt(r.score)+' (higher is better, 0–1). '+(impacts.length?impacts[0].name+': '+penaltyText(impacts[0])+' × weight '+impacts[0].w+'; subtracts '+sqrFmt(r.scoreContributions[0].contribution)+' from Score.':'No enabled quality penalty.');
+   if(r.guiding)r.mainIssueDetail+='\n'+sqrGuideReport(r);
+   if(r.needsDataReview)r.mainIssueDetail+=' Some enabled measurements are unavailable; inspect manually.';
+   if(missingFieldShape)r.mainIssueDetail+=' Field eccentricity is unavailable.';
+   r.reasons=impacts.map(p=>p.name+' ('+penaltyText(p)+')');
+   if(r.guiding&&!r.guidingIgnored&&!impacts.some(p=>p.guiding))r.reasons.push(r.guiding.scorable?r.guiding.category:r.guiding.reason);
+   if(!r.reasons.length)r.reasons.push('No enabled quality penalty');
+   if(r.isMaster)r.reasons.unshift('Integrated master: comparison only; cannot be rejected.');
+   r.insufficientCorners=cornerRequired?4-data.cornerCount:0;
+   if(r.needsDataReview)r.reasons.unshift('Insufficient measurements: inspect manually');
+   if(cornerRequired&&data.missingShape)r.reasons.unshift('Corner eccentricity unavailable: inspect manually');
+   if(missingFieldShape)r.reasons.unshift('Field eccentricity unavailable: inspect manually');
+}
+/** Recompute derived data from cached measurements. Manual weights always produce
+ * R1/R2 first. Automatic scoring then selects components per group and produces
+ * Score/R3 without changing those weights or rereading image pixels.
+ * Below-mean Quality uses only selected underlying components before its own
+ * correlation is assessed, so weak KPIs cannot re-enter through that composite. */
 function sqrRank(session){
    let o=session.options;
-   o.eccentricityWeight??=sqrDefaults().eccentricityWeight;
-   o.belowMeanWeight??=sqrDefaults().belowMeanWeight;
-   o.guideWeight??=sqrDefaults().guideWeight;let guideEnabled=!!session.guiding?.enabled&&o.guideWeight>0&&o.guidingMode!=='ignore';
-   if(o.signalWeight+o.starsWeight+o.fwhmWeight+o.eccentricityWeight+(o.measureCorners?o.cornerWeight:0)+(guideEnabled?o.guideWeight:0)<=0)throw new Error('At least one underlying quality indicator must have a positive weight.');
+   for(let c of SQR_SCORE_COMPONENTS)o[c.weight]??=sqrDefaults()[c.weight];
+   let guideAvailable=!!session.guiding?.enabled,guideEnabled=guideAvailable&&o.guideWeight>0&&o.guidingMode!=='ignore';
+   if(!o.correlationOnly&&o.signalWeight+o.starsWeight+o.fwhmWeight+o.eccentricityWeight+(o.measureCorners?o.cornerWeight:0)+(guideEnabled?o.guideWeight:0)<=0)throw new Error('At least one underlying quality indicator must have a positive weight.');
    for(let g of session.groups){
-      // Regional widths do not require an independent local signal/noise estimate.
-      let all=sqrGroupRows(g);
+      let all=sqrGroupRows(g);g.correlationScoring=null;
       for(let r of all)for(let i=0;i<6;++i)if(r.metrics[i]){let m=r.metrics[i];m.valid=sqrMetricValid(m,o.minStars,i===0);if(m.valid)delete m.error;}
       let valid=g.rows.filter(r=>r.metrics[0]?.valid);
       let signal=sqrSummary(valid.map(r=>r.metrics[0].signal)),stars=sqrSummary(valid.map(r=>r.metrics[0].stars)),fwhm=sqrSummary(valid.map(r=>r.metrics[0].fwhm));
@@ -1010,13 +1116,9 @@ function sqrRank(session){
          ratio:sqrSummary(valid.filter(r=>r.metrics[i]?.valid&&r.metrics[1]?.valid).map(r=>r.metrics[i].fwhm/r.metrics[1].fwhm)),
          eccentricity:sqrSummary(valid.filter(r=>sqrEccentricityValid(r.metrics[i])).map(r=>r.metrics[i].eccentricity))}));
       let scoring=new Map;
-      for(let r of all){r.candidate=false;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.rank=null;r.reasons=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';
-         r.mainIssue='Missing data';r.mainIssueDetail='Field measurement unavailable.';r.scoreContributions=[];
-         let missingShape=[2,3,4,5].some(i=>!sqrEccentricityValid(r.metrics[i]));
-         let missingFieldShape=o.eccentricityWeight>0&&!sqrEccentricityValid(r.metrics[0]);
-         r.needsDataReview=sqrActiveRegions(o).some(i=>!r.metrics[i]?.valid)||(o.measureCorners&&missingShape)||missingFieldShape;
+      for(let r of all){r.candidate=false;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.rank=null;r.reasons=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';
+         r.mainIssue='Missing data';r.mainIssueDetail='Field measurement unavailable.';r.scoreContributions=[];r.needsDataReview=true;r.insufficientCorners=0;
          r.guidingIgnored=sqrIgnoreGuiding(r,o);
-         if(guideEnabled&&!r.isMaster&&!r.guidingIgnored&&(!r.guiding?.scorable||r.guiding.dropped>0))r.needsDataReview=true;
          if(r.isMaster){r.reject=false;r.reasons.push('Integrated master: comparison only; cannot be rejected.');}
          let m=r.metrics[0];if(!m?.valid){r.candidate=!r.isMaster;r.reasons.push('Field measurement unavailable');if(r.guiding)r.reasons.push(r.guiding.scorable?r.guiding.category:r.guiding.reason);continue;}
          let cs=[];for(let i=2;i<6;++i)if(r.metrics[i]?.valid){let c=corners[i-2],region=SQR_REGIONS[i],tests=[
@@ -1025,57 +1127,56 @@ function sqrRank(session){
             {issue:'Elongated stars',name:'High '+region.toLowerCase()+' eccentricity',value:sqrEccentricityValid(r.metrics[i])?sqrBad(r.metrics[i].eccentricity,c.eccentricity,false):0}];
             tests.sort((a,b)=>b.value-a.value);cs.push({...tests[0],region});}
          cs.sort((a,b)=>b.value-a.value);let corner=cs.length?cs[0].value:null;
-         let parts=[{issue:'Weak signal',name:'Low PSF signal weight',z:sqrBad(m.signal,signal,true),w:o.signalWeight},
-            {issue:'Few stars',name:'Low star count',z:sqrBad(m.stars,stars,true),w:o.starsWeight},
-            {issue:'Large stars',name:'Large field FWHM',z:sqrBad(m.fwhm,fwhm,false),w:o.fwhmWeight}];
-         if(sqrEccentricityValid(m))parts.push({issue:'Elongated stars',name:'High field eccentricity',z:sqrBad(m.eccentricity,eccentricity,false),w:o.eccentricityWeight});
-         if(guideEnabled&&!r.isMaster&&r.guiding?.scorable)parts.push({issue:r.guiding.category,name:r.guiding.category,z:r.guidePenalty,w:o.guideWeight,guiding:true});
-         r.measuredCornerSeverity=corner;
-         r.cornerSeverity=o.measureCorners?corner:null;r.worstCorner=o.measureCorners&&cs.length?cs[0].region:'';
-         scoring.set(r,{parts,corner:cs[0],cornerCount:cs.length,missingShape,missingFieldShape});
+         let parts=[{key:'signalWeight',issue:'Weak signal',name:'Low PSF signal weight',z:sqrBad(m.signal,signal,true)},
+            {key:'starsWeight',issue:'Few stars',name:'Low star count',z:sqrBad(m.stars,stars,true)},
+            {key:'fwhmWeight',issue:'Large stars',name:'Large field FWHM',z:sqrBad(m.fwhm,fwhm,false)}];
+         if(sqrEccentricityValid(m))parts.push({key:'eccentricityWeight',issue:'Elongated stars',name:'High field eccentricity',z:sqrBad(m.eccentricity,eccentricity,false)});
+         if(guideAvailable&&!r.isMaster&&r.guiding?.scorable)parts.push({key:'guideWeight',issue:r.guiding.category,name:r.guiding.category,z:r.guidePenalty,guiding:true});
+         r.measuredCornerSeverity=corner;r.cornerSeverity=o.measureCorners?corner:null;r.worstCorner=o.measureCorners&&cs.length?cs[0].region:'';
+         scoring.set(r,{parts,corner:cs[0],cornerCount:cs.length,missingShape:[2,3,4,5].some(i=>!sqrEccentricityValid(r.metrics[i]))});
       }
-      // Calculate the breadth penalty from measurements before Score; it never includes
-      // Score or itself, and R1/R2 use their own field-only/corner-inclusive fraction.
-      sqrMeanComparisons(g,o,guideEnabled);
+      let manual={...o,correlationOnly:false,guideWeight:guideEnabled?o.guideWeight:0};
+      sqrMeanComparisons(g,manual,guideEnabled);
       for(let r of all){let data=scoring.get(r);if(!data)continue;
-         let {missingShape,missingFieldShape}=data;
-         let withQuality=(parts,fraction)=>Number.isFinite(fraction)?[...parts,{issue:'Below-mean Quality',name:'Below-mean Quality',z:fraction,w:o.belowMeanWeight,percentage:true}]:parts;
-         let weighted=parts=>{let weight=parts.reduce((s,p)=>s+p.w,0);return weight?parts.reduce((s,p)=>s+p.z*p.w,0)/weight:null;};
-         let fieldParts=withQuality(data.parts,r.belowMeanFieldFraction),cornerParts=data.corner?[...data.parts,{issue:data.corner.issue,name:data.corner.name,z:data.corner.value,w:o.cornerWeight}]:data.parts;
-         cornerParts=withQuality(cornerParts,r.belowMeanCornerFraction);
-         r.scoreWithoutCorners=missingFieldShape?null:weighted(fieldParts);
-         if(data.cornerCount===4&&!missingShape&&!missingFieldShape&&r.metrics[1]?.valid)r.scoreWithCorners=weighted(cornerParts);
-         let parts=o.measureCorners?cornerParts:fieldParts,denominator=parts.reduce((s,p)=>s+p.w,0);r.score=weighted(parts);
-         let impacts=parts.filter(p=>p.z>0&&p.w>0).sort((a,b)=>b.z*b.w-a.z*a.w);
-         r.scoreContributions=impacts.map(p=>({...p,contribution:p.z*p.w/denominator}));
-         r.mainIssue=impacts.length?impacts[0].issue:r.needsDataReview?'Missing data':guideEnabled&&r.guiding?.scorable?r.guiding.category:'None';
-         let penaltyText=p=>p.percentage?sqrPercent(p.z):p.z.toFixed(2)+(p.guiding?' guiding penalty':' robust deviations');
-         r.mainIssueDetail=impacts.length?impacts[0].name+': '+penaltyText(impacts[0])+' × weight '+impacts[0].w+'; contributes '+sqrFmt(r.scoreContributions[0].contribution)+' to Score.':'No enabled quality penalty.';
-         if(r.guiding)r.mainIssueDetail+='\n'+sqrGuideReport(r);
-         if(r.needsDataReview)r.mainIssueDetail+=' Some enabled measurements are unavailable; inspect manually.';
-         if(missingFieldShape)r.mainIssueDetail+=' Field eccentricity is unavailable.';
-         r.reasons=impacts.map(p=>p.name+' ('+penaltyText(p)+')');
-         if(r.guiding&&!r.guidingIgnored&&!impacts.some(p=>p.guiding))r.reasons.push(r.guiding.scorable?r.guiding.category:r.guiding.reason);
-         if(!r.reasons.length)r.reasons.push('No enabled quality penalty');
-         if(r.isMaster)r.reasons.unshift('Integrated master: comparison only; cannot be rejected.');
-         r.insufficientCorners=o.measureCorners?4-data.cornerCount:0;
-         if(r.needsDataReview)r.reasons.unshift('Insufficient measurements: inspect manually');
-         if(o.measureCorners&&missingShape)r.reasons.unshift('Corner eccentricity unavailable: inspect manually');
-         if(missingFieldShape)r.reasons.unshift('Field eccentricity unavailable: inspect manually');
+         let missingFieldShape=o.eccentricityWeight>0&&!sqrEccentricityValid(r.metrics[0]);
+         r.scoreWithoutCorners=missingFieldShape?null:sqrWeightedScore(sqrScoreParts(r,data,manual,false));
+         if(data.cornerCount===4&&!data.missingShape&&!missingFieldShape&&r.metrics[1]?.valid)r.scoreWithCorners=sqrWeightedScore(sqrScoreParts(r,data,manual,true));
+         sqrApplyScore(r,data,manual,guideEnabled);
       }
-      // Comparison ranks include the master; rejection quotas and baselines do not.
-      sqrAssignRanks(all,'scoreWithoutCorners','rankWithoutCorners');
-      sqrAssignRanks(all,'scoreWithCorners','rankWithCorners');
-      let sorted=valid.slice().sort((a,b)=>b.score-a.score||a.registered.path.localeCompare(b.registered.path));
+      sqrAssignRanks(all,'scoreWithoutCorners','rankWithoutCorners');sqrAssignRanks(all,'scoreWithCorners','rankWithCorners');
+      if(o.correlationOnly){
+         let components=[...SQR_SCORE_COMPONENTS.slice(0,-1),...SQR_CORNER_COMPONENTS].map(c=>sqrScoreCorrelation(g,c,o,guideAvailable));
+         let auto={...o};for(let c of [...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS])auto[c.weight]=0;
+         for(let c of components)auto[c.weight]=c.included?1:0;
+         let autoGuide=auto.guideWeight>0;
+         for(let r of all)r.guidingIgnored=sqrIgnoreGuiding(r,auto);
+         sqrMeanComparisons(g,auto,autoGuide);
+         let breadth=sqrScoreCorrelation(g,SQR_SCORE_COMPONENTS[SQR_SCORE_COMPONENTS.length-1],o,guideAvailable);
+         components.push(breadth);auto.belowMeanWeight=breadth.included?1:0;
+         g.correlationScoring={components,weights:Object.fromEntries([...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS].map(c=>[c.weight,auto[c.weight]]))};
+         let selectedCorners=SQR_CORNER_COMPONENTS.filter(c=>auto[c.weight]>0);
+         for(let r of all){let data=scoring.get(r);if(data){
+            data.regionalParts=[];
+            for(let c of selectedCorners){let value=sqrKPIValue(r,c);if(value===null)continue;
+               // Reuse the already computed per-corner robust baselines.
+               let baseline=corners[c.region-2][c.metric==='fwhm'?'width':'eccentricity'];
+               data.regionalParts.push({key:c.weight,kpi:c.kpi,issue:c.metric==='fwhm'?'Large corner stars':'Elongated stars',name:c.label,z:sqrBad(value,baseline,false)});
+            }
+            sqrApplyScore(r,data,auto,autoGuide);r.scoreCorrelated=r.score;
+         }}
+         sqrAssignRanks(all,'scoreCorrelated','rankCorrelated');
+      }
+      // Worst-first ranks and REVIEW quotas retain their meaning after inversion.
+      let sorted=valid.slice().sort((a,b)=>(a.score??Infinity)-(b.score??Infinity)||a.registered.path.localeCompare(b.registered.path));
       let count=Math.ceil(sorted.length*o.percent/100);for(let i=0;i<sorted.length;++i){sorted[i].rank=i+1;sorted[i].candidate=i<count||sorted[i].needsDataReview;}
-      g.shortlistCount=count;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(b.score??1000000)-(a.score??1000000)||a.registered.path.localeCompare(b.registered.path));
+      g.shortlistCount=count;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
    }
 }
 function sqrWriteJSON(path,value){File.writeTextFile(path,JSON.stringify(value,null,2));}
-// Choose the lowest-scoring kept subframe. Signal strength and filename provide
+// Choose the highest-scoring kept subframe. Signal strength and filename provide
 // deterministic tie-breaks; the master can never become a "best subframe".
 function sqrBestRow(group){return group.rows.filter(r=>!r.isMaster&&r.metrics[0]?.valid&&Number.isFinite(r.score)&&!r.reject&&!r.moved)
-   .sort((a,b)=>a.score-b.score||b.metrics[0].signal-a.metrics[0].signal||a.registered.path.localeCompare(b.registered.path))[0]||null;}
+   .sort((a,b)=>b.score-a.score||b.metrics[0].signal-a.metrics[0].signal||a.registered.path.localeCompare(b.registered.path))[0]||null;}
 function sqrReference(group,choice){
    if(choice==='best'){let best=sqrBestRow(group);return {path:best?.registered.path||'',label:'BEST SUBFRAME'};}
    return {path:group.master||'',label:'MASTER'};
@@ -1295,17 +1396,26 @@ class SQRDialog extends Dialog {
       this.patch.toolTip='Width and height of each corner and center patch as a percentage of the common usable field.';
       this.margin.toolTip='Minimum edge guard. Exact-zero registration padding can increase the common inset.';
       this.cornerMeasurements=new CheckBox(this.measurementSettings);this.cornerMeasurements.text='Measure corners';this.cornerMeasurements.checked=!!o.measureCorners;
-      this.cornerMeasurements.toolTip='Off by default. Enable to add one center and four corner measurements per frame. Existing field measurements are reused.';
+      this.cornerMeasurements.toolTip='Off by default. Enable to measure any missing center and corner regions automatically, including matched masters. Existing measurements are reused. Correlation scoring is refreshed after measurement.';
       qualityRow(this.measurementSettings,[this.percent,this.minStars]);
       qualityRow(this.measurementSettings,[this.margin]);
       qualityRow(this.measurementSettings,[this.patch,this.cornerMeasurements]);
+      this.manualWeights=Object.fromEntries(SQR_SCORE_COMPONENTS.map(c=>[c.weight,o[c.weight]]));
+      this.correlationOnly=new CheckBox(this.scoreSettings);this.correlationOnly.text='Use strongly correlated KPIs (|r| ≥ 0.7)';this.correlationOnly.checked=!!o.correlationOnly;
+      this.correlationOnly.toolTip='Select KPIs per group by absolute Pearson correlation with PSF signal weight, using at least three paired subframes and excluding the master. Selected KPIs have equal weight. PSF signal weight remains the anchor. Manual weights are retained and restored when disabled. Corners and guiding must be enabled to participate.';
+      this.correlationOnly.onCheck=()=>this.toggleCorrelationScoring();
       this.weights={};
       for(let [key,label] of [['signalWeight','PSF signal:'],['starsWeight','Star count:'],['fwhmWeight','Field FWHM:'],['eccentricityWeight','Field eccentricity:'],['cornerWeight','Corner quality:'],['belowMeanWeight','Below-mean Quality:']]){
          let n=sqrNumber(this.scoreSettings,label,o[key],0,100,0);this.weights[key]=n;n.label.setScaledFixedWidth(130);n.edit.setScaledFixedWidth(36);n.toolTip='Relative influence on the ranking. Zero disables this component.';
          n.onValueUpdated=()=>this.rerank();
       }
-      for(let keys of [['signalWeight','starsWeight'],['fwhmWeight','eccentricityWeight'],['cornerWeight','belowMeanWeight']])qualityRow(this.scoreSettings,keys.map(k=>this.weights[k]));
-      this.weights.eccentricityWeight.toolTip='Weight of field star elongation compared with the group. Higher eccentricity increases Score. Zero disables this component; no extra measurement pass is needed.';
+      // Two evenly spaced columns, with the mode switch beneath the weight grid.
+      let weightGrid=new HorizontalSizer;weightGrid.spacing=16;weightGrid.addStretch();
+      for(let keys of [['signalWeight','fwhmWeight','cornerWeight'],['starsWeight','eccentricityWeight','belowMeanWeight']]){
+         let column=new VerticalSizer;column.spacing=6;for(let k of keys)column.add(this.weights[k]);weightGrid.add(column);
+      }
+      weightGrid.addStretch();this.scoreSettings.sizer.add(weightGrid);this.scoreSettings.sizer.addSpacing(4);this.scoreSettings.sizer.add(this.correlationOnly);
+      this.weights.eccentricityWeight.toolTip='Weight of field star elongation compared with the group. Higher eccentricity reduces Score. Zero disables this component; no extra measurement pass is needed.';
       this.weights.cornerWeight.toolTip='Weight of the worst corner deviation in FWHM, corner/center FWHM ratio or eccentricity. Each metric is compared with that same corner across the group. Zero disables the corner contribution.';
       this.weights.belowMeanWeight.toolTip='Relative weight of the fraction of underlying indicators with worse-than-mean quality. For example, 75% contributes 0.75 times this weight before normalization. Score and this fraction itself are excluded from the comparison. Zero removes this Score component without hiding the percentage.';
       this.guideModeLabel=new Label(this.guideSettings);this.guideModeLabel.text='Guiding in Score:';this.guideModeLabel.setScaledFixedWidth(115);
@@ -1314,12 +1424,12 @@ class SQRDialog extends Dialog {
       this.guidingMode.toolTip='Require: missing or incomplete guiding data flags the frame for review. Use available: omit missing guiding from that frame’s Score and Below-mean Quality, without a missing-guiding review flag. Ignore: omit guiding from all scores and review flags. Measurements remain visible in every mode.';
       this.weights.guideWeight=sqrNumber(this.guideSettings,'Weight:',o.guideWeight,0,100,0);this.weights.guideWeight.label.setScaledFixedWidth(115);this.weights.guideWeight.edit.setScaledFixedWidth(36);this.weights.guideWeight.onValueUpdated=()=>this.rerank();
       this.guideHint=new Label(this.guideSettings);this.guideHint.wordWrapping=true;this.guideHint.text=sqrGuideThresholdText(null);
-      this.guidingMode.onItemSelected=()=>{this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;this.rerank();};this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
+      this.guidingMode.onItemSelected=()=>this.rerank();this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
       // Match both the label alignment and label-to-control spacing of NumericEdit.
       this.guideModeLabel.textAlignment=this.weights.guideWeight.label.textAlignment;
       qualityRow(this.guideSettings,[this.guideModeLabel,this.guidingMode],this.weights.guideWeight.sizer.spacing);
       qualityRow(this.guideSettings,[this.weights.guideWeight]);this.guideSettings.sizer.add(this.guideHint);
-      this.cornerMeasurements.onCheck=()=>{this.updateCornerControls();this.rerank();this.status.text=this.cornerMeasurements.checked?'Corner analysis enabled. Use the magnifier to measure any missing center and corner data.':'Corner analysis disabled. Ranking uses field measurements only.';};
+      this.cornerMeasurements.onCheck=()=>this.changeCornerMeasurements();
       this.updateCornerControls();
       this.maxFits=o.maxFits;
       this.percent.onValueUpdated=()=>this.rerank();
@@ -1330,9 +1440,10 @@ class SQRDialog extends Dialog {
       this.scanButton=sqrButton(this,'Scan files',()=>this.scan());
       this.groupRow.add(groupLabel);this.groupRow.add(this.groupSelect,100);this.groupRow.add(this.scanButton);
       this.tabs=new TabBox(this);this.reviewPage=new Control(this.tabs);this.blinkPage=new Control(this.tabs);this.histogramPage=new Control(this.tabs);this.scatterPage=new Control(this.tabs);
-      this.table=new TreeBox(this.reviewPage);this.table.numberOfColumns=20;this.table.headerVisible=true;this.table.rootDecoration=false;
+      this.table=new TreeBox(this.reviewPage);this.table.numberOfColumns=21;this.table.headerVisible=true;this.table.rootDecoration=false;
       this.table.alternateRowColor=true;this.table.multipleSelection=false;this.table.setScaledMinSize(1280,320);
-      let headers=['R1','R2','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Field eccentricity','Corner quality','Below-mean Quality','Guiding quality (″)','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association'];
+      let headers=['R1','R2','R3','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Field eccentricity','Corner quality','Below-mean Quality','Guiding quality (″)','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association'];
+      this.baseReviewColumnCount=headers.length;
       for(let i=0;i<headers.length;++i)this.table.setHeaderText(i,headers[i]);
       this.rejectIcons=[sqrRejectIcon(this,false),sqrRejectIcon(this,true)];
       // Native mouse focus changes precede onMousePress/onNodeClicked. Mouse selection
@@ -1340,20 +1451,20 @@ class SQRDialog extends Dialog {
       this.table.onMousePress=()=>{this.keyboardNavigation=false;return false;};
       this.table.onCurrentNodeUpdated=node=>{if(this.keyboardNavigation&&!this.populating&&node?.row)this.selectRow(node.row);};
       this.table.onNodeClicked=(node,column)=>{if(!node?.row||this.populating)return;
-         if(column===2){this.selectRow(node.row);this.decide(!node.row.reject);}
+         if(column===3){this.selectRow(node.row);this.decide(!node.row.reject);}
          else if(this.current===node.row)this.clearSelection();else this.selectRow(node.row);};
       this.table.onKeyPress=key=>{if(key===Key_Space){if(this.current)this.decide(!this.current.reject);return true;}
          this.keyboardNavigation=true;if(this.table.currentNode?.row)this.selectRow(this.table.currentNode.row);return false;};
       this.table.onKeyRelease=key=>{this.keyboardNavigation=false;if(key!==Key_Space&&this.table.currentNode?.row)this.selectRow(this.table.currentNode.row);return false;};
-      this.table.onNodeDoubleClicked=(node,column)=>{if(node?.row&&column!==2){this.selectRow(node.row);this.populating=true;this.table.currentNode=node;node.selected=true;this.populating=false;this.inspect();}};
+      this.table.onNodeDoubleClicked=(node,column)=>{if(node?.row&&column!==3){this.selectRow(node.row);this.populating=true;this.table.currentNode=node;node.selected=true;this.populating=false;this.inspect();}};
       this.details=new Label(this.reviewPage);this.details.wordWrapping=true;this.details.minHeight=4*this.font.height;
       this.reviewOptions=sqrGroup(this.reviewPage,'Sort and filter');
       let reviewTools=new HorizontalSizer;reviewTools.spacing=10;
       let sortLabel=new Label(this.reviewOptions);sortLabel.text='Sort by:';
-      this.order=new ComboBox(this.reviewOptions);for(let s of ['Score','PSF signal weight','Star count','Field FWHM','Corner severity','Filename','R1: field rank','R2: rank with corners','Acquisition time','Below-mean Quality','Guide minimum','Guide maximum','Guide average'])this.order.addItem(s);
-      this.order.setScaledMinWidth(165);this.order.toolTip='Choose a criterion, then use the direction button to switch ascending or descending order. A new criterion starts in its default direction: poorest quality first, filename A to Z, or earliest acquisition first. R1 and R2 use rank 1 for worst. Acquisition time uses the original observation timestamp, then registered metadata; filename suffixes do not affect this order.';
+      this.order=new ComboBox(this.reviewOptions);for(let item of SQR_REVIEW_SORTS)this.order.addItem(item[1]);
+      this.order.setScaledMinWidth(165);this.order.toolTip='Choose a criterion, then use the direction button to switch ascending or descending order. A new criterion starts in its default direction: poorest quality first, filename A to Z, or earliest acquisition first. R1, R2 and R3 use rank 1 for worst. Score is higher-is-better; the default sort lists the lowest scores first. Acquisition time uses the original observation timestamp, then registered metadata; filename suffixes do not affect this order.';
       this.order.toolTip+=' Guide minimum, maximum and average start with the largest error first. Missing values follow in either direction, with the master last.';
-      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<this.order.numberOfItems?o.reviewOrder:0;
+      this.order.currentItem=sqrReviewOrderIndex(o.reviewOrder);
       this.reviewReverse=!!o.reviewReverse;
       this.sortDirection=sqrButton(this.reviewOptions,'',()=>{if(this.running)return;this.reviewReverse=!this.reviewReverse;this.changeReviewSort();});
       this.sortDirection.setScaledMinWidth(125);
@@ -1362,8 +1473,9 @@ class SQRDialog extends Dialog {
       this.candidatesOnly.toolTip='Show only subframes flagged REVIEW. The master is hidden. This does not select originals for rejection.';
       this.order.onItemSelected=()=>{this.reviewReverse=false;this.changeReviewSort();};
       reviewTools.add(sortLabel);reviewTools.add(this.order);reviewTools.add(this.sortDirection);reviewTools.addStretch();reviewTools.add(filterLabel);reviewTools.add(this.candidatesOnly);
+      this.scoringSummary=new Label(this.reviewOptions);this.scoringSummary.wordWrapping=true;this.scoringSummary.minHeight=2*this.font.height;this.reviewOptions.sizer.add(this.scoringSummary);
       this.reviewSummary=new Label(this.reviewOptions);this.reviewOptions.sizer.add(reviewTools);this.reviewOptions.sizer.add(this.reviewSummary);
-      let reviewHint=new Label(this.reviewPage);reviewHint.text='R1 = field-only rank · R2 = rank including corners · 1 = worst; — = unavailable. Below-mean Quality = % of assessed indicators worse than mean; * = incomplete.\nClick a selected row to deselect it. Click Reject (or press Space) to mark an original. Double-click an image to blink.';
+      let reviewHint=new Label(this.reviewPage);reviewHint.wordWrapping=true;reviewHint.text='R1 = manual field rank · R2 = manual rank with corners · R3 = correlation rank · 1 = worst; — = unavailable. Score: higher is better (0–1).\nBelow-mean Quality = % of assessed indicators worse than mean; * = incomplete. Click a selected row to deselect it. Click Reject (or press Space) to mark an original. Double-click an image to blink.';
       this.reviewPage.sizer=new VerticalSizer;this.reviewPage.sizer.margin=6;this.reviewPage.sizer.spacing=8;
       this.reviewPage.sizer.add(this.reviewOptions);this.reviewPage.sizer.add(this.table,100);this.reviewPage.sizer.add(reviewHint);this.reviewPage.sizer.add(this.details);
       this.viewer=new ImageView(this.blinkPage);this.viewer.setScaledMinSize(1280,320);this.viewer.setStatusMessage('Double-click a registered frame in the Review table.');
@@ -1453,8 +1565,9 @@ class SQRDialog extends Dialog {
       this.tabs.addPage(this.reviewPage,'Review and measurements');this.tabs.addPage(this.blinkPage,'Blink frame / reference');this.tabs.addPage(this.histogramPage,'Quality indicators');this.tabs.addPage(this.scatterPage,'Correlation plot');
       this.status=new Label(this);this.status.wordWrapping=true;this.status.minHeight=this.font.height;
       this.status.text='Scan files to verify original associations. Magnifier: measure. Green checkmark: move manually rejected originals.';
+      this.scoreInclusionStatus=new Label(this);this.scoreInclusionStatus.wordWrapping=true;this.scoreInclusionStatus.minHeight=2*this.font.height;
       this.pixelScaleStatus=new Label(this);this.pixelScaleStatus.wordWrapping=true;this.pixelScaleStatus.minHeight=this.font.height;
-      let messages=new VerticalSizer;messages.spacing=2;messages.add(this.status);messages.add(this.pixelScaleStatus);
+      let messages=new VerticalSizer;messages.spacing=2;messages.add(this.status);messages.add(this.scoreInclusionStatus);messages.add(this.pixelScaleStatus);
       this.instance=sqrTool(this,':/process-interface/new-instance.png','Drag to save folder and evaluation settings as a process icon.');
       this.instance.onMousePress=()=>{Parameters.clear();Parameters.set('configJSON',JSON.stringify(this.options()));this.newInstance();};
       this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates.',()=>this.analyze());
@@ -1471,23 +1584,60 @@ class SQRDialog extends Dialog {
       this.sizer=new HorizontalSizer;this.sizer.add(content,100);this.sizer.add(this.sectionSizeGuard);
       this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
       this.onHide=()=>{this.plotTimer.stop();this.stopBlink();};
-      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();};this.loadAutorun(false);this.populateGroups();this.updateButtons();this.adjustToContents();
+      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();};this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.updateButtons();this.adjustToContents();
       // Leave two physical pixels for native layout rounding on first show.
       this.sectionSizeGuard.setFixedHeight(Math.max(this.height,this.smartMinHeight)+2);this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);
    }
    // Snapshot controls into serializable settings; derived measurements and
    // rejection decisions stay in the session and are never process parameters.
    options(){let o=sqrDefaults();for(let k of Object.keys(this.folders))o[k]=this.folders[k].edit.text.trim();
-      for(let k of ['percent','patch','margin','minStars'])o[k]=this[k].value;for(let k of Object.keys(this.weights))o[k]=this.weights[k].value;
+      for(let k of ['percent','patch','margin','minStars'])o[k]=this[k].value;o.correlationOnly=this.correlationOnly.checked;for(let k of Object.keys(this.weights))o[k]=o.correlationOnly?this.manualWeights[k]:this.weights[k].value;
       o.measureCorners=this.cornerMeasurements.checked;o.reference=['master','best','sequence'][this.reference.currentItem];o.blinkInterval=this.blinkInterval.value;
       o.regionRotation=['off','image','blink'][this.regionRotation.currentItem];
       o.logFolder=this.logFolder.edit.text.trim();o.logTimeZone=['auto','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
       o.guidingMode=['require','available','ignore'][this.guidingMode.currentItem];
       o.qualityCollapsed=this.qualityCollapsed;o.inputsCollapsed=this.inputsCollapsed;
       o.scatterX=sqrKPIKey(this.scatterKPIs[this.scatterX.currentItem]);o.scatterY=sqrKPIKey(this.scatterKPIs[this.scatterY.currentItem]);
-      o.reviewOrder=this.order.currentItem;o.reviewReverse=this.reviewReverse;
+      o.reviewOrder=SQR_REVIEW_SORTS[this.order.currentItem][0];o.reviewReverse=this.reviewReverse;
       o.maxFits=this.maxFits;o.displaySTF=this.displaySTF.checked;o.alignBrightness=this.alignBrightness.checked;o.histogramOrder=this.histogramOrder.currentItem===1?'time':'value';return o;}
-   updateCornerControls(){this.patch.enabled=this.weights.cornerWeight.enabled=this.cornerMeasurements.checked;}
+   updateCornerControls(){this.patch.enabled=this.cornerMeasurements.checked;this.updateScoreWeightControls();}
+   changeCornerMeasurements(){
+      if(this.running)return;
+      this.updateCornerControls();
+      if(this.cornerMeasurements.checked&&sqrMissingCornerMeasurements(this.session)){
+         // A checkbox may be set before input folders have been chosen. Retain
+         // that preference without starting a scan of an unspecified location.
+         if(!this.session&&(!this.folders.wbpp.edit.text.trim()||!this.folders.originals.edit.text.trim())){
+            this.rerank();this.status.text='Corner measurements enabled. Select the WBPP and original-light folders, then use the magnifier to measure.';return;
+         }
+         this.analyze(); // The existing pipeline fills missing regions and reranks every group.
+      }else{
+         this.rerank();this.status.text=this.cornerMeasurements.checked?'Existing corner measurements reused; scores and KPI selection updated.':'Corner scoring disabled; scores and KPI selection updated.';
+      }
+   }
+   // Keep saved manual values independent of the displayed effective 0/1 weights.
+   toggleCorrelationScoring(){
+      if(this.correlationOnly.checked)for(let k of Object.keys(this.weights))this.manualWeights[k]=this.weights[k].value;
+      else for(let k of Object.keys(this.weights))this.weights[k].setValue(this.manualWeights[k]);
+      this.rerank();
+   }
+   updateScoreWeightControls(){
+      let auto=this.correlationOnly.checked,selection=this.groupSelect?this.group()?.correlationScoring:null;
+      for(let [k,control] of Object.entries(this.weights)){
+         if(auto)control.setValue(selection?.weights[k]??(k==='signalWeight'?1:0));
+         control.enabled=!auto&&(k!=='cornerWeight'||this.cornerMeasurements.checked)&&(k!=='guideWeight'||this.guidingMode?.currentItem!==2);
+      }
+      if(this.scoringSummary){
+         this.scoringSummary.text=auto?(selection?'Equal-weight Score / R3: '+selection.components.filter(c=>c.included).map(c=>c.label).join(', '):'Correlation scoring: measure the group to select KPIs.'):'Manual-weight Score · R1: field · R2: with corners';
+         this.scoringSummary.toolTip=auto?sqrScoreCorrelationReport(selection):'Original relative weights are active. Higher Score is better (0–1); rank 1 identifies the worst image.';
+      }
+      // This report stays visible on every tab, even with Quality evaluation
+      // collapsed. It follows the current group and each fresh correlation pass.
+      if(this.scoreInclusionStatus){
+         this.scoreInclusionStatus.text=auto?(selection?'Included KPIs (current group, equal weights): '+selection.components.filter(c=>c.included).map(c=>c.label).join(', '):'Included KPIs: pending measurements for this group.'):'Score uses manual weights.';
+         this.scoreInclusionStatus.toolTip=auto?sqrScoreCorrelationReport(selection):'Enable Use strongly correlated KPIs to select indicators automatically. Original manual weights are retained.';
+      }
+   }
    // Visibility also depends on ancestors: before the dialog is shown, every
    // child reports hidden. Persist the requested state independently, and set
    // the body visibility explicitly when restoring a saved process instance.
@@ -1615,9 +1765,9 @@ class SQRDialog extends Dialog {
    invalidate(){if(this.running)return;this.session=null;this.current=null;this.clearFrames();this.parseAutorun(false);this.populateGroups();this.status.text='Folder selection changed. Scan files again.';}
    // Geometry/measurement changes invalidate metrics and derived scores, but
    // keep original associations and the user's manual rejection decisions.
-   invalidateMeasurements(){if(this.running||!this.session)return;for(let g of this.session.groups){g.measureSignature='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}
+   invalidateMeasurements(){if(this.running||!this.session)return;for(let g of this.session.groups){g.measureSignature='';g.correlationScoring=null;for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}
       this.syncOptions();this.clearFrames();this.populateRows();this.status.text='Evaluation regions changed. Measure again before using the ranking.';}
-   rerank(){if(this.running)return;if(!this.session){this.updateHistogram();return;}try{this.syncOptions();for(let g of this.session.groups)for(let r of sqrGroupRows(g))r.guidingIgnored=sqrIgnoreGuiding(r,this.session.options);if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
+   rerank(){if(this.running)return;if(!this.session){this.updateScoreWeightControls();this.updateHistogram();return;}try{this.syncOptions();for(let g of this.session.groups)for(let r of sqrGroupRows(g))r.guidingIgnored=sqrIgnoreGuiding(r,this.session.options);if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
    busy(value){this.running=value;for(let c of [...this.inputControls,this.inputsBar,this.qualityBar,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===1;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
       this.reference.enabled=!this.running&&this.regionRotation.currentItem!==1;this.regionRotation.enabled=!this.running;
@@ -1643,39 +1793,47 @@ class SQRDialog extends Dialog {
    // explicit deselection, or choose a visible fallback if a filter hides it.
    populateRows(loadPreview=true){
       this.populating=true;this.table.clear();let g=this.group();
-      this.updatePixelScale();
-      let rows=sqrReviewRows(g,this.candidatesOnly.checked,this.order.currentItem,this.reviewReverse);
+      // Append only corner KPIs that actually contribute. Keep every established
+      // column index stable for selection, rejection, tooltips and saved sorting.
+      let extraKPIs=this.correlationOnly.checked&&this.cornerMeasurements.checked?g?.correlationScoring?.components.filter(c=>c.corner&&c.included)||[]:[];
+      this.table.numberOfColumns=this.baseReviewColumnCount+extraKPIs.length;
+      for(let i=0;i<extraKPIs.length;++i)this.table.setHeaderText(this.baseReviewColumnCount+i,extraKPIs[i].label+(extraKPIs[i].metric==='fwhm'?' (px)':''));
+      this.updatePixelScale();this.updateScoreWeightControls();
+      let mode=SQR_REVIEW_SORTS[this.order.currentItem][0],rows=sqrReviewRows(g,this.candidatesOnly.checked,mode,this.reviewReverse);
       this.visibleRows=rows;
-      let descending=[0,3,4,9,10,11,12].includes(this.order.currentItem)!==this.reviewReverse;
+      let descending=[3,4,9,10,11,12].includes(mode)!==this.reviewReverse;
       this.sortDirection.text=descending?'Descending ↓':'Ascending ↑';
       let directions=this.reviewReverse?
-         ['Lowest first (best first)','Highest first (best first)','Most first (best first)','Smallest first (best first)','Lowest first (best first)','Z to A','Highest rank first (best first)','Highest rank first (best first)','Latest first · undated frames next · master last','Lowest % first · incomplete last']:
-         ['Highest first (worst first)','Lowest first (worst first)','Fewest first (worst first)','Largest first (worst first)','Highest first (worst first)','A to Z','Rank 1 first (worst first)','Rank 1 first (worst first)','Earliest first · undated frames next · master last','Highest % first · incomplete last'];
+         ['Highest first (best first)','Highest first (best first)','Most first (best first)','Smallest first (best first)','Lowest first (best first)','Z to A','Highest rank first (best first)','Highest rank first (best first)','Latest first · undated frames next · master last','Lowest % first · incomplete last']:
+         ['Lowest first (worst first)','Lowest first (worst first)','Fewest first (worst first)','Largest first (worst first)','Highest first (worst first)','A to Z','Rank 1 first (worst first)','Rank 1 first (worst first)','Earliest first · undated frames next · master last','Highest % first · incomplete last'];
       let guideDirection=(this.reviewReverse?'Smallest error first (best first)':'Largest error first (worst first)')+' · unavailable next · master last';
-      this.sortDirection.toolTip=(this.order.currentItem>=10?guideDirection:directions[this.order.currentItem])+'. Click to reverse the order. Sorting preserves the selected image and rejection decisions.';
+      this.sortDirection.toolTip=(mode===13?(this.reviewReverse?'Highest rank first (best first)':'Rank 1 first (worst first)'):mode>=10?guideDirection:directions[mode])+'. Click to reverse the order. Sorting preserves the selected image and rejection decisions.';
       this.reviewSummary.text=g?'Showing '+rows.filter(r=>!r.isMaster).length+' of '+g.rows.length+' subframes · '+g.rows.filter(r=>r.candidate).length+' REVIEW candidates'+(g.master?(this.candidatesOnly.checked?' · master hidden by filter':' · master included for comparison'):''):'Scan files to populate the review list.';
       let kpiCell=value=>Number.isFinite(value)?sqrFmt(value):'—';
-      if(g)for(let r of rows){let node=new TreeBoxNode(this.table);node.row=r;if(!r.isMaster&&!r.moved)node.setIcon(2,this.rejectIcons[r.reject?1:0]);
-         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,2),sqrFmt(m.signal),sqrFmt(m.fwhm),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',kpiCell(sqrEccentricityValid(m)?m.eccentricity:null),kpiCell(sqrKPIValue(r,SQR_KPIS.find(k=>k.key==='cornerSeverity'))),sqrMeanQualityLabel(r),kpiCell(r.guideQuality),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match];
-         for(let i=0;i<cells.length;++i){node.setText(i,cells[i]);node.setToolTip(i,i===4?r.registered.path+(r.isMaster?'':'\n'+sqrAcquisitionLabel(r)):i===19?(r.original?.path||r.match):cells[i]);}
+      if(g)for(let r of rows){let node=new TreeBoxNode(this.table);node.row=r;if(!r.isMaster&&!r.moved)node.setIcon(3,this.rejectIcons[r.reject?1:0]);
+         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),Number.isFinite(r.rankCorrelated)?String(r.rankCorrelated):'—',r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,3),sqrFmt(m.signal),sqrFmt(m.fwhm),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',kpiCell(sqrEccentricityValid(m)?m.eccentricity:null),kpiCell(sqrKPIValue(r,SQR_KPIS.find(k=>k.key==='cornerSeverity'))),sqrMeanQualityLabel(r),kpiCell(r.guideQuality),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match];
+         cells.push(...extraKPIs.map(c=>kpiCell(sqrKPIValue(r,c))));
+         for(let i=0;i<cells.length;++i){node.setText(i,cells[i]);node.setToolTip(i,i===5?r.registered.path+(r.isMaster?'':'\n'+sqrAcquisitionLabel(r)):i===20?(r.original?.path||r.match):cells[i]);}
+         for(let i=0;i<extraKPIs.length;++i){let c=extraKPIs[i];node.setToolTip(this.baseReviewColumnCount+i,c.label+(c.metric==='fwhm'?' in pixels':' (0 = round, toward 1 = elongated)')+'. Lower is better.\nIncluded in Score with equal weight; correlation with PSF signal weight: '+sqrFmt(c.r)+' ('+c.count+' subframes).'+(sqrKPIValue(r,c)===null?'\nMeasurement unavailable for this image; inspect manually.':''));}
          node.setToolTip(0,'Field-only rank: 1 = worst Score. Includes the master; independent of table filters. Field-only Score: '+sqrFmt(r.scoreWithoutCorners));
          node.setToolTip(1,Number.isFinite(r.rankWithCorners)?'Rank including corner FWHM and eccentricity: 1 = worst Score. Includes the master; computed from available measurements even when Measure corners is off. Score: '+sqrFmt(r.scoreWithCorners):'Requires valid field, center and all four corner measurements including corner eccentricity, and a positive enabled weight.');
-         node.setToolTip(2,r.isMaster?'The master cannot be rejected.':r.moved?'Original already moved.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
-         node.setToolTip(5,r.isMaster?'Integrated master: no single acquisition time.':sqrAcquisitionLabel(r)+'\nSame timestamp used for acquisition-time sorting and histograms. Original observation time, with registered metadata as fallback.');
-         for(let i=15;i<=17;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-15]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):''));
+         node.setToolTip(2,Number.isFinite(r.rankCorrelated)?'Correlation rank: 1 = worst Score. Higher Score is better. Score: '+sqrFmt(r.scoreCorrelated)+'\n'+sqrScoreCorrelationReport(g.correlationScoring):this.correlationOnly.checked?'Measure this image to calculate its correlation rank.':'Enable strongly correlated KPIs to calculate R3.');
+         node.setToolTip(3,r.isMaster?'The master cannot be rejected.':r.moved?'Original already moved.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
+         node.setToolTip(6,r.isMaster?'Integrated master: no single acquisition time.':sqrAcquisitionLabel(r)+'\nSame timestamp used for acquisition-time sorting and histograms. Original observation time, with registered metadata as fallback.');
+         for(let i=16;i<=18;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-16]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):''));
          for(let [column,key,meaning] of [
-            [11,'0:eccentricity','Field star eccentricity, from 0 (round) toward 1 (elongated). Lower is rounder.'],
-            [12,'cornerSeverity','Largest corner-quality penalty from corner FWHM, corner/center FWHM ratio, or eccentricity, relative to the group. Lower is better. Stored measurements remain visible when corner scoring is off.'],
-            [14,'guideQuality','Combined guiding quality = (minimum + 2 × average + maximum) / 4, in arcseconds. Lower is better. Only usable exposure coverage produces a value.']]){
+            [12,'0:eccentricity','Field star eccentricity, from 0 (round) toward 1 (elongated). Lower is rounder.'],
+            [13,'cornerSeverity','Largest corner-quality penalty from corner FWHM, corner/center FWHM ratio, or eccentricity, relative to the group. Lower is better. Stored measurements remain visible when corner scoring is off.'],
+            [15,'guideQuality','Combined guiding quality = (minimum + 2 × average + maximum) / 4, in arcseconds. Lower is better. Only usable exposure coverage produces a value.']]){
             let kpi=SQR_KPIS.find(k=>sqrKPIKey(k)===key);
-            let inclusion=column===14&&r.isMaster?'Excluded from Score (master has no guiding interval)':sqrKPIScoreInfo(kpi,this.session.options,!!this.session.guiding?.enabled);
-            node.setToolTip(column,meaning+'\n'+inclusion+'.'+(column===14?'\n'+sqrGuideReport(r):'')+(sqrKPIValue(r,kpi)===null?'\nMeasurement unavailable for this image.':''));
+            let inclusion=column===15&&r.isMaster?'Excluded from Score (master has no guiding interval)':sqrKPIScoreInfo(kpi,this.session.options,!!this.session.guiding?.enabled,g.correlationScoring);
+            node.setToolTip(column,meaning+'\n'+inclusion+'.'+(column===15?'\n'+sqrGuideReport(r):'')+(sqrKPIValue(r,kpi)===null?'\nMeasurement unavailable for this image.':''));
          }
-         node.setToolTip(6,r.mainIssueDetail||'Measure the image to calculate its weighted quality Score.');
-         node.setToolTip(13,r.belowMeanDetail||'Measure the image to calculate the percentage of assessed indicators with worse-than-mean quality. Score is excluded.');
-         node.setToolTip(10,r.mainIssueDetail||'Measure the image to identify the largest weighted contribution to Score.');
+         node.setToolTip(7,r.mainIssueDetail||'Measure the image to calculate its weighted quality Score.');
+         node.setToolTip(14,r.belowMeanDetail||'Measure the image to calculate the percentage of assessed indicators with worse-than-mean quality. Score is excluded.');
+         node.setToolTip(11,r.mainIssueDetail||'Measure the image to identify the largest weighted contribution to Score.');
       }
-      for(let i=0;i<this.table.numberOfColumns;++i)this.table.adjustColumnWidthToContents(i);this.table.setColumnWidth(4,Math.round(250*this.displayPixelRatio));
+      for(let i=0;i<this.table.numberOfColumns;++i)this.table.adjustColumnWidthToContents(i);this.table.setColumnWidth(5,Math.round(250*this.displayPixelRatio));
       let found=false;for(let i=0;i<this.table.numberOfChildren;++i)if(this.table.child(i).row===this.current){this.table.currentNode=this.table.child(i);found=true;break;}
       if(!found){let next=this.selectionCleared?null:rows[0]||null;if(this.current!==next)this.clearFrames(!next);this.current=next;if(next)this.table.currentNode=this.table.child(0);else this.table.deselectAllNodes();}
       this.populating=false;
@@ -1721,9 +1879,9 @@ class SQRDialog extends Dialog {
          kpi=available[this.kpiSelect.currentItem];
       }
       let data=this.histogramData=sqrMetricPlot(g,kpi,this.cornerMeasurements.checked,this.current,this.histogramOrder.currentItem===1?'time':'value',this.autofocusRuns||[],sqrGuidingScale(sqrSessionPixelScale(this.session)));
-      this.kpiDirection.text=kpi.direction+' · '+sqrKPIScoreInfo(kpi,this.options(),!!this.session?.guiding?.enabled);
+      this.kpiDirection.text=kpi.direction+' · '+sqrKPIScoreInfo(kpi,this.options(),!!this.session?.guiding?.enabled,this.group()?.correlationScoring);
       if(kpi.guiding&&kpi.key!=='guideQuality')this.kpiDirection.text+=' · '+this.guideHint.text;
-      this.kpiDirection.toolTip=this.kpiDirection.text+(kpi.definition?'\n'+kpi.definition:'')+'\nInclusion follows the current quality settings. Each image requires valid measurements; unavailable values do not count as good quality.\nCenter FWHM is used in corner/center ratios. Corner measurements feed the worst corner-quality penalty. Guide minimum, average and maximum feed the combined guiding-quality penalty, only where guiding coverage is usable. The master has no guiding contribution.';
+      this.kpiDirection.toolTip=this.kpiDirection.text+(kpi.definition?'\n'+kpi.definition:'')+'\nInclusion follows the current quality settings. Each image requires valid measurements; unavailable values do not count as good quality.\nCenter FWHM is used in corner/center ratios. Corner measurements feed the worst corner-quality penalty. In correlation mode, each corner FWHM and eccentricity is also assessed independently and receives equal weight if selected. Guide minimum, average and maximum feed the combined guiding-quality penalty, only where guiding coverage is usable. The master has no guiding contribution.';
       this.histogramSummary.text=data.message||('One bar per frame · '+(data.order==='time'?'acquisition time: earliest first · master first · unknown times last':'ascending '+kpi.label)+' · '+data.count+' measured subframes'+(data.missing?' · '+data.missing+' unavailable':'')+'. Click a bar to select its image in Review and measurements.\n'+
          'Cyan: selected · purple: REVIEW · blue: other kept · red: rejected · gold: master · green dashed: kept mean.\n'+
          (data.guideBands?'Background: green = Good · amber = Medium · red = Bad. Axis includes all three guiding ranges. ':'Axis fits subframes. ')+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
@@ -1756,12 +1914,18 @@ class SQRDialog extends Dialog {
    // Restore abort/UI state in finally, then prepare the initial comparison
    // without switching away from the user's review tab after measurement.
    analyze(){
+      if(this.running)return;
       if(!this.session){this.scan();if(!this.session)return;}
       this.syncOptions();
       this.stopBlink();this.busy(true);let abort=console.abortEnabled,measured=false;console.abortEnabled=true;console.show();
       try{sqrAnalyze(this.session,s=>this.setStatus(s));this.populateRows();
          measured=true;
-      }catch(e){this.populateRows();this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
+      }catch(e){
+         // Preserve completed regions after a failure or abort, but refresh the
+         // selection so the report cannot retain an obsolete corner decision.
+         try{sqrRank(this.session);}catch(rankError){for(let g of this.session.groups)g.correlationScoring=null;}
+         this.populateRows();this.error(e);
+      }finally{console.abortEnabled=abort;this.busy(false);}
       if(measured){let n=this.session.groups.reduce((s,g)=>s+g.rows.filter(r=>r.candidate).length,0);
          let summary='Measured. '+n+' review candidates; no originals selected automatically.';this.status.text=summary;
          if(this.inspect(false))this.status.text=summary+(this.isRotating()?' Subframe rotation ready; open the Blink tab.':' Blink reference ready; open the Blink tab or inspect another frame.');
@@ -1846,20 +2010,20 @@ class SQRDialog extends Dialog {
    setSession(s){this.clearFrames();this.session=s;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
       for(let k of Object.keys(this.folders))this.folders[k].edit.text=o[k];for(let k of ['percent','patch','margin','minStars'])this[k].setValue(o[k]);
       this.logFolder.edit.text=o.logFolder;this.logTimeZone.currentItem=o.logTimeZone==='offset'?1:0;this.logUTCOffset.setValue(o.logUTCOffset);this.logUTCOffset.enabled=this.logTimeZone.currentItem===1;
-      for(let k of Object.keys(this.weights))this.weights[k].setValue(o[k]);this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));this.updateCornerControls();
+      this.correlationOnly.checked=!!o.correlationOnly;for(let k of Object.keys(this.weights)){this.manualWeights[k]=o[k];this.weights[k].setValue(o[k]);}this.cornerMeasurements.checked=o.measureCorners;this.reference.currentItem=Math.max(0,['master','best','sequence'].indexOf(o.reference));this.updateCornerControls();
       this.regionRotation.currentItem=Math.max(0,['off','image','blink'].indexOf(o.regionRotation));this.normalizeRegionRotation();
       this.guidingMode.currentItem=Math.max(0,['require','available','ignore'].indexOf(o.guidingMode));this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
       this.setBlinkInterval(o.blinkInterval);
       this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;
       this.setScatterOptions(o);
-      this.order.currentItem=Number.isInteger(o.reviewOrder)&&o.reviewOrder>=0&&o.reviewOrder<this.order.numberOfItems?o.reviewOrder:0;this.reviewReverse=!!o.reviewReverse;this.loadAutorun(false);this.populateGroups();this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);}
-   resetSettings(){let defaults=sqrDefaults(),folders=this.options();for(let k of ['percent','patch','margin','minStars'])this[k].setValue(defaults[k]);for(let k of Object.keys(this.weights))this.weights[k].setValue(defaults[k]);
+      this.order.currentItem=sqrReviewOrderIndex(o.reviewOrder);this.reviewReverse=!!o.reviewReverse;this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);}
+   resetSettings(){let defaults=sqrDefaults(),folders=this.options();this.correlationOnly.checked=false;this.manualWeights=Object.fromEntries(SQR_SCORE_COMPONENTS.map(c=>[c.weight,defaults[c.weight]]));for(let k of ['percent','patch','margin','minStars'])this[k].setValue(defaults[k]);for(let k of Object.keys(this.weights))this.weights[k].setValue(defaults[k]);
       this.setScatterOptions(defaults);this.updateScatter();
-      this.guidingMode.currentItem=0;this.weights.guideWeight.enabled=true;
+      this.guidingMode.currentItem=['require','available','ignore'].indexOf(defaults.guidingMode);this.weights.guideWeight.enabled=true;
       this.cornerMeasurements.checked=defaults.measureCorners;this.reference.currentItem=defaults.reference==='best'?1:0;this.updateCornerControls();
       this.regionRotation.currentItem=0;
       this.setBlinkInterval(defaults.blinkInterval);
-      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=defaults.reviewOrder;this.reviewReverse=defaults.reviewReverse;this.setInputsCollapsed(defaults.inputsCollapsed);this.setQualityCollapsed(defaults.qualityCollapsed);this.invalidateMeasurements();if(!this.session)this.updateHistogram();this.status.text='Evaluation defaults restored. Folder paths retained.';}
+      this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=sqrReviewOrderIndex(defaults.reviewOrder);this.reviewReverse=defaults.reviewReverse;this.setInputsCollapsed(defaults.inputsCollapsed);this.setQualityCollapsed(defaults.qualityCollapsed);this.invalidateMeasurements();if(!this.session)this.updateHistogram();this.status.text='Evaluation defaults restored. Folder paths retained.';}
    // Confirmation is the boundary between a read-only review and file changes.
    // The engine independently validates the plan again when executing it.
    moveRejected(){
