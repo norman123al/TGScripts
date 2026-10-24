@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="cde30dffbc1fa45a88065b8af1b7b2d348045b88" type="script" releaseDate="20261024">
+      <package fileName="TGScripts_repository.tar.gz" sha1="a6b57c7b710f24ac2e9ae245d80d4282a98237ed" type="script" releaseDate="20261024">
          <title>
             TGScripts snapshot - 2026 Okt 24
          </title>
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Adds equal-weight correlation scoring, individual corner KPIs, and R3 ranking. Scores range from 0 to 1, with higher values indicating better quality. Automatically measures missing corners, reports included KPIs, improves the scoring layout, and defaults to using available guiding data.
+               SubframeQualityReview: Adds a sky-background KPI using the lowest preview mean when corners are enabled, otherwise the whole-image mean. Includes adjustable scoring weight, sorting, quality and correlation plots, and updated documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-23T22:20:38.262Z" encoding="Base64">g2n1nDfULWVeBZYEkpuZET5vuSw9qBq5ZaKtST4+O4OCPd49JhL3fCLzOxUSmKCHccKlyy6hJ1q8TuTuREZeAg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-24T12:38:48.383Z" encoding="Base64">kXGVjdmYTrVAu4k4+texcXWn4+h0d11wSfig12alXBdj8QKxkMrtIA4MAjH6uKfqOBMZ6FMuYhk9pgzKZQgfAw==</Signature>

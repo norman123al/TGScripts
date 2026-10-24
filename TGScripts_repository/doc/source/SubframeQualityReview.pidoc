@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
-\keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.27.0.}
+\keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.28.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -85,8 +85,18 @@ With corner measurements enabled, each of the four corners is evaluated for FWHM
 Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.
 }
 
+\section{Sky background}{
+With Measure corners enabled, Sky background is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With Measure corners disabled, it is the arithmetic mean of the whole registered image, including any registration borders.
+
+Values are reported in image units. For RGB images, the mean includes all three color channels equally. Stars and extended objects remain part of the means; this indicator is an estimate, not a measurement of empty sky alone. Compare images with the same brightness scale and processing. Background subtraction or normalization can change its interpretation.
+
+Lower values are treated as better quality. Sky background has a default manual weight of 20; set it to zero to exclude it from Score. It also participates in Below-mean Quality and, when enabled, the selection of strongly correlated KPIs using the current background measurement. R1 uses the whole-image mean; R2 uses the preview minimum. Switching Measure corners updates the displayed value, Score, and R3 selection.
+
+The Review table reports Sky background with six decimal places. Hover over the value to see its meaning and the five preview means when available. Choose Sky background on the Quality indicators or Correlation plot tab, or in Sort by. Missing background measurements are shown as unavailable and do not count as good quality. All five preview means are required to establish their minimum; star-detection success is not required for a pixel mean.
+}
+
 \section{Score and Below-mean Quality}{
-Higher Score means better relative quality. Scores range from 0 to 1 and are displayed with three decimal places. The default Score sort puts the lowest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, optional corner problems, guiding errors when logs are available, and the breadth of below-mean quality across indicators.
+Higher Score means better relative quality. Scores range from 0 to 1 and are displayed with three decimal places. The default Score sort puts the lowest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, high sky background, optional corner problems, guiding errors when logs are available, and the breadth of below-mean quality across indicators.
 
 \table[header]{
    {{Component} {Poor-quality direction} {Default weight}}
@@ -95,6 +105,7 @@ Higher Score means better relative quality. Scores range from 0 to 1 and are dis
    {{Field FWHM} {Higher} {25}}
    {{Field eccentricity} {Higher} {20}}
    {{Corner quality} {Higher penalty; included when enabled} {20}}
+   {{Sky background} {Higher} {20}}
    {{Guiding quality} {Larger combined guiding error relative to image pixel scale} {25}}
    {{Below-mean Quality} {Higher fraction of indicators worse than their mean} {20}}
 }
@@ -105,7 +116,7 @@ For an indicator where higher is worse, the penalty is (value minus median) divi
 
 Corner quality is the worst penalty for star size, corner-to-center size ratio, or elongation across the four corners. Lower is better.
 
-Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, high Corner quality penalties, and high guiding error count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.
+Below-mean Quality uses arithmetic means, not medians. It is the percentage of assessed, enabled underlying indicators on the poor-quality side of their mean. Low PSF signal weight and low star count count as worse; high FWHM, high eccentricity, high Corner quality penalties, high sky background, and high guiding error count as worse. Equality with the mean is not worse. Score and Below-mean Quality itself are excluded from this comparison.
 
 For example, a subframe worse than the mean in three of four assessed indicators has Below-mean Quality of 75\%. Its score penalty uses the fraction 0.75 directly. With the default weight of 20, it adds 0.75 times 20 to the weighted numerator. Setting the Below-mean Quality weight to zero removes this score contribution while keeping the percentage visible.
 
@@ -142,7 +153,8 @@ The master receives comparable measurements and a score against the subframe bas
    {{Acquisition time (UTC)} {The complete date and time used for chronological sorting and quality plots. Master and unavailable timestamps are shown as a dash.}}
    {{Score} {The current quality score, from 0.000 to 1.000; higher is better.}}
    {{PSF weight, FWHM (px), Stars} {Field measurements used in scoring.}}
-   {{Main issue} {The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, Medium guiding, Bad guiding, or Below-mean Quality. Good guiding is reported when no enabled quality penalty applies.}}
+   {{Sky background} {Lowest mean of the center and four corner previews when Measure corners is enabled; otherwise the whole-image mean. Image units; lower is better.}}
+   {{Main issue} {The enabled component with the largest weighted impact, such as Weak signal, Few stars, Large stars, Elongated stars, Large corner stars, High sky background, Medium guiding, Bad guiding, or Below-mean Quality. Good guiding is reported when no enabled quality penalty applies.}}
    {{Field eccentricity} {Field star elongation, from zero for round stars toward one for elongated stars. Lower is rounder.}}
    {{Corner quality} {The largest corner-quality penalty across the four corners. Lower is better. Stored results remain visible when corner scoring is turned off.}}
    {{Below-mean Quality} {Percentage of assessed indicators with worse-than-mean quality; lower is better.}}
@@ -152,13 +164,13 @@ The master receives comparable measurements and a score against the subframe bas
    {{Original association} {Whether the corresponding uncalibrated original has been verified for moving.}}
 }
 
-All seven manual Score components have columns: PSF weight, FWHM, Stars, Field eccentricity, Corner quality, Below-mean Quality, and Guiding quality. In correlation mode, columns for qualifying individual corner FWHM and eccentricity indicators appear at the right of the table; scroll horizontally to view them. Their tooltips report correlation and sample count. Missing measurements remain marked as unavailable. The quality-column tooltips explain their meaning and current inclusion in Score.
+All eight manual Score components have columns: PSF weight, FWHM, Stars, Field eccentricity, Corner quality, Below-mean Quality, Guiding quality, and Sky background. In correlation mode, columns for qualifying individual corner FWHM and eccentricity indicators appear at the right of the table; scroll horizontally to view them. Their tooltips report correlation and sample count. Missing measurements remain marked as unavailable. The quality-column tooltips explain their meaning and current inclusion in Score.
 
 Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.
 
 R1, R2 and R3 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.
 
-Use Sort by in the Sort and filter area. Score, field-width, corner-quality, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1, R2 and R3 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.
+Use Sort by in the Sort and filter area. Score, field-width, corner-quality, sky-background, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1, R2 and R3 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.
 
 Acquisition time starts with the earliest full date and time. Toggle to Descending for latest first. In both directions, dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering. Sorting preserves the selected image and manual rejection choices. The quality plots retain their own order.
 
