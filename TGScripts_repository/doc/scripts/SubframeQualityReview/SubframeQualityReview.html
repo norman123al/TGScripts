@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.29.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.32.2." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.29.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.32.2. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -42,14 +42,15 @@
 <li class="pidoc_tocItem"><a href="#__What_is_measured__">5&emsp;What is measured</a></li>
 <li class="pidoc_tocItem"><a href="#__Sky_background__">6&emsp;Sky background</a></li>
 <li class="pidoc_tocItem"><a href="#__Score_and_Belowmean_Quality__">7&emsp;Score and Below-mean Quality</a></li>
-<li class="pidoc_tocItem"><a href="#__Review_and_measurements__">8&emsp;Review and measurements</a></li>
-<li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">9&emsp;Blink frame and reference</a></li>
-<li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">10&emsp;Quality indicators and acquisition order</a></li>
-<li class="pidoc_tocItem"><a href="#__Correlation_plot__">11&emsp;Correlation plot</a></li>
-<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">12&emsp;Log folder, timing, and autofocus markers</a></li>
-<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">13&emsp;Guiding measurements and quality</a></li>
-<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">14&emsp;Move rejected originals and rerun WBPP</a></li>
-<li class="pidoc_tocItem"><a href="#__Common_questions__">15&emsp;Common questions</a></li>
+<li class="pidoc_tocItem"><a href="#__R4_Rank_of_ranks__">8&emsp;R4: Rank of ranks</a></li>
+<li class="pidoc_tocItem"><a href="#__Review_and_measurements__">9&emsp;Review and measurements</a></li>
+<li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">10&emsp;Blink frame and reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">11&emsp;Quality indicators and acquisition order</a></li>
+<li class="pidoc_tocItem"><a href="#__Correlation_plot__">12&emsp;Correlation plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">13&emsp;Log folder, timing, and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">14&emsp;Guiding measurements and quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">15&emsp;Move rejected originals and rerun WBPP</a></li>
+<li class="pidoc_tocItem"><a href="#__Common_questions__">16&emsp;Common questions</a></li>
 </ul>
 </div>
 
@@ -75,15 +76,15 @@
 <li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
 <li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder containing the acquisition and guiding logs.</li>
 <li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
-<li class="pidoc_spaced_list_item">Leave Measure corners disabled for a faster first review, or enable it to evaluate the center and four corners. Enabling it starts measurement automatically when regional data is missing and input folders have been selected. Set Review worst (%) and the quality weights as needed.</li>
-<li class="pidoc_spaced_list_item">Click the magnifier button at the bottom if measurements are still needed. The measurement run covers all discovered groups and their matched masters.</li>
+<li class="pidoc_spaced_list_item">Set Review worst (%) and the quality weights as needed.</li>
+<li class="pidoc_spaced_list_item">Click the magnifier button at the bottom for a field measurement. To include the center and four corners, click the adjacent Measure corners grid button. It reuses existing field results; if these are missing, it measures the field first. Both actions cover all discovered groups and their matched masters.</li>
 <li class="pidoc_spaced_list_item">Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. Inspect the images before deciding which originals to reject.</li>
 <li class="pidoc_spaced_list_item">Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.</li>
 <li class="pidoc_spaced_list_item">Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.</li>
 <li class="pidoc_spaced_list_item">Rerun WBPP with the remaining originals. Refresh its light-frame input list so it no longer includes the moved files. Keep the rejection destination out of the new input selection.</li>
 </ol>
 
-<p>Measurements and pending rejection decisions remain in memory while the dialog is open. Closing the dialog discards them. The New Instance button saves folder and evaluation settings in a process icon; it does not save a measured review session.</p>
+<p>Measurements and pending rejection decisions remain in memory while the dialog is open. Closing the dialog discards them. The New Instance button saves folder and evaluation settings in a process icon; it does not save a measured review session. Loading saved settings starts with no corner measurements.</p>
    </div>
 </div>
 
@@ -142,7 +143,7 @@
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_evaluation_controls', this );">[hide]</p>
    <div id="Quality_evaluation_controls">
 <p>Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.</p>
-<p>The controls are arranged in three groups: Measurements and review contains the shortlist percentage, minimum-star requirement, edge guard, and optional corner measurements. Score weights sets the relative influence of the image-quality indicators in two columns, with Use strongly correlated KPIs below them. Guiding contains its scoring mode, weight, and the Good, Medium, and Bad limits in arcseconds.</p>
+<p>The controls are arranged in three groups. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Below these are Use corner measurements in Score, Use strongly correlated KPIs, and Use rank of ranks. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is reported in the bottom message area.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_2__"></a>
@@ -156,6 +157,22 @@
 </th>
 </tr>
 <tr>
+<td><p>Use strongly correlated KPIs</p>
+</td>
+<td><p>Off</p>
+</td>
+<td><p>Use the R3 correlation score as the active Score. R3 is also calculated and displayed while this option is off. Selecting it turns off Use rank of ranks.</p>
+</td>
+</tr>
+<tr>
+<td><p>Use rank of ranks</p>
+</td>
+<td><p>Off</p>
+</td>
+<td><p>Use the equal-weight average of normalized R1, R2, and R3 ranks as Score. Omit unavailable ranks and omit R2 while corner scoring is off. Selecting it turns off Use strongly correlated KPIs.</p>
+</td>
+</tr>
+<tr>
 <td><p>Review worst (%)</p>
 </td>
 <td><p>10</p>
@@ -166,9 +183,17 @@
 <tr>
 <td><p>Measure corners</p>
 </td>
-<td><p>Off</p>
+<td><p>Button beside the magnifier</p>
 </td>
-<td><p>Add one center and four corner measurements per image. Enabling it automatically measures missing regions across all groups and matched masters, reusing existing measurements. If input folders have not yet been selected, choose them and use the magnifier.</p>
+<td><p>Measure the center and four corners across all groups and matched masters. Existing field and regional results are reused. Missing field results are measured first. Regional results appear in the selected-image measurements; the scoring checkbox controls whether to use them.</p>
+</td>
+</tr>
+<tr>
+<td><p>Use corner measurements in Score</p>
+</td>
+<td><p>Off until measured</p>
+</td>
+<td><p>Include or exclude stored corner results in the current score without measuring again. Available once regional results exist. The first corner measurement enables it; subsequent measurement runs retain your choice.</p>
 </td>
 </tr>
 <tr>
@@ -205,7 +230,8 @@
 </tr>
 </table>
 
-<p>Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Turning it on reuses existing regional data or automatically measures missing regions, then updates scores and correlation selection. An unsuccessful regional measurement remains marked as unavailable; toggling the checkbox does not repeatedly retry it. Changing Corner size, Edge guard, or Minimum stars clears the measurements and unchecks Measure corners. Corner size remains editable while the checkbox is off. Re-enable Measure corners to measure the previews with the new settings, or click the magnifier for field measurements.</p>
+<p>Changing the review percentage or quality weights recalculates rankings from existing measurements. Measure corners runs the missing regional measurements and updates scores and correlation selection. It does not repeat existing full-image PSF measurements while the images and measurement settings are unchanged. An unsuccessful regional result remains marked as unavailable; clicking the button again does not repeatedly retry it. Changing Corner size, Edge guard, or Minimum stars clears the measurements and resets the corner status. Click Measure corners to measure the previews with the new settings, or use the magnifier for field measurements.</p>
+<p>Use corner measurements in Score switches between field-only and field-plus-corner evaluation. Turning it off excludes corner penalties and individual corner KPIs, uses the whole-image sky background, and recalculates Score, Below-mean Quality, R3, and R4. Turning it on uses the stored regional results again. Neither action remeasures images. R1 and R2 remain available for comparison, and the regional measurements and plots are retained. Missing results are still reported when their scoring contribution is enabled.</p>
 <p>If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist. In the Correlation plot, only measurements from the current group's subframes enable regional choices; master-only measurements do not.</p>
    </div>
 </div>
@@ -217,7 +243,7 @@
 <p>The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels.</p>
 <p>Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.</p>
 <p>Field measurements for all groups and masters are submitted together to SubframeSelector. Optional center and corner crops are submitted in a second batch. SubframeSelector manages processing concurrency using its normal defaults, as in WBPP; the script does not impose a fixed number of frames per batch.</p>
-<p>With corner measurements enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.</p>
+<p>With corner scoring enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.</p>
 <p>Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.</p>
    </div>
 </div>
@@ -226,9 +252,9 @@
    <h3 class="pidoc_sectionTitle">6&emsp;Sky background</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Sky_background', this );">[hide]</p>
    <div id="Sky_background">
-<p>With Measure corners enabled, Sky background is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With Measure corners disabled, it is the arithmetic mean of the whole registered image, including any registration borders.</p>
+<p>With Use corner measurements in Score enabled, Sky background is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With the option off, it is the arithmetic mean of the whole registered image, including any registration borders.</p>
 <p>Values are reported in image units. For RGB images, the mean includes all three color channels equally. Stars and extended objects remain part of the means; this indicator is an estimate, not a measurement of empty sky alone. Compare images with the same brightness scale and processing. Background subtraction or normalization can change its interpretation.</p>
-<p>Lower values are treated as better quality. Sky background has a default manual weight of 20; set it to zero to exclude it from Score. It also participates in Below-mean Quality and, when enabled, the selection of strongly correlated KPIs using the current background measurement. R1 uses the whole-image mean; R2 uses the preview minimum. Switching Measure corners updates the displayed value, Score, and R3 selection.</p>
+<p>Lower values are treated as better quality. Sky background has a default manual weight of 20; set it to zero to exclude it from Score. It also participates in Below-mean Quality and the R3 selection of strongly correlated KPIs using the current background measurement. R1 uses the whole-image mean; R2 uses the preview minimum. Switching corner scoring updates the displayed value, Score, R3 selection, and R4.</p>
 <p>The Review table reports Sky background with six decimal places. Hover over the value to see its meaning and the five preview means when available. Choose Sky background on the Quality indicators or Correlation plot tab, or in Sort by. Missing background measurements are shown as unavailable and do not count as good quality. All five preview means are required to establish their minimum; star-detection success is not required for a pixel mean.</p>
    </div>
 </div>
@@ -324,24 +350,73 @@
 <p>Score = 1 − sum(weight × penalty) / (10 × sum of weights). Only available components enter the sums. A Score of 1.000 means no measured penalty; 0.000 means the weighted mean penalty reaches its limit of 10. Score describes relative quality within its group, not a probability or an absolute image-quality rating. Rankings use full precision, so values that display identically can have different ranks.</p>
 <p>The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner quality counts as one indicator when corner scoring is enabled and weighted.</p>
 <p>Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and R1 and R2 are withheld when their required measurements are unavailable. A partial R3 remains available when the field measurement is valid; inspect its missing-data flags.</p>
-<p>Enable Use strongly correlated KPIs (|r| &gt;= 0.7) to select the scoring indicators automatically for each group. The selection uses absolute Pearson correlation with PSF signal weight, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.</p>
-<p>PSF signal weight remains the anchor. Each other selected component has weight 1; excluded components have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates only when Measure corners is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.</p>
-<p>With Measure corners enabled, the FWHM and eccentricity of each of the four corners are also tested separately against PSF signal weight. Each of these eight indicators is included with weight 1 when its absolute correlation reaches 0.7 with at least three valid paired subframes. The Corner quality composite remains a separate candidate. A corner FWHM can qualify even if eccentricity or another corner is unavailable. Center FWHM contributes through the composite's corner-to-center ratios; it is not a separate scoring candidate.</p>
+<p>R3 is calculated whenever field measurements are available. Enable Use strongly correlated KPIs (|r| &gt;= 0.7) to use its score as the active Score. It selects indicators automatically for each group. The selection uses absolute Pearson correlation with PSF signal weight, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.</p>
+<p>PSF signal weight remains the anchor. Each other selected component has weight 1; excluded components have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates when Use corner measurements in Score is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.</p>
+<p>With Use corner measurements in Score enabled, the FWHM and eccentricity of each of the four corners are also tested separately against PSF signal weight. Each of these eight indicators is included with weight 1 when its absolute correlation reaches 0.7 with at least three valid paired subframes. The Corner quality composite remains a separate candidate. A corner FWHM can qualify even if eccentricity or another corner is unavailable. Center FWHM contributes through the composite's corner-to-center ratios; it is not a separate scoring candidate.</p>
 <p>Each selected corner indicator contributes its own penalty and enters the Below-mean Quality comparison. Larger FWHM and eccentricity are worse, regardless of the correlation's sign. Several qualifying corner indicators therefore give corner performance more combined influence. Disabling correlation scoring restores the manual weights and the single Corner quality contribution.</p>
-<p>Below-mean Quality is first recalculated from the selected underlying indicators, then included only if its own correlation passes the threshold. Score itself is never a selection candidate. If no other indicator qualifies, Score uses PSF signal weight alone. Included KPIs are listed in the bottom message area on every tab and in the Review summary for the current group. Hover over either report or R3 for each correlation, sample count, and exclusion reason. Changing this option reuses existing measurements.</p>
-<p>If Measure corners is enabled afterwards, missing regions are measured automatically and the selection is recalculated for every group. Corner quality and the eight individual corner indicators are included only when each meets the strong-correlation threshold. Disabling corners removes all of these components and recalculates the selection again.</p>
+<p>Below-mean Quality is first recalculated from the selected underlying indicators, then included only if its own correlation passes the threshold. Score itself is never a selection candidate. If no other indicator qualifies, Score uses PSF signal weight alone. The R3 KPIs are listed in the bottom message area on every tab. Hover over that report or R3 for each correlation, sample count, and exclusion reason. Changing this option reuses existing measurements.</p>
+<p>Clicking Measure corners afterwards measures missing regions and recalculates the selection for every group. When corner scoring is enabled, Corner quality and the eight individual corner indicators are included only when each meets the strong-correlation threshold. Turning corner scoring off excludes them and recalculates the selection using the field-only indicators. Clearing measurements also removes their scoring contributions until they are measured again.</p>
 <p>The master receives comparable measurements and a score against the subframe baselines. It does not influence the baselines or consume a place in the REVIEW quota. Guiding measurements apply only to individual exposures, so the master has no guiding contribution.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Review_and_measurements__">
-   <h3 class="pidoc_sectionTitle">8&emsp;Review and measurements</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Review_and_measurements', this );">[hide]</p>
-   <div id="Review_and_measurements">
+<div class="pidoc_section" id="__R4_Rank_of_ranks__">
+   <h3 class="pidoc_sectionTitle">8&emsp;R4: Rank of ranks</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'R4_Rank_of_ranks', this );">[hide]</p>
+   <div id="R4_Rank_of_ranks">
+<p>R4 combines three views of image quality into one ranking. Each available ranking has equal influence after normalization. It averages the rank positions, rather than the underlying quality scores.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_4__"></a>
 <span class="pidoc_table_title">Table 4</span></caption>
+<tr>
+<th><p>Component</p>
+</th>
+<th><p>What it evaluates</p>
+</th>
+</tr>
+<tr>
+<td><p>R1</p>
+</td>
+<td><p>Field quality using your manual weights, without corner measurements.</p>
+</td>
+</tr>
+<tr>
+<td><p>R2</p>
+</td>
+<td><p>Field and corner quality using your manual weights.</p>
+</td>
+</tr>
+<tr>
+<td><p>R3</p>
+</td>
+<td><p>Quality using equally weighted indicators that strongly correlate with PSF signal weight.</p>
+</td>
+</tr>
+</table>
+
+<p>For each component, normalized rank = (rank − 1) / (N − 1), where N is the number of images with a valid rank for that component in the group. The worst rank becomes 0 and the best becomes 1. If only one image has a rank, its normalized value is 0.5.</p>
+<p>R4 Score = mean of the available normalized R1, R2, and R3 ranks.</p>
+<p>The R4 column then ranks these combined scores: 1 is worst, and larger rank numbers are better. The combined Score itself ranges from 0 to 1, with higher values indicating better relative quality. Rank and Score are different values.</p>
+<p>For example, suppose each component ranks 11 images and one image has R1 = 3, R2 = 7, and R3 = 9. Its normalized ranks are 0.2, 0.6, and 0.8. Its combined Score is (0.2 + 0.6 + 0.8) / 3 = 0.533. Its R4 position depends on the combined scores of the other images. If only R1 and R3 are available with those values, the combined Score is (0.2 + 0.8) / 2 = 0.500.</p>
+<p>R2 is omitted when Use corner measurements in Score is off or that image has no valid R2. Other unavailable ranks are also omitted; they never count as zero. An image with no available ranks has no R4. A partial result can still require REVIEW. Corner scoring also affects which indicators participate in R3, so switching it can change both R3 and R4.</p>
+<p>To use this method, enable Use rank of ranks in Measurements and review. The Score column, REVIEW shortlist, and best-subframe comparison then use the combined score. Use strongly correlated KPIs selects the R3 score instead; the two options are alternatives. Leaving both off uses manual scoring. R1–R4 remain visible in every mode when their required measurements exist, and changing modes does not measure images again.</p>
+<p>Select R4: rank of ranks in Sort by to order the table by R4, independently of the active Score mode. Hover over an R4 value to see the contributing ranks, their population sizes, normalized values, and any omissions. R4 includes the comparison master, uses all ranked images in the group regardless of the table filter, and resolves equal scores by filename.</p>
+<p>Manual weights remain editable in rank-of-ranks mode because they determine R1 and R2. R3 uses its independently selected, equally weighted indicators. The displayed Below-mean Quality describes the manual R1/R2 comparison in this mode; R3 assesses its selected indicators separately. The Main issue and Score tooltip identify the ranks that most reduce the combined score.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Review_and_measurements__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Review and measurements</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Review_and_measurements', this );">[hide]</p>
+   <div id="Review_and_measurements">
+<p>Below the table, Reading the table explains R1–R4, the score direction, Below-mean Quality, and the missing-data symbols. Selected image shows the keep or reject decision, REVIEW status, Score, and main issue. Its compact measurement table aligns FWHM, eccentricity, and star count across the field, center, and four corners.</p>
+<p>Click the Review information bar to collapse or expand both panels together. Collapsing them gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.</p>
+<p>Hover over the selected-image assessment for the full explanation, or over its measurements for unavailable-region details. The filename is shown separately; hover over it for the full original or moved-file path and the registered-image path. Selecting another image updates these details without changing the window size.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_5__"></a>
+<span class="pidoc_table_title">Table 5</span></caption>
 <tr>
 <th><p>Column</p>
 </th>
@@ -363,7 +438,13 @@
 <tr>
 <td><p>R3</p>
 </td>
-<td><p>Rank using equally weighted, strongly correlated indicators when that option is enabled. Otherwise a dash is shown. Rank 1 is worst.</p>
+<td><p>Rank using equally weighted, strongly correlated indicators. Calculated whenever field measurements are available, independently of the selected scoring mode. Rank 1 is worst.</p>
+</td>
+</tr>
+<tr>
+<td><p>R4</p>
+</td>
+<td><p>Rank of ranks, based on the equal-weight average of the normalized available R1, R2, and R3 ranks. R2 is omitted while corner scoring is off. Rank 1 is worst.</p>
 </td>
 </tr>
 <tr>
@@ -405,7 +486,7 @@
 <tr>
 <td><p>Sky background</p>
 </td>
-<td><p>Lowest mean of the center and four corner previews when Measure corners is enabled; otherwise the whole-image mean. Image units; lower is better.</p>
+<td><p>Lowest mean of the center and four corner previews when corner scoring is enabled; otherwise the whole-image mean. Image units; lower is better.</p>
 </td>
 </tr>
 <tr>
@@ -460,8 +541,8 @@
 
 <p>All eight manual Score components have columns: PSF weight, FWHM, Stars, Field eccentricity, Corner quality, Below-mean Quality, Guiding quality, and Sky background. In correlation mode, columns for qualifying individual corner FWHM and eccentricity indicators appear at the right of the table; scroll horizontally to view them. Their tooltips report correlation and sample count. Missing measurements remain marked as unavailable. The quality-column tooltips explain their meaning and current inclusion in Score.</p>
 <p>Main issue identifies a scoring contribution, not a diagnosis. For example, elongated stars may be associated with guiding, wind, or optical effects; inspect the image to decide whether to reject it. Hover over the score, issue, or quality columns for contribution details and missing-data information.</p>
-<p>R1, R2 and R3 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.</p>
-<p>Use Sort by in the Sort and filter area. Score, field-width, corner-quality, sky-background, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1, R2 and R3 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.</p>
+<p>R1, R2, R3 and R4 include the master in their comparison ranking. Their values remain group ranks when the table is filtered; they are not renumbered as visible row positions. Equal scores are resolved consistently by filename.</p>
+<p>Use Sort by in the Sort and filter area. Score, field-width, corner-quality, sky-background, and Below-mean Quality sorts show the poorest values first; PSF signal weight and star count show the smallest values first. R1, R2, R3 and R4 show rank 1 first. The button beside the selector shows Ascending or Descending. Click it to toggle the direction. Choosing another criterion restores that criterion's default direction. The selected criterion and direction are saved in process instances. Below-mean Quality keeps complete comparisons first, with Score resolving percentage ties in the chosen direction; incomplete comparisons follow in both directions.</p>
 <p>Acquisition time starts with the earliest full date and time. Toggle to Descending for latest first. In both directions, dated subframes come first, undated subframes follow, and the master is last. Filename sequence numbers do not participate in this ordering. Sorting preserves the selected image and manual rejection choices. The quality plots retain their own order.</p>
 <p>Choose Guide minimum, Guide maximum, or Guide average to sort by the corresponding guiding column. These start with the largest error first; use the direction button to put the smallest error first. Values are sorted numerically in arcseconds, including partial measurements marked with an asterisk. Unavailable values follow measured values in both directions, and the master is last. The choice and direction are saved in process instances and also determine the sequence for Rotate subframes (Review order).</p>
 <p>Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.</p>
@@ -472,7 +553,7 @@
 </div>
 
 <div class="pidoc_section" id="__Blink_frame_and_reference__">
-   <h3 class="pidoc_sectionTitle">9&emsp;Blink frame and reference</h3>
+   <h3 class="pidoc_sectionTitle">10&emsp;Blink frame and reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Blink_frame_and_reference', this );">[hide]</p>
    <div id="Blink_frame_and_reference">
 <p>Blink mode defaults to Best scoring subframe. This chooses the highest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
@@ -484,8 +565,8 @@
 <p>Rotate regions offers two ways to inspect all regions of the selected image:</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_5__"></a>
-<span class="pidoc_table_title">Table 5</span></caption>
+<caption><a id="__table_6__"></a>
+<span class="pidoc_table_title">Table 6</span></caption>
 <tr>
 <th><p>Choice</p>
 </th>
@@ -523,7 +604,7 @@
 </div>
 
 <div class="pidoc_section" id="__Quality_indicators_and_acquisition_order__">
-   <h3 class="pidoc_sectionTitle">10&emsp;Quality indicators and acquisition order</h3>
+   <h3 class="pidoc_sectionTitle">11&emsp;Quality indicators and acquisition order</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_indicators_and_acquisition_order', this );">[hide]</p>
    <div id="Quality_indicators_and_acquisition_order">
 <p>The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.</p>
@@ -532,8 +613,8 @@
 <p>Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_6__"></a>
-<span class="pidoc_table_title">Table 6</span></caption>
+<caption><a id="__table_7__"></a>
+<span class="pidoc_table_title">Table 7</span></caption>
 <tr>
 <th><p>Color or marker</p>
 </th>
@@ -596,18 +677,18 @@
 </div>
 
 <div class="pidoc_section" id="__Correlation_plot__">
-   <h3 class="pidoc_sectionTitle">11&emsp;Correlation plot</h3>
+   <h3 class="pidoc_sectionTitle">12&emsp;Correlation plot</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Correlation_plot', this );">[hide]</p>
    <div id="Correlation_plot">
 <p>Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.</p>
-<p>Regional KPIs appear in both selectors only when corresponding subframe measurements are available in the current group. Enable Measure corners to measure missing regions and add these choices. Stored regional results remain selectable when corner scoring is turned off. If a selected KPI becomes unavailable after changing groups or clearing measurements, that axis returns to its initial selection; the other axis is retained when available.</p>
-<p>Each point represents one subframe with both measurements available. The plot and correlation use the same subframes in the selected filter group, including rejected frames, independently of the review table's filter and sort order. The master is always excluded. Frames missing either measurement are omitted, and the count below the plot reports how many could not be plotted. Enable Measure corners and measure the images for regional indicators; load matching guiding logs for guiding indicators. Guiding values use arcseconds, FWHM uses pixels, and Below-mean Quality uses percentages.</p>
+<p>Regional KPIs appear in both selectors only when corresponding subframe measurements are available in the current group. Click Measure corners to measure missing regions and add these choices. If a selected KPI becomes unavailable after changing groups or clearing measurements, that axis returns to its initial selection; the other axis is retained when available.</p>
+<p>Each point represents one subframe with both measurements available. The plot and correlation use the same subframes in the selected filter group, including rejected frames, independently of the review table's filter and sort order. The master is always excluded. Frames missing either measurement are omitted, and the count below the plot reports how many could not be plotted. Click Measure corners for regional indicators; load matching guiding logs for guiding indicators. Guiding values use arcseconds, FWHM uses pixels, and Below-mean Quality uses percentages.</p>
 <p>Hover over a point to see its filename and both values. Click it to select the image in Review and measurements. If necessary, the REVIEW-only filter is cleared to reveal that image. Cyan identifies the selected image, purple a REVIEW candidate, blue another kept frame, and red a rejected frame. Plot selection does not change rejection decisions. Identical measurements can overlap; keyboard focus and Enter also select points.</p>
 <p>The highlighted banner above the plot displays Correlation (Pearson) and its interpretation. The coefficient r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_7__"></a>
-<span class="pidoc_table_title">Table 7</span></caption>
+<caption><a id="__table_8__"></a>
+<span class="pidoc_table_title">Table 8</span></caption>
 <tr>
 <th><p>Absolute r value</p>
 </th>
@@ -652,7 +733,7 @@
 </div>
 
 <div class="pidoc_section" id="__Log_folder_timing_and_autofocus_markers__">
-   <h3 class="pidoc_sectionTitle">12&emsp;Log folder, timing, and autofocus markers</h3>
+   <h3 class="pidoc_sectionTitle">13&emsp;Log folder, timing, and autofocus markers</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_timing_and_autofocus_markers', this );">[hide]</p>
    <div id="Log_folder_timing_and_autofocus_markers">
 <p>Select Log folder in the directory section. All Autorun_log and PHD2_GuideLog files are read directly from this folder, regardless of letter case. Include continuation logs if acquisition was restarted. Files marked _CHN are ignored because they are translated copies. Subfolders and unrelated logs are not processed. Select the folder again to refresh its contents.</p>
@@ -667,7 +748,7 @@
 </div>
 
 <div class="pidoc_section" id="__Guiding_measurements_and_quality__">
-   <h3 class="pidoc_sectionTitle">13&emsp;Guiding measurements and quality</h3>
+   <h3 class="pidoc_sectionTitle">14&emsp;Guiding measurements and quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Guiding_measurements_and_quality', this );">[hide]</p>
    <div id="Guiding_measurements_and_quality">
 <p>The script matches PHD2 samples to each subframe's UTC exposure start and duration. Guide min, Guide max, and Guide avg report the combined RA/Dec displacement in arcseconds. The guider's recorded pixel scale converts its measurements to arcseconds; the imaging camera's pixel scale sets the quality thresholds.</p>
@@ -678,8 +759,8 @@
 <p>The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. This balances typical performance with the observed extremes. For unequal X/Y image scales, the smaller available scale is used. The UI displays the Good, Medium, and Bad boundaries in arcseconds for your setup. For example, an image scale of approximately 0.507 arcseconds per pixel gives a Good limit of approximately 0.507 arcseconds and a Medium limit of approximately 0.887 arcseconds; larger errors are Bad.</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_8__"></a>
-<span class="pidoc_table_title">Table 8</span></caption>
+<caption><a id="__table_9__"></a>
+<span class="pidoc_table_title">Table 9</span></caption>
 <tr>
 <th><p>Category</p>
 </th>
@@ -710,8 +791,8 @@
 <p>Choose how Guiding in Score handles the measurements:</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_9__"></a>
-<span class="pidoc_table_title">Table 9</span></caption>
+<caption><a id="__table_10__"></a>
+<span class="pidoc_table_title">Table 10</span></caption>
 <tr>
 <th><p>Mode</p>
 </th>
@@ -745,7 +826,7 @@
 </div>
 
 <div class="pidoc_section" id="__Move_rejected_originals_and_rerun_WBPP__">
-   <h3 class="pidoc_sectionTitle">14&emsp;Move rejected originals and rerun WBPP</h3>
+   <h3 class="pidoc_sectionTitle">15&emsp;Move rejected originals and rerun WBPP</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Move_rejected_originals_and_rerun_WBPP', this );">[hide]</p>
    <div id="Move_rejected_originals_and_rerun_WBPP">
 <p>The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.</p>
@@ -759,13 +840,13 @@
 </div>
 
 <div class="pidoc_section" id="__Common_questions__">
-   <h3 class="pidoc_sectionTitle">15&emsp;Common questions</h3>
+   <h3 class="pidoc_sectionTitle">16&emsp;Common questions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Common_questions', this );">[hide]</p>
    <div id="Common_questions">
 
 <table class="pidoc_table">
-<caption><a id="__table_10__"></a>
-<span class="pidoc_table_title">Table 10</span></caption>
+<caption><a id="__table_11__"></a>
+<span class="pidoc_table_title">Table 11</span></caption>
 <tr>
 <th><p>Situation</p>
 </th>
@@ -793,7 +874,7 @@
 <tr>
 <td><p>R2 or corner plots are unavailable</p>
 </td>
-<td><p>Enable Measure corners to measure missing regions automatically. R2 requires complete regional measurements; a regional plot requires a valid value for that indicator.</p>
+<td><p>Click Measure corners beside the magnifier. R2 requires complete regional measurements; a regional plot requires a valid value for that indicator.</p>
 </td>
 </tr>
 <tr>
@@ -834,7 +915,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-24 15:57:08 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-24 21:20:27 UTC</p>
 </div>
 <br/>
 <br/>

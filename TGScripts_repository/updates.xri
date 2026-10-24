@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="e03c9523db355e79c4c07c9dc80e515e8bfeda7a" type="script" releaseDate="20261024">
+      <package fileName="TGScripts_repository.tar.gz" sha1="02ad4dec0452f7f85ada5e4c9af10e113dffa93e" type="script" releaseDate="20261024">
          <title>
             TGScripts snapshot - 2026 Okt 24
          </title>
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Adds undo for moved originals, including restoration from saved move journals, and Good/Medium/Bad eccentricity bands. Improves REVIEW explanations, clears Measure corners when relevant settings change, and places Log folder before Rejected originals.
+               SubframeQualityReview: Adds R4 rank-of-ranks scoring, always-visible R3 rankings, and optional corner scoring. Reorganizes review details into a shared collapsible section and expands the R4 documentation with a worked example.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-24T16:51:33.613Z" encoding="Base64">u8W0xTfBOyz+3eJIeptGdRoU5PZokhb+p0od04qiOkc+YbJMXDlqcZolEJwVLE7vYs9e1eHEvfEym0MsCyTEAA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-24T21:24:53.341Z" encoding="Base64">ONalHIZmmIV00BrdFfoZBBixvfrWYsve1tZXbuJa3SHQAmW32SevSVIzmum7Xu6TH6aBrbOXRWwRstwgd27YBA==</Signature>
