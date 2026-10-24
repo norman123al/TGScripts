@@ -60,7 +60,7 @@ The packaged updater release may lag behind the repository source. To use the V8
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.13.1 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;10&#8209;19 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.25.3 | Ranks registered lights with optional guiding data, offers blink and correlation plots, and moves manually rejected originals after confirmation. | 2026&#8209;10&#8209;22 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.32.2 | Ranks registered lights with manual, correlation, or combined rankings; provides blink and quality plots, with journal-based move and undo for rejected originals. | 2026&#8209;10&#8209;24 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -294,42 +294,51 @@ Designed for a **stretched stars-only image** with roughly straight spikes on tw
 
 ### Subframe Quality Review
 
-**Version:** 0.25.3 · **Last update:** 2026-10-22
+**Version:** 0.32.2 · **Last update:** 2026-10-24
 
-Reviews **registered light frames from a completed WeightedBatchPreprocessing (WBPP) run** to help decide which original exposures to exclude before rerunning WBPP. SubframeSelector measures PSF signal weight, star count, FWHM, and eccentricity over the common valid field, with optional center and corner measurements. Adjustable weights combine image quality, **Below-mean Quality**, and optional guiding quality into a relative score within each filter/exposure group; **lower Score is better**. Below-mean Quality reports the percentage of assessed, enabled indicators worse than their group mean.
+Reviews **registered light frames from a completed WeightedBatchPreprocessing (WBPP) run** to help decide which original exposures to exclude before rerunning WBPP. It measures PSF signal weight, star count, FWHM, eccentricity, and sky background, with optional center/corner measurements and guiding-log data. **Score now ranges from 0 to 1; higher is better.** Scores describe relative quality within each filter/exposure group. **Below-mean Quality** reports the percentage of assessed, enabled indicators worse than their group mean.
 
-- **Review and measurements:** shortlists the worst **10%** by default and flags missing required measurements. Sort in either direction by quality, rank, acquisition time, or guiding statistics, and optionally show only REVIEW candidates.
-- **Blink frame / reference:** compare with the best scoring subframe or matching linear filter master, rotate through subframes in the visible Review order, or cycle through image regions. Adjustable playback intervals (**0.10–10 seconds**) and preserved zoom/pan make comparisons easier; display stretching and brightness alignment leave image pixels unchanged.
-- **Quality indicators:** show one bar per frame, ordered by indicator value or acquisition time, with review/rejection colors, master comparison, and a mean line for non-rejected frames. Acquisition-order plots can show autofocus-start markers labeled with the final successful focus position.
-- **Guiding and logs:** an optional log folder supplies Autorun autofocus events and PHD2 guiding samples matched to each exposure. Minimum, average, and maximum guiding errors are shown in arcseconds; combined guiding quality can contribute to Score. Choose **Require guiding data**, **Use available guiding data**, or **Ignore guiding KPI**. Guiding-statistic plots show Good/Medium/Bad bands based on the imaging pixel scale.
-- **Correlation plot:** compare two selectable indicators in a scatter plot with a Pearson correlation coefficient and an explanation of its strength and direction. Click a point to select its subframe for review.
+- **Four comparison rankings:** **R1** uses manual weights for field quality; **R2** adds corners; **R3** equally weights indicators strongly correlated with PSF signal weight (absolute Pearson correlation ≥ 0.7), retaining PSF signal weight as its anchor; **R4** averages the available normalized R1–R3 ranks. Rank **1 is worst**. Manual scoring is the default; **Use strongly correlated KPIs** or **Use rank of ranks** selects an alternative Score for the shortlist and best-subframe reference. Unavailable ranks are omitted from R4, as is R2 when corner scoring is off.
+- **Review and measurements:** shortlists the worst **10%** by default and flags missing required measurements. Reversible sorting, a REVIEW-only filter, explanatory tooltips, and collapsible review-information panels help inspect individual frames and their regional measurements.
+- **Corner and sky-background measurements:** the magnifier measures the field; the adjacent **Measure corners** grid button measures the center and four corners, reusing existing results. **Use corner measurements in Score** toggles their contribution without remeasuring. Sky background uses the lowest mean of the five previews when corner scoring is enabled, otherwise the whole-image mean. Lower background is treated as better; stars and extended objects can affect this estimate.
+- **Blink frame / reference:** compare with the best scoring subframe or matching linear filter master, rotate through subframes in the visible Review order, or cycle through regions. Playback intervals of **0.10–10 seconds**, preserved zoom/pan, display stretching, and brightness alignment aid comparison without changing source pixels.
+- **Quality and correlation plots:** inspect one bar per frame by value or acquisition time, with master comparison, a mean for non-rejected frames, and optional autofocus-start markers. Eccentricity plots add Good/Medium/Bad inspection bands at **0.42** and **0.60**; these do not change scoring. The scatter plot compares two selectable indicators and explains their Pearson correlation.
+- **Guiding and logs:** an optional folder supplies Autorun autofocus events and PHD2 samples matched to each exposure. Minimum, average, and maximum guiding errors appear in arcseconds, with bands based on the imaging pixel scale. **Use available guiding data** is now the default; **Require guiding data** and **Ignore guiding KPI** remain available.
 
-**REVIEW is a suggestion, not a rejection decision.** Mark unwanted originals manually, then use the green checkmark to inspect and confirm the move plan. Only uniquely verified original lights are moved, preserving relative subdirectories and recording a move journal; calibrated images, registered images, and masters remain in place. Refresh WBPP's input list before rerunning it. Measurements and pending decisions last only while the dialog stays open; saved process instances retain settings, not the measured review session.
+**REVIEW is a suggestion, not a rejection decision.** Mark unwanted originals manually, then use the green checkmark to inspect and confirm the move plan. Only uniquely verified original lights are moved, preserving relative subdirectories and recording a move journal. The **Undo** arrow can restore eligible files from that journal, even after reopening the script, without overwriting existing files. Refresh WBPP's inputs before rerunning it. Measurements and pending decisions last only while the dialog stays open; process instances save settings, not the measured session.
 
-Requires **PixInsight 1.9.5+ with V8**. Supports XISF/FITS monochrome and registered, debayered OSC lights from one telescope setup. Select the WBPP output directory and a separate original-light root. For master comparisons, retain the matching **linear, uncropped, non-drizzled integration** with the same dimensions as the registered lights. [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
+Requires **PixInsight 1.9.5+ with V8**. Supports XISF/FITS monochrome and registered, debayered OSC lights from one telescope setup. Select the WBPP output directory and a separate original-light root. Master comparisons require a matching **linear, uncropped, non-drizzled integration** with the same dimensions as the registered lights. [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
 <details>
 <summary>View Subframe Quality Review interface</summary>
 
 **Review and measurements**
 
-![Subframe Quality Review 0.25.3 with 53 measured luminance frames, guiding controls, reversible sorting, quality rankings, and review candidates](TGScripts_repository/images/SubframeQualityReview_main_screen.jpg)
+![Subframe Quality Review 0.32.2 reviewing 39 blue-filter M74 frames, with R1–R4 rankings, scoring options, and selected-image measurements](TGScripts_repository/images/SubframeQualityReview_main_screen.jpg)
 
 **Blink frame / reference**
 
-![Subframe Quality Review 0.25.3 blink preview with reference and region selection, adjustable playback interval, display stretch, and brightness alignment](TGScripts_repository/images/SubframeQualityReview_blink_preview.jpg)
+![Subframe Quality Review 0.32.2 M74 blink preview with best-subframe reference, region controls, adjustable playback interval, and display stretching](TGScripts_repository/images/SubframeQualityReview_blink_preview.jpg)
 
-**Quality indicators — Score in acquisition order**
+**Quality indicators — Score, higher is better**
 
-![Subframe Quality Review 0.25.3 Score plot with review candidates, rejected frames, kept-frame mean, master comparison, and autofocus-start markers labeled with final focus positions](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
+![Subframe Quality Review 0.32.2 Score plot in ascending value order, with review candidates, rejected frames, kept-frame mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
+
+**Sky background**
+
+![Subframe Quality Review 0.32.2 sky-background plot using the lowest mean of the center and four corner previews](TGScripts_repository/images/SubframeQualityReview_sky_background.jpg)
+
+**Field eccentricity**
+
+![Subframe Quality Review 0.32.2 field-eccentricity plot with a zero-to-one axis and Good, Medium, and Bad bands at 0.42 and 0.60](TGScripts_repository/images/SubframeQualityReview_eccentricity.jpg)
 
 **Guiding indicators — average error**
 
-![Subframe Quality Review 0.25.3 guide-average plot in arcseconds with Good, Medium, and Bad background bands based on the imaging pixel scale](TGScripts_repository/images/SubframeQualityReview_guiding_indicators.jpg)
+![Subframe Quality Review 0.32.2 guide-average plot in arcseconds with quality bands based on the imaging pixel scale](TGScripts_repository/images/SubframeQualityReview_guiding_indicators.jpg)
 
 **Correlation plot**
 
-![Subframe Quality Review 0.25.3 scatter plot comparing field FWHM with PSF signal weight, with Pearson correlation and selectable subframes](TGScripts_repository/images/SubframeQualityReview_correlation_plot.jpg)
+![Subframe Quality Review 0.32.2 scatter plot comparing field FWHM with PSF signal weight, showing Pearson correlation and selectable subframes](TGScripts_repository/images/SubframeQualityReview_correlation_plot.jpg)
 
 </details>
 
