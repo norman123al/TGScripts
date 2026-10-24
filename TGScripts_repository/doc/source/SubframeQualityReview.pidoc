@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.28.0.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.29.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -36,8 +36,8 @@ Click the WBPP run and original lights bar to collapse or expand the folder and 
    {{Input} {What to select}}
    {{WBPP output} {The completed output directory containing the registered subfolder and, when available, the master subfolder.}}
    {{Original-light root} {A directory containing the original, uncalibrated light files. Subdirectories are scanned recursively. Flats, darks, bias frames, and master files are excluded from original-light matching. The original root must be outside the WBPP output directory.}}
-   {{Rejected originals} {The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
    {{Log folder} {An optional folder containing Autorun_log and PHD2_GuideLog files for the acquisition sessions. Files marked _CHN are ignored.}}
+   {{Rejected originals} {The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
 }
 
 XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.
@@ -68,7 +68,7 @@ The controls are arranged in three groups: Measurements and review contains the 
    {{Quality weights} {See the Score section} {Relative influence of each component. A zero weight disables that component. In manual mode, at least one underlying quality indicator must have a positive weight.}}
 }
 
-Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Turning it on reuses existing regional data or automatically measures missing regions, then updates scores and correlation selection. An unsuccessful regional measurement remains marked as unavailable; toggling the checkbox does not repeatedly retry it. Changing the region geometry or minimum-star setting clears the affected measurement state; click the magnifier to measure again.
+Changing the review percentage or quality weights recalculates rankings from existing measurements. Turning corner scoring off also recalculates the score without another measurement run. Turning it on reuses existing regional data or automatically measures missing regions, then updates scores and correlation selection. An unsuccessful regional measurement remains marked as unavailable; toggling the checkbox does not repeatedly retry it. Changing Corner size, Edge guard, or Minimum stars clears the measurements and unchecks Measure corners. Corner size remains editable while the checkbox is off. Re-enable Measure corners to measure the previews with the new settings, or click the magnifier for field measurements.
 
 If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist. In the Correlation plot, only measurements from the current group's subframes enable regional choices; master-only measurements do not.
 }
@@ -148,7 +148,7 @@ The master receives comparable measurements and a score against the subframe bas
    {{R2} {Rank using the manual weights for field and corner quality, including the corresponding Below-mean Quality contribution. Requires complete regional measurements. Rank 1 is worst.}}
    {{R3} {Rank using equally weighted, strongly correlated indicators when that option is enabled. Otherwise a dash is shown. Rank 1 is worst.}}
    {{Reject} {Your manual rejection choice. Clicking this column toggles the choice for an eligible original.}}
-   {{Review} {REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data.}}
+   {{Review} {REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data. Hover over REVIEW to see the reasons for that image.}}
    {{Image} {The measured registered image or integrated master.}}
    {{Acquisition time (UTC)} {The complete date and time used for chronological sorting and quality plots. Master and unavailable timestamps are shown as a dash.}}
    {{Score} {The current quality score, from 0.000 to 1.000; higher is better.}}
@@ -177,6 +177,10 @@ Acquisition time starts with the earliest full date and time. Toggle to Descendi
 Choose Guide minimum, Guide maximum, or Guide average to sort by the corresponding guiding column. These start with the largest error first; use the direction button to put the smallest error first. Values are sorted numerically in arcseconds, including partial measurements marked with an asterisk. Unavailable values follow measured values in both directions, and the master is last. The choice and direction are saved in process instances and also determine the sequence for Rotate subframes (Review order).
 
 Enable REVIEW candidates only to show just flagged subframes. This filter also hides the master. It changes table visibility without marking files for rejection or limiting the quality plots to those rows.
+
+Hover over a REVIEW marker to see why the image was selected. For the Review worst percentage, the tooltip gives its group position, the rounded-up shortlist size, Score, and largest score penalties. It also lists any missing or insufficient measurements and guiding-data issues that require inspection. Both reasons appear when both apply. The explanation follows the current scoring settings and stays consistent when the table is sorted or filtered. REVIEW leaves the rejection decision to you.
+
+When corner measurements are enabled, the REVIEW tooltip also explains unavailable preview measurements individually. It reports the detected-star count and required minimum, a missing or invalid FWHM or eccentricity result, or the recorded processing error. A preview with no result is described as not measured. When the measurement process supplies no detailed cause, the tooltip says so. These details also remain visible for missing regional indicators excluded by correlation scoring; their presence alone does not add a REVIEW flag.
 
 Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.
 }
@@ -240,7 +244,9 @@ Choose Order by: KPI value for ascending values, or Acquisition time for the acq
 
 Hover over a bar to see its filename, value, status, and acquisition time. Click it to select the corresponding row in Review and measurements. If necessary, the script clears REVIEW candidates only to reveal the selected image, including the master. Clicking a plot bar does not change rejection decisions.
 
-The vertical range follows the subframe values with approximately 10\% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.
+Except for the category plots described below, the vertical range follows the subframe values with approximately 10\% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.
+
+Field eccentricity and each corner eccentricity plot use a fixed zero-to-one axis with green, amber, and red background bands. Good eccentricity is at or below 0.42; Medium is above 0.42 and at or below 0.60; Bad is above 0.60. The legend and dotted lines mark these boundaries in both KPI-value and acquisition-time order. Hover over a bar to see its category. Eccentricity is dimensionless: zero is round and values approaching one indicate increasingly elongated stars. These ranges are practical inspection guidelines. Score continues to compare eccentricity within the group; the bands do not change scoring or automatically reject an image.
 
 For Guide minimum, Guide average, and Guide maximum, green, amber, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. The vertical range includes zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.
 
@@ -337,7 +343,13 @@ The green checkmark opens a move-plan review. It includes only manually rejected
 
 The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.
 
-A move journal named SQR-moves followed by a timestamp and a .json extension is written in the rejection destination before the first move and updated as files are processed. This journal records the move operation; the script does not generate a separate quality review report. If a move is interrupted, inspect the journal and the actual source and destination files before retrying. There is no automatic undo button; files can be restored manually to their recorded source paths.
+A move journal named SQR-moves followed by a timestamp and a .json extension is saved in the rejection destination. Keep it with the moved files so that you can undo the move later.
+
+To restore a moved original, select its row and click the Undo arrow beside the green checkmark. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.
+
+Undo also works after rescanning or reopening the script. Click the Undo arrow, choose the original SQR-moves journal from the rejection folder, and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.
+
+Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.
 
 After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.
 }

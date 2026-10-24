@@ -6,7 +6,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.28.0 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.29.0 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -24,10 +24,10 @@
  * subframe baselines, REVIEW quota, or original-file move loop accidentally.
  *
  * The dialog owns the in-memory session, rendered preview bitmaps and timers.
- * Only sqrMove changes original-file locations, after an explicit confirmation.
+ * sqrMove and sqrRestore change original-file locations after plan confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.28.0';
+const SQR_VERSION='0.29.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -535,15 +535,20 @@ function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
 }
 // Plot descriptors separate stored metrics from derived row-level indicators.
 // Corner descriptors are offered only when actual values exist in the group.
+// These absolute shape ranges guide visual inspection; they do not change the
+// relative eccentricity penalties used by manual or correlation-based scoring.
+const SQR_ECCENTRICITY_LIMITS={good:.42,medium:.60};
+const SQR_ECCENTRICITY_DEFINITION='Eccentricity: 0 = round; closer to 1 = elongated. Bands are practical guidelines; Score compares measurements within the group.';
+function sqrEccentricityCategory(value){return value<=SQR_ECCENTRICITY_LIMITS.good?'Good':value<=SQR_ECCENTRICITY_LIMITS.medium?'Medium':'Bad';}
 const SQR_KPIS=[
    {label:'Score',key:'score',direction:'Higher is better (0–1)',definition:'Score = 1 − weighted mean penalty / 10. Higher is better; 1.000 means no measured penalty.'},
    {label:'PSF signal weight',metric:'signal',region:0,direction:'Higher is better'},
    {label:'Star count',metric:'stars',region:0,integer:true,direction:'Higher is better'},
    {label:'Field FWHM (px)',metric:'fwhm',region:0,direction:'Lower is better'},
    {label:'Corner quality',key:'cornerSeverity',corners:true,direction:'Lower is better',definition:'Corner quality is the worst penalty for star size, corner-to-center size ratio, or elongation across the four corners. Lower is better.'},
-   {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder'},
+   {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder',definition:SQR_ECCENTRICITY_DEFINITION},
    ...[1,2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' FWHM (px)',metric:'fwhm',region,corners:true,direction:'Lower is better'})),
-   ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder'})),
+   ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder',definition:SQR_ECCENTRICITY_DEFINITION})),
    {label:'Below-mean Quality',key:'belowMeanFraction',percentage:true,direction:'Lower is better; percentage of assessed indicators with worse-than-mean quality'},
    {label:'Guide minimum (arcsec)',key:'guideMin',guiding:true,direction:'Lower is better; minimum combined RA/Dec displacement'},
    {label:'Guide maximum (arcsec)',key:'guideMax',guiding:true,direction:'Lower is better; maximum combined RA/Dec displacement'},
@@ -639,6 +644,15 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
          {label:'Good',low:0,high:guideScale,color:'#a6e3a1'},
          {label:'Medium',low:guideScale,high:1.75*guideScale,color:'#f9e2af'},
          {label:'Bad',low:1.75*guideScale,high:data.high,color:'#f38ba8'}];
+   }
+   // Use the full physical range for field and corner eccentricity so that all
+   // categories remain visible, even when every measured star is fairly round.
+   if(kpi.metric==='eccentricity'){
+      data.low=0;data.high=1;
+      data.eccentricityBands=[
+         {label:'Good',low:0,high:SQR_ECCENTRICITY_LIMITS.good,color:'#a6e3a1'},
+         {label:'Medium',low:SQR_ECCENTRICITY_LIMITS.good,high:SQR_ECCENTRICITY_LIMITS.medium,color:'#f9e2af'},
+         {label:'Bad',low:SQR_ECCENTRICITY_LIMITS.medium,high:1,color:'#f38ba8'}];
    }
    data.masterClipped=data.master===null?'':data.master>data.high?'above':data.master<data.low?'below':'';
    let kept=valid.filter(item=>!item.master&&!item.rejected);
@@ -747,9 +761,10 @@ function sqrPlotHTML(data,generation=0){
    if(message)body='<div class="empty">'+sqrHTML(message)+'</div>';
    else if(data){
       let svg=[],y=value=>175-(value-data.low)/(data.high-data.low)*140,number=value=>sqrKPIPlotNumber(value,data.kpi);
+      let bands=data.guideBands||data.eccentricityBands||[],bandClass=data.guideBands?'guide':'eccentricity';
       svg.push('<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".4"/></filter></defs><rect x="55" y="35" width="330" height="140" rx="3" fill="#252536"/>');
-      for(let band of data.guideBands||[])
-         svg.push('<rect class="guide-band" data-category="'+band.label+'" x="55" y="'+y(band.high)+'" width="330" height="'+(y(band.low)-y(band.high))+'" fill="'+band.color+'" fill-opacity=".18" pointer-events="none"/>');
+      for(let band of bands)
+         svg.push('<rect class="'+bandClass+'-band" data-category="'+band.label+'" x="55" y="'+y(band.high)+'" width="330" height="'+(y(band.low)-y(band.high))+'" fill="'+band.color+'" fill-opacity=".18" pointer-events="none"/>');
       for(let i=0;i<=5;++i){let value=data.low+(data.high-data.low)*i/5,py=y(value);
          svg.push('<path d="M50 '+py+'H55" stroke="#585b70"/><path d="M55 '+py+'H385" stroke="#3a3a4a" stroke-width=".5" stroke-dasharray="3,3"/><text x="47" y="'+(py+3)+'" text-anchor="end" fill="#6c7086" font-size="9">'+number(value)+'</text>');}
       let spacing=330/data.items.length,width=Math.max(2,spacing-1);
@@ -757,6 +772,7 @@ function sqrPlotHTML(data,generation=0){
          let color=item.selected?'#89dceb':item.master?'#f9a825':item.rejected?'#e57373':item.review?'#cba6f7':'#2d6cb5';
          let outline=item.selected&&item.rejected?'#e57373':item.review?'#cba6f7':item.selected&&item.master?'#f9a825':'';
          let tip=(item.selected?'SELECTED · ':'')+(item.master?'MASTER: ':item.review?'REVIEW: ':'')+(item.rejected?'REJECTED · ':'')+sqrFileName(item.row.registered.path)+' — '+title+': '+number(item.value)+(data.kpi.percentage?' ('+item.row.belowMeanCount+' worse; '+item.row.belowMeanAvailable+' assessed of '+item.row.belowMeanTotal+' enabled'+(item.row.belowMeanComplete?'':'; incomplete')+')':'')+(item.master&&data.masterClipped?' (clipped '+data.masterClipped+' axis range)':'')+(item.master?'':' — '+sqrAcquisitionLabel(item.row))+' — Click to select in Review and measurements';
+         if(data.eccentricityBands)tip+=' — '+sqrEccentricityCategory(item.value)+' eccentricity';
          svg.push('<g class="frame" data-index="'+i+'" tabindex="0" role="button" aria-label="'+sqrHTML(tip)+'"><title>'+sqrHTML(tip)+'</title>');
          // A full-height hit area also makes zero-valued bars selectable.
          svg.push('<rect x="'+(55+i*spacing)+'" y="35" width="'+spacing+'" height="140" fill="'+(item.selected?'#89dceb':'transparent')+'" fill-opacity=".12" pointer-events="all"/>');
@@ -768,8 +784,8 @@ function sqrPlotHTML(data,generation=0){
             else svg.push('<circle cx="'+cx.toFixed(1)+'" cy="'+(py-5).toFixed(1)+'" r="3" fill="#f9a825"/>');
          }
          svg.push('</g>');});
-      for(let band of (data.guideBands||[]).slice(0,2))
-         svg.push('<path class="guide-limit" d="M55 '+y(band.high)+'H385" stroke="'+band.color+'" stroke-width="1" stroke-dasharray="2,3" pointer-events="none"/>');
+      for(let band of bands.slice(0,2))
+         svg.push('<path class="'+bandClass+'-limit" d="M55 '+y(band.high)+'H385" stroke="'+band.color+'" stroke-width="1" stroke-dasharray="2,3" pointer-events="none"/>');
       if(data.average!==null){let py=y(data.average);svg.push('<g pointer-events="none"><path d="M55 '+py+'H385" stroke="#a6e3a1" stroke-width="1.5" stroke-dasharray="5,3"/><text x="60" y="'+(py-4)+'" fill="#a6e3a1" font-size="9" font-weight="bold">'+number(data.average)+'</text></g>');}
       for(let run of data.autofocus||[]){
          let start=55+run.startSlot*spacing;
@@ -783,7 +799,8 @@ function sqrPlotHTML(data,generation=0){
          svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(tagX-tagWidth/2)+'" y="185" width="'+tagWidth+'" height="14" rx="2" fill="#252536"/><text x="'+tagX+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">'+sqrHTML(label)+'</text></g>');
       }
       svg.push('<path d="M55 35V175H385" fill="none" stroke="#585b70"/><text x="385" y="17" text-anchor="end" fill="#f9a825" font-size="9">Master: '+number(data.master)+(data.masterClipped?' '+(data.masterClipped==='above'?'↑':'↓')+' clipped':'')+'</text>');
-      let legend=data.guideBands?'<div style="text-align:center;font-size:12px;flex-shrink:0;padding:0 8px 4px">'+data.guideBands.map((band,i)=>'<span style="color:'+band.color+'">'+band.label+' '+(i===0?'≤ '+number(band.high):i===1?'> '+number(band.low)+' to '+number(band.high):'> '+number(band.low))+'″</span>').join(' &nbsp;·&nbsp; ')+'</div>':'';
+      let limit=value=>data.eccentricityBands?value.toFixed(2):number(value),unit=data.guideBands?'″':'';
+      let legend=bands.length?'<div class="category-legend" style="text-align:center;font-size:12px;flex-shrink:0;padding:0 8px 4px">'+bands.map((band,i)=>'<span style="color:'+band.color+'">'+band.label+' '+(i===0?'≤ '+limit(band.high):i===1?'> '+limit(band.low)+' to '+limit(band.high):'> '+limit(band.low))+unit+'</span>').join(' &nbsp;·&nbsp; ')+'</div>':'';
       body=legend+'<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
    }
    let script='window.sqrSelection=null;document.querySelectorAll(".frame").forEach(function(el){function select(){window.sqrSelection={generation:'+generation+',index:Number(el.dataset.index)};}el.addEventListener("click",select);el.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();select();}});});';
@@ -1113,13 +1130,31 @@ function sqrScoreParts(r,data,o,withCorners){
 function sqrApplyScore(r,data,o,guideEnabled){
    let cornerRequired=o.measureCorners&&(!o.correlationOnly||o.cornerWeight>0),missingFieldShape=o.eccentricityWeight>0&&!sqrEccentricityValid(r.metrics[0]);
    r.guidingIgnored=sqrIgnoreGuiding(r,o);
-   r.needsDataReview=!r.metrics[0]?.valid||missingFieldShape||cornerRequired&&(!r.metrics[1]?.valid||data.cornerCount!==4||data.missingShape);
+   // Record the same checks that set the REVIEW flag so its tooltip explains
+   // the active scoring mode, including equal-weight correlation selection.
+   let reasons=[];
+   if(!r.metrics[0]?.valid)reasons.push('Field PSF measurements are unavailable or insufficient.');
+   if(missingFieldShape)reasons.push('Field eccentricity is unavailable.');
+   if(cornerRequired){
+      if(!r.metrics[1]?.valid)reasons.push('Center PSF measurements are unavailable or insufficient.');
+      let missing=[2,3,4,5].filter(i=>!r.metrics[i]?.valid);
+      if(missing.length)reasons.push('Corner PSF measurements are unavailable or insufficient: '+missing.map(i=>SQR_REGIONS[i]).join(', ')+'.');
+      let shape=[2,3,4,5].filter(i=>r.metrics[i]?.valid&&!sqrEccentricityValid(r.metrics[i]));
+      if(shape.length)reasons.push('Corner eccentricity is unavailable: '+shape.map(i=>SQR_REGIONS[i]).join(', ')+'.');
+   }
    // A selected corner KPI requires only its own measurement. Missing unrelated
    // corners or eccentricities do not invalidate an independently usable FWHM.
-   if(o.correlationOnly&&o.measureCorners&&SQR_CORNER_COMPONENTS.some(c=>o[c.weight]>0&&sqrKPIValue(r,c)===null))r.needsDataReview=true;
-   if(o.backgroundWeight>0&&sqrSkyBackground(r,o.measureCorners)===null)r.needsDataReview=true;
-   if(guideEnabled&&!r.isMaster&&!r.guidingIgnored&&(!r.guiding?.scorable||r.guiding.dropped>0))r.needsDataReview=true;
-   if(o.belowMeanWeight>0&&!r.belowMeanComplete)r.needsDataReview=true;
+   if(o.correlationOnly&&o.measureCorners){let missing=SQR_CORNER_COMPONENTS.filter(c=>o[c.weight]>0&&sqrKPIValue(r,c)===null);
+      if(missing.length)reasons.push('Selected corner KPIs are unavailable: '+missing.map(c=>c.label).join(', ')+'.');}
+   if(o.backgroundWeight>0&&sqrSkyBackground(r,o.measureCorners)===null)reasons.push(o.measureCorners?
+      'Sky background is unavailable; missing preview means: '+[1,2,3,4,5].filter(i=>!Number.isFinite(r.backgroundMeans?.previews?.[i])).map(i=>SQR_REGIONS[i]).join(', ')+'.':
+      'Sky background is unavailable; the whole-image mean is missing.');
+   if(guideEnabled&&!r.isMaster&&!r.guidingIgnored){
+      if(!r.guiding?.scorable)reasons.push('Guiding: '+(r.guiding?.reason||'usable guiding measurements are missing')+'.');
+      if(r.guiding?.dropped>0)reasons.push('Guiding contains '+r.guiding.dropped+' rejected guide samples during this exposure.');
+   }
+   if(o.belowMeanWeight>0&&!r.belowMeanComplete)reasons.push('Below-mean Quality is incomplete: '+r.belowMeanAvailable+' of '+r.belowMeanTotal+' enabled indicators could be assessed.');
+   r.dataReviewReasons=reasons;r.needsDataReview=reasons.length>0;
    let parts=sqrScoreParts(r,data,o,o.measureCorners),denominator=parts.reduce((sum,p)=>sum+p.w,0);
    r.score=sqrWeightedScore(parts);
    let impacts=parts.filter(p=>p.z>0&&p.w>0).sort((a,b)=>b.z*b.w-a.z*a.w);
@@ -1138,6 +1173,52 @@ function sqrApplyScore(r,data,o,guideEnabled){
    if(r.needsDataReview)r.reasons.unshift('Insufficient measurements: inspect manually');
    if(cornerRequired&&data.missingShape)r.reasons.unshift('Corner eccentricity unavailable: inspect manually');
    if(missingFieldShape)r.reasons.unshift('Field eccentricity unavailable: inspect manually');
+}
+/** Explain a missing regional result from the recorded measurements or error.
+ * The regional validity rule uses detected stars and FWHM, not the field-only
+ * PSF signal/count threshold. Never infer an optical cause from a failed fit. */
+function sqrRegionMeasurementReason(row,region,minStars){
+   let m=row.metrics[region];
+   if(!m)return 'Not measured: no result is available.';
+   if(m.error&&m.error!=='Insufficient valid PSF measurements'){
+      if(m.error==='No measurement returned')return 'SubframeSelector returned no measurement for this preview.';
+      if(m.error==='Measurement failed')return 'SubframeSelector failed to measure this preview; no detailed cause was returned.';
+      return 'Measurement error: '+m.error;
+   }
+   let reasons=[];
+   if(!Number.isFinite(m.stars))reasons.push('the detected-star count was not returned');
+   else if(m.stars<minStars)reasons.push(sqrFmt(m.stars,0)+' detected stars; Minimum stars requires '+minStars);
+   if(!Number.isFinite(m.fwhm)||m.fwhm<=0)reasons.push('no valid FWHM was returned'+(Number.isFinite(m.psfCount)?' ('+sqrFmt(m.psfCount,0)+' accepted PSF fits)':''));
+   if(region>=2&&!reasons.length&&!sqrEccentricityValid(m)){
+      if(!Number.isFinite(m.eccentricity))reasons.push('no eccentricity value was returned');
+      else if(m.eccentricity<0||m.eccentricity>=1)reasons.push('eccentricity '+sqrFmt(m.eccentricity)+' is outside the usable range 0 ≤ e < 1');
+   }
+   if(!reasons.length&&!m.valid)reasons.push('no usable PSF measurement is available; no detailed cause was recorded');
+   return reasons.length?reasons.join('; ')+'.':'';
+}
+/** Explain selection from its actual group rank and measurement checks, never
+ * from the current table sort or visible row number. No image reads are needed. */
+function sqrReviewToolTip(row,group,options){
+   if(row.isMaster)return 'Integrated master: comparison only.';
+   if(!row.candidate)return '';
+   let sections=['Marked REVIEW for the following reasons:'];
+   if(Number.isFinite(row.rank)&&row.rank<=group.shortlistCount){
+      let text='Review worst ('+Number(options.percent.toFixed(1))+'%): rank '+row.rank+' of '+group.shortlistPopulation+
+         ' subframes with valid field measurements; '+group.shortlistCount+' shortlisted (rounded up).';
+      if(Number.isFinite(row.score))text+='\nScore: '+sqrFmt(row.score)+' (higher is better).';
+      let penalties=(row.scoreContributions||[]).slice(0,3);
+      if(penalties.length)text+='\nLargest score penalties: '+penalties.map(p=>p.name+' (−'+sqrFmt(p.contribution)+')').join('; ')+'.';
+      else text+='\nNo measured score penalty. The percentage shortlist still applies.';
+      text+='\nEqual scores are ordered by filename.';sections.push(text);
+   }
+   if(row.needsDataReview)sections.push('Measurements require inspection:\n'+(row.dataReviewReasons?.length?row.dataReviewReasons:['Required measurements are unavailable or insufficient.']).map(reason=>'• '+reason).join('\n'));
+   if(options.measureCorners){
+      let missing=[1,2,3,4,5].map(i=>({region:i,reason:sqrRegionMeasurementReason(row,i,options.minStars)})).filter(item=>item.reason);
+      // Also explain missing regional data on a quota-selected row, even when
+      // correlation scoring has excluded that particular regional indicator.
+      if(missing.length)sections.push('Unavailable preview measurements:\n'+missing.map(item=>'• '+SQR_REGIONS[item.region]+': '+item.reason).join('\n'));
+   }
+   sections.push('Review this image before deciding whether to reject it.');return sections.join('\n\n');
 }
 /** Recompute derived data from cached measurements. Manual weights always produce
  * R1/R2 first. Automatic scoring then selects components per group and produces
@@ -1162,10 +1243,13 @@ function sqrRank(session){
          eccentricity:sqrSummary(valid.filter(r=>sqrEccentricityValid(r.metrics[i])).map(r=>r.metrics[i].eccentricity))}));
       let scoring=new Map;
       for(let r of all){r.candidate=false;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.rank=null;r.reasons=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';
-         r.mainIssue='Missing data';r.mainIssueDetail='Field measurement unavailable.';r.scoreContributions=[];r.needsDataReview=true;r.insufficientCorners=0;
+         r.mainIssue='Missing data';r.mainIssueDetail='Field measurement unavailable.';r.scoreContributions=[];r.dataReviewReasons=[];r.needsDataReview=true;r.insufficientCorners=0;
          r.guidingIgnored=sqrIgnoreGuiding(r,o);
          if(r.isMaster){r.reject=false;r.reasons.push('Integrated master: comparison only; cannot be rejected.');}
-         let m=r.metrics[0];if(!m?.valid){r.candidate=!r.isMaster;r.reasons.push('Field measurement unavailable');if(r.guiding)r.reasons.push(r.guiding.scorable?r.guiding.category:r.guiding.reason);continue;}
+         let m=r.metrics[0];if(!m?.valid){r.candidate=!r.isMaster;r.reasons.push('Field measurement unavailable');
+            r.dataReviewReasons=['Field PSF measurements are unavailable or insufficient'+(m?.error?': '+m.error:'.')];
+            if(m&&(Number.isFinite(m.stars)||Number.isFinite(m.psfCount)))r.dataReviewReasons.push('Detected stars: '+sqrFmt(m.stars,0)+'; PSF fits: '+sqrFmt(m.psfCount,0)+'; required minimum for each: '+o.minStars+'.');
+            if(r.guiding)r.reasons.push(r.guiding.scorable?r.guiding.category:r.guiding.reason);continue;}
          let cs=[];for(let i=2;i<6;++i)if(r.metrics[i]?.valid){let c=corners[i-2],region=SQR_REGIONS[i],tests=[
             {issue:'Large corner stars',name:'Large '+region.toLowerCase()+' FWHM',value:sqrBad(r.metrics[i].fwhm,c.width,false)},
             {issue:'Large corner stars',name:'High '+region.toLowerCase()+' / center FWHM ratio',value:r.metrics[1]?.valid?sqrBad(r.metrics[i].fwhm/r.metrics[1].fwhm,c.ratio,false):0},
@@ -1215,7 +1299,7 @@ function sqrRank(session){
       // Worst-first ranks and REVIEW quotas retain their meaning after inversion.
       let sorted=valid.slice().sort((a,b)=>(a.score??Infinity)-(b.score??Infinity)||a.registered.path.localeCompare(b.registered.path));
       let count=Math.ceil(sorted.length*o.percent/100);for(let i=0;i<sorted.length;++i){sorted[i].rank=i+1;sorted[i].candidate=i<count||sorted[i].needsDataReview;}
-      g.shortlistCount=count;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
+      g.shortlistCount=count;g.shortlistPopulation=sorted.length;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
    }
 }
 function sqrWriteJSON(path,value){File.writeTextFile(path,JSON.stringify(value,null,2));}
@@ -1256,9 +1340,11 @@ function sqrMovePlan(session){
 function sqrMove(session,notify){
    let plan=sqrMovePlan(session),dest=sqrPath(session.options.destination);if(!File.directoryExists(dest))File.createDirectory(dest,true);
    let journalPath=dest+'/SQR-moves-'+sqrStamp()+'.json';
-   let journal={schema:1,created:new Date().toISOString(),originals:sqrPath(session.options.originals),destination:dest,
+   if(File.exists(journalPath))throw new Error('Move journal already exists: '+journalPath);
+   let journal={schema:1,created:new Date().toISOString(),originals:sqrPath(session.options.originals),destination:dest,wbpp:sqrPath(session.options.wbpp),
       moves:plan.map(p=>({source:p.source,target:p.target,fingerprint:p.fingerprint,registered:p.registered,status:'planned'}))};
    sqrWriteJSON(journalPath,journal);
+   session.lastMoveJournal=journalPath;
    try{for(let i=0;i<plan.length;++i){
       let p=plan[i];sqrTick(notify,'Moving original '+(i+1)+' / '+plan.length);
       if(sqrFingerprint(p.source)!==p.fingerprint||File.exists(p.target))throw new Error('Files changed after move-plan validation.');
@@ -1266,10 +1352,99 @@ function sqrMove(session,notify){
       journal.moves[i].status='moving';sqrWriteJSON(journalPath,journal);
       File.moveFile(p.target,p.source);
       // Update memory before writing the completed entry, so reporting errors do not re-enable a moved source.
-      p.row.moved=true;p.row.movedTo=p.target;journal.moves[i].status='moved';
+      p.row.moved=true;p.row.movedTo=p.target;p.row.moveJournal=journalPath;journal.moves[i].status='moved';
       journal.moves[i].destinationFingerprint=sqrFingerprint(p.target);sqrWriteJSON(journalPath,journal);
    }}catch(e){journal.error=String(e);sqrWriteJSON(journalPath,journal);throw new Error(String(e)+'\nMove journal: '+journalPath);}
    return {count:plan.length,journal:journalPath};
+}
+
+// Restore only paths recorded by a move journal. Resolve each path before
+// containment checks, and refuse linked files/directories along either route.
+function sqrRestorePath(value){
+   if(typeof value!=='string'||!/^([a-z]:[\\/]|[\\/]{2}|\/)/i.test(value))throw new Error('Move journal contains a non-absolute path.');
+   return sqrPath(value);
+}
+function sqrNoLinkedPath(path){
+   for(let p=path;p;){let info=new FileInfo(p);if(info.isSymbolicLink)throw new Error('Linked restore paths are not supported: '+p);
+      let parent=sqrDir(p).replace(/\/$/,'');if(!parent||sqrKey(parent)===sqrKey(p)||/^[a-z]:$/i.test(parent))break;p=parent;}
+}
+function sqrRestoreAvailability(entry){
+   try{
+      sqrNoLinkedPath(entry.source);sqrNoLinkedPath(entry.target);
+      if(!['moved','moving'].includes(entry.status))return 'No completed move recorded';
+      if(File.exists(entry.source)||File.directoryExists(entry.source)){
+         if(!File.exists(entry.target)&&!File.directoryExists(entry.target)&&sqrFingerprint(entry.source)===entry.fingerprint)return 'Already restored';
+         return 'Original path is occupied; no overwrite';
+      }
+      if(sqrFingerprint(entry.target)!==(entry.destinationFingerprint||entry.fingerprint))return 'Moved file has changed';
+      return '';
+   }catch(e){return String(e).replace(/^Error: /,'');}
+}
+/** A journal is data, not an instruction to move arbitrary files. Require the
+ * exact preserved relative path and reject duplicate/overlapping destinations.
+ * Older journals without wbpp remain usable; image identity is checked below. */
+function sqrReadMoveJournal(path){
+   path=sqrPath(path);let journal=JSON.parse(File.readTextFile(path));
+   if(journal.schema!==1||!Array.isArray(journal.moves)||!journal.moves.length)throw new Error('Choose an SQR-moves journal containing original-light moves.');
+   let root=sqrRestorePath(journal.originals),dest=sqrRestorePath(journal.destination),wbpp=journal.wbpp?sqrRestorePath(journal.wbpp):'',seen=new Set;
+   if(sqrKey(root)===sqrKey(dest)||sqrKey(sqrPath(sqrDir(path)))!==sqrKey(dest))throw new Error('The move journal must be in its recorded rejection folder.');
+   let entries=journal.moves.map((move,index)=>{
+      let source=sqrRestorePath(move.source),target=sqrRestorePath(move.target);
+      if(!sqrUnder(source,root)||sqrKey(source)===sqrKey(root)||
+         sqrKey(target)!==sqrKey(dest+'/'+source.slice(root.length+1))||!sqrImageFile(source)||
+         (wbpp&&(sqrUnder(source,wbpp)||sqrUnder(target,wbpp)))||
+         typeof move.fingerprint!=='string'||!/^\d+\|.+/.test(move.fingerprint))throw new Error('Invalid original-light path or fingerprint in move journal: '+source);
+      for(let p of [source,target]){if(seen.has(sqrKey(p)))throw new Error('Duplicate path in move journal: '+p);seen.add(sqrKey(p));}
+      let entry={...move,source,target,index};entry.problem=sqrRestoreAvailability(entry);return entry;
+   });
+   return {path,root,dest,entries};
+}
+/** Validate every selected file before restoring any. A changed file, occupied
+ * original path or non-light image blocks the selected plan without data loss. */
+function sqrRestorePlan(record,indices){
+   if(!indices.length)throw new Error('Select at least one moved original to restore.');
+   let seen=new Set;
+   return indices.map(index=>{
+      if(!Number.isInteger(index)||!record.entries[index]||seen.has(index))throw new Error('Invalid restore selection.');seen.add(index);
+      let entry=record.entries[index],problem=sqrRestoreAvailability(entry);if(problem)throw new Error(problem+': '+entry.source);
+      let metadata=sqrMetadata(entry.target);if(!sqrIsLight({...metadata,path:entry.source}))throw new Error('The moved file is not an original light: '+entry.target);
+      return {...entry,metadata};
+   });
+}
+function sqrRestoreIdentity(plan){return JSON.stringify(plan.map(p=>[p.source,p.target,p.fingerprint,p.destinationFingerprint||'',p.registered||'']));}
+function sqrMarkRestored(session,entry){
+   for(let group of session?.groups||[])for(let row of group.rows){
+      if(row.isMaster)continue;
+      let sameOriginal=row.original&&sqrKey(row.original.path)===sqrKey(entry.source),sameRegistered=sqrKey(row.registered.path)===sqrKey(entry.registered||'');
+      if((sameOriginal||sameRegistered)&&sqrCompatible(row.registered,entry.metadata)){
+         row.original={...entry.metadata,path:entry.source,fingerprint:sqrFingerprint(entry.source)};row.match='Verified';
+         row.moved=false;row.reject=false;delete row.movedTo;delete row.moveJournal;
+      }
+   }
+}
+/** Retain the original move journal. Each undo has its own progress journal,
+ * so partial restores can be retried from the original journal after restart.
+ * Actual source/target presence and fingerprints determine eligibility. */
+function sqrRestore(journalPath,indices,session,notify,expectedPlan){
+   let record=sqrReadMoveJournal(journalPath),plan=sqrRestorePlan(record,indices);
+   if(expectedPlan&&sqrRestoreIdentity(plan)!==sqrRestoreIdentity(expectedPlan))throw new Error('The move journal changed. Review the restore plan again.');
+   let path=record.dest+'/SQR-undo-'+sqrStamp()+'.json';
+   if(File.exists(path))throw new Error('Undo journal already exists: '+path);
+   let journal={schema:1,operation:'undo',created:new Date().toISOString(),moveJournal:record.path,
+      restores:plan.map(p=>({source:p.target,target:p.source,fingerprint:p.destinationFingerprint||p.fingerprint,status:'planned'}))};
+   sqrWriteJSON(path,journal);
+   try{for(let i=0;i<plan.length;++i){
+      let entry=plan[i];sqrTick(notify,'Restoring original '+(i+1)+' / '+plan.length);
+      let problem=sqrRestoreAvailability(entry);if(problem)throw new Error(problem+': '+entry.source);
+      let dir=sqrDir(entry.source);if(!File.directoryExists(dir))File.createDirectory(dir,true);
+      journal.restores[i].status='restoring';sqrWriteJSON(path,journal);
+      File.moveFile(entry.source,entry.target);
+      // Reflect a successful move before journal/reporting failures can occur.
+      journal.restores[i].status='restored';sqrMarkRestored(session,entry);
+      journal.restores[i].restoredFingerprint=sqrFingerprint(entry.source);sqrWriteJSON(path,journal);
+   }}catch(e){journal.error=String(e);try{sqrWriteJSON(path,journal);}catch(writeError){journal.error+='\nUnable to update undo journal: '+String(writeError);}
+      throw new Error(journal.error+'\nUndo journal: '+path+'\nReopen the original move journal to check remaining files.');}
+   return {count:plan.length,journal:path};
 }
 
 // UI is below. Defining SQR_LIBRARY lets read-only test harnesses use the engine.
@@ -1290,6 +1465,46 @@ function sqrFolderRow(parent,label,value,changed){
    let edit=new Edit(parent);edit.text=value;edit.onEditCompleted=()=>changed(edit.text);
    let browse=sqrTool(parent,':/icons/select-file.png','Choose '+label.toLowerCase(),()=>{let d=new GetDirectoryDialog;d.caption=label;d.initialPath=edit.text;if(d.execute()){edit.text=d.directoryPath;changed(edit.text);}});
    row.add(l);row.add(edit,100);row.add(browse);parent.sizer.add(row);return {edit:edit,browse:browse};
+}
+/** Review individual files before an undo. Selecting a moved Review row
+ * preselects only that original; otherwise all eligible files start selected.
+ * A journal chooser keeps undo available after rescanning or restarting. */
+class SQRRestoreDialog extends Dialog {
+   constructor(path='',selectedSource='',directory=''){
+      super();this.windowTitle='Undo moved originals';this.record=null;this.plan=null;this.selectedSource=selectedSource;this.directory=directory;
+      this.note=new Label(this);this.note.wordWrapping=true;this.note.text='Choose the original SQR-moves journal, then select the files to return to their original folders. Restored files will be marked as kept in the current review.';
+      this.path=new Edit(this);this.path.readOnly=true;
+      this.browse=sqrTool(this,':/icons/select-file.png','Choose an SQR-moves journal from a rejection folder.',()=>this.chooseJournal());
+      let files=new HorizontalSizer;files.spacing=8;files.add(this.path,100);files.add(this.browse);
+      this.table=new TreeBox(this);this.table.numberOfColumns=4;this.table.headerVisible=true;this.table.alternateRowColor=true;this.table.rootDecoration=false;this.table.setScaledMinSize(850,280);
+      ['Restore','Original file','Restore to','Status'].forEach((text,i)=>this.table.setHeaderText(i,text));this.icons=[sqrRejectIcon(this,false),sqrRejectIcon(this,true)];
+      this.table.onNodeClicked=(node,column)=>{if(column===0&&node?.entry&&!node.entry.problem){node.restore=!node.restore;this.refreshSelection();}};
+      this.table.onKeyPress=key=>{if(key!==Key_Space)return false;let node=this.table.currentNode;if(node?.entry&&!node.entry.problem){node.restore=!node.restore;this.refreshSelection();}return true;};
+      this.all=sqrButton(this,'Select available',()=>this.selectAll(true));this.none=sqrButton(this,'Clear selection',()=>this.selectAll(false));
+      this.summary=new Label(this);this.summary.wordWrapping=true;this.summary.text='Choose a move journal to list its files.';
+      this.restore=sqrButton(this,'Restore selected',()=>{try{this.plan=sqrRestorePlan(this.record,this.indices());this.ok();}catch(e){this.error(e);}});this.restore.enabled=false;
+      this.close=sqrButton(this,'Cancel',()=>this.cancel());
+      let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.all);actions.add(this.none);actions.addStretch();actions.add(this.restore);actions.add(this.close);
+      this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=10;this.sizer.add(this.note);this.sizer.add(files);this.sizer.add(this.table,100);this.sizer.add(this.summary);this.sizer.add(actions);
+      this.all.enabled=this.none.enabled=false;
+      if(path)try{this.loadJournal(path);}catch(e){this.path.text=path;this.summary.text='Unable to read this move journal: '+String(e)+' Choose another journal.';}
+      this.adjustToContents();
+   }
+   error(e){new MessageBox(String(e),'Restore originals',StdIcon.Error,StdButton.Ok).execute();}
+   chooseJournal(){let d=new OpenFileDialog;d.multipleSelections=false;d.caption='Choose original SQR-moves journal';d.filters=[['SQR move journals','SQR-moves-*.json'],['JSON files','*.json']];d.initialPath=this.path.text||this.directory;
+      if(d.execute())try{this.loadJournal(d.filePaths[0]);}catch(e){this.error(e);}}
+   loadJournal(path){let record=sqrReadMoveJournal(path);this.record=record;this.path.text=record.path;this.table.clear();
+      let selected=this.selectedSource&&record.entries.some(entry=>sqrKey(entry.source)===sqrKey(this.selectedSource));
+      for(let entry of record.entries){let node=new TreeBoxNode(this.table);node.entry=entry;node.restore=!entry.problem&&(!selected||sqrKey(entry.source)===sqrKey(this.selectedSource));
+         node.setText(1,sqrFileName(entry.source));node.setText(2,entry.source);node.setText(3,entry.problem||'Ready to restore');node.setToolTip(1,'Moved file: '+entry.target);node.setToolTip(2,entry.source);node.setToolTip(3,entry.problem||'Return this unchanged light file to its unoccupied original path.');}
+      for(let i=0;i<4;++i)this.table.adjustColumnWidthToContents(i);this.table.setColumnWidth(0,65);this.refreshSelection();
+   }
+   indices(){let indices=[];for(let i=0;i<this.table.numberOfChildren;++i){let node=this.table.child(i);if(node.restore)indices.push(node.entry.index);}return indices;}
+   selectAll(value){for(let i=0;i<this.table.numberOfChildren;++i){let node=this.table.child(i);node.restore=value&&!node.entry.problem;}this.refreshSelection();}
+   refreshSelection(){let available=0;for(let i=0;i<this.table.numberOfChildren;++i){let node=this.table.child(i);if(!node.entry.problem){++available;node.setIcon(0,this.icons[node.restore?1:0]);}else node.setText(0,'—');}
+      let count=this.indices().length;this.restore.enabled=count>0;this.all.enabled=this.none.enabled=available>0;
+      this.summary.text=count+' selected · '+available+' available · '+(this.table.numberOfChildren-available)+' unavailable or already restored. Existing files are never overwritten.';
+   }
 }
 // Read the displayed, unscaled bitmap without copying an Image or rereading a
 // source file. The channel tag distinguishes grayscale from neutral RGB pixels.
@@ -1401,7 +1616,7 @@ class SQRDialog extends Dialog {
       this.inputsBar=new SectionBar(this,'WBPP run and original lights');this.inputsBar.setSection(this.inputs);
       this.inputsBar.toolTip='Click to collapse or expand the folders and log controls. Your paths, settings and measurements are retained.';
       this.inputsBar.toggleSection=()=>this.setInputsCollapsed(!this.inputsCollapsed);
-      this.folders={};for(let [key,label] of [['wbpp','WBPP output:'],['originals','Original-light root:'],['destination','Rejected originals:']])
+      this.folders={};for(let [key,label] of [['wbpp','WBPP output:'],['originals','Original-light root:']])
          this.folders[key]=sqrFolderRow(this.inputs,label,o[key],value=>{if(['wbpp','originals'].includes(key)&&this.session&&sqrKey(value.trim())!==sqrKey(this.session.options[key].trim()))this.invalidate();});
       this.inputControls=Object.values(this.folders).flatMap(x=>[x.edit,x.browse]);
       this.autofocusRuns=[];this.autorunFiles=[];this.guideFiles=[];this.parsedGuideLog={sections:[],invalid:0,errors:0};this.loadedLogFolder='';
@@ -1421,6 +1636,8 @@ class SQRDialog extends Dialog {
       logTools.add(logLabel);logTools.add(this.logTimeZone);logTools.add(this.logUTCOffset);logTools.add(this.autorunStatus,100);logTools.add(this.autorunTimes);this.inputs.sizer.add(logTools);
       this.inputControls.push(this.logFolder.edit,this.logFolder.browse,this.logTimeZone,this.logUTCOffset,this.autorunTimes);
       this.logClockStatus=new Label(this.inputs);this.logClockStatus.wordWrapping=true;this.inputs.sizer.add(this.logClockStatus);
+      this.folders.destination=sqrFolderRow(this.inputs,'Rejected originals:',o.destination,()=>{});
+      this.inputControls.push(this.folders.destination.edit,this.folders.destination.browse);
       // One native collapsible section, with measurement controls separated
       // from ranking weights. Hiding it never changes measurement state.
       this.settings=new Control(this);this.settings.sizer=new HorizontalSizer;this.settings.sizer.spacing=8;
@@ -1442,7 +1659,7 @@ class SQRDialog extends Dialog {
       this.patch.toolTip='Width and height of each corner and center patch as a percentage of the common usable field.';
       this.margin.toolTip='Minimum edge guard. Exact-zero registration padding can increase the common inset.';
       this.cornerMeasurements=new CheckBox(this.measurementSettings);this.cornerMeasurements.text='Measure corners';this.cornerMeasurements.checked=!!o.measureCorners;
-      this.cornerMeasurements.toolTip='Off by default. Enable to measure any missing center and corner regions automatically, including matched masters. Existing measurements are reused. Correlation scoring is refreshed after measurement.';
+      this.cornerMeasurements.toolTip='Off by default. Enable to measure any missing center and corner regions automatically, including matched masters. Existing measurements are reused. Changes to Corner size, Edge guard, or Minimum stars clear this checkbox and invalidate measurements. Re-enable it to measure with the new settings.';
       qualityRow(this.measurementSettings,[this.percent,this.minStars]);
       qualityRow(this.measurementSettings,[this.margin]);
       qualityRow(this.measurementSettings,[this.patch,this.cornerMeasurements]);
@@ -1569,7 +1786,7 @@ class SQRDialog extends Dialog {
       this.histogramOrder.toolTip='KPI value: lowest to highest. Acquisition time: earliest first, master first, unknown times last. This order is independent of the review table.';
       this.histogramOrder.onItemSelected=()=>this.updateHistogram();histogramTools.add(plotOrderLabel);histogramTools.add(this.histogramOrder);
       this.histogram=new WebView(this.histogramPage);this.histogram.setScaledMinSize(1280,320);
-      this.histogram.toolTip='Cyan: currently selected image. Purple: REVIEW candidate. Gold: master. Red: rejected. Click a bar to select that image in Review and measurements. Axis range follows subframes; outlying master values are clipped.';
+      this.histogram.toolTip='Cyan: currently selected image. Purple: REVIEW candidate. Gold: master. Red: rejected. Click a bar to select that image in Review and measurements. Eccentricity uses a 0–1 axis; guiding statistics include their category ranges. Other axes follow subframes; outlying master values are clipped.';
       this.plotGeneration=0;this.plotReady=false;this.plotRequestPending=false;
       this.plotTimer=new Timer(.15,true,this);
       this.plotTimer.onTimeout=()=>{
@@ -1620,9 +1837,10 @@ class SQRDialog extends Dialog {
       this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates.',()=>this.analyze());
       this.reset=sqrTool(this,':/process-interface/reset.png','Reset evaluation and display settings. Folder paths are retained.',()=>this.resetSettings());
       this.moveButton=sqrTool(this,':/process-interface/execute.png','Review the move plan, then move only manually rejected original lights.',()=>this.moveRejected());
+      this.undoMoveButton=sqrTool(this,':/icons/undo.png','Undo moved originals. Select a moved row to restore that file, or choose a move journal to restore several files, including after reopening the script.',()=>this.restoreRejected());
       this.closeButton=sqrTool(this,':/process-interface/cancel.png','Close the review. Measurements and pending decisions are kept only while this dialog is open.',()=>this.cancel());
       this.helpButton=sqrTool(this,':/process-interface/browse-documentation.png','Open the PIDoc user guide.',sqrShowDocumentation);
-      let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.reset);actions.addStretch();actions.add(this.moveButton);actions.add(this.closeButton);actions.add(this.helpButton);
+      let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.reset);actions.addStretch();actions.add(this.moveButton);actions.add(this.undoMoveButton);actions.add(this.closeButton);actions.add(this.helpButton);
       let content=new VerticalSizer;content.margin=10;content.spacing=8;content.add(this.intro);content.add(this.inputsBar);content.add(this.inputs);content.add(this.qualityBar);content.add(this.settings);content.add(this.groupRow);content.add(this.tabs,100);content.add(messages);content.add(actions);
       // A zero-width spacer reserves the expanded minimum height. Native layouts
       // recompute a dialog/TabBox minimum when children hide, so their minHeight
@@ -1647,7 +1865,8 @@ class SQRDialog extends Dialog {
       o.scatterX=sqrKPIKey(this.scatterKPIs[this.scatterX.currentItem]);o.scatterY=sqrKPIKey(this.scatterKPIs[this.scatterY.currentItem]);
       o.reviewOrder=SQR_REVIEW_SORTS[this.order.currentItem][0];o.reviewReverse=this.reviewReverse;
       o.maxFits=this.maxFits;o.displaySTF=this.displaySTF.checked;o.alignBrightness=this.alignBrightness.checked;o.histogramOrder=this.histogramOrder.currentItem===1?'time':'value';return o;}
-   updateCornerControls(){this.patch.enabled=this.cornerMeasurements.checked;this.updateScoreWeightControls();}
+   // Region size can be configured before enabling automatic corner measurement.
+   updateCornerControls(){this.patch.enabled=true;this.updateScoreWeightControls();}
    changeCornerMeasurements(){
       if(this.running)return;
       this.updateCornerControls();
@@ -1812,13 +2031,19 @@ class SQRDialog extends Dialog {
    invalidate(){if(this.running)return;this.session=null;this.current=null;this.clearFrames();this.parseAutorun(false);this.populateGroups();this.status.text='Folder selection changed. Scan files again.';}
    // Geometry/measurement changes invalidate metrics and derived scores, but
    // keep original associations and the user's manual rejection decisions.
-   invalidateMeasurements(){if(this.running||!this.session)return;for(let g of this.session.groups){g.measureSignature='';g.correlationScoring=null;for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}
-      this.syncOptions();this.clearFrames();this.populateRows();this.status.text='Evaluation regions changed. Measure again before using the ranking.';}
+   invalidateMeasurements(){
+      if(this.running)return;
+      let hadCorners=this.cornerMeasurements.checked;this.cornerMeasurements.checked=false;
+      if(this.session){for(let g of this.session.groups){g.measureSignature='';g.correlationScoring=null;for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.dataReviewReasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}}
+      this.updateCornerControls();this.syncOptions();this.clearFrames();this.populateRows();
+      this.status.text='Measurement settings changed.'+(hadCorners?' Measure corners was cleared.':'')+' Enable Measure corners to measure the previews, or use the magnifier for field measurements.';
+   }
    rerank(){if(this.running)return;if(!this.session){this.updateScoreWeightControls();this.updateHistogram();return;}try{this.syncOptions();for(let g of this.session.groups)for(let r of sqrGroupRows(g))r.guidingIgnored=sqrIgnoreGuiding(r,this.session.options);if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);this.populateRows();}catch(e){this.error(e);}}
-   busy(value){this.running=value;for(let c of [...this.inputControls,this.inputsBar,this.qualityBar,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===1;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
+   busy(value){this.running=value;for(let c of [...this.inputControls,this.inputsBar,this.qualityBar,this.settings,this.scanButton,this.groupSelect,this.tabs,this.instance,this.calculate,this.reset,this.moveButton,this.undoMoveButton,this.closeButton,this.helpButton])c.enabled=!value;this.logUTCOffset.enabled=!value&&this.logTimeZone.currentItem===1;this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
       this.reference.enabled=!this.running&&this.regionRotation.currentItem!==1;this.regionRotation.enabled=!this.running;
       this.moveButton.enabled=ready&&this.session.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
+      this.undoMoveButton.enabled=!this.running;
       let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
       this.play.enabled=rotation?canRotate&&count>1:!!this.frames&&!this.running;
       this.step.enabled=rotation?canRotate&&count>0:!!this.frames&&!this.running;
@@ -1865,7 +2090,8 @@ class SQRDialog extends Dialog {
          node.setToolTip(0,'Field-only rank: 1 = worst Score. Includes the master; independent of table filters. Field-only Score: '+sqrFmt(r.scoreWithoutCorners));
          node.setToolTip(1,Number.isFinite(r.rankWithCorners)?'Rank including corner FWHM and eccentricity: 1 = worst Score. Includes the master; computed from available measurements even when Measure corners is off. Score: '+sqrFmt(r.scoreWithCorners):'Requires valid field, center and all four corner measurements including corner eccentricity, and a positive enabled weight.');
          node.setToolTip(2,Number.isFinite(r.rankCorrelated)?'Correlation rank: 1 = worst Score. Higher Score is better. Score: '+sqrFmt(r.scoreCorrelated)+'\n'+sqrScoreCorrelationReport(g.correlationScoring):this.correlationOnly.checked?'Measure this image to calculate its correlation rank.':'Enable strongly correlated KPIs to calculate R3.');
-         node.setToolTip(3,r.isMaster?'The master cannot be rejected.':r.moved?'Original already moved.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
+         node.setToolTip(3,r.isMaster?'The master cannot be rejected.':r.moved?'Original moved to: '+r.movedTo+'\nSelect this row, then click Undo moved originals beside the green checkmark to restore it.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
+         node.setToolTip(4,sqrReviewToolTip(r,g,this.session.options));
          node.setToolTip(6,r.isMaster?'Integrated master: no single acquisition time.':sqrAcquisitionLabel(r)+'\nSame timestamp used for acquisition-time sorting and histograms. Original observation time, with registered metadata as fallback.');
          for(let i=16;i<=18;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-16]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):''));
          for(let [column,key,meaning] of [
@@ -1932,7 +2158,7 @@ class SQRDialog extends Dialog {
       this.kpiDirection.toolTip=this.kpiDirection.text+(kpi.definition?'\n'+kpi.definition:'')+'\nInclusion follows the current quality settings. Each image requires valid measurements; unavailable values do not count as good quality.\nCenter FWHM is used in corner/center ratios. Corner measurements feed the worst corner-quality penalty. In correlation mode, each corner FWHM and eccentricity is also assessed independently and receives equal weight if selected. Guide minimum, average and maximum feed the combined guiding-quality penalty, only where guiding coverage is usable. The master has no guiding contribution.';
       this.histogramSummary.text=data.message||('One bar per frame · '+(data.order==='time'?'acquisition time: earliest first · master first · unknown times last':'ascending '+kpi.label)+' · '+data.count+' measured subframes'+(data.missing?' · '+data.missing+' unavailable':'')+'. Click a bar to select its image in Review and measurements.\n'+
          'Cyan: selected · purple: REVIEW · blue: other kept · red: rejected · gold: master · green dashed: kept mean.\n'+
-         (data.guideBands?'Background: green = Good · amber = Medium · red = Bad. Axis includes all three guiding ranges. ':'Axis fits subframes. ')+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
+         (data.guideBands||data.eccentricityBands?'Background: green = Good · amber = Medium · red = Bad. '+(data.eccentricityBands?'Eccentricity axis: 0–1. ':'Axis includes all three guiding ranges. '):'Axis fits subframes. ')+(data.hasMaster?'Master: '+sqrKPIPlotNumber(data.master,kpi)+(data.masterClipped?' (clipped '+data.masterClipped+' axis range)':''):'No master matched.')+
          (data.showAutofocus?' · '+data.autofocus.length+' autofocus starts in range. Orange: autofocus start and focus position; hover AF for details.':''));
       this.plotReady=false;++this.plotGeneration;this.histogram.setHTML(sqrPlotHTML(data,this.plotGeneration));
    }
@@ -2082,7 +2308,18 @@ class SQRDialog extends Dialog {
          if(new MessageBox(text,'Move rejected originals',StdIcon.Question,StdButton.Yes,StdButton.No).execute()!==StdButton.Yes)return;
          this.busy(true);let result=sqrMove(this.session,s=>this.setStatus(s));
          this.populateRows();this.status.text='Moved '+result.count+' original lights. Journal: '+result.journal;
-      }catch(e){this.populateRows();this.error(e);}finally{this.busy(false);}}
+      }catch(e){this.populateRows();this.error(e);}finally{this.lastMoveJournal=this.session?.lastMoveJournal||this.lastMoveJournal;this.busy(false);}}
+   restoreRejected(){
+      if(this.running)return;this.stopBlink();let abort=console.abortEnabled;
+      try{
+         let path=this.current?.moveJournal||this.session?.lastMoveJournal||this.lastMoveJournal||'';
+         let dialog=new SQRRestoreDialog(path&&File.exists(path)?path:'',this.current?.moved?this.current.original?.path||'':'',this.folders.destination.edit.text);
+         if(!dialog.execute())return;
+         this.busy(true);console.abortEnabled=true;
+         let result=sqrRestore(dialog.record.path,dialog.indices(),this.session,s=>this.setStatus(s),dialog.plan);
+         this.populateRows();this.status.text='Restored '+result.count+' original lights and cleared their rejection marks. Undo journal: '+result.journal;
+      }catch(e){this.populateRows();this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
+   }
 }
 
 #ifndef SQR_LIBRARY
