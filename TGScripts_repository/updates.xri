@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="02ad4dec0452f7f85ada5e4c9af10e113dffa93e" type="script" releaseDate="20261024">
+      <package fileName="TGScripts_repository.tar.gz" sha1="5c4da39fa102e9f03e6c84d9b08032ff598c3be3" type="script" releaseDate="20261025">
          <title>
-            TGScripts snapshot - 2026 Okt 24
+            TGScripts snapshot - 2026 Okt 25
          </title>
          <remove>
             src/scripts/TGScripts
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Adds R4 rank-of-ranks scoring, always-visible R3 rankings, and optional corner scoring. Reorganizes review details into a shared collapsible section and expands the R4 documentation with a worked example.
+               SubframeQualityReview: Faster measurements, blinking, file matching and review updates. Added calibrated sky-background ranges and clearer Bortle shading labels.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-24T21:24:53.341Z" encoding="Base64">ONalHIZmmIV00BrdFfoZBBixvfrWYsve1tZXbuJa3SHQAmW32SevSVIzmum7Xu6TH6aBrbOXRWwRstwgd27YBA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-25T22:51:55.113Z" encoding="Base64">ftzmJYbYqGSUvq/df3uoiTtOZD9wzWJmDwfqIxikCiT7hNyy26U/VJI4wda18eYhAe7SxsILp2hDDJvdsqJEBw==</Signature>

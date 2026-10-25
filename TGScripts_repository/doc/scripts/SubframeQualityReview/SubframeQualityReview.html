@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.32.2." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.39.14." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.32.2. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.39.14. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -37,7 +37,7 @@
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
 <li class="pidoc_tocItem"><a href="#__Start_and_complete_a_review__">2&emsp;Start and complete a review</a></li>
-<li class="pidoc_tocItem"><a href="#__Directories_and_filter_groups__">3&emsp;Directories and filter groups</a></li>
+<li class="pidoc_tocItem"><a href="#__Input_files_and_observing_conditions__">3&emsp;Input files and observing conditions</a></li>
 <li class="pidoc_tocItem"><a href="#__Quality_evaluation_controls__">4&emsp;Quality evaluation controls</a></li>
 <li class="pidoc_tocItem"><a href="#__What_is_measured__">5&emsp;What is measured</a></li>
 <li class="pidoc_tocItem"><a href="#__Sky_background__">6&emsp;Sky background</a></li>
@@ -46,11 +46,13 @@
 <li class="pidoc_tocItem"><a href="#__Review_and_measurements__">9&emsp;Review and measurements</a></li>
 <li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">10&emsp;Blink frame and reference</a></li>
 <li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">11&emsp;Quality indicators and acquisition order</a></li>
-<li class="pidoc_tocItem"><a href="#__Correlation_plot__">12&emsp;Correlation plot</a></li>
-<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">13&emsp;Log folder, timing, and autofocus markers</a></li>
-<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">14&emsp;Guiding measurements and quality</a></li>
-<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">15&emsp;Move rejected originals and rerun WBPP</a></li>
-<li class="pidoc_tocItem"><a href="#__Common_questions__">16&emsp;Common questions</a></li>
+<li class="pidoc_tocItem"><a href="#__Skybackground_comparison__">12&emsp;Sky-background comparison</a></li>
+<li class="pidoc_tocItem"><a href="#__FWHM_grading__">13&emsp;FWHM grading</a></li>
+<li class="pidoc_tocItem"><a href="#__Correlation_plot__">14&emsp;Correlation plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">15&emsp;Log folder, timing, and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">16&emsp;Guiding measurements and quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">17&emsp;Move rejected originals and rerun WBPP</a></li>
+<li class="pidoc_tocItem"><a href="#__Common_questions__">18&emsp;Common questions</a></li>
 </ul>
 </div>
 
@@ -74,11 +76,11 @@
 
 <ol class="pidoc_list">
 <li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
-<li class="pidoc_spaced_list_item">Select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder containing the acquisition and guiding logs.</li>
+<li class="pidoc_spaced_list_item">Enter the telescope aperture for FWHM grading, then select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder containing the acquisition and guiding logs.</li>
 <li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
 <li class="pidoc_spaced_list_item">Set Review worst (%) and the quality weights as needed.</li>
 <li class="pidoc_spaced_list_item">Click the magnifier button at the bottom for a field measurement. To include the center and four corners, click the adjacent Measure corners grid button. It reuses existing field results; if these are missing, it measures the field first. Both actions cover all discovered groups and their matched masters.</li>
-<li class="pidoc_spaced_list_item">Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. Inspect the images before deciding which originals to reject.</li>
+<li class="pidoc_spaced_list_item">Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.</li>
 <li class="pidoc_spaced_list_item">Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.</li>
 <li class="pidoc_spaced_list_item">Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.</li>
 <li class="pidoc_spaced_list_item">Rerun WBPP with the remaining originals. Refresh its light-frame input list so it no longer includes the moved files. Keep the rejection destination out of the new input selection.</li>
@@ -88,11 +90,16 @@
    </div>
 </div>
 
-<div class="pidoc_section" id="__Directories_and_filter_groups__">
-   <h3 class="pidoc_sectionTitle">3&emsp;Directories and filter groups</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Directories_and_filter_groups', this );">[hide]</p>
-   <div id="Directories_and_filter_groups">
-<p>Click the WBPP run and original lights bar to collapse or expand the folder and log controls. It opens expanded by default. The window keeps its size, and the active tab uses the space released by a collapsed section. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.</p>
+<div class="pidoc_section" id="__Input_files_and_observing_conditions__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Input files and observing conditions</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Input_files_and_observing_conditions', this );">[hide]</p>
+   <div id="Input_files_and_observing_conditions">
+<p>Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size, and the active tab uses the space released by a collapsed section. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.</p>
+<p>Telescope aperture is at the bottom of this section, aligned with the folder controls. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.</p>
+<p>Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcseconds at the zenith and a reference wavelength of 550 nm. A positive value enables grading relative to the expected FWHM for those conditions. Leave it at zero to use the fixed Good and Medium seeing limits. A forecast is an estimate, not a measurement of the actual conditions; check its reference conditions before entering it. If it already includes the target altitude correction, convert it to zenith seeing first.</p>
+<p>Session SQM and SQM time (local) are beside Aperture and Zenith seeing. Enter the reading in mag/arcsec². Loading the log folder presets the date and local time from the earliest light-frame sequence in its Autorun logs. Flat frames, focusing and plate-solving exposures, and Chinese translations are ignored. Adjust the preset to the actual SQM reading time. A time you enter manually is retained when the logs are reloaded or changed; an untouched automatic preset follows the selected log folder. This distinction is retained in saved settings. If the new folder has no recognized light-frame start, an automatic preset is cleared.</p>
+<p>Click Choose beside SQM time to select the year, month, day, hour, minute and second, then Apply. Cancel retains the existing time. If the time is empty, the selector starts at the logged imaging start, then falls back to the selected exposure midpoint when its local time is known, or the computer clock if neither is available. You can also type or paste YYYY-MM-DD HH:MM or YYYY-MM-DD HH:MM:SS directly. The date avoids ambiguity when a session crosses midnight. Log presets keep their local wall time; the existing inferred or custom UTC offset converts the reading to image UTC timestamps. The reading automatically determines the approximate Bortle class.</p>
+<p>Zero means that no SQM reading is supplied. In that case, select Sky background on the Quality indicators tab to choose a Bortle class from the compact selector to the left of Calibrate sky. Choose a class from 1 to 9, or — when unspecified. The starting selection is class 6. Your manual selection is retained while SQM determines the class automatically.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_1__"></a>
@@ -135,6 +142,8 @@
 <p>The registered images, their associated originals, and matched masters must identify the same camera. A scan stops if different cameras are found. Missing camera names are reported as not fully verified. The same camera can still have a different pixel scale with different focal lengths or binning. Conflicting master scales or different master and registered-image dimensions are reported instead of assuming one shared scale. If no usable master scale metadata is available, the scale is shown as unavailable.</p>
 <p>Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.</p>
 <p>Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.</p>
+<p>Scan files is highlighted in slate gray, retaining the standard pushbutton appearance, when a scan is needed: on startup, after changing either image folder, or after an unsuccessful scan. The highlight clears after a successful scan. The magnifier, Measure corners and Undo moved originals buttons are enabled only after a successful scan. Changing measurement or display settings does not require another file scan.</p>
+<p>The green Move checkmark and blue Undo arrow also require a Rejected originals folder. Both remain disabled while this field is blank. Their tooltips explain what is required. Entering or clearing the folder updates the buttons immediately; no rescan is needed. Move additionally requires at least one manually rejected original. Scanning and measuring remain available with the rejection folder blank.</p>
    </div>
 </div>
 
@@ -143,7 +152,8 @@
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_evaluation_controls', this );">[hide]</p>
    <div id="Quality_evaluation_controls">
 <p>Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.</p>
-<p>The controls are arranged in three groups. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Below these are Use corner measurements in Score, Use strongly correlated KPIs, and Use rank of ranks. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is reported in the bottom message area.</p>
+<p>The first column separates Measurements and review from Score selection. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Score selection contains the three checkboxes that determine the active Score. Its bold Current Score label identifies the selected R1, R2, R3, or R4 method. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is also reported in the bottom message area.</p>
+<p>With the R3 and R4 options off, manual scoring uses R1 for field-only evaluation or R2 when corner measurements are included. The strongly correlated KPI option selects R3; the rank-of-ranks option selects R4. These two options are alternatives. The corner checkbox determines whether available corner measurements participate in the selected method.</p>
 
 <table class="pidoc_table">
 <caption><a id="__table_2__"></a>
@@ -157,19 +167,19 @@
 </th>
 </tr>
 <tr>
-<td><p>Use strongly correlated KPIs</p>
+<td><p>Use R3: strongly correlated KPIs</p>
 </td>
 <td><p>Off</p>
 </td>
-<td><p>Use the R3 correlation score as the active Score. R3 is also calculated and displayed while this option is off. Selecting it turns off Use rank of ranks.</p>
+<td><p>Use the R3 correlation score as the active Score. R3 is also calculated and displayed while this option is off. Selecting it turns off Use R4: rank of ranks.</p>
 </td>
 </tr>
 <tr>
-<td><p>Use rank of ranks</p>
+<td><p>Use R4: rank of ranks</p>
 </td>
 <td><p>Off</p>
 </td>
-<td><p>Use the equal-weight average of normalized R1, R2, and R3 ranks as Score. Omit unavailable ranks and omit R2 while corner scoring is off. Selecting it turns off Use strongly correlated KPIs.</p>
+<td><p>Use the equal-weight average of normalized R1, R2, and R3 ranks as Score. Omit unavailable ranks and omit R2 while corner scoring is off. Selecting it turns off Use R3: strongly correlated KPIs.</p>
 </td>
 </tr>
 <tr>
@@ -189,7 +199,7 @@
 </td>
 </tr>
 <tr>
-<td><p>Use corner measurements in Score</p>
+<td><p>Include corner measurements (R2)</p>
 </td>
 <td><p>Off until measured</p>
 </td>
@@ -231,7 +241,7 @@
 </table>
 
 <p>Changing the review percentage or quality weights recalculates rankings from existing measurements. Measure corners runs the missing regional measurements and updates scores and correlation selection. It does not repeat existing full-image PSF measurements while the images and measurement settings are unchanged. An unsuccessful regional result remains marked as unavailable; clicking the button again does not repeatedly retry it. Changing Corner size, Edge guard, or Minimum stars clears the measurements and resets the corner status. Click Measure corners to measure the previews with the new settings, or use the magnifier for field measurements.</p>
-<p>Use corner measurements in Score switches between field-only and field-plus-corner evaluation. Turning it off excludes corner penalties and individual corner KPIs, uses the whole-image sky background, and recalculates Score, Below-mean Quality, R3, and R4. Turning it on uses the stored regional results again. Neither action remeasures images. R1 and R2 remain available for comparison, and the regional measurements and plots are retained. Missing results are still reported when their scoring contribution is enabled.</p>
+<p>Include corner measurements (R2) switches between field-only and field-plus-corner evaluation. Turning it off excludes corner penalties and individual corner KPIs, uses the whole-image sky background, and recalculates Score, Below-mean Quality, R3, and R4. Turning it on uses the stored regional results again. Neither action remeasures images. R1 and R2 remain available for comparison, and the regional measurements and plots are retained. Missing results are still reported when their scoring contribution is enabled.</p>
 <p>If regional measurements are already available, their quality plots remain available when corner scoring is turned off. The plot indicates that those measurements are excluded from the current Score. Corner-specific choices are hidden when no corresponding measurements exist. In the Correlation plot, only measurements from the current group's subframes enable regional choices; master-only measurements do not.</p>
    </div>
 </div>
@@ -240,9 +250,10 @@
    <h3 class="pidoc_sectionTitle">5&emsp;What is measured</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'What_is_measured', this );">[hide]</p>
    <div id="What_is_measured">
-<p>The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels.</p>
+<p>The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels with one decimal place.</p>
 <p>Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.</p>
 <p>Field measurements for all groups and masters are submitted together to SubframeSelector. Optional center and corner crops are submitted in a second batch. SubframeSelector manages processing concurrency using its normal defaults, as in WBPP; the script does not impose a fixed number of frames per batch.</p>
+<p>After you click the magnifier, the script checks the common usable field, measures missing field results and any enabled missing regions, and updates the scores. For sky calibration, an SQM reading uses the measured frame nearest its reading time. Without SQM, a selected Bortle class uses Gaia photometry on the best default-scoring frame. Gaia sky-coordinate repair, when needed, can make this last step take longer. The console shows progress. Repeating measurement in the same open review reuses unchanged results and sky calibration. Opening the Blink tab loads the image preview when needed.</p>
 <p>With corner scoring enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.</p>
 <p>Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.</p>
    </div>
@@ -252,8 +263,8 @@
    <h3 class="pidoc_sectionTitle">6&emsp;Sky background</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Sky_background', this );">[hide]</p>
    <div id="Sky_background">
-<p>With Use corner measurements in Score enabled, Sky background is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With the option off, it is the arithmetic mean of the whole registered image, including any registration borders.</p>
-<p>Values are reported in image units. For RGB images, the mean includes all three color channels equally. Stars and extended objects remain part of the means; this indicator is an estimate, not a measurement of empty sky alone. Compare images with the same brightness scale and processing. Background subtraction or normalization can change its interpretation.</p>
+<p>With Include corner measurements (R2) enabled, Sky background is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With the option off, it is the arithmetic mean of the whole registered image, including any registration borders.</p>
+<p>Values are reported in image units. For RGB images, the mean uses the green channel. Stars and extended objects remain part of the means; this indicator is an estimate, not a measurement of empty sky alone. Compare images with the same brightness scale and processing. Background subtraction or normalization can change its interpretation.</p>
 <p>Lower values are treated as better quality. Sky background has a default manual weight of 20; set it to zero to exclude it from Score. It also participates in Below-mean Quality and the R3 selection of strongly correlated KPIs using the current background measurement. R1 uses the whole-image mean; R2 uses the preview minimum. Switching corner scoring updates the displayed value, Score, R3 selection, and R4.</p>
 <p>The Review table reports Sky background with six decimal places. Hover over the value to see its meaning and the five preview means when available. Choose Sky background on the Quality indicators or Correlation plot tab, or in Sort by. Missing background measurements are shown as unavailable and do not count as good quality. All five preview means are required to establish their minimum; star-detection success is not required for a pixel mean.</p>
    </div>
@@ -350,9 +361,9 @@
 <p>Score = 1 − sum(weight × penalty) / (10 × sum of weights). Only available components enter the sums. A Score of 1.000 means no measured penalty; 0.000 means the weighted mean penalty reaches its limit of 10. Score describes relative quality within its group, not a probability or an absolute image-quality rating. Rankings use full precision, so values that display identically can have different ranks.</p>
 <p>The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner quality counts as one indicator when corner scoring is enabled and weighted.</p>
 <p>Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and R1 and R2 are withheld when their required measurements are unavailable. A partial R3 remains available when the field measurement is valid; inspect its missing-data flags.</p>
-<p>R3 is calculated whenever field measurements are available. Enable Use strongly correlated KPIs (|r| &gt;= 0.7) to use its score as the active Score. It selects indicators automatically for each group. The selection uses absolute Pearson correlation with PSF signal weight, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.</p>
-<p>PSF signal weight remains the anchor. Each other selected component has weight 1; excluded components have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates when Use corner measurements in Score is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.</p>
-<p>With Use corner measurements in Score enabled, the FWHM and eccentricity of each of the four corners are also tested separately against PSF signal weight. Each of these eight indicators is included with weight 1 when its absolute correlation reaches 0.7 with at least three valid paired subframes. The Corner quality composite remains a separate candidate. A corner FWHM can qualify even if eccentricity or another corner is unavailable. Center FWHM contributes through the composite's corner-to-center ratios; it is not a separate scoring candidate.</p>
+<p>R3 is calculated whenever field measurements are available. Enable Use R3: strongly correlated KPIs to use its score as the active Score. It selects indicators automatically for each group when their absolute Pearson correlation with PSF signal weight is at least 0.7, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.</p>
+<p>PSF signal weight remains the anchor. Each other selected component has weight 1; excluded components have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates when Include corner measurements (R2) is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.</p>
+<p>With Include corner measurements (R2) enabled, the FWHM and eccentricity of each of the four corners are also tested separately against PSF signal weight. Each of these eight indicators is included with weight 1 when its absolute correlation reaches 0.7 with at least three valid paired subframes. The Corner quality composite remains a separate candidate. A corner FWHM can qualify even if eccentricity or another corner is unavailable. Center FWHM contributes through the composite's corner-to-center ratios; it is not a separate scoring candidate.</p>
 <p>Each selected corner indicator contributes its own penalty and enters the Below-mean Quality comparison. Larger FWHM and eccentricity are worse, regardless of the correlation's sign. Several qualifying corner indicators therefore give corner performance more combined influence. Disabling correlation scoring restores the manual weights and the single Corner quality contribution.</p>
 <p>Below-mean Quality is first recalculated from the selected underlying indicators, then included only if its own correlation passes the threshold. Score itself is never a selection candidate. If no other indicator qualifies, Score uses PSF signal weight alone. The R3 KPIs are listed in the bottom message area on every tab. Hover over that report or R3 for each correlation, sample count, and exclusion reason. Changing this option reuses existing measurements.</p>
 <p>Clicking Measure corners afterwards measures missing regions and recalculates the selection for every group. When corner scoring is enabled, Corner quality and the eight individual corner indicators are included only when each meets the strong-correlation threshold. Turning corner scoring off excludes them and recalculates the selection using the field-only indicators. Clearing measurements also removes their scoring contributions until they are measured again.</p>
@@ -399,8 +410,8 @@
 <p>R4 Score = mean of the available normalized R1, R2, and R3 ranks.</p>
 <p>The R4 column then ranks these combined scores: 1 is worst, and larger rank numbers are better. The combined Score itself ranges from 0 to 1, with higher values indicating better relative quality. Rank and Score are different values.</p>
 <p>For example, suppose each component ranks 11 images and one image has R1 = 3, R2 = 7, and R3 = 9. Its normalized ranks are 0.2, 0.6, and 0.8. Its combined Score is (0.2 + 0.6 + 0.8) / 3 = 0.533. Its R4 position depends on the combined scores of the other images. If only R1 and R3 are available with those values, the combined Score is (0.2 + 0.8) / 2 = 0.500.</p>
-<p>R2 is omitted when Use corner measurements in Score is off or that image has no valid R2. Other unavailable ranks are also omitted; they never count as zero. An image with no available ranks has no R4. A partial result can still require REVIEW. Corner scoring also affects which indicators participate in R3, so switching it can change both R3 and R4.</p>
-<p>To use this method, enable Use rank of ranks in Measurements and review. The Score column, REVIEW shortlist, and best-subframe comparison then use the combined score. Use strongly correlated KPIs selects the R3 score instead; the two options are alternatives. Leaving both off uses manual scoring. R1–R4 remain visible in every mode when their required measurements exist, and changing modes does not measure images again.</p>
+<p>R2 is omitted when Include corner measurements (R2) is off or that image has no valid R2. Other unavailable ranks are also omitted; they never count as zero. An image with no available ranks has no R4. A partial result can still require REVIEW. Corner scoring also affects which indicators participate in R3, so switching it can change both R3 and R4.</p>
+<p>To use this method, enable Use R4: rank of ranks in Score selection. The Score column, REVIEW shortlist, and best-subframe comparison then use the combined score. Use R3: strongly correlated KPIs selects the R3 score instead; the two options are alternatives. Leaving both off uses manual scoring. R1–R4 remain visible in every mode when their required measurements exist, and changing modes does not measure images again.</p>
 <p>Select R4: rank of ranks in Sort by to order the table by R4, independently of the active Score mode. Hover over an R4 value to see the contributing ranks, their population sizes, normalized values, and any omissions. R4 includes the comparison master, uses all ranked images in the group regardless of the table filter, and resolves equal scores by filename.</p>
 <p>Manual weights remain editable in rank-of-ranks mode because they determine R1 and R2. R3 uses its independently selected, equally weighted indicators. The displayed Below-mean Quality describes the manual R1/R2 comparison in this mode; R3 assesses its selected indicators separately. The Main issue and Score tooltip identify the ranks that most reduce the combined score.</p>
    </div>
@@ -609,7 +620,7 @@
    <div id="Quality_indicators_and_acquisition_order">
 <p>The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.</p>
 <p>The note beside the selected indicator shows whether higher or lower values are preferable and whether it is included in Score under the current settings. A zero weight, disabled corner scoring, or excluded guiding is identified. In correlation mode, each corner FWHM and eccentricity reports its own inclusion or exclusion. In manual mode these measurements contribute through Corner quality; Center FWHM is used in corner/center ratios. Guide minimum, average, and maximum contribute through combined guiding quality when coverage is usable. Score itself is the combined result. Plotted measurements remain available even when their scoring contribution is disabled.</p>
-<p>Selecting Corner quality displays its definition above the plot: the worst penalty for star size, corner-to-center size ratio, or elongation across the four corners. Lower is better. Missing measurements are flagged separately.</p>
+<p>The blue information symbol button opens the selected histogram’s explanation, including its definition and relevant measurement or calibration details. Reading the plot uses labeled rows for inspecting bars, ordering and the vertical axis. A color-and-marker legend separates image bars, reference lines and quality shading, with a sample and written meaning for each. SQM and autofocus markers appear only when relevant to that plot. These explanations are kept in the information window, without repeating them in plot headings or tooltips. The direction of quality and current Score inclusion remain visible beside the selector. The footer shows only the frame count and order. Hover over individual bars for their image-specific values.</p>
 <p>Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.</p>
 
 <table class="pidoc_table">
@@ -667,17 +678,261 @@
 
 <p>Hover over a bar to see its filename, value, status, and acquisition time. Click it to select the corresponding row in Review and measurements. If necessary, the script clears REVIEW candidates only to reveal the selected image, including the master. Clicking a plot bar does not change rejection decisions.</p>
 <p>Except for the category plots described below, the vertical range follows the subframe values with approximately 10% padding. An outlying master value is clipped at the plot boundary and marked with an arrow; its actual value remains visible. This keeps subframe differences readable when the integrated master has a much larger PSF signal weight. Missing values retain their place in the sequence but have no value bar.</p>
-<p>Field eccentricity and each corner eccentricity plot use a fixed zero-to-one axis with green, amber, and red background bands. Good eccentricity is at or below 0.42; Medium is above 0.42 and at or below 0.60; Bad is above 0.60. The legend and dotted lines mark these boundaries in both KPI-value and acquisition-time order. Hover over a bar to see its category. Eccentricity is dimensionless: zero is round and values approaching one indicate increasingly elongated stars. These ranges are practical inspection guidelines. Score continues to compare eccentricity within the group; the bands do not change scoring or automatically reject an image.</p>
-<p>For Guide minimum, Guide average, and Guide maximum, green, amber, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. The vertical range includes zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.</p>
-<p>The Guiding quality plot shows the combined indicator without category bands. Its definition appears above the plot: G = (minimum + 2 times average + maximum) / 4, in arcseconds. The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. Lower values are better. The displayed minimum, average, and maximum categories help inspect individual guiding measurements; the combined value G determines the guiding penalty used in Score.</p>
+<p>Field, center, and corner FWHM plots can show Good, Medium, and Bad background bands using your telescope and reference observing conditions. The FWHM grading settings icon is shown only for Field, Center and corner FWHM plots. Open it to configure the limits. The FWHM grading section below explains the parameters and calculation.</p>
+<p>Field eccentricity follows the plotted values, including the master, with about 10% headroom and a small lower margin, bounded by zero and one. The corner eccentricity plots retain a fixed zero-to-one axis. Green, amber, and red background bands are clipped to the visible range. Good eccentricity is at or below 0.42; Medium is above 0.42 and at or below 0.60; Bad is above 0.60. The legend and dotted lines mark these boundaries in both KPI-value and acquisition-time order. Hover over a bar to see its category. Eccentricity is dimensionless: zero is round and values approaching one indicate increasingly elongated stars. These ranges are practical inspection guidelines. Score continues to compare eccentricity within the group; the bands do not change scoring or automatically reject an image.</p>
+<p>For Guide minimum, Guide average, and Guide maximum, green, amber, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. Guide minimum follows its measured values with a small margin above and below, like Guiding quality. Only the portions of the bands within that range are shaded. Guide average and Guide maximum include zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.</p>
+<p>The Guiding quality plot shows the combined indicator without category bands. Its information window gives the definition: G = (minimum + 2 times average + maximum) / 4, in arcseconds. The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. Lower values are better. The displayed minimum, average, and maximum categories help inspect individual guiding measurements; the combined value G determines the guiding penalty used in Score.</p>
+<p>The Below-mean Quality histogram shows subframes only; the master is omitted.</p>
 <p>The green plot mean excludes rejected subframes and can change as you make decisions. The scoring baselines and the arithmetic means behind Below-mean Quality use all supported subframes in the group, including rejects. These intentionally serve different purposes.</p>
 <p>Acquisition timestamps come first from the verified original's DATE-OBS or DATEOBS metadata, then from the registered image. Separate TIME-OBS or TIMEOBS fields are supported when the date field contains only a date. Explicit timezone offsets are converted to UTC; timestamps without an offset are interpreted as UTC. The table shows the same UTC timestamp used by the plots.</p>
 <p>Acquisition filenames may show a local clock or an end time while the header records a UTC exposure start. The displayed Acquisition time (UTC) is the authoritative value used by this script. The filename counter suffix is ignored.</p>
    </div>
 </div>
 
+<div class="pidoc_section" id="__Skybackground_comparison__">
+   <h3 class="pidoc_sectionTitle">12&emsp;Sky-background comparison</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Skybackground_comparison', this );">[hide]</p>
+   <div id="Skybackground_comparison">
+<p>With Session SQM supplied, enter the reading's local date and time beside it. The script automatically estimates the Bortle class and selects the eligible subframe whose exposure midpoint is nearest to that time in each supported group. Masters, rejected or moved frames, and frames without usable exposure times or backgrounds are excluded. Equal time differences prefer the earlier exposure. Click the information symbol button on the Quality indicators tab to open the reference frame, reading time, exposure midpoint in UTC, time difference and reference background. With Gaia calibration, this information window shows the reference, accepted-star count and calibration scatter. It also lists the SQM-to-Bortle ranges used by the script, including exact boundary handling and the shared range for classes 8–9. The table adds the calibrated sky-background range in the plot's image units and the shading color for each class. The shading legend identifies the Bortle classes covered by each color. Before calibration, the SQM ranges remain available; calibrated values and shading show a dash.</p>
+<p>The selected frame's measured background is assigned the SQM reading directly. Other backgrounds are converted relative to it. Gaia is not used when an SQM reading is supplied. Missing or ambiguous reading times leave calibration unavailable; enter the complete date/time and check the UTC offset. A missing SQM time never switches to Gaia automatically.</p>
+<p>The compact plot caption shows the Bortle class and SQM reading or Gaia calibration. The footer shows the frame count and plot order. The vertical axis follows the plotted backgrounds, including the master when present, with a small margin below and headroom above. Bortle limits do not extend it. Only the parts of the quality bands inside that range are shaded.</p>
+<p>The pink dashed line marks the SQM reading on the image-unit axis. Bars below it indicate darker backgrounds; bars above it indicate brighter backgrounds. With corner scoring enabled, calibration uses the same minimum preview mean as the plot; otherwise it uses the whole-image mean. Switching this basis reuses the measured backgrounds.</p>
+<p>Without an SQM reading, choose Sky background on the Quality indicators tab. The Bortle class selector appears immediately to the left of Calibrate sky. Local Gaia photometry calibrates the unrejected subframe with the best default field-only score in each supported group. Changing score weights or choosing R2, R3 or R4 does not change that selection rule. Choose — to disable Bortle shading and automatic Gaia calibration.</p>
+<p>Calibration runs after image measurements or when the required sky settings are supplied afterwards. Existing field and corner measurements are retained. Calibrate sky is shown only while the current group has no usable calibration; it disappears after success and reappears if calibration becomes unavailable. Changing Bortle class reuses Gaia calibration. Changing the SQM reading or time updates the direct calibration using existing background measurements. Returning to a previously calibrated mode reuses its result when still applicable.</p>
+<p>The plot is shaded automatically when calibration and a Bortle class are available:</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_8__"></a>
+<span class="pidoc_table_title">Table 8</span></caption>
+<tr>
+<th><p>Category</p>
+</th>
+<th><p>Meaning</p>
+</th>
+</tr>
+<tr>
+<td><p>Good, green</p>
+</td>
+<td><p>Darker background corresponding to lower Bortle classes.</p>
+</td>
+</tr>
+<tr>
+<td><p>Medium, amber</p>
+</td>
+<td><p>Background within the selected or inferred class's approximate brightness range.</p>
+</td>
+</tr>
+<tr>
+<td><p>Bad, red</p>
+</td>
+<td><p>Brighter background corresponding to higher Bortle classes.</p>
+</td>
+</tr>
+</table>
+
+<p>For example, class 6 uses approximately 18.94–19.50 mag/arcsec² for Medium. Class 1 has no lower-class Good band. Classes 8 and 9 share a brightness range below 18.38 mag/arcsec². An SQM reading in that range is reported as Bortle 8–9; it cannot distinguish the two visual classes. The manual selector retains separate choices for 8 and 9.</p>
+<p>Hover a subframe bar to see its estimated brightness and category. The integrated master is a comparison image and receives no brightness estimate. The SQM line and Bortle shading do not change Score, REVIEW or rejection decisions.</p>
+<p>Use linear, calibrated WBPP registered frames. Luminance, green and V filters are supported; RGB uses the green channel. A shared calibration requires matching exposure, camera, gain, binning, filter, pedestal and image dimensions. Other filters remain uncalibrated. Without SQM, frames also need sky-coordinate information and a local Gaia DR3/SP, DR3 or EDR3 catalog configured in PixInsight. Unreliable coordinates are rebuilt on a temporary image if necessary; source files stay unchanged.</p>
+<p>The SQM reading should represent the sky in the target's direction near the matched exposure. An SQM-anchored plot is a relative estimate, not an independent check of the meter reading. Stars, nebulosity, gradients and changing transparency can affect the measured image background. Gaia gives a V-equivalent estimate, which differs from an SQM meter's passband. Bortle ranges are approximate.</p>
+<p>Process icons save the reading, its local date/time and the manual Bortle choice. They do not save measurements or calibration; closing the script discards the measured session.</p>
+<p>See the <a href="https://www.handprint.com/ASTRO/bortle.html" title="https://www.handprint.com/ASTRO/bortle.html">approximate Bortle comparison table</a> and <a href="https://www.aanda.org/articles/aa/pdf/2021/05/aa39587-20.pdf" title="https://www.aanda.org/articles/aa/pdf/2021/05/aa39587-20.pdf">Gaia photometric transformations</a>.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__FWHM_grading__">
+   <h3 class="pidoc_sectionTitle">13&emsp;FWHM grading</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'FWHM_grading', this );">[hide]</p>
+   <div id="FWHM_grading">
+<p>Use FWHM grading on the Quality indicators tab to set personalized Good, Medium, and Bad limits. Enter the telescope aperture in Input files and observing conditions; the FWHM dialog shows this value for reference. The script uses its validated image pixel scale to convert the calculated angular limits to pixels, matching the FWHM measurements. Bands are unavailable until both aperture and pixel scale are available. The X and Y pixel scales must agree within 0.1%. Clear Show FWHM quality bands to hide the shading. The dialog uses a single column of aligned controls: Telescope and image summarizes the current setup, Observing conditions holds altitude, wavelength and optional optical blur, and the next section sets the Good and Medium boundaries. The result shows three distinct Good, Medium and Bad rows in pixels. The information icon opens the model details, organized into labeled tables for current grading limits, reference conditions, blur contributions and filter defaults.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_9__"></a>
+<span class="pidoc_table_title">Table 9</span></caption>
+<tr>
+<th><p>Parameter</p>
+</th>
+<th><p>Initial value</p>
+</th>
+<th><p>Meaning</p>
+</th>
+</tr>
+<tr>
+<td><p>Aperture</p>
+</td>
+<td><p>Unset</p>
+</td>
+<td><p>Telescope aperture diameter in millimeters, entered in Input files and observing conditions.</p>
+</td>
+</tr>
+<tr>
+<td><p>Zenith seeing</p>
+</td>
+<td><p>0 arcsec</p>
+</td>
+<td><p>Optional estimate entered beside Aperture; zero selects fixed seeing limits.</p>
+</td>
+</tr>
+<tr>
+<td><p>Good up to, relative mode</p>
+</td>
+<td><p>115%</p>
+</td>
+<td><p>Upper Good boundary as a percentage of expected FWHM.</p>
+</td>
+</tr>
+<tr>
+<td><p>Medium up to, relative mode</p>
+</td>
+<td><p>135%</p>
+</td>
+<td><p>Upper Medium boundary as a percentage of expected FWHM; must exceed the Good percentage.</p>
+</td>
+</tr>
+<tr>
+<td><p>Good up to, fixed mode</p>
+</td>
+<td><p>1.5 arcsec</p>
+</td>
+<td><p>Upper seeing limit for Good quality, specified at the zenith and 550 nm.</p>
+</td>
+</tr>
+<tr>
+<td><p>Medium up to, fixed mode</p>
+</td>
+<td><p>2.5 arcsec</p>
+</td>
+<td><p>Upper seeing limit for Medium quality at the same reference conditions; must exceed the Good limit.</p>
+</td>
+</tr>
+<tr>
+<td><p>Target altitude</p>
+</td>
+<td><p>45 degrees</p>
+</td>
+<td><p>Fixed target altitude used for the grading model; allowed range 15–90 degrees.</p>
+</td>
+</tr>
+<tr>
+<td><p>Wavelength</p>
+</td>
+<td><p>From filter</p>
+</td>
+<td><p>Editable wavelength for the selected filter; unknown filters start at 550 nm.</p>
+</td>
+</tr>
+<tr>
+<td><p>Additional optical blur</p>
+</td>
+<td><p>0 arcsec</p>
+</td>
+<td><p>Optional additional blur from residual focus errors or optical aberrations; zero adds none.</p>
+</td>
+</tr>
+</table>
+
+<p>With a positive Zenith seeing estimate, the FWHM grading dialog shows adjustable percentage limits. The initial Good and Medium limits are 115% and 135% of expected FWHM. These are chosen acceptance margins, not physical standards. Good means close to the expected performance under the supplied conditions; it does not mean equally sharp images under different seeing conditions.</p>
+<p>With Zenith seeing set to zero, the dialog shows the two fixed seeing limits instead. These are adjustable acceptance boundaries, not measurements of the current atmosphere. The settings for both modes are retained when switching between them. Choose a target altitude appropriate for the session. A larger optical allowance permits broader stars. Guide-camera data are excluded from the FWHM grading model.</p>
+<p>Effective wavelength starts from the selected filter. You can edit it to suit your filter; the chosen value is remembered for that filter and saved with the process settings. Switching to another filter uses that filter's saved value or its default. The Use filter default icon restores the value derived from the filter name. Names are matched without regard to capitalization:</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_10__"></a>
+<span class="pidoc_table_title">Table 10</span></caption>
+<tr>
+<th><p>Filter names</p>
+</th>
+<th><p>Wavelength</p>
+</th>
+</tr>
+<tr>
+<td><p>L, Luminance, G, Green</p>
+</td>
+<td><p>550 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>R, Red</p>
+</td>
+<td><p>650 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>B, Blue</p>
+</td>
+<td><p>450 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>H, Ha, Halpha, H-alpha</p>
+</td>
+<td><p>656.3 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>O, OIII, O3</p>
+</td>
+<td><p>500.7 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>S, SII, S2</p>
+</td>
+<td><p>672.4 nm</p>
+</td>
+</tr>
+<tr>
+<td><p>Unknown or unavailable filter</p>
+</td>
+<td><p>550 nm</p>
+</td>
+</tr>
+</table>
+
+<p>Broadband values represent typical wavelengths; the exact effective wavelength also depends on the filter, camera, and source spectrum. The SII value represents the doublet near 671.7 and 673.0 nm. See <a href="https://www.astronomik.com/en/Narrowband-Filters/SII/" title="https://www.astronomik.com/en/Narrowband-Filters/SII/">SII wavelengths</a>.</p>
+<p>Additional optical blur represents additional blur from the imaging optics beyond the diffraction and seeing terms. Leave it at zero unless you have an independent estimate. ASIAIR autofocus star sizes are HFD values in pixels and include several sources of blur; they cannot reliably determine this extra optical term. Star sizes from a guide camera also do not describe the imaging system's optical blur. See <a href="https://bbs.zwoastro.com/d/15167-what-units-does-asiair-use-for-star-size-in-autofocus" title="https://bbs.zwoastro.com/d/15167-what-units-does-asiair-use-for-star-size-in-autofocus">ZWO's explanation of autofocus star-size units</a>.</p>
+<p>The expected blur is calculated from the telescope, atmosphere, and optional optical allowance:</p>
+<p>Total FWHM = square root of (Diffraction² + Corrected seeing² + Additional optical blur²).</p>
+<p>Diffraction = 1.028 × 206264.806 × wavelength in nm × 0.000001 / aperture in mm.</p>
+<p>Corrected seeing = zenith seeing × sin(target altitude)^(−0.6) × (wavelength / 550)^(−0.2).</p>
+<p>In relative mode, use the supplied Zenith seeing to calculate expected FWHM. Good limit = expected FWHM × Good percentage / 100; Medium limit = expected FWHM × Medium percentage / 100. In fixed mode, calculate one total FWHM from each of the Good and Medium seeing limits.</p>
+<p>The model calculates angular limits internally. Each displayed limit is converted to pixels by dividing by the script's image scale in arcseconds per pixel. The settings preview, plot labels, and measured FWHM use the same pixel units.</p>
+
+<table class="pidoc_table">
+<caption><a id="__table_11__"></a>
+<span class="pidoc_table_title">Table 11</span></caption>
+<tr>
+<th><p>Category</p>
+</th>
+<th><p>Measured FWHM</p>
+</th>
+</tr>
+<tr>
+<td><p>Good, green</p>
+</td>
+<td><p>At or below the calculated Good limit.</p>
+</td>
+</tr>
+<tr>
+<td><p>Medium, amber</p>
+</td>
+<td><p>Above the Good limit and at or below the Medium limit.</p>
+</td>
+</tr>
+<tr>
+<td><p>Bad, red</p>
+</td>
+<td><p>Above the Medium limit.</p>
+</td>
+</tr>
+</table>
+
+<p>The bands apply to Field FWHM, Center FWHM, and the four corner FWHM plots in either plot order. FWHM measurements, quality limits and axis ticks use one decimal place. The chart header shows the indicator name and category limits. Click the information symbol button on the Quality indicators tab for the expected FWHM and observing-condition details. The button appears only when information is available for the selected indicator. Measurements and category comparisons retain their full precision; displayed rounding does not change scores. Changing the parameters refreshes the plots without repeating measurements, and the parameters are saved with process-instance settings. These bands are visual inspection guides: they do not change Score, REVIEW flags, or rejection decisions.</p>
+<p>The root-sum-square model is exact for independent Gaussian blur components. Actual Airy and Moffat star profiles, optical aberrations, image resampling, and undersampling can depart from this approximation. Check the limits against representative images from your setup and adjust the acceptance limits as needed.</p>
+<p>Background: <a href="https://www.eso.org/observing/etc/doc/helperis.html" title="https://www.eso.org/observing/etc/doc/helperis.html">ESO image-quality model</a> and <a href="https://www.gtc.iac.es/observing/toolbox.php" title="https://www.gtc.iac.es/observing/toolbox.php">GTC seeing corrections</a>. This script uses 550 nm as the reference wavelength for its zenith-seeing inputs.</p>
+   </div>
+</div>
+
 <div class="pidoc_section" id="__Correlation_plot__">
-   <h3 class="pidoc_sectionTitle">12&emsp;Correlation plot</h3>
+   <h3 class="pidoc_sectionTitle">14&emsp;Correlation plot</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Correlation_plot', this );">[hide]</p>
    <div id="Correlation_plot">
 <p>Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.</p>
@@ -687,8 +942,8 @@
 <p>The highlighted banner above the plot displays Correlation (Pearson) and its interpretation. The coefficient r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_8__"></a>
-<span class="pidoc_table_title">Table 8</span></caption>
+<caption><a id="__table_12__"></a>
+<span class="pidoc_table_title">Table 12</span></caption>
 <tr>
 <th><p>Absolute r value</p>
 </th>
@@ -733,14 +988,14 @@
 </div>
 
 <div class="pidoc_section" id="__Log_folder_timing_and_autofocus_markers__">
-   <h3 class="pidoc_sectionTitle">13&emsp;Log folder, timing, and autofocus markers</h3>
+   <h3 class="pidoc_sectionTitle">15&emsp;Log folder, timing, and autofocus markers</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_timing_and_autofocus_markers', this );">[hide]</p>
    <div id="Log_folder_timing_and_autofocus_markers">
 <p>Select Log folder in the directory section. All Autorun_log and PHD2_GuideLog files are read directly from this folder, regardless of letter case. Include continuation logs if acquisition was restarted. Files marked _CHN are ignored because they are translated copies. Subfolders and unrelated logs are not processed. Select the folder again to refresh its contents.</p>
 <p>Autofocus starts from all matching logs are combined in chronological order. Overlapping logs produce one marker per start. An unreadable log is listed in Autofocus times; readable logs are still used. The report lists the source filenames for every start. If duplicate logs report different final positions for the same start, the position is marked as conflicting and the plot shows AF without a position.</p>
 <p>The script reads lines such as 2026/09/05 23:08:11 [AutoFocus|Begin] followed by the autofocus trigger description. It pairs each start with the final successful focus position from that run. For example, the later line 2026/09/05 23:11:19 Auto focus succeeded, the focused position is 692 produces the label AF 692 at the 23:08:11 start. Intermediate EAF positions are ignored. If no successful position is reported, the label remains AF. Repeated entries with the same start are deduplicated, and invalid start timestamps are reported as skipped.</p>
-<p>Both log types use local time. Infer from image timestamps compares the local timestamp in each subframe filename with its UTC exposure-start metadata. It accounts for filenames that record exposure completion. The inferred offset appears below the log controls and applies to both autofocus markers and guiding samples. The filename timestamp must have the form YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS.</p>
-<p>If the offset cannot be determined unambiguously, choose Custom UTC offset and enter local time minus UTC in hours, such as +2 for UTC+02:00 or +5.5 for UTC+05:30. The current computer's timezone is never assumed. At a daylight-saving transition, ambiguous times remain unresolved rather than being assigned to an exposure by guesswork.</p>
+<p>Both log types use local time. Infer from image timestamps compares the local timestamp in each subframe filename with its UTC exposure-start metadata. It accounts for filenames that record exposure completion. A single unambiguous inferred offset fills the UTC offset field as its default. Select Custom UTC offset to edit this value. In automatic mode the field remains visible but is read-only. The filename timestamp must have the form YYYYMMDD-HHMMSS or YYYYMMDD_HHMMSS.</p>
+<p>If no single offset is available, the field shows a dash. Its tooltip explains missing or multiple offsets. When several offsets are known, automatic mode continues to apply them to matching exposures. For a manual setting, choose Custom UTC offset and enter local time minus UTC in hours, such as +2 for UTC+02:00 or +5.5 for UTC+05:30. The current computer's timezone is never assumed. At a daylight-saving transition, ambiguous times remain unresolved rather than being assigned to an exposure by guesswork.</p>
 <p>The console reports all extracted autofocus starts as written in the log and converted to UTC, together with each final focus position or not reported. Click Autofocus times to view and copy the same list. Changing the folder or timestamp convention updates the report and markers without remeasuring the images. Clearing the folder removes the markers and retains image measurements.</p>
 <p>Autofocus markers appear only when image-quality plots use Acquisition time order. The guiding minimum, maximum, average, and quality plots omit autofocus markers and their legend. Only starts within the earliest-to-latest known subframe timestamps of the current group are shown. A start between two subframes is placed between their bar positions. Hover over the AF tag to read its log time, UTC time, final focus position, and trigger description. Markers use the start time even though the final position is reported later; no end time or duration is displayed.</p>
 <p>All extracted starts remain in the report, including starts outside the current group's time range. If markers appear at unexpected positions, compare the UTC acquisition column with the converted times in Autofocus times and check the log's timezone setting.</p>
@@ -748,7 +1003,7 @@
 </div>
 
 <div class="pidoc_section" id="__Guiding_measurements_and_quality__">
-   <h3 class="pidoc_sectionTitle">14&emsp;Guiding measurements and quality</h3>
+   <h3 class="pidoc_sectionTitle">16&emsp;Guiding measurements and quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Guiding_measurements_and_quality', this );">[hide]</p>
    <div id="Guiding_measurements_and_quality">
 <p>The script matches PHD2 samples to each subframe's UTC exposure start and duration. Guide min, Guide max, and Guide avg report the combined RA/Dec displacement in arcseconds. The guider's recorded pixel scale converts its measurements to arcseconds; the imaging camera's pixel scale sets the quality thresholds.</p>
@@ -759,8 +1014,8 @@
 <p>The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. This balances typical performance with the observed extremes. For unequal X/Y image scales, the smaller available scale is used. The UI displays the Good, Medium, and Bad boundaries in arcseconds for your setup. For example, an image scale of approximately 0.507 arcseconds per pixel gives a Good limit of approximately 0.507 arcseconds and a Medium limit of approximately 0.887 arcseconds; larger errors are Bad.</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_9__"></a>
-<span class="pidoc_table_title">Table 9</span></caption>
+<caption><a id="__table_13__"></a>
+<span class="pidoc_table_title">Table 13</span></caption>
 <tr>
 <th><p>Category</p>
 </th>
@@ -787,12 +1042,12 @@
 </tr>
 </table>
 
-<p>Guiding adds a penalty of (G / p minus 1) divided by 0.75, bounded between zero and 10. Good guiding therefore has zero penalty; the upper medium boundary has a penalty of one. Weight in the Guiding group sets its relative Score weight, with a default of 25. Set it to zero to exclude guiding from Score while retaining the measurements. The quality plots show the three guiding statistics and the combined guiding quality value G, all in arcseconds.</p>
+<p>Guiding adds a penalty of (G / p minus 1) divided by 0.75, bounded between zero and 10. Good guiding therefore has zero penalty; the upper medium boundary has a penalty of one. Weight in the Guiding group sets its relative Score weight, with a default of 25. Set it to zero to exclude guiding from Score while retaining the measurements. Guiding statistics, combined guiding quality G and their displayed thresholds are rounded to one decimal place in arcseconds. The review table, plots and guiding tooltips use the same precision. Calculations, sorting and category comparisons use the full-precision values.</p>
 <p>Choose how Guiding in Score handles the measurements:</p>
 
 <table class="pidoc_table">
-<caption><a id="__table_10__"></a>
-<span class="pidoc_table_title">Table 10</span></caption>
+<caption><a id="__table_14__"></a>
+<span class="pidoc_table_title">Table 14</span></caption>
 <tr>
 <th><p>Mode</p>
 </th>
@@ -826,27 +1081,27 @@
 </div>
 
 <div class="pidoc_section" id="__Move_rejected_originals_and_rerun_WBPP__">
-   <h3 class="pidoc_sectionTitle">15&emsp;Move rejected originals and rerun WBPP</h3>
+   <h3 class="pidoc_sectionTitle">17&emsp;Move rejected originals and rerun WBPP</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Move_rejected_originals_and_rerun_WBPP', this );">[hide]</p>
    <div id="Move_rejected_originals_and_rerun_WBPP">
 <p>The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.</p>
 <p>The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.</p>
 <p>A move journal named SQR-moves followed by a timestamp and a .json extension is saved in the rejection destination. Keep it with the moved files so that you can undo the move later.</p>
 <p>To restore a moved original, select its row and click the Undo arrow beside the green checkmark. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.</p>
-<p>Undo also works after rescanning or reopening the script. Click the Undo arrow, choose the original SQR-moves journal from the rejection folder, and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.</p>
+<p>Undo also works after rescanning or reopening the script. Scan files and specify the Rejected originals folder to enable the Undo arrow, then choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.</p>
 <p>Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.</p>
 <p>After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Common_questions__">
-   <h3 class="pidoc_sectionTitle">16&emsp;Common questions</h3>
+   <h3 class="pidoc_sectionTitle">18&emsp;Common questions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Common_questions', this );">[hide]</p>
    <div id="Common_questions">
 
 <table class="pidoc_table">
-<caption><a id="__table_11__"></a>
-<span class="pidoc_table_title">Table 11</span></caption>
+<caption><a id="__table_15__"></a>
+<span class="pidoc_table_title">Table 15</span></caption>
 <tr>
 <th><p>Situation</p>
 </th>
@@ -915,7 +1170,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-24 21:20:27 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-25 22:34:16 UTC</p>
 </div>
 <br/>
 <br/>
