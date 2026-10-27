@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="5c4da39fa102e9f03e6c84d9b08032ff598c3be3" type="script" releaseDate="20261025">
+      <package fileName="TGScripts_repository.tar.gz" sha1="f8157f6977edcad2ff1bd73e87cf00ab8e9dcb87" type="script" releaseDate="20261027">
          <title>
-            TGScripts snapshot - 2026 Okt 25
+            TGScripts snapshot - 2026 Okt 27
          </title>
          <remove>
             src/scripts/TGScripts
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Faster measurements, blinking, file matching and review updates. Added calibrated sky-background ranges and clearer Bortle shading labels.
+               SubframeQualityReview: Faster corner measurements with CPU- and memory-adaptive processing. Correlation values now display four decimal places, with full precision available in tooltips.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-25T22:51:55.113Z" encoding="Base64">ftzmJYbYqGSUvq/df3uoiTtOZD9wzWJmDwfqIxikCiT7hNyy26U/VJI4wda18eYhAe7SxsILp2hDDJvdsqJEBw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-27T07:14:50.108Z" encoding="Base64">/mJEls2Hz6SkYjdk5QQP7fbm+H4WqPf7FXNhSV8U2EQ8Tog5ohD0dHquh1IzBJ+sJP9zVyJ2ZlI05jqoUifPCA==</Signature>

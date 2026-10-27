@@ -21,7 +21,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.39.14 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.39.20 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -42,14 +42,14 @@
  * sqrMove and sqrRestore change original-file locations after plan confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.39.14';
+const SQR_VERSION='0.39.20';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
 /** Defaults shared by the UI and saved process instances. Weights are relative;
  * corner measurement is opt-in, and no rejection flag is an option. */
 function sqrDefaults(){return {wbpp:'',originals:'',destination:'',percent:10,measureCorners:false,reference:'best',
-   patch:22,margin:2,minStars:20,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,backgroundWeight:20,belowMeanWeight:20,guideWeight:25,correlationOnly:false,rankOfRanks:false,
+   patch:22,margin:2,minStars:10,signalWeight:40,starsWeight:15,fwhmWeight:25,eccentricityWeight:20,cornerWeight:20,backgroundWeight:20,belowMeanWeight:20,guideWeight:25,correlationOnly:false,rankOfRanks:false,
    maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'available',qualityCollapsed:false,inputsCollapsed:false,reviewInfoCollapsed:false,
    fwhmEnabled:true,fwhmAperture:0,fwhmSeeing:0,fwhmGoodPercent:115,fwhmMediumPercent:135,fwhmSeeingGood:1.5,fwhmSeeingMedium:2.5,fwhmAltitude:45,fwhmOptics:0,fwhmWavelengths:{},
    bortleClass:6,sqmReading:0,sqmTime:'',sqmTimeFromLog:false};}
@@ -124,7 +124,8 @@ function sqrSkyPixelArea(metadata,width,height){
 }
 function sqrSkyPedestal(metadata){let raw=metadata.keywords?.PEDESTAL;if(raw===undefined)return 0;
    let value=Number(String(raw).replace(/[dD]/,'e'));if(!Number.isFinite(value))throw new Error('Invalid PEDESTAL keyword.');return Math.abs(value)/65535;}
-function sqrSkyFilterSupported(group){return group.channels===3||['L','G'].includes(sqrFilterWavelength(group.filter).key)||/^V$/i.test(String(group.filter).trim());}
+function sqrSkyColorTransfer(group){return !!group&&group.channels!==3&&['R','B'].includes(sqrFilterWavelength(group.filter).key);}
+function sqrSkyFilterSupported(group){return !!group&&(group.channels===3||['L','G','R','B'].includes(sqrFilterWavelength(group.filter).key)||/^V$/i.test(String(group.filter).trim()));}
 /** One reference per comparable group: nearest exposure midpoint for SQM,
  * otherwise the original default field score. Work on copies: display score
  * modes, weights and table order must not change reference selection. */
@@ -167,11 +168,75 @@ function sqrSkyComparable(a,b){
 function sqrSkyCalibration(group){let c=group?.skyCalibration;if(!c?.valid)return null;
    let row=group.rows.find(r=>r.registered.path===c.path);
    return row&&row.registered.fingerprint===c.fingerprint&&group.rows.every(r=>sqrSkyComparable(row.registered,r.registered))?c:null;}
+/** Transfer only between separate RGB filters from the same setup and field.
+ * Each group must remain internally comparable. Exposure and pedestal can
+ * differ between groups: the measured, pedestal-subtracted ratio includes
+ * their relative response. This is a relative sky estimate, not R/B photometry. */
+function sqrSkyTransferCompatible(a,b){
+   return !!a.camera&&a.camera===b.camera&&['gain','binX','binY','width','height','channels','object'].every(k=>String(a[k]??'')===String(b[k]??''));
+}
+function sqrSkyTimedBackgrounds(group,withCorners){
+   return group.rows.filter(r=>!r.isMaster&&!r.reject&&!r.moved).map(row=>({row,time:sqrExposureMidpoint(row),background:sqrSkyBackground(row,withCorners)}))
+      .filter(p=>p.time!==null&&Number.isFinite(p.background)&&p.background>sqrSkyPedestal(p.row.registered))
+      .sort((a,b)=>a.time-b.time||a.row.registered.path.localeCompare(b.row.registered.path));
+}
+/** Find the nearest-in-time G/colour pair using sorted lists and a moving
+ * pointer. Do not compare every frame with every other frame. Re-evaluate
+ * cached means/eligibility on lookup so remeasurement, corner toggles and
+ * rejection cannot retain an obsolete transfer. No image pixels are reread. */
+function sqrSkyTransferPlan(session,group){
+   const fail=reason=>({valid:false,reason});
+   let target=sqrSkyTimedBackgrounds(group,!!session.options.measureCorners);
+   if(!target.length)return fail('Measure this group first; no eligible frame has a usable timestamp and background.');
+   if(!group.rows.every(r=>sqrSkyComparable(target[0].row.registered,r.registered)))return fail('This filter group needs matching camera, gain, exposure, binning, pedestal and image dimensions.');
+   let greenGroups=session.groups.filter(g=>g.channels===1&&sqrFilterWavelength(g.filter).key==='G');
+   if(!greenGroups.length)return fail('Red and blue sky shading requires a measured green-filter group.');
+   let best=null;
+   for(let greenGroup of greenGroups){
+      // Equal timestamps prefer the first path, consistently on either side
+      // of the moving pointer and independently of the Review sort order.
+      let green=sqrSkyTimedBackgrounds(greenGroup,!!session.options.measureCorners).filter((p,i,a)=>i===0||p.time!==a[i-1].time),reference=sqrSkyReference(session,greenGroup);
+      if(!green.length||!reference||!sqrSkyTransferCompatible(target[0].row.registered,green[0].row.registered)||
+         !greenGroup.rows.every(r=>sqrSkyComparable(green[0].row.registered,r.registered)))continue;
+      let anchor=sqrExposureMidpoint(reference),j=0;
+      for(let colour of target){
+         while(j<green.length&&green[j].time<colour.time)++j;
+         for(let index of [j-1,j])if(index>=0&&index<green.length){
+            let g=green[index],gap=Math.abs(g.time-colour.time),distance=anchor===null?0:Math.abs(g.time-anchor),
+               key=[colour.row.registered.path,g.row.registered.path].join('\n');
+            if(!best||gap<best.gap||gap===best.gap&&(distance<best.distance||distance===best.distance&&
+               (colour.time<best.colour.time||colour.time===best.colour.time&&key<best.key)))
+               best={valid:true,greenGroup,green:g,colour,gap,distance,key};
+         }
+      }
+   }
+   return best||fail('No compatible measured green-filter group has usable timestamps and backgrounds.');
+}
+function sqrSkyTransferCalibration(session,plan,source){
+   if(!plan?.valid||!source)return null;
+   let r=plan.colour.row.registered,g=plan.green.row.registered,pedestal=sqrSkyPedestal(r),greenPedestal=sqrSkyPedestal(g),
+      factor=(plan.colour.background-pedestal)/(plan.green.background-greenPedestal);
+   if(!(factor>0)||!Number.isFinite(factor))return null;
+   let c={...source,path:r.path,fingerprint:r.fingerprint,pedestal,channel:sqrFilterWavelength(r.filter).name,
+      referenceMidpoint:plan.colour.time,backgroundBasis:session.options.measureCorners?'preview minimum':'whole image',
+      transfer:{sourcePath:source.path,greenPath:g.path,greenTime:plan.green.time,colourTime:plan.colour.time,
+         gap:plan.gap,factor,greenBackground:plan.green.background,colourBackground:plan.colour.background}};
+   if(source.method==='sqm'){
+      c.anchorBackground=pedestal+factor*(source.anchorBackground-source.pedestal);
+      if(!Number.isFinite(c.anchorBackground)||!(c.anchorBackground>pedestal))return null;
+   }else{
+      c.zeroPoint=source.zeroPoint+2.5*Math.log10(factor);
+      if(!Number.isFinite(c.zeroPoint))return null;
+   }
+   return c;
+}
 /** Keep the two calibration sources independently reusable. A change in SQM,
  * time/offset, reference eligibility or file identity cannot reuse a stale
  * overlay. Corner scoring uses the same cached background basis as the plot. */
 function sqrCurrentSkyCalibration(session,group){
-   if(!session||!group)return null;let o=session.options,sqm=sqrSQMReading(o),stored=sqm?group.skySQMCalibration:group.skyGaiaCalibration;
+   if(!session||!group)return null;
+   if(sqrSkyColorTransfer(group)){let plan=sqrSkyTransferPlan(session,group);return plan.valid?sqrSkyTransferCalibration(session,plan,sqrCurrentSkyCalibration(session,plan.greenGroup)):null;}
+   let o=session.options,sqm=sqrSQMReading(o),stored=sqm?group.skySQMCalibration:group.skyGaiaCalibration;
    let c=sqrSkyCalibration({...group,skyCalibration:stored||group.skyCalibration});if(!c)return null;
    if((c.method==='sqm')!==!!sqm)return null;
    let row=sqrSkyReference(session,group);if(!row||row.registered.path!==c.path)return null;
@@ -185,12 +250,12 @@ function sqrBortleModel(options,group=null,session=null,calibration=undefined){
    let m={bortleClass,sqmReading,autoBortle,enabled:bortleClass>0,valid:false,reason:''};
    session={...(session||{groups:group?[group]:[]}),options};
    if(!m.enabled)return {...m,reason:'Select a Bortle class beside Calibrate sky, or enter Session SQM and its reading time.'};
-   if(group&&!sqrSkyFilterSupported(group))return {...m,reason:'Sky comparison requires luminance, green, V, or the green channel of RGB.'};
+   if(group&&!sqrSkyFilterSupported(group))return {...m,reason:'Sky comparison supports luminance, green, V, RGB, and red/blue estimates transferred from green.'};
    if(autoBortle){let t=sqrSQMTime(options,session);if(t.time===null)return {...m,reason:t.reason};}
    // A caller drawing the sky plot can share its already validated calibration
    // with the Calibrate sky button. Explicit null means validation found none.
    let c=calibration===undefined?sqrCurrentSkyCalibration(session,group):calibration;
-   if(!c)return {...m,reason:group?.skyCalibrationError||(autoBortle?'Measure images to match an eligible exposure to the SQM reading time.':'Sky-background calibration runs after measurements, or when Bortle is selected for measured images.')};
+   if(!c)return {...m,reason:group?.skyCalibrationError||(sqrSkyColorTransfer(group)?sqrSkyTransferPlan(session,group).reason||'Calibrate the compatible green-filter group to enable red/blue sky shading.':autoBortle?'Measure images to match an eligible exposure to the SQM reading time.':'Sky-background calibration runs after measurements, or when Bortle is selected for measured images.')};
    let [dark,bright]=SQR_BORTLE_RANGES[bortleClass]||[null,null],goodValue=dark===null?null:sqrSkyToImage(dark,c),mediumValue=bright===null?null:sqrSkyToImage(bright,c);
    // With SQM the reference background is the anchor; Gaia is not involved.
    let sqmValue=sqmReading>0?sqrSkyToImage(sqmReading,c):null;
@@ -200,6 +265,13 @@ function sqrBortleModel(options,group=null,session=null,calibration=undefined){
 function sqrBortleGrade(value,m){return m.goodValue!==null&&value<m.goodValue?'Good':m.mediumValue!==null&&value>m.mediumValue?'Bad':'Medium';}
 function sqrSkyPlotDetails(m){
    if(!m?.valid)return m?.reason||'Sky calibration unavailable.';let c=m.calibration;
+   if(c.transfer){let t=c.transfer;return c.channel+' relative estimate from green\nGreen calibration reference: '+sqrFileName(t.sourcePath)+
+      '\nGreen transfer frame: '+sqrFileName(t.greenPath)+'\n'+c.channel+' transfer frame: '+sqrFileName(c.path)+
+      '\nExposure midpoints (UTC): '+new Date(t.greenTime).toISOString()+' / '+new Date(t.colourTime).toISOString()+
+      '\nPair time gap: '+(t.gap/60000).toFixed(1)+' min\nBackground basis: '+c.backgroundBasis+
+      '\nMeasured backgrounds (green / '+c.channel.toLowerCase()+'): '+sqrFmt(t.greenBackground,6)+' / '+sqrFmt(t.colourBackground,6)+
+      '\nRelative response: '+sqrFmt(t.factor,6)+(c.method==='sqm'?'\nSQM reading: '+c.sqmReading.toFixed(2)+' mag/arcsec² at '+new Date(c.measurementTime).toISOString()+' (UTC)':'\nGreen calibration: '+c.stars+' local Gaia stars; scatter '+c.scatter.toFixed(3)+' mag')+
+      '\nAssumes similar sky brightness between the paired exposures and a stable filter response across the group. Larger time gaps, changing sky colour or transparency make this estimate less reliable. This is not independent red/blue sky photometry.';}
    return 'Reference: '+sqrFileName(c.path)+'\n'+(c.method==='sqm'?
       'Reading: '+new Date(c.measurementTime).toISOString()+' (UTC)\nExposure midpoint: '+new Date(c.referenceMidpoint).toISOString()+' (UTC)\nTime difference: '+(Math.abs(c.referenceMidpoint-c.measurementTime)/60000).toFixed(1)+' min\nBackground: '+sqrFmt(c.anchorBackground,6)+' image units ('+c.backgroundBasis+')':
       c.stars+' local Gaia stars\nCalibration scatter: '+c.scatter.toFixed(3)+' mag\nChannel: '+c.channel+(c.astrometryRebuilt?'\nSky coordinates rebuilt':''));
@@ -241,8 +313,8 @@ function sqrBortleRangeInformation(model=null){
  * Only reference markers and shading relevant to this plot are included. */
 function sqrPlotReadingGuide(data){
    let k=data.kpi,sky=k.key==='skyBackground';
-   let axis=k.metric==='eccentricity'?(k.region===0?'Fits all plotted eccentricities, including the master, with headroom within 0–1.':'Fixed range: 0–1.'):k.metric==='fwhm'&&data.fwhmBands?'Includes measured values and all grading ranges.':
-      data.guideBands&&k.key!=='guideMin'?'Includes zero, measured values and all guiding ranges.':
+   let axis=k.metric==='eccentricity'?'Fits all plotted eccentricities, including the master, with headroom within 0–1.':k.metric==='fwhm'&&data.fwhmBands?'Includes measured values and all grading ranges.':
+      data.guideBands&&k.key==='guideMax'?'Includes zero, measured values and all guiding ranges.':
       sky?'Fits all plotted backgrounds, including the master, with headroom. Bortle and SQM limits do not expand it.':
       'Fits subframes with headroom. An outlying master is clipped and marked by an arrow; hover for its true value.';
    if(k.key==='belowMeanFraction')axis='Fits subframes with headroom, within 0–100%.';
@@ -286,7 +358,7 @@ function sqrPlotInformation(data){
          'Guiding thresholds unavailable: a valid imaging pixel scale is required. These errors contribute to Score through Guiding quality.'));
    }
    if(sky){
-      parts.push(paragraph('With Session SQM, the nearest eligible exposure midpoint supplies the reference and its background is assigned the reading directly. Without SQM, local Gaia photometry calibrates the best default-scoring eligible subframe. Choose a Bortle class to enable shading, or — to disable it. Calibrate sky appears only while a current calibration is unavailable.'));
+      parts.push(paragraph('With Session SQM, the nearest eligible exposure midpoint supplies the broadband reference and its background is assigned the reading directly. Without SQM, local Gaia photometry calibrates the best default-scoring eligible subframe. Separate red and blue groups use a relative transfer from green, based on the closest-in-time pair of measured backgrounds. Choose a Bortle class to enable shading, or — to disable it. Calibrate sky appears only while a current calibration is unavailable.'));
    }
    if(!parts.length&&!data.items)return null;
    if(data.items)parts.push(sqrPlotReadingGuide(data));
@@ -348,7 +420,14 @@ function sqrSkyWorker(job){let result={valid:false},originalMeasurement=Aperture
    return result;
 }
 function sqrCalibrateSky(session,group,notify){
-   if(!sqrSkyFilterSupported(group))throw new Error('Sky comparison supports luminance, green, V, or the green channel of RGB. This filter cannot give a reliable broadband estimate.');
+   if(!sqrSkyFilterSupported(group))throw new Error('Sky comparison supports luminance, green, V, RGB, and red/blue estimates transferred from green.');
+   if(sqrSkyColorTransfer(group)){
+      let plan=sqrSkyTransferPlan(session,group);if(!plan.valid)throw new Error(plan.reason);
+      let source=sqrCalibrateSky(session,plan.greenGroup,notify);
+      for(let row of [plan.colour.row,plan.green.row])if(sqrFingerprint(row.registered.path)!==row.registered.fingerprint)throw new Error('A sky-transfer reference file has changed. Scan and measure again.');
+      let result=sqrSkyTransferCalibration(session,plan,source);if(!result)throw new Error('The green-to-colour background conversion is outside the usable numeric range.');
+      group.skyCalibration=result;delete group.skyCalibrationError;return result;
+   }
    let sqm=sqrSQMReading(session.options),readingTime=sqm?sqrSQMTime(session.options,session):null;
    if(sqm&&readingTime.time===null)throw new Error(readingTime.reason);
    let row=sqrSkyReference(session,group);if(!row)throw new Error(sqm?'No eligible measured frame has a valid exposure time and background for SQM calibration.':'Measure the group first; no eligible reference has a valid default field score and background.');
@@ -380,10 +459,17 @@ function sqrCalibrateSky(session,group,notify){
 function sqrAutoCalibrateSky(session,notify){
    let result={calibrated:0,reused:0,failed:0,skipped:0};
    if(!session||!sqrSkyComparisonEnabled(session.options))return result;
-   for(let group of session.groups){
+   // Prepare direct calibrations first, independently of the visible group order.
+   // R/B reuse green; they never launch their own photometry.
+   for(let group of session.groups.slice().sort((a,b)=>Number(sqrSkyColorTransfer(a))-Number(sqrSkyColorTransfer(b)))){
       if(!sqrSkyFilterSupported(group)||!group.rows.some(r=>r.metrics[0])){++result.skipped;continue;}
       if(console.abortRequested)throw new Error('Sky-background calibration aborted.');
-      try{let previous=sqrCurrentSkyCalibration(session,group);sqrCalibrateSky(session,group,notify);++result[previous?'reused':'calibrated'];}
+      try{
+         // A failed green calibration must not be retried once for every colour
+         // during the same measurement run. The manual button can retry later.
+         if(sqrSkyColorTransfer(group)){let plan=sqrSkyTransferPlan(session,group);if(!plan.valid)throw new Error(plan.reason);
+            if(!sqrCurrentSkyCalibration(session,plan.greenGroup))throw new Error(plan.greenGroup.skyCalibrationError||'The compatible green group has no usable sky calibration.');}
+         let previous=sqrCurrentSkyCalibration(session,group);sqrCalibrateSky(session,group,notify);++result[previous?'reused':'calibrated'];}
       catch(e){if(console.abortRequested)throw e;group.skyCalibrationError=e.message||String(e);++result.failed;
          console.warningln('Sky background · '+(group.label||group.filter)+': '+group.skyCalibrationError);}
    }
@@ -391,7 +477,8 @@ function sqrAutoCalibrateSky(session,notify){
 }
 function sqrSkyCalibrationSummary(result){return !result?'':result.calibrated||result.reused||result.failed?
    ' Sky background: '+result.calibrated+' calibrated, '+result.reused+' reused'+(result.failed?', '+result.failed+' unavailable (see console)':'')+'.':'';}
-function sqrSkyCalibrationText(c){return 'Sky calibrated: '+sqrFileName(c.path)+(c.method==='sqm'?
+function sqrSkyCalibrationText(c){if(c.transfer)return 'Sky calibrated: '+c.channel+' relative estimate from green · paired frames '+(c.transfer.gap/60000).toFixed(1)+' min apart.';
+   return 'Sky calibrated: '+sqrFileName(c.path)+(c.method==='sqm'?
    ' · SQM '+c.sqmReading.toFixed(2)+' · exposure midpoint '+new Date(c.referenceMidpoint).toISOString()+' · '+
    (Math.abs(c.referenceMidpoint-c.measurementTime)/60000).toFixed(1)+' min from reading':
    ' · '+c.stars+' local Gaia stars · '+c.channel+' · scatter '+c.scatter.toFixed(3)+' mag'+(c.astrometryRebuilt?' · sky coordinates rebuilt':''));}
@@ -1138,22 +1225,20 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
    // combined guiding quality is a derived indicator with a separate definition.
    // Only a validated imaging scale can define these limits.
    if(['guideMin','guideAvg','guideMax'].includes(kpi.key)&&Number.isFinite(guideScale)&&guideScale>0){
-      // Minimum errors often occupy a small range far below the thresholds.
-      // Fit them exactly as guiding quality, retaining the existing headroom.
-      if(kpi.key!=='guideMin'){data.low=0;data.high=Math.max(data.high,2*guideScale);}
+      // Minimum and average errors can occupy a small range below the thresholds.
+      // Keep their measured range and headroom; clip grading bands to the axis.
+      // Maximum errors retain the overview of all three guiding categories.
+      if(kpi.key==='guideMax'){data.low=0;data.high=Math.max(data.high,2*guideScale);}
       data.guideBands=[
          {label:'Good',low:0,high:guideScale,color:'#a6e3a1'},
          {label:'Medium',low:guideScale,high:1.75*guideScale,color:'#f9e2af'},
          {label:'Bad',low:1.75*guideScale,high:null,color:'#f38ba8'}];
    }
-   // Fit field eccentricity to the actual bars, including the master. Keep the
+   // Fit all eccentricity regions to the actual bars, including the master. Keep
    // category thresholds fixed; off-axis bands are clipped by the renderer.
-   // Corner plots retain their full physical range for field-shape comparisons.
    if(kpi.metric==='eccentricity'){
-      if(kpi.region===0){
-         let plotted=valid.map(item=>item.value),bottom=Math.min(...plotted),top=Math.max(...plotted),pad=(top-bottom||top*.1||.01)*.1;
-         data.low=Math.max(0,bottom-pad);data.high=Math.min(1,top+pad);
-      }else{data.low=0;data.high=1;}
+      let plotted=valid.map(item=>item.value),bottom=Math.min(...plotted),top=Math.max(...plotted),pad=(top-bottom||top*.1||.01)*.1;
+      data.low=Math.max(0,bottom-pad);data.high=Math.min(1,top+pad);
       data.eccentricityBands=[
          {label:'Good',low:0,high:SQR_ECCENTRICITY_LIMITS.good,color:'#a6e3a1'},
          {label:'Medium',low:SQR_ECCENTRICITY_LIMITS.good,high:SQR_ECCENTRICITY_LIMITS.medium,color:'#f9e2af'},
@@ -1234,10 +1319,8 @@ function sqrPearson(items){
 function sqrCorrelationStrength(r){let a=Math.abs(r);return a===1?'Perfect':a>=.7?'Strong':a>=.3?'Moderate':a>0?'Weak':'None';}
 function sqrCorrelationText(correlation){
    let r=correlation.r;if(r===null)return 'Correlation (Pearson): unavailable · '+correlation.reason;
-   let a=Math.abs(r),rounded=Number(a.toFixed(4));
-   // Show extra digits if four-place rounding would suggest a different band.
-   let number=a!==rounded&&[0,.3,.7,1].includes(rounded)?a.toPrecision(12):a.toFixed(4);
-   let value=(r>0?'+':r<0?'-':'')+number;
+   // Round only the visible coefficient; interpretation retains full precision.
+   let value=(r>0?'+':r<0?'-':'')+Math.abs(r).toFixed(4);
    if(r===0)return 'Correlation (Pearson) = '+value+' · None · No linear relationship';
    return 'Correlation (Pearson) = '+value+' · '+sqrCorrelationStrength(r)+' · '+(r>0?'Positive (both increase together)':'Negative (as X increases, Y decreases)');
 }
@@ -1315,7 +1398,7 @@ function sqrPlotHTML(data,generation=0){
          let outline=item.selected&&item.rejected?'#e57373':item.review?'#cba6f7':item.selected&&item.master?'#f9a825':'';
          let tip=(item.selected?'SELECTED · ':'')+(item.master?'MASTER: ':item.review?'REVIEW: ':'')+(item.rejected?'REJECTED · ':'')+sqrFileName(item.row.registered.path)+' — '+title+': '+number(item.value)+(data.kpi.percentage?' ('+item.row.belowMeanCount+' worse; '+item.row.belowMeanAvailable+' assessed of '+item.row.belowMeanTotal+' enabled'+(item.row.belowMeanComplete?'':'; incomplete')+')':'')+(item.master&&data.masterClipped?' (clipped '+data.masterClipped+' axis range)':'')+(item.master?'':' — '+sqrAcquisitionLabel(item.row));
          if(data.skyModel?.valid&&!item.master){let m=data.skyModel,mu=sqrImageToSky(item.value,m.calibration);
-            if(mu!==null)tip+=' — '+(m.calibration.method==='sqm'?'SQM-based estimate ':'Approx. V-equivalent ')+mu.toFixed(2)+' mag/arcsec²'+(m.bortleClass?' — '+sqrBortleGrade(item.value,m)+' relative to Bortle '+sqrSkyBortleLabel(m):'')+
+            if(mu!==null)tip+=' — '+(m.calibration.transfer?'Green-relative estimate ':m.calibration.method==='sqm'?'SQM-based estimate ':'Approx. V-equivalent ')+mu.toFixed(2)+' mag/arcsec²'+(m.bortleClass?' — '+sqrBortleGrade(item.value,m)+' relative to Bortle '+sqrSkyBortleLabel(m):'')+
                (m.sqmValue!==null?' — '+(item.value<m.sqmValue?'Darker than':item.value>m.sqmValue?'Brighter than':'Equal to')+' session SQM':'');}
          if(data.eccentricityBands)tip+=' — '+sqrEccentricityCategory(item.value)+' eccentricity';
          if(data.fwhmBands)tip+=' — '+sqrFWHMCategory(item.value,data.fwhmModel)+' FWHM';
@@ -1353,7 +1436,7 @@ function sqrPlotHTML(data,generation=0){
             i===0?'≤ '+limit(band.high):i===1?'> '+limit(band.low)+' to '+limit(band.high):'> '+limit(band.low);
          return '<span style="color:'+band.color+'">'+band.label+' '+range+unit+'</span>';}).join(' &nbsp;·&nbsp; ')+'</div>':'';
       if(data.skyModel?.valid){let m=data.skyModel;
-         legend+='<div class="bortle-legend'+(m.sqmValue!==null?' sqm-legend':'')+'" style="text-align:center;font-size:12px;padding:0 8px 4px">Bortle '+sqrSkyBortleLabel(m)+' · '+(m.sqmValue!==null?'SQM '+m.sqmReading.toFixed(2)+' mag/arcsec²':'Gaia calibration')+'</div>';}
+         legend+='<div class="bortle-legend'+(m.sqmValue!==null?' sqm-legend':'')+'" style="text-align:center;font-size:12px;padding:0 8px 4px">Bortle '+sqrSkyBortleLabel(m)+' · '+(m.sqmValue!==null?'SQM '+m.sqmReading.toFixed(2)+' mag/arcsec²':'Gaia calibration')+(m.calibration.transfer?' · relative to green':'')+'</div>';}
       body=legend+'<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
    }
    let script='window.sqrSelection=null;document.querySelectorAll(".frame").forEach(function(el){function select(){window.sqrSelection={generation:'+generation+',index:Number(el.dataset.index)};}el.addEventListener("click",select);el.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();select();}});});';
@@ -1409,6 +1492,70 @@ function sqrReadImage(path,allowMultiple=false){
    try{let d=f.open(path,'verbosity 0');if(!d||!d.length||(!allowMultiple&&d.length!==1)||!f.readImage(im))throw new Error('Cannot read image: '+path);return im;}
    catch(e){im.free();throw e;}finally{f.close();}
 }
+/** Choose a preparation budget from this computer's CURRENT free RAM and the
+ * largest image. Honor existing CPU/file-concurrency preferences, changing none.
+ * Reserve at most one eighth of available RAM (up to 8 GiB), estimating source,
+ * crop and scratch pixels at 16 bytes per nominal sample. Unknown geometry or
+ * memory status uses the serial path. This is a conservative working-set
+ * estimate, not a limit on memory allocated inside file-format modules. */
+function sqrPreparationThreads(items){
+   if(items.length<2||typeof Thread==='undefined')return 1;
+   try{
+      if(!Settings.readGlobal('Process/EnableParallelProcessing',DataType.Boolean)||
+         !Settings.readGlobal('Process/EnableParallelModuleProcessing',DataType.Boolean))return 1;
+      let pixels=Math.max(...items.map(item=>item.width*item.height*item.channels));
+      if(!(pixels>0)||!Number.isFinite(pixels))return 1;
+      let memory=typeof System!=='undefined'?System.physicalMemoryStatus():null;
+      if(!memory||!(memory.availableBytes>0)||!Number.isFinite(memory.availableBytes))return 1;
+      let budget=Math.min(8*1024*1024*1024,memory.availableBytes/8);
+      let count=Math.max(1,Math.min(8,items.length,Thread.numberOfProcessors,
+         Math.max(1,Settings.readGlobal('Process/MaxFileReadThreads',DataType.Int32)),
+         Math.max(1,Settings.readGlobal('Process/MaxFileWriteThreads',DataType.Int32)),
+         Math.floor(budget/(16*pixels))));
+      return Number.isFinite(count)?Math.floor(count):1;
+   }catch(e){return 1;}
+}
+// Workers own their Images and file handles. Only ordinary cloned data crosses
+// the thread boundary; no GUI, row objects or Image pointers are shared.
+function sqrPreparationAbort(){
+   // Console abort state belongs to the root script; workers use their own flag.
+   let current=typeof Thread!=='undefined'?Thread.current:null;
+   if(current?current.isAborted:console.abortRequested)throw new Error('Operation aborted.');
+}
+/** Bounded queue with deterministic result order. Pump events on the main
+ * thread, propagate worker errors, and ALWAYS join every started worker before
+ * returning or removing temporary files, including on abort or startup failure. */
+function sqrMapPreparation(items,worker,helpers,notify,label){
+   let count=sqrPreparationThreads(items),results=new Array(items.length);
+   if(count===1){for(let i=0;i<items.length;++i){sqrTick(notify,label+' '+(i+1)+' / '+items.length);results[i]=worker(items[i]);}return results;}
+   let source='(function(item){\n'+helpers.map(fn=>fn.toString()).join('\n')+'\nreturn ('+worker.toString()+')(item);\n})';
+   let active=[],next=0,done=0;
+   try{
+      while(next<items.length||active.length){
+         sqrTick(notify,label+' '+done+' / '+items.length);
+         while(active.length<count&&next<items.length){let index=next++,thread=new Thread(source,items[index],{pooled:true});
+            thread.start();active.push({index,thread});}
+         // One bounded wait avoids busy polling. Check every worker afterwards,
+         // so a slow first file never prevents finished slots from being reused.
+         active[0].thread.wait(25);
+         // In the installed runtime wait(0) waits indefinitely. Use a positive
+         // timeout here as well, keeping cancellation and slot reuse responsive.
+         for(let i=active.length-1;i>=0;--i){let job=active[i];if(!job.thread.wait(1))continue;
+            if(job.thread.error)throw new Error(job.thread.error);
+            results[job.index]=job.thread.result;active.splice(i,1);++done;}
+      }
+      sqrTick(notify,label+' '+done+' / '+items.length);return results;
+   }finally{
+      for(let job of active)job.thread.abort();
+      for(let job of active)while(!job.thread.wait(25))CoreApplication.processEvents();
+   }
+}
+function sqrPrepareBounds(item){
+   let im=null;
+   try{sqrPreparationAbort();im=sqrReadImage(item.path);let bounds=sqrBounds(im,item.margin);sqrPreparationAbort();return {bounds};}
+   catch(e){sqrPreparationAbort();return {error:String(e)};}
+   finally{if(im)im.free();}
+}
 /** Estimate usable bounds as [left, top, right, bottom], right/bottom exclusive.
  * Sample edges for zero padding and shrink inward; reject very small fields.
  * sqrAnalyze intersects these bounds so every frame uses identical coordinates. */
@@ -1420,6 +1567,7 @@ function sqrBounds(im,margin){
    let edge=(side)=>{for(let j=0;j<=128;++j){let x=Math.round(r[0]+(r[2]-r[0]-1)*j/128),y=Math.round(r[1]+(r[3]-r[1]-1)*j/128);
       if(!valid(side===0?r[0]:side===2?r[2]-1:x,side===1?r[1]:side===3?r[3]-1:y))return false;}return true;};
    for(let pass=0;pass<1000;++pass){let changed=false;
+      sqrPreparationAbort();
       for(let side=0;side<4;++side)if(!edge(side)){r[side]+=(side<2?step:-step);changed=true;}
       if(r[2]-r[0]<w*.5||r[3]-r[1]<h*.5)throw new Error('Less than half the field is free of sampled registration padding. Review this frame manually.');
       if(!changed)return r;
@@ -1478,30 +1626,85 @@ function sqrMissingCornerMeasurements(session){return !session||session.groups.s
 // Corner inclusion is session data, never a saved preference. Partial results
 // count too, so unavailable regions remain visible for review after an abort.
 function sqrHasCornerMeasurements(session){return !!session?.groups.some(g=>sqrGroupRows(g).some(r=>[1,2,3,4,5].some(i=>!!r.metrics[i]||Object.prototype.hasOwnProperty.call(r.backgroundMeans?.previews||{},i))));}
-/** Measure every submitted job in one native process invocation. Each job
- * identifies a temporary path and its destination row/region. Disable the file
- * cache because temporary crop paths must not reuse another image's metrics. */
-function sqrMeasureBatch(jobs,o){
-   let p=new SubframeSelector;p.routine=SubframeSelector.MeasureSubframes;p.nonInteractive=true;p.fileCache=false;
-   p.subframeScale=1;p.noNoiseAndSignalWarnings=true;p.maxPSFFits=o.maxFits;p.psfFit=SubframeSelector.Moffat4;
-   // As in WBPP, submit the entire pending list and leave file threading at
-   // SubframeSelector's native defaults.
-   p.psfFitCircular=false;p.onError=SubframeSelector.Continue;
-   p.subframes=jobs.map(j=>[true,j.path,'','']);
-   let ok=p.executeGlobal();
-   if(console.abortRequested)throw new Error('Operation aborted.');
-   // Parallel processing and failed files can change output order and length.
-   // Match the returned file path (column 3), never the result's row position.
-   let results=new Map;for(let m of p.measurements)results.set(sqrKey(m[3]),m);
-   for(let j of jobs){let m=results.get(sqrKey(j.path));
-      j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
-         {valid:false,error:ok?'No measurement returned':'Measurement failed'};}
+/** Bound regional concurrency by this machine's permitted CPU count and current
+ * free memory. Extra native workers hide scheduling waits for small crops; they
+ * do not increase the application's CPU or file-I/O limits. Reserve at most a
+ * quarter of free RAM / 16 GiB, estimating 64 bytes per sample plus 16 MiB per
+ * job for native image/statistics scratch space. This is a conservative estimate,
+ * not a hard memory limit. Unknown capacity keeps the original native defaults.
+ * Full-field batches retain their original scheduling and measurement settings. */
+function sqrMeasurementPlan(jobs){
+   let unchanged={batchSize:Math.max(1,jobs.length),overload:1,fileThreads:true};
+   if(jobs.length<2||jobs.some(j=>j.region===0))return unchanged;
+   try{
+      if(!Settings.readGlobal('Process/EnableParallelProcessing',DataType.Boolean)||
+         !Settings.readGlobal('Process/EnableParallelModuleProcessing',DataType.Boolean))
+         return {batchSize:1,overload:1,fileThreads:false};
+      let processors=Math.min(Thread.numberOfProcessors,Settings.readGlobal('Process/MaxProcessors',DataType.Int32));
+      let pixels=Math.max(...jobs.map(j=>j.pixels)),memory=System.physicalMemoryStatus();
+      if(!Number.isFinite(processors)||processors<1||!Number.isFinite(pixels)||pixels<=0||
+         !memory||!Number.isFinite(memory.availableBytes)||memory.availableBytes<=0)return unchanged;
+      processors=Math.floor(processors);
+      if(processors===1)return {batchSize:1,overload:1,fileThreads:false};
+      let budget=Math.min(16*1024*1024*1024,memory.availableBytes/4);
+      let capacity=Math.max(1,Math.floor(budget/(64*pixels+16*1024*1024)));
+      let workers=Math.max(1,Math.min(jobs.length,256,4*processors,capacity));
+      return {batchSize:workers,overload:Math.max(1,Math.min(4,Math.floor(100*workers/processors)/100)),fileThreads:workers>1};
+   }catch(e){return unchanged;}
 }
-/** Open each eligible image once to stage all missing field/regional crops and
- * background means. Keep the two native measurement batches and their ordering
- * unchanged. Each batch releases its files immediately; the outer cleanup also
- * covers failures and aborts. This trades extra temporary disk space for fewer
- * source reads, without retaining a collection of full-resolution Images. */
+/** Measure every submitted job with native SubframeSelector. Each job
+ * identifies a temporary path and its destination row/region. Disable the file
+ * cache because temporary crop paths must not reuse another image's metrics.
+ * Bound corner batches so extra workers cannot multiply memory use without limit. */
+function sqrMeasureBatch(jobs,o){
+   let plan=sqrMeasurementPlan(jobs);
+   for(let first=0;first<jobs.length;first+=plan.batchSize){
+      if(console.abortRequested)throw new Error('Operation aborted.');
+      let batch=jobs.slice(first,first+plan.batchSize);
+      let p=new SubframeSelector;p.routine=SubframeSelector.MeasureSubframes;p.nonInteractive=true;p.fileCache=false;
+      p.subframeScale=1;p.noNoiseAndSignalWarnings=true;p.maxPSFFits=o.maxFits;p.psfFit=SubframeSelector.Moffat4;
+      p.useFileThreads=plan.fileThreads;p.fileThreadOverload=plan.overload;
+      p.psfFitCircular=false;p.onError=SubframeSelector.Continue;
+      p.subframes=batch.map(j=>[true,j.path,'','']);
+      let ok=p.executeGlobal();
+      if(console.abortRequested)throw new Error('Operation aborted.');
+      // Parallel processing and failed files can change output order and length.
+      // Match the returned file path (column 3), never the result's row position.
+      let results=new Map;for(let m of p.measurements)results.set(sqrKey(m[3]),m);
+      for(let j of batch){let m=results.get(sqrKey(j.path));
+         j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
+            {valid:false,error:ok?'No measurement returned':'Measurement failed'};}
+   }
+}
+/** Prepare one image with independently owned handles. Read failures remain
+ * per-image unavailable measurements; write failures stop the run. The caller
+ * registers every output path before starting workers, so cleanup also covers
+ * partially written files and workers interrupted before returning results. */
+function sqrPrepareCrops(item){
+   let im=null,row={backgroundMeans:item.backgroundMeans};
+   try{sqrPreparationAbort();im=sqrReadImage(item.path,item.isMaster);
+      if(im.width!==item.width||im.height!==item.height||im.numberOfNominalChannels!==item.channels)throw new Error('Image dimensions or channels do not match this group: '+item.path);
+      sqrMeasureBackground(row,im,item.regions,item.withCorners);
+   }catch(e){if(im)im.free();sqrPreparationAbort();
+      let b=row.backgroundMeans??={previews:{}};if(!Object.prototype.hasOwnProperty.call(b,'whole'))b.whole=null;
+      if(item.withCorners)for(let i=1;i<=5;++i)if(!Object.prototype.hasOwnProperty.call(b.previews,i))b.previews[i]=null;
+      return {backgroundMeans:row.backgroundMeans,error:String(e)};
+   }
+   try{for(let job of item.jobs){sqrPreparationAbort();let crop=new Image,writer=null;
+      try{crop.assign(im,new Rect(...item.regions[job.region]),0,im.numberOfNominalChannels-1);
+         // Pixel-only files prevent reuse of calibration-stage signal/noise metadata.
+         writer=new FileFormatInstance(new FileFormat('.xisf',false,true));
+         if(!writer.create(job.path,'compression-codec none'))throw new Error('Cannot create temporary measurement image.');
+         let description=new ImageDescription;description.bitsPerSample=im.bitsPerSample;description.ieeefpSampleFormat=true;
+         writer.setOptions(description);
+         if(!writer.writeImage(crop))throw new Error('Cannot write temporary measurement image.');
+      }finally{if(writer)writer.close();crop.free();}
+   }sqrPreparationAbort();return {backgroundMeans:row.backgroundMeans};}
+   finally{im.free();}
+}
+/** Stage missing field/regional crops and means with bounded parallelism. Native
+ * measurement batches retain the original field/region ordering regardless of
+ * worker completion order. The UI/session is updated only on the main thread. */
 function sqrMeasureGroups(groups,o,active,notify){
    let eligible=groups.flatMap(g=>sqrGroupRows(g).filter(r=>!r.measureError&&(active.some(i=>!r.metrics[i])||!sqrBackgroundComplete(r,o.measureCorners))).map(r=>({r,g})));
    if(!eligible.length)return;
@@ -1515,33 +1718,14 @@ function sqrMeasureGroups(groups,o,active,notify){
       sqrTick(notify,'Measured '+completed+' / '+total+' regions');
    };
    try{
-       for(let index=0;index<eligible.length;++index){
-         let {r,g}=eligible[index],im=null;
-         let regions=active.filter(i=>!r.metrics[i]);
-         sqrTick(notify,'Preparing '+(r.isMaster?'master':'frame '+(index+1)+' / '+eligible.length)+' — '+g.label);
-         try{im=sqrReadImage(r.registered.path,!!r.isMaster);
-            if(im.width!==g.width||im.height!==g.height||im.numberOfNominalChannels!==g.channels)throw new Error('Image dimensions or channels do not match this group: '+r.registered.path);
-            sqrMeasureBackground(r,im,g.regions,o.measureCorners);
-         }catch(e){if(im)im.free();if(console.abortRequested)throw e;
-            let background=r.backgroundMeans??={previews:{}};if(!Object.prototype.hasOwnProperty.call(background,'whole'))background.whole=null;
-            if(o.measureCorners)for(let i=1;i<=5;++i)if(!Object.prototype.hasOwnProperty.call(background.previews,i))background.previews[i]=null;
-            for(let region of regions)if(!r.metrics[region]){r.metrics[region]={valid:false,error:String(e)};++completed;}continue;}
-         try{for(let region of regions){if(r.metrics[region])continue;
-            let rect=g.regions[region];
-            sqrTick(notify,'Preparing '+(r.isMaster?'master':'frame '+(index+1)+' / '+eligible.length)+' · '+SQR_REGIONS[region]+' — '+g.label);
-            let temp=scratch+'/frame-'+index+'-region-'+region+'.xisf',crop=new Image,writer=null;files.add(temp);
-            try{
-               crop.assign(im,new Rect(...rect),0,im.numberOfNominalChannels-1);
-               // Pixel-only files prevent reuse of calibration-stage signal/noise metadata.
-               writer=new FileFormatInstance(new FileFormat('.xisf',false,true));
-               if(!writer.create(temp,'compression-codec none'))throw new Error('Cannot create temporary measurement image.');
-               let description=new ImageDescription;description.bitsPerSample=im.bitsPerSample;description.ieeefpSampleFormat=true;
-               writer.setOptions(description);
-               if(!writer.writeImage(crop))throw new Error('Cannot write temporary measurement image.');
-            }finally{if(writer)writer.close();crop.free();}
-            passes[region===0?0:1].push({path:temp,row:r,region:region});
-         }}finally{im.free();}
-       }
+      let items=eligible.map(({r,g},index)=>({path:r.registered.path,isMaster:!!r.isMaster,
+         width:g.width,height:g.height,channels:g.channels,regions:g.regions,withCorners:o.measureCorners,backgroundMeans:r.backgroundMeans,
+         jobs:active.filter(i=>!r.metrics[i]).map(region=>{let path=scratch+'/frame-'+index+'-region-'+region+'.xisf',rect=g.regions[region];files.add(path);
+            return {path,region,pixels:(rect[2]-rect[0])*(rect[3]-rect[1])*g.channels};})}));
+      let results=sqrMapPreparation(items,sqrPrepareCrops,[sqrReadImage,sqrPreparationAbort,sqrMeasureBackground],notify,'Preparing images');
+      for(let index=0;index<items.length;++index){let r=eligible[index].r,result=results[index];r.backgroundMeans=result.backgroundMeans;
+         for(let job of items[index].jobs){if(result.error){r.metrics[job.region]={valid:false,error:result.error};++completed;}
+            else passes[job.region===0?0:1].push({...job,row:r});}}
       for(let jobs of passes)measurePass(jobs);
    }finally{clean(files);if(File.directoryExists(scratch))File.removeDirectory(scratch);}
 }
@@ -1551,7 +1735,7 @@ function sqrPrepareMaster(g,o,active){
    let master=sqrMasterRow(g);if(!master)return;
    try{
       let signature=JSON.stringify({version:SQR_VERSION,file:[g.master,sqrFingerprint(g.master)],roi:g.roi,
-         patch:o.patch,minStars:o.minStars,maxFits:o.maxFits});
+         patch:o.patch,maxFits:o.maxFits});
       if(master.measureSignature!==signature){master.metrics={};delete master.backgroundMeans;delete master.measureError;master.measureSignature=signature;}
    }catch(e){if(console.abortRequested)throw e;master.measureSignature='';delete master.backgroundMeans;
       for(let i of active)master.metrics[i]={valid:false,error:String(e)};}
@@ -1563,21 +1747,18 @@ function sqrPrepareMaster(g,o,active){
 function sqrAnalyze(session,notify){
    let o=session.options,active=sqrActiveRegions(o);
    for(let g of session.groups){
-      let signature=JSON.stringify({version:SQR_VERSION,method:'clean-crops-v1',patch:o.patch,margin:o.margin,minStars:o.minStars,maxFits:o.maxFits,
+      let signature=JSON.stringify({version:SQR_VERSION,method:'clean-crops-v1',patch:o.patch,margin:o.margin,maxFits:o.maxFits,
          files:g.rows.map(r=>[r.registered.path,sqrFingerprint(r.registered.path)]).sort((a,b)=>a[0].localeCompare(b[0]))});
       if(g.measureSignature===signature&&g.rows.every(r=>active.every(i=>r.metrics[i]))){
          sqrTick(notify,'Using existing subframe measurements: '+g.label);sqrPrepareMaster(g,o,active);
          continue;}
       if(g.measureSignature!==signature){
        let roi=[0,0,g.width,g.height];
-       for(let i=0;i<g.rows.length;++i){
-         let r=g.rows[i];sqrTick(notify,'Checking registered borders '+(i+1)+' / '+g.rows.length+' — '+g.label);
-         r.metrics={};delete r.backgroundMeans;delete r.measureError;
-         let im=null;
-         try{im=sqrReadImage(r.registered.path);let b=sqrBounds(im,o.margin);roi=[Math.max(roi[0],b[0]),Math.max(roi[1],b[1]),Math.min(roi[2],b[2]),Math.min(roi[3],b[3])];}
-         catch(e){r.measureError=String(e);}
-         finally{if(im)im.free();}
-       }
+       for(let r of g.rows){r.metrics={};delete r.backgroundMeans;delete r.measureError;}
+       let items=g.rows.map(r=>({path:r.registered.path,width:g.width,height:g.height,channels:g.channels,margin:o.margin}));
+       let bounds=sqrMapPreparation(items,sqrPrepareBounds,[sqrReadImage,sqrPreparationAbort,sqrBounds],notify,'Checking registered borders — '+g.label);
+       for(let i=0;i<g.rows.length;++i){let result=bounds[i];if(result.error)g.rows[i].measureError=result.error;
+          else{let b=result.bounds;roi=[Math.max(roi[0],b[0]),Math.max(roi[1],b[1]),Math.min(roi[2],b[2]),Math.min(roi[3],b[3])];}}
        if(roi[2]-roi[0]<g.width*.5||roi[3]-roi[1]<g.height*.5)throw new Error('Insufficient common field: '+g.label);
        g.roi=roi;g.regions=sqrRegions(roi,o.patch);g.measureSignature=signature;
       }
@@ -1849,7 +2030,7 @@ function sqrRank(session){
       let all=sqrGroupRows(g);g.correlationScoring=null;
       for(let r of all)r.skyBackground=sqrSkyBackground(r,o.measureCorners);
       let backgroundField=sqrSummary(g.rows.map(r=>sqrSkyBackground(r,false))),backgroundCorner=sqrSummary(g.rows.map(r=>sqrSkyBackground(r,true)));
-      for(let r of all)for(let i=0;i<6;++i)if(r.metrics[i]){let m=r.metrics[i];m.valid=sqrMetricValid(m,o.minStars,i===0);if(m.valid)delete m.error;}
+      for(let r of all)for(let i=0;i<6;++i)if(r.metrics[i]){let m=r.metrics[i];m.valid=sqrMetricValid(m,o.minStars,i===0);if(m.valid)delete m.error;else if('fwhm' in m)m.error='Insufficient valid PSF measurements';}
       let valid=g.rows.filter(r=>r.metrics[0]?.valid);
       let signal=sqrSummary(valid.map(r=>r.metrics[0].signal)),stars=sqrSummary(valid.map(r=>r.metrics[0].stars)),fwhm=sqrSummary(valid.map(r=>r.metrics[0].fwhm));
       let eccentricity=sqrSummary(valid.filter(r=>sqrEccentricityValid(r.metrics[0])).map(r=>r.metrics[0].eccentricity));
@@ -2494,7 +2675,10 @@ class SQRDialog extends Dialog {
       this.updateCornerControls();
       this.maxFits=o.maxFits;
       this.percent.onValueUpdated=()=>this.rerank();
-      for(let n of [this.patch,this.margin,this.minStars])n.onValueUpdated=()=>this.invalidateMeasurements();
+      for(let n of [this.patch,this.margin])n.onValueUpdated=()=>this.invalidateMeasurements();
+      // Minimum stars only validates stored detector/PSF counts. Keep pixels,
+      // corner measurements and manual decisions, and refresh all derived ranks.
+      this.minStars.onValueUpdated=()=>{this.rerank();if(this.session)this.status.text='Minimum stars changed. Existing measurements re-evaluated; no images remeasured.';};
       this.groupRow=new HorizontalSizer;this.groupRow.spacing=8;
       let groupLabel=new Label(this);groupLabel.text='Filter / group:';
       this.groupSelect=new ComboBox(this);this.groupSelect.onItemSelected=()=>{this.clearFrames();this.current=null;this.selectionCleared=false;this.populateRows();};
@@ -3070,7 +3254,7 @@ class SQRDialog extends Dialog {
       for(let [control,kpi] of [[this.scatterX,xKPI],[this.scatterY,yKPI]])control.toolTip=kpi.direction+(kpi.corners?' · Requires regional measurements; stored values remain available with corner scoring off.':kpi.guiding?' · Requires guiding logs matched to the exposure.':'');
       let data=this.scatterData=sqrScatterPlot(this.group(),xKPI,yKPI,this.current);
       this.correlationSummary.text=sqrCorrelationText(data.correlation);
-      this.correlationSummary.toolTip='Pearson correlation uses the '+data.count+' plotted subframe pairs, including rejected frames. The master is excluded.\nStrength by |r|: 0 = none; above 0 and below 0.3 = weak; 0.3 to below 0.7 = moderate; 0.7 to below 1 = strong; 1 = perfect.\nPositive: both values increase together. Negative: as X increases, Y decreases. Direction refers to KPI values, not whether image quality improves. Zero means no linear relationship.\nAt least two paired subframes and variation in both KPIs are required.';
+      this.correlationSummary.toolTip=(data.correlation.r===null?'':'Correlation (full precision): '+String(data.correlation.r)+'\nThe displayed coefficient is rounded to four decimal places. Strength and direction use the unrounded value.\n')+'Pearson correlation uses the '+data.count+' plotted subframe pairs, including rejected frames. The master is excluded.\nStrength by |r|: 0 = none; above 0 and below 0.3 = weak; 0.3 to below 0.7 = moderate; 0.7 to below 1 = strong; 1 = perfect.\nPositive: both values increase together. Negative: as X increases, Y decreases. Direction refers to KPI values, not whether image quality improves. Zero means no linear relationship.\nAt least two paired subframes and variation in both KPIs are required.';
       this.scatterSummary.text=data.count+' of '+data.total+' subframes plotted'+(data.missing?' · '+data.missing+' missing one or both measurements':'')+'. Hover for values; click a point to select its image.\nCyan: selected · purple: REVIEW · blue: other kept · red: rejected.';
       this.scatterReady=false;++this.scatterGeneration;this.scatter.setHTML(sqrScatterHTML(data,this.scatterGeneration));
    }
