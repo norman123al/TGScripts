@@ -21,7 +21,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.39.20 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.39.23 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -42,7 +42,7 @@
  * sqrMove and sqrRestore change original-file locations after plan confirmation.
  * Process instances store options, not measured sessions or pending decisions.
  */
-const SQR_VERSION='0.39.20';
+const SQR_VERSION='0.39.23';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -1124,7 +1124,7 @@ const SQR_KPIS=[
    {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder',definition:SQR_ECCENTRICITY_DEFINITION},
    ...[1,2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' FWHM (px)',metric:'fwhm',region,corners:true,direction:'Lower is better'})),
    ...[2,3,4,5].map(region=>({label:SQR_REGIONS[region]+' eccentricity',metric:'eccentricity',region,corners:true,direction:'Lower is rounder',definition:SQR_ECCENTRICITY_DEFINITION})),
-   {label:'Below-mean Quality',key:'belowMeanFraction',percentage:true,direction:'Lower is better',definition:'Percentage of assessed indicators with worse-than-mean quality: worse indicators / available indicators. Means use the supported subframes in the group, including rejected frames. An asterisk in the Review table marks incomplete coverage; unavailable measurements do not count as good.'},
+   {label:'Below-mean Quality',key:'belowMeanFraction',percentage:true,direction:'Lower is better',definition:'Percentage of assessed indicators with worse-than-mean quality: worse indicators / available indicators. The manual KPI weights and corner/guiding settings define the indicators; selecting R3 or R4 does not change this KPI. Means use the supported subframes in the group, including rejected frames. An asterisk in the Review table marks incomplete coverage; unavailable measurements do not count as good.'},
    {label:'Guide minimum (arcsec)',key:'guideMin',guiding:true,direction:'Lower is better',definition:'Minimum combined RA/Dec displacement during the exposure, in arcseconds.'},
    {label:'Guide maximum (arcsec)',key:'guideMax',guiding:true,direction:'Lower is better',definition:'Maximum combined RA/Dec displacement during the exposure, in arcseconds.'},
    {label:'Guide average (arcsec)',key:'guideAvg',guiding:true,direction:'Lower is better',definition:'Arithmetic mean of the combined RA/Dec displacements during the exposure, in arcseconds.'},
@@ -1169,12 +1169,13 @@ function sqrKPIScoreInfo(kpi,o,guidingEnabled=false,correlation=null){
    if(kpi.key==='score')return 'Combined Score';
    if(o.rankOfRanks){
       let manual=sqrKPIScoreInfo(kpi,{...o,rankOfRanks:false,correlationOnly:false},guidingEnabled,correlation);
-      let automatic=sqrKPIScoreInfo(kpi,{...o,rankOfRanks:false,correlationOnly:true},guidingEnabled,correlation);
+      let automatic=correlation?.available===false?'Excluded from R3':sqrKPIScoreInfo(kpi,{...o,rankOfRanks:false,correlationOnly:true},guidingEnabled,correlation);
       let via=[];if(manual.startsWith('Included'))via.push(kpi.corners?'R2':o.measureCorners?'R1/R2':'R1');
       if(automatic.startsWith('Included')||automatic.includes('; included via'))via.push('R3');
       return via.length?'Included via '+via.join(' and ')+' in R4; available ranks have equal weight':'Excluded from R4';
    }
    if(o.correlationOnly){
+      if(correlation?.available===false)return sqrKPIScoreInfo(kpi,{...o,correlationOnly:false},guidingEnabled,correlation)+' (manual score; R3 unavailable)';
       let key=kpi.corners&&!(kpi.region>=2)?'cornerSeverity':kpi.guiding?'guideQuality':sqrKPIKey(kpi),component=correlation?.components.find(c=>c.kpi===key);
       if(!component)return 'Correlation selection pending';
       let viaComposite=kpi.region>=2&&correlation.weights.cornerWeight>0;
@@ -1308,7 +1309,9 @@ function sqrPearson(items){
    let constant=ranges.map(range=>range.high===range.low);
    if(constant[0]||constant[1]){result.reason=(constant[0]&&constant[1]?'X and Y have':constant[0]?'X has':'Y has')+' no variation.';return result;}
    let normalize=(value,range)=>Number.isFinite(range.span)?(value-range.low)/range.span:value/range.scale;
-   let pairs=items.map(item=>[normalize(item.x,ranges[0]),normalize(item.y,ranges[1])]);
+   // Score changes reorder rows. Keep summation order fixed so even the full
+   // precision tooltip remains unchanged for the same paired measurements.
+   let pairs=items.map(item=>[normalize(item.x,ranges[0]),normalize(item.y,ranges[1])]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
    let meanX=pairs.reduce((sum,pair)=>sum+pair[0],0)/count,meanY=pairs.reduce((sum,pair)=>sum+pair[1],0)/count;
    let xx=0,yy=0,xy=0;for(let pair of pairs){let x=pair[0]-meanX,y=pair[1]-meanY;xx+=x*x;yy+=y*y;xy+=x*y;}
    let r=Math.max(-1,Math.min(1,(xy/Math.sqrt(xx))/Math.sqrt(yy)));
@@ -1629,9 +1632,11 @@ function sqrHasCornerMeasurements(session){return !!session?.groups.some(g=>sqrG
 /** Bound regional concurrency by this machine's permitted CPU count and current
  * free memory. Extra native workers hide scheduling waits for small crops; they
  * do not increase the application's CPU or file-I/O limits. Reserve at most a
- * quarter of free RAM / 16 GiB, estimating 64 bytes per sample plus 16 MiB per
- * job for native image/statistics scratch space. This is a conservative estimate,
- * not a hard memory limit. Unknown capacity keeps the original native defaults.
+ * half of free RAM / 64 GiB, estimating 64 bytes per sample plus 16 MiB per
+ * job for native image/statistics scratch space. Limit the queue to eight workers
+ * per permitted processor, at most 512, to avoid excessive thread overhead.
+ * These are conservative estimates, not a hard memory limit. Unknown capacity
+ * keeps the original native defaults. Respect PixInsight's file-I/O limits.
  * Full-field batches retain their original scheduling and measurement settings. */
 function sqrMeasurementPlan(jobs){
    let unchanged={batchSize:Math.max(1,jobs.length),overload:1,fileThreads:true};
@@ -1646,10 +1651,10 @@ function sqrMeasurementPlan(jobs){
          !memory||!Number.isFinite(memory.availableBytes)||memory.availableBytes<=0)return unchanged;
       processors=Math.floor(processors);
       if(processors===1)return {batchSize:1,overload:1,fileThreads:false};
-      let budget=Math.min(16*1024*1024*1024,memory.availableBytes/4);
+      let budget=Math.min(64*1024*1024*1024,memory.availableBytes/2);
       let capacity=Math.max(1,Math.floor(budget/(64*pixels+16*1024*1024)));
-      let workers=Math.max(1,Math.min(jobs.length,256,4*processors,capacity));
-      return {batchSize:workers,overload:Math.max(1,Math.min(4,Math.floor(100*workers/processors)/100)),fileThreads:workers>1};
+      let workers=Math.max(1,Math.min(jobs.length,512,8*processors,capacity));
+      return {batchSize:workers,overload:Math.max(1,Math.min(8,Math.floor(100*workers/processors)/100)),fileThreads:workers>1};
    }catch(e){return unchanged;}
 }
 /** Measure every submitted job with native SubframeSelector. Each job
@@ -1795,8 +1800,7 @@ function sqrRankOfRanks(rows,withCorners){
 }
 // Preserve manual evaluation while computing the independent R3 comparison.
 // Arrays are replaced by scoring functions, so shallow snapshots retain them.
-const SQR_ACTIVE_SCORE_FIELDS=['score','guidingIgnored','reasons','dataReviewReasons','needsDataReview','scoreContributions','mainIssue','mainIssueDetail','insufficientCorners',
-   'belowMeanFieldFraction','belowMeanCornerFraction','belowMeanAvailable','belowMeanTotal','belowMeanComplete','belowMeanCount','belowMeanFraction','belowMeanDetail'];
+const SQR_ACTIVE_SCORE_FIELDS=['score','guidingIgnored','reasons','dataReviewReasons','needsDataReview','scoreContributions','mainIssue','mainIssueDetail','insufficientCorners'];
 function sqrScoreState(row){return Object.fromEntries(SQR_ACTIVE_SCORE_FIELDS.map(key=>[key,row[key]]));}
 function sqrApplyRankOfRanks(row,automatic){
    row.score=row.scoreRankOfRanks;
@@ -1811,11 +1815,11 @@ function sqrApplyRankOfRanks(row,automatic){
    if(!row.reasons.length)row.reasons.push('No rank penalty');
    if(row.needsDataReview)row.reasons.unshift('Insufficient measurements: inspect manually');
    if(row.isMaster)row.reasons.unshift('Integrated master: comparison only; cannot be rejected.');
-   row.belowMeanDetail+='\nIn rank-of-ranks mode, this reports the manual R1/R2 comparison; R3 evaluates its selected indicators separately.';
 }
 /** Calculate the breadth of poor quality before Score, avoiding a dependency
- * cycle. Only positively weighted underlying KPIs count; Score and this fraction
- * itself never count. A fraction uses available comparisons, while completeness
+ * cycle. Only underlying KPIs with positive manual weights count; R3's effective
+ * weights never redefine this measurement. Score and this fraction itself never
+ * count. A fraction uses available comparisons, while completeness
  * records missing ones so a partial percentage cannot look fully assessed.
  * Keep separate field-only and corner-inclusive fractions for independent R1/R2.
  * Baselines include rejected subframes but exclude the integrated master. */
@@ -1829,10 +1833,9 @@ function sqrMeanComparisons(group,o,guideEnabled=false){
       {label:'Sky background',backgroundMode:'corners',weight:o.backgroundWeight,value:r=>sqrSkyBackground(r,true)},
       {label:'Corner quality',corner:true,weight:o.cornerWeight,value:r=>r.metrics[0]?.valid&&r.metrics[1]?.valid&&[2,3,4,5].every(i=>sqrEccentricityValid(r.metrics[i]))?r.measuredCornerSeverity:null}
    ];if(guideEnabled)components.push({label:'Guiding quality (arcsec)',guiding:true,weight:o.guideWeight,value:r=>r.guideQuality});
-   if(o.correlationOnly&&o.measureCorners)for(let c of SQR_CORNER_COMPONENTS)
-      components.push({label:c.label,corner:true,weight:o[c.weight],value:r=>sqrKPIValue(r,c)});
    components=components.filter(c=>c.weight>0);
-   for(let c of components){let values=group.rows.map(c.value).filter(Number.isFinite);c.mean=values.length?values.reduce((sum,v)=>sum+v,0)/values.length:null;}
+   // Ranking reorders rows; sum in a fixed order so displayed means stay stable.
+   for(let c of components){let values=group.rows.map(c.value).filter(Number.isFinite).sort((a,b)=>a-b);c.mean=values.length?values.reduce((sum,v)=>sum+v,0)/values.length:null;}
    for(let r of sqrGroupRows(group)){
       let allComparisons=components.filter(c=>!c.guiding||!r.isMaster&&!r.guidingIgnored).map(c=>{let value=c.value(r),available=Number.isFinite(value)&&Number.isFinite(c.mean);
          // Ignore rounding noise at equality; the criterion is a strict worse-than-mean comparison.
@@ -1848,7 +1851,7 @@ function sqrMeanComparisons(group,o,guideEnabled=false){
       r.belowMeanCount=r.belowMeanAvailable?comparisons.filter(c=>c.worse).length:null;
       r.belowMeanFraction=r.belowMeanAvailable?r.belowMeanCount/r.belowMeanAvailable:null;
       r.belowMeanDetail=(r.belowMeanFraction===null?'No comparable measurements.':'Below-mean Quality: '+sqrPercent(r.belowMeanFraction)+' ('+r.belowMeanCount+' of '+r.belowMeanAvailable+' assessed indicators have worse-than-mean quality). Lower percentages are better.')+
-         '\nEnabled underlying indicators: '+r.belowMeanTotal+'. Score and Below-mean Quality itself are excluded. Arithmetic means use all supported subframes in this group, including rejects; the master is excluded.\n'+
+         '\nEnabled underlying indicators: '+r.belowMeanTotal+'. The manual KPI weights and corner/guiding settings define this comparison; selecting R3 or R4 does not change it. Score and Below-mean Quality itself are excluded. Arithmetic means use all supported subframes in this group, including rejects; the master is excluded.\n'+
          comparisons.map(c=>c.label+': '+(c.available?sqrFmt(c.value)+' vs mean '+sqrFmt(c.mean)+' — '+(c.worse?'worse':'at or better than mean'):'unavailable')+' ('+(c.lower?'below':'above')+' mean is worse)').join('\n')+
          (r.belowMeanComplete?'':'\nIncomplete comparison; unavailable KPIs are not counted as good.');
    }
@@ -1860,9 +1863,12 @@ function sqrWeightedScore(parts){
    let weight=parts.reduce((sum,p)=>sum+p.w,0);
    return weight>0?Math.max(0,Math.min(1,1-parts.reduce((sum,p)=>sum+p.z*p.w,0)/(10*weight))):null;
 }
-// Compare a component with the signal anchor using paired subframes only.
+// Compare other components with PSF signal weight using paired subframes only.
 // Three pairs are the minimum: two points always give a spurious perfect r.
 function sqrScoreCorrelation(group,component,o,guideAvailable){
+   // The reference is not a candidate: its self-correlation is not evidence
+   // for selection, even when no other KPI passes the threshold.
+   if(component.weight==='signalWeight')return {...component,r:null,count:0,included:false,reason:'correlation reference only; self-correlation excluded'};
    let kpi=SQR_KPIS.find(k=>sqrKPIKey(k)===component.kpi),pairs=[];
    for(let r of group.rows.filter(r=>!r.isMaster)){
       let x=sqrKPIValue(r,SQR_KPIS[1]),y=sqrKPIValue(r,kpi);
@@ -1871,8 +1877,7 @@ function sqrScoreCorrelation(group,component,o,guideAvailable){
       if(Number.isFinite(x)&&Number.isFinite(y))pairs.push({x,y});
    }
    let result=sqrPearson(pairs),included=false,reason='';
-   if(component.weight==='signalWeight'){included=true;reason='PSF signal anchor';}
-   else if((component.weight==='cornerWeight'||component.corner)&&!o.measureCorners)reason='corner scoring off';
+   if((component.weight==='cornerWeight'||component.corner)&&!o.measureCorners)reason='corner scoring off';
    else if(component.weight==='guideWeight'&&o.guidingMode==='ignore')reason='guiding ignored';
    else if(component.weight==='guideWeight'&&!guideAvailable)reason='no guiding logs';
    else if(result.count<3)reason='fewer than 3 paired subframes';
@@ -1883,8 +1888,9 @@ function sqrScoreCorrelation(group,component,o,guideAvailable){
 }
 function sqrScoreCorrelationReport(selection){
    if(!selection)return 'Enable correlation scoring after measuring the group.';
-   return 'Equal weights; |r| ≥ 0.7; at least 3 paired subframes. The master is excluded from correlation. PSF signal weight is retained as the anchor.\n'+
-      selection.components.map(c=>c.label+': '+(c.included?'included':'excluded')+'; r = '+sqrFmt(c.r)+', n = '+c.count+' ('+c.reason+')').join('\n');
+   return (selection.available===false?'No strongly correlated KPIs. R3 unavailable; selecting R3 keeps the manual score. R4 omits R3.\n':'')+
+      'Equal weights; |r| ≥ 0.7; at least 3 paired subframes. The master is excluded from correlation. PSF signal weight is the correlation reference only and is excluded from R3.\n'+
+      selection.components.map(c=>c.weight==='signalWeight'?c.label+': reference only; self-correlation excluded':c.label+': '+(c.included?'included':'excluded')+'; r = '+sqrFmt(c.r)+', n = '+c.count+' ('+c.reason+')').join('\n');
 }
 // Build the same components for manual and correlation scoring. Missing values
 // never become zero-quality measurements; the UI retains explicit review flags.
@@ -2017,10 +2023,11 @@ function sqrReviewDetails(row){
       sourceTip:label+': '+(path||row.match||'No associated original')+'\nRegistered: '+row.registered.path};
 }
 /** Recompute derived data from cached measurements. Manual weights always produce
- * R1/R2 first. Automatic scoring always produces R3; R4 combines these ranks.
+ * R1/R2 first. R3 requires a qualifying KPI; R4 combines available ranks.
  * The chosen mode controls Score without changing weights or rereading pixels.
- * Below-mean Quality uses only selected underlying components before its own
- * correlation is assessed, so weak KPIs cannot re-enter through that composite. */
+ * Below-mean Quality is computed once from the manual KPI selection. R3 assesses
+ * and weights that same composite, keeping its values and plotted correlations
+ * independent of the active scoring mode. */
 function sqrRank(session){
    let o=session.options;
    for(let c of SQR_SCORE_COMPONENTS)o[c.weight]??=sqrDefaults()[c.weight];
@@ -2076,13 +2083,15 @@ function sqrRank(session){
          let auto={...o,correlationOnly:true,rankOfRanks:false};for(let c of [...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS])auto[c.weight]=0;
          for(let c of components)auto[c.weight]=c.included?1:0;
          let autoGuide=auto.guideWeight>0;
-         for(let r of all)r.guidingIgnored=sqrIgnoreGuiding(r,auto);
-         sqrMeanComparisons(g,auto,autoGuide);
+         // Select the already defined composite, just like every other KPI.
+         // Recomputing it from R3's selected components would change its meaning.
          let breadth=sqrScoreCorrelation(g,SQR_SCORE_COMPONENTS[SQR_SCORE_COMPONENTS.length-1],o,guideAvailable);
          components.push(breadth);auto.belowMeanWeight=breadth.included?1:0;
-         g.correlationScoring={components,weights:Object.fromEntries([...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS].map(c=>[c.weight,auto[c.weight]]))};
+         g.correlationScoring={components,available:components.some(c=>c.included),weights:Object.fromEntries([...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS].map(c=>[c.weight,auto[c.weight]]))};
          let selectedCorners=SQR_CORNER_COMPONENTS.filter(c=>auto[c.weight]>0);
-         for(let r of all){let data=scoring.get(r);if(data){
+         // With no eligible KPIs, preserve manual evaluation and leave the R3
+         // score/rank null. R4 must omit R3 rather than count manual ranks twice.
+         if(g.correlationScoring.available)for(let r of all){let data=scoring.get(r);if(data){
             data.regionalParts=[];
             for(let c of selectedCorners){let value=sqrKPIValue(r,c);if(value===null)continue;
                // Reuse the already computed per-corner robust baselines.
@@ -2097,7 +2106,7 @@ function sqrRank(session){
       // Restore every manual tooltip and missing-data flag when R3 is only a
       // comparison column. R4 combines the ranks and retains both data checks.
       for(let r of all){let automatic=sqrScoreState(r);
-         if(!o.correlationOnly||o.rankOfRanks)Object.assign(r,manualStates.get(r));
+         if(!o.correlationOnly||o.rankOfRanks||!g.correlationScoring.available)Object.assign(r,manualStates.get(r));
          if(o.rankOfRanks)sqrApplyRankOfRanks(r,automatic);
       }
       // Worst-first ranks and REVIEW quotas retain their meaning after inversion.
@@ -2637,7 +2646,7 @@ class SQRDialog extends Dialog {
       this.cornerScoring.onCheck=()=>this.toggleCornerScoring();qualityRow(this.scoreSelection,[this.cornerScoring]);
       this.manualWeights=Object.fromEntries(SQR_SCORE_COMPONENTS.map(c=>[c.weight,o[c.weight]]));
       this.correlationOnly=new CheckBox(this.scoreSelection);this.correlationOnly.text='Use R3: strongly correlated KPIs';this.correlationOnly.checked=!!o.correlationOnly&&!o.rankOfRanks;
-      this.correlationOnly.toolTip='Use the R3 correlation score as the current Score. Include KPIs with strong correlation (|r| ≥ 0.7) to PSF signal weight, with equal weights. R3 is always computed from existing measurements, even when this option is off. Manual weights are retained. Selecting this mode turns off R4 rank-of-ranks scoring.';
+      this.correlationOnly.toolTip='Use the R3 correlation score as the current Score. Include KPIs with strong correlation (|r| ≥ 0.7) to PSF signal weight, with equal weights. PSF signal weight is the reference only and is excluded from R3. If no KPI qualifies, keep the manual score and leave R3 unavailable. R3 is evaluated from existing measurements even when this option is off. Manual weights are retained. Selecting this mode turns off R4 rank-of-ranks scoring.';
       this.correlationOnly.onCheck=()=>this.toggleCorrelationScoring();
       qualityRow(this.scoreSelection,[this.correlationOnly]);
       this.rankScoring=new CheckBox(this.scoreSelection);this.rankScoring.text='Use R4: rank of ranks';this.rankScoring.checked=!!o.rankOfRanks;
@@ -2934,17 +2943,19 @@ class SQRDialog extends Dialog {
    }
    updateScoreWeightControls(){
       let auto=this.correlationOnly.checked,selection=this.groupSelect?this.group()?.correlationScoring:null;
-      let activeScore=this.rankScoring.checked?'R4 · rank of ranks':auto?'R3 · strongly correlated KPIs':this.useCornerMeasurements?'R2 · manual weights, with corners':'R1 · manual weights, field only';
+      let fallback=auto&&selection?.available===false;
+      let activeScore=this.rankScoring.checked?'R4 · rank of ranks':auto&&!fallback?'R3 · strongly correlated KPIs':this.useCornerMeasurements?'R2 · manual weights, with corners':'R1 · manual weights, field only';
+      if(fallback)activeScore+=' (R3 unavailable)';
       this.scoreModeStatus.text='<b>Current Score: '+activeScore+'</b>';
       for(let [k,control] of Object.entries(this.weights)){
-         if(auto)control.setValue(selection?.weights[k]??(k==='signalWeight'?1:0));
+         if(auto)control.setValue(fallback?this.manualWeights[k]:selection?.weights[k]??0);
          control.enabled=!auto&&(k!=='cornerWeight'||this.useCornerMeasurements)&&(k!=='guideWeight'||this.guidingMode?.currentItem!==2);
       }
       // This report stays visible on every tab, even with Quality evaluation
       // collapsed. It follows the current group and each fresh correlation pass.
       if(this.scoreInclusionStatus){
          let mode='Score: '+activeScore+'.';
-         this.scoreInclusionStatus.text=mode+(selection?' R3 KPIs (equal weights): '+selection.components.filter(c=>c.included).map(c=>c.label).join(', '):' R3/R4: pending measurements.');
+         this.scoreInclusionStatus.text=mode+(selection?selection.available?' R3 KPIs (equal weights): '+selection.components.filter(c=>c.included).map(c=>c.label).join(', '):' No strongly correlated KPIs. R3 unavailable.':' R3/R4: pending measurements.');
          this.scoreInclusionStatus.toolTip=(this.rankScoring.checked?'R4 averages normalized available ranks, omitting R2 when corner scoring is off. Manual weights still control R1 and R2.\n':'')+sqrScoreCorrelationReport(selection);
       }
    }
@@ -3197,7 +3208,7 @@ class SQRDialog extends Dialog {
          for(let i=0;i<extraKPIs.length;++i){let c=extraKPIs[i];node.setToolTip(this.baseReviewColumnCount+i,c.label+(c.metric==='fwhm'?' in pixels':' (0 = round, toward 1 = elongated)')+'. Lower is better.'+(this.rankScoring.checked?'\nIncluded via R3 in R4':'\nIncluded in Score with equal weight')+'; correlation with PSF signal weight: '+sqrFmt(c.r)+' ('+c.count+' subframes).'+(sqrKPIValue(r,c)===null?'\nMeasurement unavailable for this image; inspect manually.':''));}
          node.setToolTip(0,'Field-only rank: 1 = worst Score. Includes the master; independent of table filters. Field-only Score: '+sqrFmt(r.scoreWithoutCorners));
          node.setToolTip(1,Number.isFinite(r.rankWithCorners)?'Rank including corner FWHM and eccentricity: 1 = worst Score. Includes the master; computed from available measurements. Score: '+sqrFmt(r.scoreWithCorners):'Requires valid field, center and all four corner measurements including corner eccentricity, and a positive enabled weight.');
-         node.setToolTip(2,Number.isFinite(r.rankCorrelated)?'Correlation rank: 1 = worst Score. Higher Score is better. Score: '+sqrFmt(r.scoreCorrelated)+'\n'+correlationReport:'Measure this image to calculate its correlation rank.');
+         node.setToolTip(2,Number.isFinite(r.rankCorrelated)?'Correlation rank: 1 = worst Score. Higher Score is better. Score: '+sqrFmt(r.scoreCorrelated)+'\n'+correlationReport:g.correlationScoring?.available===false?correlationReport:'R3 unavailable for this image; check the field and selected KPI measurements.\n'+correlationReport);
          node.setToolTip(3,r.rankOfRanksDetail||'Measure this image to calculate R4 from its available ranks.');
          node.setToolTip(4,r.isMaster?'The master cannot be rejected.':r.moved?'Original moved to: '+r.movedTo+'\nSelect this row, then click Undo moved originals beside the green checkmark to restore it.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
          node.setToolTip(5,sqrReviewToolTip(r,g,this.session.options));
@@ -3276,7 +3287,7 @@ class SQRDialog extends Dialog {
       let data=this.histogramData=sqrMetricPlot(g,kpi,this.useCornerMeasurements,this.current,this.histogramOrder.currentItem===1?'time':'value',this.autofocusRuns||[],sqrGuidingScale(scale),fwhmModel,skyModel);
       if(kpi.key==='score')data.scoreDefinition=options.rankOfRanks?
          'Score is the equal-weight mean of the available normalized R1, R2 and R3 ranks. Each rank is normalized as (rank − 1) / (ranked images − 1); a single ranked image uses 0.5. R2 is omitted when corner scoring is off or unavailable.':
-         'Score = 1 − weighted mean penalty / 10. '+(options.correlationOnly?'The selected strongly correlated KPIs receive equal weight.':'The configured KPI weights are used.')+' A value of 1.000 means no measured penalty.';
+         'Score = 1 − weighted mean penalty / 10. '+(options.correlationOnly&&g?.correlationScoring?.available!==false?'The selected strongly correlated KPIs receive equal weight.':'The configured manual KPI weights are used.'+(options.correlationOnly?' No strongly correlated KPIs; R3 is unavailable.':''))+' A value of 1.000 means no measured penalty.';
       let info=this.plotInformation=sqrPlotInformation(data);this.plotInfoButton.visible=!!info;this.plotInfoButton.enabled=!this.running&&!!info;
       this.plotInfoButton.toolTip=info?'Histogram information':'';
       this.bortleControls.visible=kpi.key==='skyBackground'&&this.sqm.value===0;

@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.39.20.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.39.23.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -101,7 +101,7 @@ The script calls PixInsight's SubframeSelector process to measure the registered
 
 Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.
 
-Field measurements for all groups and masters are submitted together to SubframeSelector. Optional center and corner crops are submitted in a second batch. SubframeSelector manages processing concurrency using its normal defaults, as in WBPP; the script does not impose a fixed number of frames per batch.
+Field measurements cover all groups and their matched masters. Optional center and corner measurements follow, with parallel processing adapted to your computer's available memory and PixInsight processing limits. Existing field measurements are reused when adding corners.
 
 After you click the magnifier, the script checks the common usable field, measures missing field results and any enabled missing regions, and updates the scores. For sky calibration, an SQM reading uses the measured frame nearest its reading time. Without SQM, a selected Bortle class uses Gaia photometry on the best default-scoring frame. Gaia sky-coordinate repair, when needed, can make this last step take longer. The console shows progress. Repeating measurement in the same open review reuses unchanged results and sky calibration. Opening the Blink tab loads the image preview when needed.
 
@@ -147,19 +147,21 @@ For example, a subframe worse than the mean in three of four assessed indicators
 
 Score = 1 − sum(weight × penalty) / (10 × sum of weights). Only available components enter the sums. A Score of 1.000 means no measured penalty; 0.000 means the weighted mean penalty reaches its limit of 10. Score describes relative quality within its group, not a probability or an absolute image-quality rating. Rankings use full precision, so values that display identically can have different ranks.
 
-The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. Disabling an underlying component by giving it zero weight also excludes it from the Below-mean Quality comparison. Corner quality counts as one indicator when corner scoring is enabled and weighted.
+The arithmetic means used for Below-mean Quality include supported subframes in the group, including manually rejected subframes, and exclude the master. The saved manual weights determine which underlying indicators participate: a zero weight excludes an indicator from this comparison. Corner quality counts as one indicator when corner scoring is enabled and weighted. Selecting R3 or R4 changes the active Score without changing Below-mean Quality, its completeness indicator, or its correlation. Changing the manual KPI selection or the corner/guiding settings can change this composite.
 
 Unavailable indicators are not treated as good measurements. An incomplete Below-mean Quality percentage is marked with an asterisk; its tooltip gives the assessed and enabled counts. A partial Score may still be displayed, but missing required data triggers REVIEW, and R1 and R2 are withheld when their required measurements are unavailable. A partial R3 remains available when the field measurement is valid; inspect its missing-data flags.
 
-R3 is calculated whenever field measurements are available. Enable Use R3: strongly correlated KPIs to use its score as the active Score. It selects indicators automatically for each group when their absolute Pearson correlation with PSF signal weight is at least 0.7, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.
+R3 is calculated when field measurements are available and at least one KPI qualifies. Enable Use R3: strongly correlated KPIs to use its score as the active Score. It selects indicators automatically for each group when their absolute Pearson correlation with PSF signal weight is at least 0.7, accepting both positive and negative relationships. It requires at least three paired subframes with varying measurements. The master is excluded; manually rejected subframes remain included. Strong correlation describes association, not the cause of poor quality, and can be unstable in small groups.
 
-PSF signal weight remains the anchor. Each other selected component has weight 1; excluded components have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates when Include corner measurements (R2) is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.
+PSF signal weight is the correlation reference only. It is excluded from R3 selection and contributes no direct weight to R3; self-correlation is not used as selection evidence. Each qualifying indicator has weight 1; excluded indicators have weight 0. Manual weight values are retained, including any zeros, and restored when the option is disabled. Corner quality participates when Include corner measurements (R2) is enabled; guiding also requires logs and a guiding mode other than Ignore. The selected guiding mode still controls missing-data handling when guiding is included.
 
 With Include corner measurements (R2) enabled, the FWHM and eccentricity of each of the four corners are also tested separately against PSF signal weight. Each of these eight indicators is included with weight 1 when its absolute correlation reaches 0.7 with at least three valid paired subframes. The Corner quality composite remains a separate candidate. A corner FWHM can qualify even if eccentricity or another corner is unavailable. Center FWHM contributes through the composite's corner-to-center ratios; it is not a separate scoring candidate.
 
-Each selected corner indicator contributes its own penalty and enters the Below-mean Quality comparison. Larger FWHM and eccentricity are worse, regardless of the correlation's sign. Several qualifying corner indicators therefore give corner performance more combined influence. Disabling correlation scoring restores the manual weights and the single Corner quality contribution.
+Each selected corner indicator contributes its own penalty to R3. Larger FWHM and eccentricity are worse, regardless of the correlation's sign. Several qualifying corner indicators therefore give corner performance more combined influence. The Below-mean Quality composite retains its manual indicator selection; qualifying individual corner indicators do not redefine it. Disabling correlation scoring restores the manual weights and the single Corner quality contribution.
 
-Below-mean Quality is first recalculated from the selected underlying indicators, then included only if its own correlation passes the threshold. Score itself is never a selection candidate. If no other indicator qualifies, Score uses PSF signal weight alone. The R3 KPIs are listed in the bottom message area on every tab. Hover over that report or R3 for each correlation, sample count, and exclusion reason. Changing this option reuses existing measurements.
+R3 assesses the same Below-mean Quality values shown in the Review table and correlation plot, and includes this composite only if its own correlation passes the threshold. Score itself is never a selection candidate. If no KPI qualifies, the script reports No strongly correlated KPIs and leaves the R3 score and rank unavailable. With Use R3 enabled, Score retains the manual evaluation, including its weights, review reasons, and ranking. The weight controls show those retained manual values. R4 omits the unavailable R3 rank. This behavior is determined separately for each filter group.
+
+The qualifying R3 KPIs are listed in the bottom message area on every tab. Hover over that report or R3 for each correlation, sample count, and exclusion reason. Changing this option reuses existing measurements.
 
 Clicking Measure corners afterwards measures missing regions and recalculates the selection for every group. When corner scoring is enabled, Corner quality and the eight individual corner indicators are included only when each meets the strong-correlation threshold. Turning corner scoring off excludes them and recalculates the selection using the field-only indicators. Clearing measurements also removes their scoring contributions until they are measured again.
 
@@ -190,7 +192,7 @@ To use this method, enable Use R4: rank of ranks in Score selection. The Score c
 
 Select R4: rank of ranks in Sort by to order the table by R4, independently of the active Score mode. Hover over an R4 value to see the contributing ranks, their population sizes, normalized values, and any omissions. R4 includes the comparison master, uses all ranked images in the group regardless of the table filter, and resolves equal scores by filename.
 
-Manual weights remain editable in rank-of-ranks mode because they determine R1 and R2. R3 uses its independently selected, equally weighted indicators. The displayed Below-mean Quality describes the manual R1/R2 comparison in this mode; R3 assesses its selected indicators separately. The Main issue and Score tooltip identify the ranks that most reduce the combined score.
+Manual weights remain editable in rank-of-ranks mode because they determine R1 and R2. R3 uses its independently selected, equally weighted indicators. Below-mean Quality has the same definition in every scoring mode. The Main issue and Score tooltip identify the ranks that most reduce the combined score.
 }
 
 \section{Review and measurements}{
@@ -204,7 +206,7 @@ Hover over the selected-image assessment for the full explanation, or over its m
    {{Column} {Meaning}}
    {{R1} {Rank using the manual weights for field quality and its Below-mean Quality contribution, without corners. Rank 1 is worst.}}
    {{R2} {Rank using the manual weights for field and corner quality, including the corresponding Below-mean Quality contribution. Requires complete regional measurements. Rank 1 is worst.}}
-   {{R3} {Rank using equally weighted, strongly correlated indicators. Calculated whenever field measurements are available, independently of the selected scoring mode. Rank 1 is worst.}}
+   {{R3} {Rank using equally weighted, strongly correlated indicators other than PSF signal weight. Available when field measurements exist and at least one KPI qualifies, independently of the selected scoring mode. Rank 1 is worst.}}
    {{R4} {Rank of ranks, based on the equal-weight average of the normalized available R1, R2, and R3 ranks. R2 is omitted while corner scoring is off. Rank 1 is worst.}}
    {{Reject} {Your manual rejection choice. Clicking this column toggles the choice for an eligible original.}}
    {{Review} {REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data. Hover over REVIEW to see the reasons for that image.}}

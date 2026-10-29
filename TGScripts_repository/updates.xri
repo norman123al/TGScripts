@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="f8157f6977edcad2ff1bd73e87cf00ab8e9dcb87" type="script" releaseDate="20261027">
+      <package fileName="TGScripts_repository.tar.gz" sha1="622bdd12054a8f9302f6843ebe030c98a2118213" type="script" releaseDate="20261029">
          <title>
-            TGScripts snapshot - 2026 Okt 27
+            TGScripts snapshot - 2026 Okt 29
          </title>
          <remove>
             src/scripts/TGScripts
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Faster corner measurements with CPU- and memory-adaptive processing. Correlation values now display four decimal places, with full precision available in tooltips.
+               SubframeQualityReview: Improved R3 selection and manual-score fallback, stabilized Below-mean Quality across scoring modes, and accelerated corner measurements with adaptive parallelism. Measurement results and UI layout remain unchanged.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-27T07:14:50.108Z" encoding="Base64">/mJEls2Hz6SkYjdk5QQP7fbm+H4WqPf7FXNhSV8U2EQ8Tog5ohD0dHquh1IzBJ+sJP9zVyJ2ZlI05jqoUifPCA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-29T07:30:59.044Z" encoding="Base64">TDOZDbdwpXbOq7dIXaz9m+C16lepGN3YdoZzbnRV+iPa4b7vahROS5vG+mp5u56Z08BBJGHeHeOitCfXNnIIAw==</Signature>
