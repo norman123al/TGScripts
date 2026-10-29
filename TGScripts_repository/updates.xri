@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="622bdd12054a8f9302f6843ebe030c98a2118213" type="script" releaseDate="20261029">
+      <package fileName="TGScripts_repository.tar.gz" sha1="7a236735f20dbe3a68e99be7983d2a66d5c92c98" type="script" releaseDate="20261029">
          <title>
             TGScripts snapshot - 2026 Okt 29
          </title>
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Improved R3 selection and manual-score fallback, stabilized Below-mean Quality across scoring modes, and accelerated corner measurements with adaptive parallelism. Measurement results and UI layout remain unchanged.
+               SubframeQualityReview: Select one sky KPI for scoring, defaulting to Sky quality. Exclude masters from Score and R1–R4 while retaining comparison measurements. Shorten sky labels and align the compact selector with the weight controls.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-29T07:30:59.044Z" encoding="Base64">TDOZDbdwpXbOq7dIXaz9m+C16lepGN3YdoZzbnRV+iPa4b7vahROS5vG+mp5u56Z08BBJGHeHeOitCfXNnIIAw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-29T16:06:23.026Z" encoding="Base64">EnG60jX0vvFScF0qEVM6bs/gyo6Z9Z3YCVVb0sZui/IhhcLP2URvfWrSVd8SUq20Cm4zndpe86kvgdyiUd4fAg==</Signature>
