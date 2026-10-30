@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="7a236735f20dbe3a68e99be7983d2a66d5c92c98" type="script" releaseDate="20261029">
+      <package fileName="TGScripts_repository.tar.gz" sha1="be70f35d48b53dd1acd3df5707d0a89f8e13c682" type="script" releaseDate="20261030">
          <title>
-            TGScripts snapshot - 2026 Okt 29
+            TGScripts snapshot - 2026 Okt 30
          </title>
          <remove>
             src/scripts/TGScripts
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Select one sky KPI for scoring, defaulting to Sky quality. Exclude masters from Score and R1–R4 while retaining comparison measurements. Shorten sky labels and align the compact selector with the weight controls.
+               SubframeQualityReview: update singature file
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-29T16:06:23.026Z" encoding="Base64">EnG60jX0vvFScF0qEVM6bs/gyo6Z9Z3YCVVb0sZui/IhhcLP2URvfWrSVd8SUq20Cm4zndpe86kvgdyiUd4fAg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T07:58:41.969Z" encoding="Base64">gDG4b0+Je1CWekJGDUl8AD7urt7V4YzmzdE86SYSLAcZ2W/7ssv9swzB+jrJuSPiasS+xpSx78hW2XYv7wnAAQ==</Signature>
