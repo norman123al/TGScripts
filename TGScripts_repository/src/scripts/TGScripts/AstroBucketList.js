@@ -4,7 +4,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.12.0 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.12.1 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Files are saved only on an explicit Save / Export command.
  */
@@ -12,7 +12,7 @@
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.12.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.12.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -23,7 +23,7 @@ var ABL_CONSTELLATIONS = {
   "Ara": "Ara",
   "Ari": "Aries",
   "Aur": "Auriga",
-  "Boo": "BoÃ¶tes",
+  "Boo": "Bo\u00f6tes",
   "CMa": "Canis Major",
   "CMi": "Canis Minor",
   "CVn": "Canes Venatici",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.12.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.12.1 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This file has no GUI or filesystem dependencies; used by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.12.0', EXT = '_astroBucketList';
+   const VERSION = '0.12.1', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -598,6 +598,10 @@ var ABL = (function () {
    }
    function normalizeConstellation(s) {
       s=text(s).trim();
+      // Recognize decomposed accents, plain ASCII and the formerly misencoded
+      // label explicitly: host string extensions can differ from ECMAScript
+      // Unicode normalization. Displays always use the canonical name above.
+      if(/^bo(?:o\u0308?|\u00c3\u00b6)tes$/i.test(s))return 'Boo';
       return Object.keys(ABL_CONSTELLATIONS).find(k=>k.toLowerCase()===s.toLowerCase()||ABL_CONSTELLATIONS[k].toLowerCase()===s.toLowerCase())||'';
    }
    function monthKey(code,ra) {return code==='Ser'?(Number.isFinite(ra)&&ra>=255?'SerCau':'SerCap'):code;}
@@ -961,7 +965,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.12.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.12.1 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -970,7 +974,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.12.0"
+#define VERSION "0.12.1"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1216,7 +1220,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.12.0';
+const ABL_VERSION='0.12.1';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];

@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{AstroBucketList}
 \keywords{astronomy, imaging, bucket list, Stellarium, observing lists, constellation, SIMBAD, finder chart, DSS}
-\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.12.0.}
+\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.12.1.}
 
 \description{
 Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.5 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
@@ -49,6 +49,8 @@ If the file has moved, been renamed or cannot be read, the manager reports the p
 }
 
 \section{Constellations and planning months}{
+Constellation names use their Unicode spelling, including Boötes, throughout the table, filters, configuration and charts. Imported constellation names may use the IAU code, the full name or the spelling Bootes.
+
 For objects with coordinates, the constellation is calculated from the IAU boundary table of Roman (1987), after mean-equatorial precession from J2000 to B1875. This calculation works offline. For an imported object without coordinates, a recognized imported constellation is used until coordinates become available. An object without either is shown as unassigned and remains editable.
 
 Click the Configuration gear button in the lower-right corner to assign a planning month to each constellation. Initial assignments are provided for some constellations; others are unassigned until you choose a month. Serpens Caput and Serpens Cauda are separate planning entries. The mapping is saved with the collection and applies to every list in it.

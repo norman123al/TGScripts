@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="b5816a571d3b19cbd710a730e4ab0eefc88b498d" type="script" releaseDate="20261031">
+      <package fileName="TGScripts_repository.tar.gz" sha1="55e8eaf0fc1befee0f3eb4e8851da70ce103363b" type="script" releaseDate="20261031">
          <title>
             TGScripts snapshot - 2026 Okt 31
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Astro Bucket List 0.12.0 adds batch checking of selected objects, two-level sorting, and a Reset filters action. Finder charts now show optional constellation borders and provide individual catalog controls with explicit NGC/IC magnitude limits. Preview access is simplified through the existing tabs. Documentation has been updated.
+               Astro Bucket List 0.12.1 corrects the display of Boötes throughout the interface and both finder-chart styles. Constellation imports also recognize ASCII, decomposed Unicode and legacy spellings. Documentation has been updated.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T23:18:48.411Z" encoding="Base64">Ef1abe6XxxpRWjD81WusYgN1Wz3GN/d9bRvWGpp4WA18Ia+DRMp5E2S5eIILjmTObdA0/6tbEUMhWLbtXLywBA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T23:38:28.251Z" encoding="Base64">16Iuhe6HPeZgReju1w4ezK0cHJqrtJ6fyVos4sF22uALw2Fy7/RRwGv5+A2MomeXN5WzsdBGLIpKAyjpsgBjCA==</Signature>

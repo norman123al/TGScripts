@@ -1,4 +1,4 @@
-Astro Bucket List 0.12.0
+Astro Bucket List 0.12.1
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
