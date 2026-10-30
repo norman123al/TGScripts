@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="111fb4040653a61ba72d87377aa2f164a0b23866" type="script" releaseDate="20261030">
+      <package fileName="TGScripts_repository.tar.gz" sha1="863b29b5a26e840ad9911ca6c683b0fd4ca4c72b" type="script" releaseDate="20261030">
          <title>
             TGScripts snapshot - 2026 Okt 30
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               New script: Astro Bucket List 0.8.0. Organize imaging targets by constellation and month, exchange Stellarium object lists, retrieve catalog information, and track imaging status and dates. Includes editable object details, selective export, and integrated finder-chart and DSS survey tabs. Finder charts support configured local star catalogs; oversized DSS targets automatically use the maximum survey field. PiDoc documentation is included.
+               AberrationInspectorTG 2.2.0 introduces a refreshed interface. Open the script first, then select or load an image or preview. Apply repeatedly without closing the dialog, reset settings, and save reusable process instances. The output summary shows effective panel dimensions after automatic fitting. Includes updated documentation and a new interface screenshot.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T08:59:21.605Z" encoding="Base64">aNXjZdn4qsEur3jBXvUZ6J/JTrNgPDXO3N80ynKEkUo3ae5Ps1/2j7EMz+ziTsx7vuQMUVMAKmBLqtz7TKvtBg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T09:44:33.767Z" encoding="Base64">+C5dLJdpJA++qZXKluVunawiqiA5auz5ywIb90HpjlJH6fh9cwXf33ideV5kQLyw3JFUtKp4XtE0LVnHctOoBA==</Signature>

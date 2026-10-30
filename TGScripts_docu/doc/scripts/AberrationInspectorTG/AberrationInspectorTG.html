@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | AberrationInspectorTG</title>
-   <meta name="keywords" content="script development, Mike Schuster" />
+   <meta name="keywords" content="optical aberrations, mosaic, image inspection, TGScripts, Mike Schuster" />
    <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script for inspecting the corners and the center of an image." />
+   <meta name="description" content="Inspect optical aberrations with a grid of image panels. User guide for version 2.2.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -29,10 +29,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script for inspecting the corners and the center of an image. <a href="#__contents__">[more]</a></p></div>
+<p>Inspect optical aberrations with a grid of image panels. User guide for version 2.2.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> script development, Mike Schuster</p>
+<p><strong>Keywords:</strong> optical aberrations, mosaic, image inspection, TGScripts, Mike Schuster</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,7 +40,12 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface__">2&emsp;Interface</a></li>
+<li class="pidoc_tocItem"><a href="#__Start_and_apply__">3&emsp;Start and apply</a></li>
+<li class="pidoc_tocItem"><a href="#__Action_toolbar__">4&emsp;Action toolbar</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">5&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Output_dimensions_and_messages__">6&emsp;Output dimensions and messages</a></li>
+<li class="pidoc_tocItem"><a href="#__Credits__">7&emsp;Credits</a></li>
 </ul>
 </div>
 
@@ -50,78 +55,149 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/AberrationInspectorTG_main_screen.png" alt=""/>
-<p>The AberrationInspector script written by Mike Schuster is a useful tool, however seems not to play well with images produced by modern sensors with huge pixel counts. The maximum panel size could only be set up to 512 px which is quite small if e.g. a 60 MP full frame sensor is used.</p>
-<p>This script allows to choose panel sizes of up to 2048&times;2048 px. In addition the &quot;new instance&quot; button was added which allows to save the script settings in a Pixinsight desktop icon and thus can be used in a process icon workflow.</p>
-<p>Furthermore, some internal code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+<p>AberrationInspectorTG creates a new square mosaic from evenly spaced subsections of an image. The panels span the source from its first to its last row and column, including the corners and edges. Odd grid sizes also include a panel centered on the image.</p>
+<p>Based on AberrationInspector by Mike Schuster, the TGScripts version supports panels up to 2048&times;2048 pixels and reusable process instances. Version 2.2.0 adds the compact interface used by recent TGScripts, image opening from the dialog, and repeated application without closing it.</p>
+<p>PixInsight 1.9.5 or later with the V8 JavaScript runtime is required. See the <a href="#parameter_reference">Parameter Reference</a> for the controls and their ranges.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Interface__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface', this );">[hide]</p>
+   <div id="Interface">
+<p>Target image, Mosaic layout, and Mosaic appearance group the controls. The summary below them reports the output dimensions and effective panel size. The action toolbar is at the bottom.</p>
+<img src="images/AberrationInspectorTG_main_screen.png" alt=""/>
+<p>The screenshot shows the dialog opened before an image is loaded. You can configure the mosaic first, then select or open an image, or save an instance for later use.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Start_and_apply__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Start and apply</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Start_and_apply', this );">[hide]</p>
+   <div id="Start_and_apply">
+<p>Open the installed script from Script &gt; TG Scripts &gt; AberrationInspectorTG. To use a repository copy, choose Script &gt; Execute Script File and open src/scripts/TGScripts/AberrationInspectorTG.js from the TGScripts repository. An open image is not required at startup.</p>
+
+<ol class="pidoc_list">
+<li>Select an open image or preview in <a href="#target_image">Target image</a>, or click Open image to load a file. A newly opened image is selected automatically.</li>
+<li class="pidoc_spaced_list_item">Set <a href="#mosaic_size">Rows and columns</a> and <a href="#panel_size">Panel size (px)</a> under Mosaic layout.</li>
+<li class="pidoc_spaced_list_item">Choose <a href="#separation_size">Separation (px)</a> and <a href="#separation_color">Background brightness</a> under Mosaic appearance. Check the effective panel size in the output summary.</li>
+<li class="pidoc_spaced_list_item">Click Apply, the green check mark, to create the mosaic in a new image window.</li>
+</ol>
+
+<p>The dialog remains open. Adjust settings or select another source and apply again. The selected source is retained when the output becomes the active image. Each application creates a uniquely named mosaic; source pixels, previews and image selections are left unchanged. Grayscale and RGB images retain their channel count and sample depth, and the source display stretch is copied to the output.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Action_toolbar__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Action toolbar</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Action_toolbar', this );">[hide]</p>
+   <div id="Action_toolbar">
+<p>From left to right, the toolbar contains:</p>
+
+<dl class="pidoc_list">
+<dt>
+<p>New Instance (blue triangle)</p>
+</dt>
+<dd>
+<p>Drag to save the four mosaic settings as a process icon. No target is required or stored. Drag the saved instance onto an image or preview to create its mosaic directly. Open it globally to select a target in the dialog. Older instances retain their saved settings; a legacy target identifier is honored if that image is still open. Dropping an instance onto a view always uses the view receiving it.</p>
+</dd>
+<dt>
+<p>Reset (blue reset icon)</p>
+</dt>
+<dd>
+<p>Restore the default 3&times;3 grid, 256-pixel panels, 4-pixel separation and black background. The selected target is retained.</p>
+</dd>
+<dt>
+<p>Apply (green check mark)</p>
+</dt>
+<dd>
+<p>Create a new mosaic from the selected image or preview and keep the dialog open.</p>
+</dd>
+<dt>
+<p>Close (red cross)</p>
+</dt>
+<dd>
+<p>Close the dialog. Images opened or generated by the script remain available in PixInsight.</p>
+</dd>
+<dt>
+<p>Documentation (page icon)</p>
+</dt>
+<dd>
+<p>Open this user guide. A repository copy uses the guide shipped alongside that copy.</p>
+</dd>
+</dl>
+
    </div>
 </div>
 
 <div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
+   <h3 class="pidoc_sectionTitle">5&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
    <div id="Parameter_Reference">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="target_image"></a> Target Image</p>
+<p><a id="target_image"></a> Target image</p>
 </dt>
 <dd>
-<p>The target image control allows to choose a main view of an image as a target for inspection.</p>
+<p>Select an open main view or preview. The active view is selected initially when available. Open image loads an image file and selects its first image. You can launch the script with an empty workspace; applying without a target displays guidance and returns to the dialog.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="mosaic_size"></a> Mosaic Size</p>
+<p><a id="mosaic_size"></a> Rows and columns</p>
 </dt>
 <dd>
-<p>The mosaic size control allows to choose the number of panels to be created in the n&times;n mosaic.</p>
+<p>Number of rows and columns in the square mosaic, from 2 to 9. The default is 3, producing nine panels. A 2&times;2 mosaic samples the four corners; a 3&times;3 mosaic also samples the middle of each edge and the center.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="panel_size"></a> Panel Size</p>
+<p><a id="panel_size"></a> Panel size (px)</p>
 </dt>
 <dd>
-<p>The panel size control specifies the width and heigth of a panel in pixels.</p>
+<p>Requested width and height of each square panel, from 16 to 2048 pixels. The default is 256. The effective size is automatically reduced, if necessary, to the smaller of the requested size, source width divided by the grid size, and source height divided by the grid size, rounding down to whole pixels. The summary displays the effective size; the requested value remains available for subsequent images.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="separation_size"></a> Separation Size</p>
+<p><a id="separation_size"></a> Separation (px)</p>
 </dt>
 <dd>
-<p>The separation size control specifies distance bewteen the panels in pixels.</p>
+<p>Gap between neighboring panels, from 0 to 16 pixels. The default is 4. A value of zero joins panels without a gap. There is no outer border.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="separation_color"></a> Separation Color</p>
+<p><a id="separation_color"></a> Background brightness</p>
 </dt>
 <dd>
-<p>The separation color control allows to alter the color of the separation pixels.</p>
+<p>Brightness of the gaps, from 0 (black) to 1 (white). The default is 0. It has no visible effect when Separation is zero and never changes source pixel values.</p>
 </dd>
 </dl>
 
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Output_dimensions_and_messages__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Output dimensions and messages</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Output_dimensions_and_messages', this );">[hide]</p>
+   <div id="Output_dimensions_and_messages">
+<p>The square output has a side length equal to the number of rows multiplied by the effective panel size, plus one separation for each gap between rows. For example, the default 3&times;3 grid with 256-pixel panels and 4-pixel gaps creates a 776&times;776-pixel mosaic when the source is at least 768&times;768 pixels.</p>
+<p>Smaller sources reduce the panel size automatically. For a 600&times;450-pixel source with the same settings, the panels become 150&times;150 pixels and the output is 458&times;458 pixels. The summary indicates when this reduction occurs. With no target selected, the summary shows the requested output size.</p>
+<p>Every effective panel must be at least 16 pixels wide and high. A 3&times;3 grid therefore needs a source of at least 48&times;48 pixels. If the source is too small, select a larger image or reduce Rows and columns. Invalid targets and files that cannot be opened produce a message and leave the dialog available.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Credits__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Credits</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Credits', this );">[hide]</p>
+   <div id="Credits">
+<p>Original AberrationInspector script by Mike Schuster, copyright 2012-2015. TGScripts modifications by Thorsten Glebe. The source file retains the original license and copyright notices.</p>
+<p>This product is based on software from the PixInsight project, developed by Pleiades Astrophoto and its contributors (http://pixinsight.com/).</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2022-2026 Dr. Thorsten Glebe. Original script copyright 2012-2015 Mike Schuster.</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 21:55:22 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 09:19:03 UTC</p>
 </div>
 <br/>
 <br/>
