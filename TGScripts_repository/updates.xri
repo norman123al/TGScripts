@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="3a60a3af8983e5f5738d4a0d5b03c657d72086cd" type="script" releaseDate="20261030">
+      <package fileName="TGScripts_repository.tar.gz" sha1="1e5cd2d3962c15bc0799d4951864476f7f289bdc" type="script" releaseDate="20261030">
          <title>
             TGScripts snapshot - 2026 Okt 30
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Fix a PixInsight crash when closing LocalSupportMask or TGScriptSkeleton with an empty preview. The shared preview control now reliably finishes drawing operations, including when drawing fails. Script interfaces and image-processing behavior remain unchanged.
+               Update script signature files.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T10:46:27.152Z" encoding="Base64">9QDXtju4K/0JLSHZvVygG8ZPwmKDbopSirjKNOQb8Cs+jBbVrzgqJQ20LboJDELCxNPROunw8rmtoxTHN339Dw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T10:53:32.898Z" encoding="Base64">S8XRTgMgzjQioTq2a3RmCxxDFlBzlHjFZlzVqtGTA5HCuWJvU3jwyLY6KTTdWit4bfoXboE0WmdimKCyfMbeBw==</Signature>
