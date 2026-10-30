@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="736b193c550353750bfe3a47eb3963b2b0dad4f9" type="script" releaseDate="20261030">
+      <package fileName="TGScripts_repository.tar.gz" sha1="9db401529de2076ed3988f84d9b7a825919541d1" type="script" releaseDate="20261030">
          <title>
             TGScripts snapshot - 2026 Okt 30
          </title>
@@ -34,7 +34,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: update singature file
+               AberrationSpotterTG 2.2.0 introduces a refreshed interface. Open the script first, then select or load an image and apply your settings. Saved process instances now apply directly to target images. Includes panel-size validation, corrected corner boundaries, and updated documentation with a new screenshot.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -43,4 +43,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T08:07:23.627Z" encoding="Base64">zfBpfq0uAXhF2iZqswKzc3kSP0ctU1+hbrDYaAPmVS5BWc6b0CztDW99hytIbwAcKKOl7TzJ26nILedFf70QCg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T08:43:14.815Z" encoding="Base64">e0J/IZytQHz78iZcX82qh41l2zadrn2eAcK643bwF9tmKRjcKLeVIYeU7OQT+irSPpLk3LGO7I8Q1/Gs8bReCg==</Signature>

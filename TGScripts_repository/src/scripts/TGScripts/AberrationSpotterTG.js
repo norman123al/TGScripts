@@ -1,7 +1,7 @@
 #engine v8
 // V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
-   AberrationSpotter.js v0.3
+   AberrationSpotterTG.js v2.2.0 (based on AberrationSpotter.js v0.3)
 
    Groups the corners of an image into a new one
 
@@ -33,7 +33,8 @@
    3. removed "delete settings" functionality (replaced by "new instance" functionality)
 */
 
-#define VERSION         "2.1"
+// 2.2.0: TGScripts dialog, target selection and file opening, and view-target instances.
+#define VERSION         "2.2.0"
 
 CoreApplication.ensureMinimumVersion(1, 9, 5);
 #define SURNAME         "_corners"
@@ -145,11 +146,11 @@ function AS_engine()
         // source points
         this.points = new Array;
         this.points[preview_ids[0]] = new Point (0, 0);
-        this.points[preview_ids[1]] = new Point (img.width - user_data.hsize - 1, 0);
-        this.points[preview_ids[2]] = new Point (0, img.height - user_data.vsize - 1);
+        this.points[preview_ids[1]] = new Point (img.width - user_data.hsize, 0);
+        this.points[preview_ids[2]] = new Point (0, img.height - user_data.vsize);
         this.points[preview_ids[3]] = new Point (
-            img.width  - user_data.hsize - 1,
-            img.height - user_data.vsize - 1
+            img.width  - user_data.hsize,
+            img.height - user_data.vsize
         );
         if (user_data.show_center) {
             this.points[preview_ids[4]] = new Point (
@@ -268,196 +269,249 @@ function AS_engine()
         this._destroy_all();
     }
 }
-var engine = new AS_engine;
+// Match the compact native controls used by recent TGScripts dialogs.
+const AS_SCRIPT_FILE = #__FILE__;
+
+function AS_group(parent, title)
+{
+    var group = new GroupBox(parent);
+    group.title = title;
+    group.sizer = new VerticalSizer;
+    group.sizer.margin = 10;
+    group.sizer.spacing = 8;
+    return group;
+}
+
+function AS_tool(parent, resource, tip, handler)
+{
+    var button = new ToolButton(parent);
+    button.icon = parent.scaledResource(resource);
+    button.setScaledFixedSize(24, 24);
+    button.toolTip = tip;
+    button.onClick = handler;
+    return button;
+}
+
+function AS_showDocumentation()
+{
+    var relative = "/scripts/AberrationSpotterTG/AberrationSpotterTG.html";
+    var dir = AS_SCRIPT_FILE.replace(/\\/g, "/").replace(/\/[^/]+$/, "");
+    var candidates = [CoreApplication.docDirPath + relative,
+        File.fullPath(dir + "/../../../doc" + relative),
+        dir + "/doc" + relative, dir + "/AberrationSpotterTG.html"];
+    for (var i = 0; i < candidates.length; ++i)
+        if (File.exists(candidates[i]))
+        {
+            Dialog.openBrowser(candidates[i], TITLE + " — User Guide");
+            return;
+        }
+    (new MessageBox("The AberrationSpotterTG user guide is missing. Check that the TGScripts installation includes its documentation.",
+                    TITLE, StdIcon.Warning, StdButton.Ok)).execute();
+}
+
+function AS_run(target)
+{
+    if (target == null || target.isNull)
+        throw Error("Select a target image or click Open image first.");
+    var image = target.mainView.image;
+    if (user_data.hsize > image.width || user_data.vsize > image.height)
+        throw Error("The panel size exceeds the target image dimensions (" + image.width + " × " + image.height + " pixels). Reduce the panel width or height.");
+    var worker = new AS_engine;
+    worker.set_win(target);
+    worker.work();
+}
 
 var AS_dialog = class extends Dialog
 {
-   constructor()
-   {
-      super();
-      AS_dialog_initialize.call(this);
-   }
+    constructor()
+    {
+        super();
+        this.windowTitle = TITLE + " " + VERSION;
+        this.setScaledMinWidth(620);
+
+        this.intro = new Label(this);
+        this.intro.wordWrapping = true;
+        this.intro.text = "Inspect the four corners of an image in a compact montage, with an optional center panel.";
+
+        this.targetGroup = AS_group(this, "Target image");
+        this.target_ViewList = new ViewList(this.targetGroup);
+        this.target_ViewList.getMainViews();
+        this.target_ViewList.toolTip = "Select the open image to inspect. You can also open a file after launching the script.";
+        this.target_ViewList.onViewSelected = view => this.selectTarget(view.isNull ? null : view.window);
+        this.openImage_Button = new PushButton(this.targetGroup);
+        this.openImage_Button.text = "Open image…";
+        this.openImage_Button.onClick = () => this.openImage();
+        this.openImage_Button.toolTip = "Open an image file and select it as the target.";
+        var targetRow = new HorizontalSizer;
+        targetRow.spacing = 8;
+        targetRow.add(this.target_ViewList, 100);
+        targetRow.add(this.openImage_Button);
+        this.targetInfo = new Label(this.targetGroup);
+        this.targetInfo.wordWrapping = true;
+        this.targetInfo.minHeight = this.font.height;
+        this.targetGroup.sizer.add(targetRow);
+        this.targetGroup.sizer.add(this.targetInfo);
+
+        this.panelGroup = AS_group(this, "Panel size");
+        this.hsize_NC = this.number(this.panelGroup, "Width (px):", user_data.hsize, 2, MAX_PANEL_SIZE, 0,
+            "Width of each corner and center panel in pixels.", value => { user_data.hsize = value; this.updateStatus(); });
+        this.vsize_NC = this.number(this.panelGroup, "Height (px):", user_data.vsize, 2, MAX_PANEL_SIZE, 0,
+            "Height of each corner and center panel in pixels.", value => { user_data.vsize = value; this.updateStatus(); });
+        this.panelGroup.sizer.add(this.hsize_NC);
+        this.panelGroup.sizer.add(this.vsize_NC);
+
+        this.montageGroup = AS_group(this, "Montage appearance");
+        this.sc_CB = new CheckBox(this.montageGroup);
+        this.sc_CB.text = "Show center panel";
+        this.sc_CB.checked = user_data.show_center;
+        this.sc_CB.toolTip = "Overlay a center panel at the center of the four corners. Without it, the corners have a one-pixel gap.";
+        this.sc_CB.onCheck = checked => {
+            user_data.show_center = checked;
+            this.sep_NC.enabled = checked;
+            this.updateStatus();
+        };
+        this.sep_NC = this.number(this.montageGroup, "Separation (%):", user_data.sep, 0, 100, 0,
+            "Gap between the corner panels, as a percentage of the smaller panel dimension. Used when the center panel is shown.",
+            value => { user_data.sep = value; this.updateStatus(); });
+        this.sep_NC.enabled = user_data.show_center;
+        this.bc_NC = this.number(this.montageGroup, "Background brightness:", user_data.bgcolor, 0, 1, 2,
+            "Brightness of the gaps and center border: 0 is black and 1 is white.", value => { user_data.bgcolor = value; });
+        this.montageGroup.sizer.add(this.sc_CB);
+        this.montageGroup.sizer.add(this.sep_NC);
+        this.montageGroup.sizer.add(this.bc_NC);
+
+        this.status = new Label(this);
+        this.status.wordWrapping = true;
+        this.status.minHeight = 2 * this.font.height;
+        this.instanceButton = AS_tool(this, ":/process-interface/new-instance.png",
+            "Drag to save the panel settings as a process icon. Apply the icon to an image later. A target is not required.", () => {});
+        this.instanceButton.onMousePress = () => { Parameters.clear(); user_data.exportParameters(); this.newInstance(); };
+        this.resetButton = AS_tool(this, ":/process-interface/reset.png",
+            "Reset panel and appearance settings. The selected target is retained.", () => this.resetSettings());
+        this.applyButton = AS_tool(this, ":/process-interface/execute.png",
+            "Apply to the selected image. Create a corner montage and keep this dialog open.", () => this.applyTarget());
+        this.closeButton = AS_tool(this, ":/process-interface/cancel.png", "Close AberrationSpotterTG.", () => this.cancel());
+        this.helpButton = AS_tool(this, ":/process-interface/browse-documentation.png", "Open the PiDoc user guide.", AS_showDocumentation);
+        var actions = new HorizontalSizer;
+        actions.spacing = 8;
+        actions.add(this.instanceButton);
+        actions.add(this.resetButton);
+        actions.addStretch();
+        actions.add(this.applyButton);
+        actions.add(this.closeButton);
+        actions.add(this.helpButton);
+
+        this.sizer = new VerticalSizer;
+        this.sizer.margin = 10;
+        this.sizer.spacing = 8;
+        this.sizer.add(this.intro);
+        this.sizer.add(this.targetGroup);
+        this.sizer.add(this.panelGroup);
+        this.sizer.add(this.montageGroup);
+        this.sizer.add(this.status);
+        this.sizer.add(actions);
+        this.selectTarget(ImageWindow.activeWindow);
+        this.adjustToContents();
+        this.setFixedSize();
+    }
+
+    number(parent, label, value, low, high, precision, tip, handler)
+    {
+        var control = new NumericControl(parent);
+        control.label.text = label;
+        control.label.setScaledFixedWidth(160);
+        control.edit.setScaledFixedWidth(70);
+        control.slider.setRange(0, high == MAX_PANEL_SIZE ? MAX_PANEL_SIZE - 2 : 100);
+        control.slider.setScaledMinWidth(220);
+        control.setRange(low, high);
+        control.setPrecision(precision);
+        control.setReal(precision > 0);
+        control.setValue(value);
+        control.toolTip = tip;
+        control.onValueUpdated = handler;
+        return control;
+    }
+
+    selectTarget(target)
+    {
+        this.targetWindow = target != null && !target.isNull ? target : null;
+        if (this.targetWindow != null)
+            this.target_ViewList.currentView = this.targetWindow.mainView;
+        this.updateStatus();
+    }
+
+    updateStatus()
+    {
+        if (!this.status)
+            return;
+        var target = this.targetWindow;
+        if (target == null || target.isNull)
+            this.targetInfo.text = "Select an open image, or use Open image to load a file.";
+        else
+        {
+            var image = target.mainView.image;
+            this.targetInfo.text = image.width + " × " + image.height + " pixels · " +
+                image.numberOfChannels + (image.numberOfChannels == 1 ? " channel" : " channels");
+        }
+        var gap = user_data.show_center ? Math.max(1, Math.floor(Math.min(user_data.hsize, user_data.vsize) * user_data.sep / 100)) : 1;
+        this.status.text = "Output: " + (2 * user_data.hsize + gap) + " × " + (2 * user_data.vsize + gap) +
+            " pixels · four corners" + (user_data.show_center ? " + center" : "") +
+            ".\nApply creates a new image. New Instance saves the settings for later.";
+    }
+
+    openImage()
+    {
+        var chooser = new OpenFileDialog;
+        chooser.caption = "Open target image";
+        chooser.multipleSelections = false;
+        chooser.loadImageFilters();
+        if (!chooser.execute())
+            return;
+        try
+        {
+            var windows = ImageWindow.open(chooser.filePath);
+            if (windows.length == 0)
+                throw Error("The file contains no image.");
+            for (var i = 0; i < windows.length; ++i)
+                windows[i].show();
+            this.target_ViewList.getMainViews();
+            this.selectTarget(windows[0]);
+        }
+        catch (error) { this.showError(error); }
+    }
+
+    applyTarget()
+    {
+        try { AS_run(this.targetWindow); }
+        catch (error) { this.showError(error); }
+    }
+
+    showError(error)
+    {
+        (new MessageBox(String(error.message || error), TITLE, StdIcon.Warning, StdButton.Ok)).execute();
+    }
+
+    resetSettings()
+    {
+        user_data = new AberrationSpotterData;
+        this.hsize_NC.setValue(user_data.hsize);
+        this.vsize_NC.setValue(user_data.vsize);
+        this.sep_NC.setValue(user_data.sep);
+        this.bc_NC.setValue(user_data.bgcolor);
+        this.sc_CB.checked = user_data.show_center;
+        this.sep_NC.enabled = user_data.show_center;
+        this.updateStatus();
+    }
 };
-
-// Keep legacy with-based control setup outside the strict class body.
-function AS_dialog_initialize()
-{
-
-    var labelWidth1 = this.font.width( "Separation between portions (%):" );
-
-    // help label
-    this.helpLabel = new Label (this);
-    with (this.helpLabel)
-    {
-        frameStyle = FrameStyle.Box;
-        margin = this.logicalPixelsToPhysical( 4 );
-        wordWrapping = true;
-        useRichText = true;
-        text = "<p><b>" + TITLE + " v" + VERSION + "</b> &mdash; A " +
-            "script to take the corners of an existing image and putting " +
-            "them in another image. Optionally takes the center too. You " +
-            "can choose the background brightness and the separation of " +
-            "the corners (only if showing the center).</p>" +
-            "<p>Copyright &copy; 2007-2017 David Serrano / 2022 Thorsten Glebe</p>";
-    }
-
-    // horizontal size
-    this.hsize_NC = new NumericControl (this);
-    with (this.hsize_NC)
-    {
-        label.text = "Horizontal size:";
-        label.minWidth = labelWidth1;
-        setRange (2, MAX_PANEL_SIZE);
-        slider.setRange (0, MAX_PANEL_SIZE - 2);
-        slider.scaledMinWidth = 300;
-        setPrecision (0);
-        setValue (user_data.hsize);
-        toolTip = "<p>Horizontal size of each image portion.</p>"
-        onValueUpdated = function (value) { user_data.hsize = value; }
-    }
-
-    // vertical size
-    this.vsize_NC = new NumericControl (this);
-    with (this.vsize_NC)
-    {
-        label.text = "Vertical size:";
-        label.minWidth = labelWidth1;
-        setRange (2, MAX_PANEL_SIZE);
-        slider.setRange (0, MAX_PANEL_SIZE - 2);
-        slider.scaledMinWidth = 300;
-        setPrecision (0);
-        setValue (user_data.vsize);
-        toolTip = "<p>Vertical size of each image portion.</p>"
-        onValueUpdated = function (value) { user_data.vsize = value; }
-    }
-
-    // separation
-    this.sep_NC = new NumericControl (this);
-    with (this.sep_NC)
-    {
-        label.text = "Separation between portions (%):";
-        label.minWidth = labelWidth1;
-        setRange (0, 100);
-        slider.setRange (0, 101);
-        slider.scaledMinWidth = 300;
-        setPrecision (0);
-        setValue (user_data.sep);
-        toolTip = "<p>Portions of the image will be separated this amount. It " +
-            "represents a percentage over the size of each portion. Ignored " +
-            "if we're not showing the center.</p>";
-        enabled = user_data.show_center;
-        onValueUpdated = function (value) { user_data.sep = value; }
-    }
-
-    // background color
-    this.bc_NC = new NumericControl (this);
-    with (this.bc_NC)
-    {
-        label.text = "Background brightness:";
-        label.minWidth = labelWidth1;
-        setRange (0, 1);
-        slider.setRange (0, 101);
-        slider.scaledMinWidth = 300;
-        setPrecision (2);
-        setValue (user_data.bgcolor);
-        toolTip = "<p>Brightness of background. 0 is black and 1 is white.</p>";
-        onValueUpdated = function (value) { user_data.bgcolor = value; }
-    }
-
-    // show center checkbox
-    this.sc_CB = new CheckBox (this);
-    with (this.sc_CB)
-    {
-        text = "Show center";
-        checked = user_data.show_center;
-        toolTip = "<p>Check to show the center portion of the image. The " +
-            "separation is ignored if the center isn't to be shown.</p>";
-        onCheck = function (checked) { user_data.show_center = checked;
-                                       this.parent.sep_NC.enabled = checked; }
-    }
-
-    this.sc_HS = new HorizontalSizer;
-    with ( this.sc_HS )
-    {
-        addSpacing( labelWidth1 + this.logicalPixelsToPhysical( 4 ) );
-        add( this.sc_CB );
-        addStretch();
-    }
-
-    // usual control buttons
-    this.newInstance_Button = new ToolButton(this);
-    with( this.newInstance_Button )
-    {
-       icon = new Bitmap( ":/process-interface/new-instance.png" );
-       toolTip = "New Instance";
-       onMousePress = function()
-       {
-          this.hasFocus = true;
-          user_data.exportParameters();
-          this.pushed = false;
-          this.dialog.newInstance();
-       }
-    }
-
-    this.ok_Button = new PushButton (this);
-    with( this.ok_Button )
-    {
-       text = "OK";
-       onClick = function() { this.dialog.ok(); };
-    }
-
-    this.cancel_Button = new PushButton (this);
-    with( this.cancel_Button )
-    {
-       text = "Cancel";
-       onClick = function() { this.dialog.cancel(); };
-    }
-
-    this.buttons_Sizer = new HorizontalSizer;
-    with( this.buttons_Sizer )
-    {
-       spacing = 6;
-       add(this.newInstance_Button);
-       addStretch();
-       add (this.ok_Button);
-       add (this.cancel_Button);
-    }
-
-    // pack everything
-    this.sizer = new VerticalSizer;
-    with (this.sizer)
-    {
-        margin = 6;
-        spacing = 6;
-        add (this.helpLabel);
-        addSpacing (4);
-        add (this.hsize_NC);
-        add (this.vsize_NC);
-        add (this.sep_NC);
-        add (this.bc_NC);
-        add (this.sc_HS);
-        add (this.buttons_Sizer);
-    }
-
-    this.windowTitle = TITLE + " v" + VERSION;
-    this.adjustToContents();
-    this.setFixedSize();
-}
 
 function main()
 {
-    engine.set_win (ImageWindow.activeWindow);
-
-   if (Parameters.isGlobalTarget || Parameters.isViewTarget) {
-      user_data.importParameters();
-   }
-
-    var dialog = new AS_dialog;   // has to be done after settings are loaded
-    if (!dialog.execute()) {
-        return;
-    }
-
-    engine.work();
+    if (Parameters.isGlobalTarget || Parameters.isViewTarget)
+        user_data.importParameters();
+    if (Parameters.isViewTarget)
+        AS_run(Parameters.targetView.window);
+    else
+        (new AS_dialog).execute();
 }
 
 main();

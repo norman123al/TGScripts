@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | AberrationSpotterTG</title>
-   <meta name="keywords" content="script development, David Serrano" />
+   <meta name="keywords" content="optical aberrations, corner inspection, image montage, TGScripts, David Serrano" />
    <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script for inspecting the corners and the center of an image." />
+   <meta name="description" content="A script for inspecting the corners and the center of an image. User guide for version 2.2.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -29,10 +29,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script for inspecting the corners and the center of an image. <a href="#__contents__">[more]</a></p></div>
+<p>A script for inspecting the corners and the center of an image. User guide for version 2.2.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> script development, David Serrano</p>
+<p><strong>Keywords:</strong> optical aberrations, corner inspection, image montage, TGScripts, David Serrano</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,7 +40,11 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface__">2&emsp;Interface</a></li>
+<li class="pidoc_tocItem"><a href="#__Start_and_apply__">3&emsp;Start and apply</a></li>
+<li class="pidoc_tocItem"><a href="#__Action_toolbar__">4&emsp;Action toolbar</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">5&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Output_dimensions_and_messages__">6&emsp;Output dimensions and messages</a></li>
 </ul>
 </div>
 
@@ -50,15 +54,82 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/AberrationSpotterTG_main_screen.png" alt=""/>
-<p>The AberrationSpotter script written by David Serrano is a useful tool, however seems not to play well with images produced by modern sensors with huge pixel counts. The maximum panel width and height could only be set up to 512 px which is quite small if e.g. a 60 MP full frame sensor is used.</p>
-<p>This script allows to choose panel sizes of up to 2048&times;2048 px. In addition the &quot;new instance&quot; button was added which allows to save the script settings in a Pixinsight desktop icon and thus can be used in a process icon workflow.</p>
-<p>Furthermore, some internal code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+<p>AberrationSpotterTG creates a new image containing the four corners and, optionally, the center of a source image. It is based on the AberrationSpotter script by David Serrano and supports panels up to 2048&times;2048 pixels.</p>
+<p>PixInsight 1.9.5 or later with the V8 JavaScript runtime is required. See the <a href="#parameter_reference">Parameter Reference</a> for details of the controls.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Interface__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface', this );">[hide]</p>
+   <div id="Interface">
+<p>The version 2.2.0 dialog follows the compact native layout of recent TGScripts. Target image, Panel size, and Montage appearance group the controls. The output summary and action toolbar are at the bottom.</p>
+<img src="images/AberrationSpotterTG_main_screen.png" alt=""/>
+<p>The screenshot shows the dialog opened with no image loaded. You can choose or open an image after launching the script, or save the panel settings as a process instance for later use.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Start_and_apply__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Start and apply</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Start_and_apply', this );">[hide]</p>
+   <div id="Start_and_apply">
+<p>Open the installed script from Script &gt; TG Scripts &gt; AberrationSpotterTG. To use a repository copy, choose Script &gt; Execute Script File and open src/scripts/TGScripts/AberrationSpotterTG.js from the TGScripts repository. You can launch it with an empty workspace.</p>
+
+<ol class="pidoc_list">
+<li>Select an existing image under <a href="#target_image">Target image</a>, or click Open image to open a file. The file you open is selected automatically.</li>
+<li class="pidoc_spaced_list_item">Set <a href="#horizontal_size">Width (px)</a> and <a href="#vertical_size">Height (px)</a> in Panel size. Both dimensions must fit within the selected image.</li>
+<li class="pidoc_spaced_list_item">Choose <a href="#show_center">Show center panel</a>, <a href="#separation_size">Separation (%)</a> and <a href="#background_brightness">Background brightness</a> in Montage appearance. Check the output dimensions shown below these controls.</li>
+<li class="pidoc_spaced_list_item">Click Apply, the green check mark at the lower right, to create the montage.</li>
+</ol>
+
+<p>The dialog stays open so that you can adjust settings or select another image and apply again. The selected source is retained even when the new montage becomes the active image. Panels must fit within the source image. Right and bottom corners include the final source column and row. Grayscale and RGB images retain their channel count and sample depth. The source image is not modified.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Action_toolbar__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Action toolbar</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Action_toolbar', this );">[hide]</p>
+   <div id="Action_toolbar">
+<p>From left to right, the toolbar contains:</p>
+
+<dl class="pidoc_list">
+<dt>
+<p>New Instance (blue triangle)</p>
+</dt>
+<dd>
+<p>Drag to save the five panel and appearance settings as a process icon. A target image is not required and is not stored in the instance. Drag the saved instance onto an image to create its montage directly. Opening the instance globally opens the dialog so that you can select a target.</p>
+</dd>
+<dt>
+<p>Reset (blue reset icon)</p>
+</dt>
+<dd>
+<p>Restore the default 500&times;500-pixel panels, center panel enabled, 10 percent separation, and 0.25 background brightness. The selected target is retained.</p>
+</dd>
+<dt>
+<p>Apply (green check mark)</p>
+</dt>
+<dd>
+<p>Create a new montage from the selected target. The dialog remains open for another application.</p>
+</dd>
+<dt>
+<p>Close (red cross)</p>
+</dt>
+<dd>
+<p>Close the dialog. Images already opened or created remain available in PixInsight.</p>
+</dd>
+<dt>
+<p>Documentation (page icon)</p>
+</dt>
+<dd>
+<p>Open this user guide.</p>
+</dd>
+</dl>
+
    </div>
 </div>
 
 <div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
+   <h3 class="pidoc_sectionTitle">5&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
    <div id="Parameter_Reference">
 
@@ -67,37 +138,37 @@
 <p><a id="target_image"></a> Target Image</p>
 </dt>
 <dd>
-<p>No target image selection is provided by the script. It works on the currently active window.</p>
+<p>The dialog can be opened before any image is available. Select an open image in Target image, or click Open image to load an image file and select it automatically. The currently active image is selected initially when available. Set the panel options and click the Apply icon to create the corner montage from the selected image. If no target is selected, a warning returns you to the dialog instead of failing at startup. Use New Instance to save the panel options as a process icon without selecting an image. Drag the saved instance onto an image to process that image directly with the saved settings. Opening a saved instance globally displays the dialog so you can select or open an image first.</p>
 </dd>
 </dl>
 
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="horizontal_size"></a> Horizontal Size</p>
+<p><a id="horizontal_size"></a> Width (px)</p>
 </dt>
 <dd>
-<p>The horizontal size control sets the width of the panels in pixels.</p>
+<p>Width of each corner panel and the optional center panel, from 2 to 2048 pixels. The default is 500 pixels. It must not exceed the target image width.</p>
 </dd>
 </dl>
 
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="vertical_size"></a> Vertical Size</p>
+<p><a id="vertical_size"></a> Height (px)</p>
 </dt>
 <dd>
-<p>The vertical size control sets the height of the panels in pixels.</p>
+<p>Height of each corner panel and the optional center panel, from 2 to 2048 pixels. The default is 500 pixels. It must not exceed the target image height.</p>
 </dd>
 </dl>
 
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="separation_size"></a> Separation Size</p>
+<p><a id="separation_size"></a> Separation (%)</p>
 </dt>
 <dd>
-<p>The separation size control specifies the distance bewteen the panels in percent of the minimum of panel width and height.</p>
+<p>Gap between the corner panels, from 0 to 100 percent of the smaller panel dimension. The default is 10 percent. The result is rounded down to a whole number of pixels with a minimum gap of one pixel. This control is enabled only when the center panel is shown. Without the center panel the gap is one pixel.</p>
 </dd>
 </dl>
 
@@ -107,20 +178,28 @@
 <p><a id="background_brightness"></a> Background Brightness</p>
 </dt>
 <dd>
-<p>The background brightness control allows to specify the grayscale of the separation pixels between 0 = black and 1 = white.</p>
+<p>Brightness of the gaps and center border, from 0 (black) to 1 (white). The default is 0.25. This changes the montage background, not the source image pixels.</p>
 </dd>
 </dl>
 
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="show_center"></a> Show Center</p>
+<p><a id="show_center"></a> Show center panel</p>
 </dt>
 <dd>
-<p>The 'Show center' tickbox enables or disables the center panel.</p>
+<p>Overlay a panel from the center of the source at the center of the montage. Enabled by default. The center panel overlaps the inner parts of the four corner panels when separation is less than 100 percent.</p>
 </dd>
 </dl>
 
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Output_dimensions_and_messages__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Output dimensions and messages</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Output_dimensions_and_messages', this );">[hide]</p>
+   <div id="Output_dimensions_and_messages">
+<p>The output width is twice the panel width plus the gap. Its height is twice the panel height plus the same gap. The default settings create a 1050&times;1050-pixel image; disabling the center panel with the same panel sizes creates a 1001&times;1001-pixel image. If Apply reports that no target is selected, choose an image in Target image or use Open image. If a panel exceeds the source dimensions, reduce Width or Height. An image that cannot be opened produces a message and leaves the dialog available so you can choose another file.</p>
    </div>
 </div>
 
@@ -131,7 +210,7 @@
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 21:51:08 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 08:36:13 UTC</p>
 </div>
 <br/>
 <br/>

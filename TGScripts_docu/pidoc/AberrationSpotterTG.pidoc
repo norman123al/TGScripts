@@ -3,7 +3,7 @@
 \script AberrationSpotterTG
 
 \keywords {
-   script development, David Serrano
+   optical aberrations, corner inspection, image montage, TGScripts, David Serrano
 }
 
 \author {
@@ -15,58 +15,90 @@
 }
 
 \brief {
-   A script for inspecting the corners and the center of an image.
+   A script for inspecting the corners and the center of an image. User guide for version 2.2.0.
 }
 
 \description {
 
-    \image[float,marginRight:1.25em,marginBottom:0.5em] AberrationSpotterTG_main_screen.png
+    AberrationSpotterTG creates a new image containing the four corners and, optionally, the center of a source image. It is based on the AberrationSpotter script by David Serrano and supports panels up to 2048{\times}2048 pixels.
 
-    The AberrationSpotter script written by David Serrano is a useful tool, however seems not to play well with images produced by modern sensors with huge pixel counts.
-    The maximum panel width and height could only be set up to 512 px which is quite small if e.g. a 60 MP full frame sensor is used.
-
-    This script allows to choose panel sizes of up to 2048{\times}2048 px.
-    In addition the "new instance" button was added which allows to save the script settings in a Pixinsight desktop icon and thus can be used in a process icon workflow.
-
-    Furthermore, some internal code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.   
+    PixInsight 1.9.5 or later with the V8 JavaScript runtime is required. See the \lref parameter_reference {Parameter Reference} for details of the controls.
 } % description
+
+\section { Interface } {
+    The version 2.2.0 dialog follows the compact native layout of recent TGScripts. Target image, Panel size, and Montage appearance group the controls. The output summary and action toolbar are at the bottom.
+
+    \image AberrationSpotterTG_main_screen.png
+
+    The screenshot shows the dialog opened with no image loaded. You can choose or open an image after launching the script, or save the panel settings as a process instance for later use.
+}
+
+\section { Start and apply } {
+    Open the installed script from Script > TG Scripts > AberrationSpotterTG. To use a repository copy, choose Script > Execute Script File and open src/scripts/TGScripts/AberrationSpotterTG.js from the TGScripts repository. You can launch it with an empty workspace.
+    \list[ordered,spaced] {
+        { Select an existing image under \lref target_image {Target image}, or click Open image to open a file. The file you open is selected automatically. }
+        { Set \lref horizontal_size {Width (px)} and \lref vertical_size {Height (px)} in Panel size. Both dimensions must fit within the selected image. }
+        { Choose \lref show_center {Show center panel}, \lref separation_size {Separation (\%)} and \lref background_brightness {Background brightness} in Montage appearance. Check the output dimensions shown below these controls. }
+        { Click Apply, the green check mark at the lower right, to create the montage. }
+    }
+    The dialog stays open so that you can adjust settings or select another image and apply again. The selected source is retained even when the new montage becomes the active image.
+    Panels must fit within the source image. Right and bottom corners include the final source column and row. Grayscale and RGB images retain their channel count and sample depth. The source image is not modified.
+}
+
+\section { Action toolbar } {
+    From left to right, the toolbar contains:
+    \definition {
+        { New Instance (blue triangle) } { Drag to save the five panel and appearance settings as a process icon. A target image is not required and is not stored in the instance. Drag the saved instance onto an image to create its montage directly. Opening the instance globally opens the dialog so that you can select a target. }
+        { Reset (blue reset icon) } { Restore the default 500{\times}500-pixel panels, center panel enabled, 10 percent separation, and 0.25 background brightness. The selected target is retained. }
+        { Apply (green check mark) } { Create a new montage from the selected target. The dialog remains open for another application. }
+        { Close (red cross) } { Close the dialog. Images already opened or created remain available in PixInsight. }
+        { Documentation (page icon) } { Open this user guide. }
+    }
+}
 
 \section { \label parameter_reference Parameter Reference } {
     \definition {
         { \label target_image Target Image } {
-            No target image selection is provided by the script. It works on the currently active window.
+            The dialog can be opened before any image is available. Select an open image in Target image, or click Open image to load an image file and select it automatically. The currently active image is selected initially when available.
+            Set the panel options and click the Apply icon to create the corner montage from the selected image. If no target is selected, a warning returns you to the dialog instead of failing at startup.
+            Use New Instance to save the panel options as a process icon without selecting an image. Drag the saved instance onto an image to process that image directly with the saved settings. Opening a saved instance globally displays the dialog so you can select or open an image first.
         }
     } % target image
 
     \definition {
-        { \label horizontal_size Horizontal Size } {
-            The horizontal size control sets the width of the panels in pixels.
+        { \label horizontal_size Width (px) } {
+            Width of each corner panel and the optional center panel, from 2 to 2048 pixels. The default is 500 pixels. It must not exceed the target image width.
         }
     } % horizontal size
 
     \definition {
-        { \label vertical_size Vertical Size } {
-            The vertical size control sets the height of the panels in pixels.
+        { \label vertical_size Height (px) } {
+            Height of each corner panel and the optional center panel, from 2 to 2048 pixels. The default is 500 pixels. It must not exceed the target image height.
         }
     } % vertical size
 
     \definition {
-        { \label separation_size Separation Size } {
-            The separation size control specifies the distance bewteen the panels in percent of the minimum of panel width and height.
+        { \label separation_size Separation (\%) } {
+            Gap between the corner panels, from 0 to 100 percent of the smaller panel dimension. The default is 10 percent. The result is rounded down to a whole number of pixels with a minimum gap of one pixel. This control is enabled only when the center panel is shown. Without the center panel the gap is one pixel.
         }
     } % separation size
 
     \definition {
         { \label background_brightness Background Brightness } {
-            The background brightness control allows to specify the grayscale of the separation pixels between 0 = black and 1 = white.
+            Brightness of the gaps and center border, from 0 (black) to 1 (white). The default is 0.25. This changes the montage background, not the source image pixels.
         }
     } % background brightness
 
     \definition {
-        { \label show_center Show Center } {
-            The 'Show center' tickbox enables or disables the center panel.
+        { \label show_center Show center panel } {
+            Overlay a panel from the center of the source at the center of the montage. Enabled by default. The center panel overlaps the inner parts of the four corner panels when separation is less than 100 percent.
         }
     } % background brightness
 
 } % Parameter Reference
+
+\section { Output dimensions and messages } {
+    The output width is twice the panel width plus the gap. Its height is twice the panel height plus the same gap. The default settings create a 1050{\times}1050-pixel image; disabling the center panel with the same panel sizes creates a 1001{\times}1001-pixel image.
+    If Apply reports that no target is selected, choose an image in Target image or use Open image. If a panel exceeds the source dimensions, reduce Width or Height. An image that cannot be opened produces a message and leaves the dialog available so you can choose another file.
+}
 \make
