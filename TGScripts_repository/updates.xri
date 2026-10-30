@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="1e5cd2d3962c15bc0799d4951864476f7f289bdc" type="script" releaseDate="20261030">
+      <package fileName="TGScripts_repository.tar.gz" sha1="4b9ed6cc53fd4034b5b2f91c68da5a11b53b8845" type="script" releaseDate="20261030">
          <title>
             TGScripts snapshot - 2026 Okt 30
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Update script signature files.
+               SubframeQualityReview: Allow window resizing and fit the initial size to the screen. Keep action buttons visible while content scrolls, and preserve window size when sections are collapsed or expanded.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T10:53:32.898Z" encoding="Base64">S8XRTgMgzjQioTq2a3RmCxxDFlBzlHjFZlzVqtGTA5HCuWJvU3jwyLY6KTTdWit4bfoXboE0WmdimKCyfMbeBw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T11:55:01.605Z" encoding="Base64">QHTYUf/a3JYFNptnZUdG9lGHc3N1OV/SuEPz6ADqNkj5qny0JwCUixQirujIeYI3B22ViPsbu10lFnfDWARTDw==</Signature>

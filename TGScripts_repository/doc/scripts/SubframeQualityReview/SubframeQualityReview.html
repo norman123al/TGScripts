@@ -5,9 +5,9 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.42.2." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.42.3." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.0" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.42.2. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.42.3. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -97,7 +97,8 @@
    <h3 class="pidoc_sectionTitle">3&emsp;Input files and observing conditions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Input_files_and_observing_conditions', this );">[hide]</p>
    <div id="Input_files_and_observing_conditions">
-<p>Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size, and the active tab uses the space released by a collapsed section. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.</p>
+<p>Drag a window edge or corner to adjust its height and width. The initial size fits the available screen. If the controls do not fit, use the outer scrollbars to reach them; the action buttons remain visible at the bottom.</p>
+<p>Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size; collapsing a section reduces scrolling or gives the active tab more room. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.</p>
 <p>Telescope aperture is at the bottom of this section, aligned with the folder controls. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.</p>
 <p>Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcseconds at the zenith and a reference wavelength of 550 nm. A positive value enables grading relative to the expected FWHM for those conditions. Leave it at zero to use the fixed Good and Medium seeing limits. A forecast is an estimate, not a measurement of the actual conditions; check its reference conditions before entering it. If it already includes the target altitude correction, convert it to zenith seeing first.</p>
 <p>Session SQM and SQM time (local) are beside Aperture and Zenith seeing. Enter the reading in mag/arcsec². Loading the log folder presets the date and local time from the earliest light-frame sequence in its Autorun logs. Flat frames, focusing and plate-solving exposures, and Chinese translations are ignored. Adjust the preset to the actual SQM reading time. A time you enter manually is retained when the logs are reloaded or changed; an untouched automatic preset follows the selected log folder. This distinction is retained in saved settings. If the new folder has no recognized light-frame start, an automatic preset is cleared.</p>
@@ -464,7 +465,7 @@
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Review_and_measurements', this );">[hide]</p>
    <div id="Review_and_measurements">
 <p>Below the table, Reading the table explains R1–R4, the score direction, Below-mean Quality, and the missing-data symbols. Selected image shows a subframe's keep or reject decision, REVIEW status, Score, and main issue. For the master, it identifies its exclusion from scoring and ranking. Its compact measurement table aligns FWHM, eccentricity, and star count across the field, center, and four corners.</p>
-<p>Click the Review information bar to collapse or expand both panels together. Collapsing them gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.</p>
+<p>Click the Review information bar to collapse or expand both panels together. Collapsing them reduces scrolling or gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.</p>
 <p>Hover over the selected-image assessment for the full explanation, or over its measurements for unavailable-region details. The filename is shown separately; hover over it for the full original or moved-file path and the registered-image path. Selecting another image updates these details without changing the window size.</p>
 
 <table class="pidoc_table">
@@ -1214,7 +1215,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.0 on 2026-10-29 15:43:22 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 11:04:47 UTC</p>
 </div>
 <br/>
 <br/>

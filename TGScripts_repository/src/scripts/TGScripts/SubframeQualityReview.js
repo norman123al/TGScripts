@@ -26,7 +26,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.42.2 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.42.3 -- PixInsight 1.9.5+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native SubframeSelector measurements, including independent regional fits.
@@ -50,7 +50,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.42.2';
+const SQR_VERSION='0.42.3';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -3085,17 +3085,44 @@ class SQRDialog extends Dialog {
       this.closeButton=sqrTool(this,':/process-interface/cancel.png','Close the review. Measurements and pending decisions are kept only while this dialog is open.',()=>this.cancel());
       this.helpButton=sqrTool(this,':/process-interface/browse-documentation.png','Open the PIDoc user guide.',sqrShowDocumentation);
       let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.measureCornersButton);actions.add(this.reset);actions.addStretch();actions.add(this.moveButton);actions.add(this.undoMoveButton);actions.add(this.closeButton);actions.add(this.helpButton);
-      let content=new VerticalSizer;content.margin=10;content.spacing=8;content.add(this.intro);content.add(this.inputsBar);content.add(this.inputs);content.add(this.qualityBar);content.add(this.settings);content.add(this.groupRow);content.add(this.tabs,100);content.add(messages);content.add(actions);
-      // A zero-width spacer reserves the expanded minimum height. Native layouts
-      // recompute a dialog/TabBox minimum when children hide, so their minHeight
-      // properties alone cannot prevent a collapsed window being made too small.
-      this.sectionSizeGuard=new Control(this);this.sectionSizeGuard.setFixedSize(0,0);
-      this.sizer=new HorizontalSizer;this.sizer.add(content,100);this.sizer.add(this.sectionSizeGuard);
+      // The action row stays visible while the body can scroll independently.
+      // Its natural minimum no longer fixes the whole window at expanded height.
+      this.bodyScroll=new ScrollBox(this);this.bodyScroll.autoScroll=false;this.bodyScroll.tracking=true;
+      this.bodyScroll.horizontalScrollBarVisible=false;this.bodyScroll.verticalScrollBarVisible=false;
+      this.bodyScroll.setScaledMinSize(900,400);this.body=new Control(this.bodyScroll.viewport);
+      for(let control of [this.intro,this.inputsBar,this.inputs,this.qualityBar,this.settings,groupLabel,this.groupSelect,this.scanButton,this.tabs,this.status,this.scoreInclusionStatus,this.pixelScaleStatus]){
+         control.parent=this.body;control.show();
+      }
+      let content=new VerticalSizer;content.spacing=8;content.add(this.intro);content.add(this.inputsBar);content.add(this.inputs);content.add(this.qualityBar);content.add(this.settings);content.add(this.groupRow);content.add(this.tabs,100);content.add(messages);this.body.sizer=content;
+      this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(this.bodyScroll,100);this.sizer.add(actions);
+      this.bodyScroll.viewport.onResize=()=>this.layoutBody();
+      this.body.onResize=()=>this.layoutBody();
+      this.bodyScroll.onHorizontalScrollPosUpdated=()=>this.positionBody();this.bodyScroll.onVerticalScrollPosUpdated=()=>this.positionBody();
+      this.onShow=()=>this.layoutBody();
       this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
       this.onHide=()=>{this.plotTimer.stop();this.stopBlink();};
-      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();};this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.updateButtons();this.adjustToContents();
-      // Leave two physical pixels for native layout rounding on first show.
-      this.sectionSizeGuard.setFixedHeight(Math.max(this.height,this.smartMinHeight)+2);this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);this.setReviewInfoCollapsed(o.reviewInfoCollapsed);
+      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();this.layoutBody();};this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.updateButtons();
+      this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);this.setReviewInfoCollapsed(o.reviewInfoCollapsed);
+      let available=this.availableScreenRect,scale=this.displayPixelRatio;
+      // Hidden controls can report a zero smart minimum before first show.
+      // Use a useful preferred width, then let the screen constrain both axes.
+      this.resize(Math.min(1360*scale,available.width-40*scale),Math.min(1000*scale,available.height-80*scale));this.layoutBody();
+   }
+   positionBody(){if(this.body)this.body.move(-this.bodyScroll.horizontalScrollPosition,-this.bodyScroll.verticalScrollPosition);}
+   // Reflow only the virtual contents. Section toggles keep the user's window
+   // size, and scroll positions clamp when formerly hidden space disappears.
+   layoutBody(){
+      if(!this.body?.sizer||this.layingOutBody)return;this.layingOutBody=true;
+      try{
+         let scroll=this.bodyScroll,view=scroll.viewport;this.body.ensureLayoutUpdated();
+         let minWidth=this.body.smartMinWidth,minHeight=this.body.smartMinHeight;
+         // Account for viewport space consumed by a newly visible scrollbar.
+         for(let pass=0;pass<2;++pass){scroll.horizontalScrollBarVisible=minWidth>view.width;scroll.verticalScrollBarVisible=minHeight>view.height;}
+         let width=Math.max(view.width,minWidth),height=Math.max(view.height,minHeight);
+         scroll.pageWidth=view.width;scroll.pageHeight=view.height;scroll.lineWidth=scroll.lineHeight=3*this.font.height;
+         scroll.setHorizontalScrollRange(0,Math.max(0,width-view.width));scroll.setVerticalScrollRange(0,Math.max(0,height-view.height));
+         this.body.resize(width,height);this.positionBody();
+      }finally{this.layingOutBody=false;}
    }
    // Snapshot controls into serializable settings; derived measurements and
    // rejection decisions stay in the session and are never process parameters.
@@ -3192,12 +3219,10 @@ class SQRDialog extends Dialog {
    // child reports hidden. Persist the requested state independently, and set
    // the body visibility explicitly when restoring a saved process instance.
    // SectionBar normally calls dialog.adjustToContents(), resizing the window.
-   // Our toggles change only visibility; the stretchable tab absorbs the space.
-   setQualityCollapsed(collapsed){this.qualityCollapsed=!!collapsed;this.settings.visible=!this.qualityCollapsed;this.qualityBar.updateIcon();this.ensureLayoutUpdated();this.syncOptions();}
-   setInputsCollapsed(collapsed){this.inputsCollapsed=!!collapsed;this.inputs.visible=!this.inputsCollapsed;this.inputsBar.updateIcon();this.ensureLayoutUpdated();this.syncOptions();}
-   // Both information panels share one section. The existing size guard keeps
-   // the dialog stable; the review table receives the newly available space.
-   setReviewInfoCollapsed(collapsed){this.reviewInfoCollapsed=!!collapsed;this.reviewInfo.visible=!this.reviewInfoCollapsed;this.reviewInfoBar.updateIcon();this.ensureLayoutUpdated();this.syncOptions();}
+   // Our toggles reflow the virtual body without resizing the window itself.
+   setQualityCollapsed(collapsed){this.qualityCollapsed=!!collapsed;this.settings.visible=!this.qualityCollapsed;this.qualityBar.updateIcon();this.layoutBody();this.syncOptions();}
+   setInputsCollapsed(collapsed){this.inputsCollapsed=!!collapsed;this.inputs.visible=!this.inputsCollapsed;this.inputsBar.updateIcon();this.layoutBody();this.syncOptions();}
+   setReviewInfoCollapsed(collapsed){this.reviewInfoCollapsed=!!collapsed;this.reviewInfo.visible=!this.reviewInfoCollapsed;this.reviewInfoBar.updateIcon();this.layoutBody();this.syncOptions();}
    syncOptions(){if(this.session)this.session.options=this.options();}
    group(){return this.session?.groups[this.groupSelect.currentItem]||null;}
    updatePixelScale(){let s=sqrSessionPixelScale(this.session);this.pixelScaleStatus.text=sqrPixelScaleText(s);
