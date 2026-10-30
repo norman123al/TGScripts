@@ -5,7 +5,7 @@
 #feature-info Prepare registered linear Luminance and RGB images for LRGB composition, including data from different telescope setups and original pixel scales. Compare stellar halos and widths with BlurXTerminator and blink the results.
 #endif
 
-/* LRGB Deconvolution Match 1.13.1 -- PixInsight 1.9.5+, V8.
+/* LRGB Deconvolution Match 1.13.2 -- PixInsight 1.9.5+, V8.
  * Helps prepare linear Luminance and RGB images for LRGB composition when
  * acquired with different telescope setups, potentially at different original
  * pixel scales. Inputs must already be registered to a common pixel grid.
@@ -22,7 +22,7 @@
  * Reviewed results can be created as new windows or applied to both input
  * images with Undo support. Applying results does not save files to disk.
  */
-const LDM_VERSION = '1.13.1';
+const LDM_VERSION = '1.13.2';
 const LDM_SCRIPT_FILE = #__FILE__;
 const LDM_DEFAULT_STARS = 0.5;
 // Supported by the installed BlurXTerminator parameter interface.
@@ -188,7 +188,8 @@ function ldmLuminance(im, weights) {
 
 function ldmBXTDefaults() {
    if (typeof BlurXTerminator === 'undefined')
-      throw new Error('BlurXTerminator is not installed/loaded. Install and license it, then restart PixInsight.');
+      throw new Error('BlurXTerminator is not available in this PixInsight session.\n\n'+
+         'Install or enable the RC Astro module for this PixInsight version. Open BlurXTerminator to check its license and AI model, then run this script again. Restart PixInsight if requested during installation.');
    let p = new BlurXTerminator;
    for (let key of ['sharpen_stars','adjust_star_halos','sharpen_nonstellar'])
       if (!Number.isFinite(p[key]))
@@ -1372,7 +1373,13 @@ class LDMDialog extends Dialog {
 function ldmMain() {
    CoreApplication.ensureMinimumVersion(1,9,5);
    if(Parameters.isViewTarget)throw new Error('Run this script globally; it needs both L and RGB main images.');
-   let o=ldmDefaults();
+   let o;
+   try {o=ldmDefaults();}
+   catch(e) {
+      new MessageBox((e.message || String(e))+'\n\nNo images have been changed.',
+         'LRGB Deconvolution Match - BlurXTerminator',StdIcon.Warning,StdButton.Ok).execute();
+      return;
+   }
    for(let k of Object.keys(o))if(Parameters.has(k))
       o[k]=typeof o[k]==='boolean'?Parameters.getBoolean(k):typeof o[k]==='number'?Parameters.getReal(k):Parameters.getString(k);
    let dialog=new LDMDialog(o);try{dialog.execute();}finally{dialog.dispose();}

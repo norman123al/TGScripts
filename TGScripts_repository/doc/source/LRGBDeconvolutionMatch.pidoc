@@ -14,7 +14,9 @@ After reviewing the results, choose either to create new linear image windows or
 \section{Opening the script}{
 With the script installed in the TGScripts folder through the standard PixInsight script installation, choose Script > TG Scripts > LRGB Deconvolution Match. Click the document symbol at the bottom right to open this manual.
 
-The script requires PixInsight 1.9.5 or later and an installed, licensed BlurXTerminator with its AI model. Open a grayscale luminance image and a three-channel RGB image before starting.
+Version 1.13.2 requires PixInsight 1.9.5 or later and an installed, licensed BlurXTerminator with its AI model. Open a grayscale luminance image and a three-channel RGB image before starting.
+
+If BlurXTerminator is unavailable, the script shows an explanatory message and closes without changing any images.
 }
 
 \section{Preparing the input images}{
@@ -216,6 +218,8 @@ Document: open this user manual.
 }
 
 \section{Troubleshooting}{
+BlurXTerminator is unavailable: install or enable the RC Astro module for your current PixInsight version. Open BlurXTerminator to check its license and AI model, then run the script again. Restart PixInsight if requested during installation. After a PixInsight upgrade, check that BlurXTerminator is available in the running application even if its module files are still present on disk.
+
 Too few usable stars: verify registration and border cropping. Very crowded, saturated, star-poor or undersampled images may not provide a reliable comparison. Reconsider strong reference sharpening if many reference fits are rejected. Star selection and fit rejection are automatic.
 
 Reference below the 1.60-pixel sampling requirement: inspect whether it is oversharpened or undersampled. Reconsider reference sharpening or the image pair.

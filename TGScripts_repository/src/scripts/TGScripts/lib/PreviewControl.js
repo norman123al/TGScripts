@@ -279,33 +279,40 @@ function PreviewControl_initialize( parent )
       let preview = this.parent.parent;
       let graphics = new Graphics( this );
 
-      graphics.fillRect( x0, y0, x1, y1, new Brush( 0xff202020 ) );
-
-      if(!preview.scaledImage)
-         return;
-
-      let offsetX = (this.parent.maxHorizontalScrollPosition > 0) ?
-            -this.parent.horizontalScrollPosition : ( this.width - preview.scaledImage.width ) / 2;
-      let offsetY = (this.parent.maxVerticalScrollPosition > 0) ?
-            -this.parent.verticalScrollPosition : ( this.height - preview.scaledImage.height ) / 2;
-      graphics.translateTransformation( offsetX, offsetY );
-
-      if ( preview.image )
-         graphics.drawBitmap( 0, 0, preview.scaledImage );
-      else
-         graphics.fillRect( 0, 0, preview.scaledImage.width, preview.scaledImage.height, new Brush( 0xff000000 ) );
-
-      graphics.pen = new Pen( 0xffffffff, 0 );
-      graphics.drawRect( -1, -1, preview.scaledImage.width + 1, preview.scaledImage.height + 1 );
-
-      if ( preview.onCustomPaint )
+      // A Control's Graphics context must end before onPaint returns, including
+      // an empty preview or an exception raised by a custom painter.
+      try
       {
-         graphics.antialiasing = true;
-         graphics.scaleTransformation( preview.scale, preview.scale );
-         preview.onCustomPaint.call( preview.onCustomPaintScope, graphics, x0, y0, x1, y1 );
-      }
+         graphics.fillRect( x0, y0, x1, y1, new Brush( 0xff202020 ) );
 
-      graphics.end();
+         if(!preview.scaledImage)
+            return;
+
+         let offsetX = (this.parent.maxHorizontalScrollPosition > 0) ?
+               -this.parent.horizontalScrollPosition : ( this.width - preview.scaledImage.width ) / 2;
+         let offsetY = (this.parent.maxVerticalScrollPosition > 0) ?
+               -this.parent.verticalScrollPosition : ( this.height - preview.scaledImage.height ) / 2;
+         graphics.translateTransformation( offsetX, offsetY );
+
+         if ( preview.image )
+            graphics.drawBitmap( 0, 0, preview.scaledImage );
+         else
+            graphics.fillRect( 0, 0, preview.scaledImage.width, preview.scaledImage.height, new Brush( 0xff000000 ) );
+
+         graphics.pen = new Pen( 0xffffffff, 0 );
+         graphics.drawRect( -1, -1, preview.scaledImage.width + 1, preview.scaledImage.height + 1 );
+
+         if ( preview.onCustomPaint )
+         {
+            graphics.antialiasing = true;
+            graphics.scaleTransformation( preview.scale, preview.scale );
+            preview.onCustomPaint.call( preview.onCustomPaintScope, graphics, x0, y0, x1, y1 );
+         }
+      }
+      finally
+      {
+         graphics.end();
+      }
    };
 
    this.zoomLabel_Label = new Label( this );
