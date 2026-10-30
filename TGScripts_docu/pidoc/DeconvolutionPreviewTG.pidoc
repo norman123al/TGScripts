@@ -1,120 +1,51 @@
 \documentclass PIScriptDoc
-
 \script DeconvolutionPreviewTG
-
-\keywords {
-   deconvolution, PSF, Juan M. Gómez
-}
-
-\author {
-   Thorsten Glebe
-}
-
-\copyright {
-   2022 Dr. Thorsten Glebe
-}
-
-\brief {
-   A script to evaluate deconvolution using a synthetic PSF.
-}
-
+\keywords {deconvolution, PSF, Richardson-Lucy, preview}
+\author {Juan M. Gómez; Thorsten Glebe}
+\copyright {2009 Juan M. Gómez; 2022–2026 Thorsten Glebe}
+\brief {Version 2.3.0. Compare synthetic PSF settings on a preview and apply deconvolution to a full linear image.}
 \description {
+DeconvolutionPreviewTG helps compare parametric point spread functions before processing a full image. The compact interface can open without an image. Select an existing image or use Open image when ready; Apply keeps the dialog open for further trials.
+\image DeconvolutionPreviewTG_main_screen.png
+The processing uses regularized Richardson-Lucy deconvolution. RGB images are processed through their luminance. Use linear data, before a permanent histogram stretch. A screen stretch is only a display aid and does not make the image nonlinear.
+}
+\section {Quick start} {
+\list[ordered,spaced] {
+{Select a linear grayscale or RGB main image.}
+{Create a representative PixInsight preview on the target, at least 64 × 64 pixels, and choose it in the Preview list. A small region containing stars and faint detail makes comparisons faster.}
+{Optionally select a registered grayscale local support mask with the full target dimensions. LocalSupportMask can generate one.}
+{Set the sigma and shape start values, steps and counts. Click Create PSF comparison grid. Columns vary sigma; rows vary shape. Each cell identifies its settings.}
+{Inspect the grid at an appropriate zoom. Copy the preferred sigma and shape into the two Start fields. Apply uses these values on the full target image.}
+}
+}
+\section {Parameter reference} {
+\definition {
+{Sigma: Start, Step, Count}{Sigma controls the width of the synthetic PSF. Grid columns use Start plus column index times Step. Count is 1–10. Apply uses Start alone.}
+{Shape: Start, Step, Count}{Shape controls the parametric PSF profile. Grid rows use Start plus row index times Step. Count is 1–10. Apply uses Start alone. The last sigma and shape in a grid must each be at most 10.}
+{Iterations}{Number of Richardson-Lucy iterations for every grid cell or full-image application; default 30. More iterations take longer and can reveal noise or ringing.}
+{Global dark}{Global dark deringing amount; default 0.0010. Evaluate star edges and background artifacts when adjusting it.}
+{Local support mask}{Optional separate grayscale image registered to the target. Grid processing crops a temporary copy to the selected preview. Existing mask previews are preserved.}
+{Local amount}{Strength of local deringing support; default 0.70. Used only when a support mask is selected.}
+}
+}
+\section {Outputs and repeated trials} {
+Create PSF comparison grid always creates a separate image and leaves the target unchanged. Its automatic screen stretch is for viewing. Grid labels and separators are not scientific image data.
 
-    \image[float,marginRight:1.25em,marginBottom:0.5em] DeconvolutionPreviewTG_main_screen.png
+Apply processes the full target at the Start settings. Create a new image on Apply is enabled by default. Disable it to update the original with one Undo step. Existing image masks are not used as additional processing masks. The chosen local support mask is passed explicitly to Deconvolution.
 
-    The DeconvolutionPreview script written by Juan M. Gómez is a useful tool for finding the optimal settings for a synthetical PSF function for Pixinsights deconvolution process.
-    
-    This is an improved version of the original script.
-    The "new instance" button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.
-    For images produced by modern, huge sensors, e.g. full frame sensors of up to 60 MP image size this script seems not to play well anymore.
-    The generated preview is huge and the image details relevant for investigations are barely visible. The script was crashing the Pixinsight process when an autostretch was applied to the resulting preview image.
-
-    Therefore, this script works now on image previews instead of the main view. The user can define the region of interest by creating a preview and then run this script on the image preview.
-    The crash was fixed and in addition some relevant deconvolution parameters are exposed in the script GUI as well. The script checks if the selected preview is in linear state and if not, issues a warning message box.
-    In case the warning message is confirmed, the script continues the processing.
-    The "apply" button can be used to run the deconvolution with the current settings on the selected preview. This allows a comparison to the unchanged image via the preview undo/redo functionality of Pixinsight.
-
-    Furthermore, code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.
-} % description
-
-\section { \label parameter_reference Parameter Reference } {
-    \definition {
-        { \label target_preview Target Preview } {
-            The target preview image control allows to choose a preview of a main view for the deconvolution preview generation.
-        }
-    } % target preview image
-
-\subsection{ \label psf_sigma PSF Sigma Parameters } {
-        \definition {
-            { \label psf_sigma_step_size Step Size } {
-                Increment of the PSF sigma size per step.
-            }
-        } % step size
-
-        \definition {
-            { \label sigma_start PSF Sigma start } {
-                Start of the PSF sigma value range.
-            }
-        } % sigma start
-
-        \definition {
-            { \label sigma_iterations Iterations } {
-                Number of iterations for PSF sigma increment.
-            }
-        } % iterations
-    } % subsection
-
-\subsection{ \label psf_shape PSF Shape Parameters } {
-        \definition {
-            { \label psf_shape_step_size Step Size } {
-                Increment of the PSF shape size per step.
-            }
-        } % step size
-
-        \definition {
-            { \label shape_start PSF Shape start } {
-                Start of the PSF shape value range.
-            }
-        } % shape start
-
-        \definition {
-            { \label shape_iterations Iterations } {
-                Number of iterations for PSF shape increment.
-            }
-        } % iterations
-    } % subsection
-
-\subsection{ \label decon_parameters Decon Parameters } {
-        \definition {
-            { \label decon_iterations Decon Iterations } {
-                Number of deconvolution iterations.
-            }
-        } % decon iterations
-
-        \definition {
-            { \label global_dark Global Dark } {
-                Global dark value for deringing.
-            }
-        } % global dark
-
-        \definition {
-            { \label local_support Local Support Mask } {
-                A local support mask can be specified for the deringing and protection of stars.
-            }
-        } % local support mask
-
-        \definition {
-            { \label local_amount Local Amount } {
-                The strength of the local support mask can be set by this parameter.
-            }
-        } % local support mask
-    } % subsection
-
-} % Parameter Reference
-
-\section { \label example Deconvolution Preview Example } {
-    The following image shows an output which will be generated by the script. The differences between the deconvolution settings are subtle and therefore a zoomed in view is required, which is best achieved by using a preview on the image.
-
-    \center\image[float,width:100\%] DeconvolutionPreviewTG_preview.png
+Repeated Apply starts from the currently selected target. New output images receive unique names. Temporary processing images are closed on success, error or cancellation. Full-image copies retain sample precision, alpha channels, FITS keywords, RGB working space and the source screen stretch. Other metadata, including astrometric solutions, is not copied.
+}
+\section {Toolbar and saved instances} {
+\definition {
+{New Instance}{Drag the triangle to the workspace to save processing settings and the support-mask reference. Apply an instance to a main image for full-image deconvolution, or to a preview for a comparison grid. The referenced support mask must still be open.}
+{Reset}{Restore default settings while retaining selected images and preview.}
+{Apply}{Process the full target without closing the interface.}
+{Close}{Close the interface. During processing, request cancellation; it takes effect between native processing steps.}
+{Documentation}{Open this guide.}
+}
+Old instances containing a preview reference can still restore that selection if it exists. New instances select their target from the receiving image or preview.
+}
+\section {Changes in 2.3.0} {
+Compact 420-pixel layout; open-first workflow; separate comparison and full-image actions; repeatable Apply; source-preserving outputs; bounded instance parameters; safe temporary crops and graphics cleanup; updated PiDoc guide.
 }
 \make

@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | LocalSupportMask</title>
-   <meta name="keywords" content="deconvolution, sharpening" />
+   <meta name="keywords" content="deconvolution, local support, star mask, deringing" />
    <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script to create a local support mask for Deconvolution." />
+   <meta name="description" content="Version 2.2.0. Create a grayscale local deringing support mask for Deconvolution." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -29,10 +29,10 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script to create a local support mask for Deconvolution. <a href="#__contents__">[more]</a></p></div>
+<p>Version 2.2.0. Create a grayscale local deringing support mask for Deconvolution. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> deconvolution, sharpening</p>
+<p><strong>Keywords:</strong> deconvolution, local support, star mask, deringing</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,8 +40,11 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
-<li class="pidoc_tocItem"><a href="#__Overlay_Preview__">3&emsp;Overlay Preview</a></li>
+<li class="pidoc_tocItem"><a href="#__Quick_start__">2&emsp;Quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Mask_parameters__">3&emsp;Mask parameters</a></li>
+<li class="pidoc_tocItem"><a href="#__Preview_and_output__">4&emsp;Preview and output</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_saved_instances__">5&emsp;Toolbar and saved instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Changes_in_220__">6&emsp;Changes in 2.2.0</a></li>
 </ul>
 </div>
 
@@ -51,110 +54,131 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/LocalSupportMask_main_screen.png" alt=""/>
-<p>The deconvolution process in pixinsight offers the possiblity to provide a so-called local support mask which is essentially a star mask to protect (bright) stars from deconvolution artifacts. This script automates the generation of a local support mask and provides the essential parameters to influence the mask generation. The script works on linear grayscale or color image.</p>
-<p>The image is required to be linear because deconvolution is applied before the image is stretched. A mask is best generated from the luminance data, thus the source image should be ideally grayscale (e.g. luminance extracted from RGB image). The preview control shows either the MLT processed intermediate stage or the overlay preview of the mask (see <a href="#overlay_preview">Preview</a> section below).</p>
+<p>LocalSupportMask prepares a star mask for use as the local support image in Deconvolution. It accepts a linear grayscale or RGB main image, prepares its luminance with MultiscaleLinearTransform and HistogramTransformation, and generates the final mask with StarMask.</p>
+<img src="images/LocalSupportMask_main_screen.png" alt=""/>
+<p>The compact dialog opens before an image is available. Select an open image or use Open image, then adjust the mask parameters. Apply creates a separate grayscale mask and keeps the dialog open. The source pixels, selections and existing masks are not modified.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
+<div class="pidoc_section" id="__Quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quick_start', this );">[hide]</p>
+   <div id="Quick_start">
 
-<dl class="pidoc_list">
-<dt>
-<p><a id="target_image"></a> Target Image</p>
-</dt>
-<dd>
-<p>The target image control allows to choose a main view of a linear image (either grayscale or RGB) as a target for local support mask generation.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="mask_strength"></a> Strength</p>
-</dt>
-<dd>
-<p>The 'Strength' parameter specifies the brightness of the star mask and thus the amount of protection of the stars.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="wavelet_scale"></a> Scale</p>
-</dt>
-<dd>
-<p>The 'Scale' parameter specifies the number of wavelet layers for star mask generation.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="large_scale"></a> Large Scale</p>
-</dt>
-<dd>
-<p>The 'Large-scale' parameter determines the growth of large scale structures in the star mask.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="small_scale"></a> Small Scale</p>
-</dt>
-<dd>
-<p>The 'Small-scale' parameter determines the growth of small scale structures in the star mask.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="compensation_scale"></a> Compensation</p>
-</dt>
-<dd>
-<p>The 'Compensation' parameter specifies the number of wavelet layers small scale growth compensation.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="smoothness_scale"></a> Smoothness</p>
-</dt>
-<dd>
-<p>The 'Smoothness' parameter determines the smoothness of the mask structures.</p>
-</dd>
-</dl>
+<ol class="pidoc_list">
+<li>Select a linear main image. A luminance image is often convenient; RGB is accepted and converted on a temporary copy.</li>
+<li class="pidoc_spaced_list_item">Keep the default parameters for a first trial. Choose Star mask overlay and click Create preview image.</li>
+<li class="pidoc_spaced_list_item">Inspect the separate preview window. Adjust Strength, Scale, growth and smoothing to cover the intended stars. Create another preview to compare settings.</li>
+<li class="pidoc_spaced_list_item">Click Apply to create the final grayscale local support mask.</li>
+<li class="pidoc_spaced_list_item">Select that mask as the local deringing support image in Deconvolution or DeconvolutionPreviewTG. Keep it registered to the target.</li>
+</ol>
 
    </div>
 </div>
 
-<div class="pidoc_section" id="__Overlay_Preview__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="overlay_preview"></a>Overlay Preview</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Overlay_Preview', this );">[hide]</p>
-   <div id="Overlay_Preview">
+<div class="pidoc_section" id="__Mask_parameters__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Mask parameters</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Mask_parameters', this );">[hide]</p>
+   <div id="Mask_parameters">
 
-<div style="text-align:center;">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/LocalSupportMask_overlay_preview.png" alt=""/>
+<dl class="pidoc_list">
+<dt>
+<p>Strength</p>
+</dt>
+<dd>
+<p>Controls the mask brightness through the StarMask midtones balance. Higher displayed strength means a lower midtones balance and a brighter mask. Default 0.50; range 0–1. Saved instances retain the original script's midtones convention.</p>
+</dd>
+<dt>
+<p>Scale</p>
+</dt>
+<dd>
+<p>Number of wavelet layers used by StarMask for structure detection; default 5, range 2–12.</p>
+</dd>
+<dt>
+<p>Large scale</p>
+</dt>
+<dd>
+<p>Growth of large detected structures; default 0, range 0–15.</p>
+</dd>
+<dt>
+<p>Small scale</p>
+</dt>
+<dd>
+<p>Growth of small detected structures; default 1, range 0–15.</p>
+</dd>
+<dt>
+<p>Compensation</p>
+</dt>
+<dd>
+<p>Small-scale growth compensation; default 2, range 0–4.</p>
+</dd>
+<dt>
+<p>Smoothness</p>
+</dt>
+<dd>
+<p>Smoothing of the generated mask structures; default 10, range 0–40.</p>
+</dd>
+</dl>
+
+<p>The intermediate preparation retains the original multiscale and histogram settings. The exposed parameters affect the subsequent StarMask operation. This script is intended for linear input; it does not test or correct the input's processing history.</p>
+   </div>
 </div>
-<p>By clicking on the magnifier tool button on the lower left corner, an overlay preview will be generated which can be inspected in the preview control. If the result is not satisfying, parameters can be changed and another click on the magnifier button wil regenerate the preview. An example of an overlay preview is shown in the following image.</p>
-<p>By clicking the 'Ok' button, the final mask will be created.</p>
+
+<div class="pidoc_section" id="__Preview_and_output__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Preview and output</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_and_output', this );">[hide]</p>
+   <div id="Preview_and_output">
+
+<dl class="pidoc_list">
+<dt>
+<p>Intermediate luminance</p>
+</dt>
+<dd>
+<p>Create a separate image showing the luminance after multiscale filtering and histogram preparation, before StarMask. This is useful for checking what StarMask will receive.</p>
+</dd>
+<dt>
+<p>Star mask overlay</p>
+</dt>
+<dd>
+<p>Create StarMask's overlay representation on the prepared luminance. This is a diagnostic color display, not the final grayscale support mask.</p>
+</dd>
+<dt>
+<p>Apply</p>
+</dt>
+<dd>
+<p>Always create a separate grayscale support mask. The preview choice does not change the final mask calculation.</p>
+</dd>
+</dl>
+
+<p>Preview windows and final masks remain available after closing the dialog. They use unique names, so repeated trials do not overwrite earlier results. Temporary processing windows are closed on success, cancellation or error. The interface has no persistent embedded bitmap preview, avoiding the former graphics-lifetime crash path.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_and_saved_instances__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Toolbar and saved instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_saved_instances', this );">[hide]</p>
+   <div id="Toolbar_and_saved_instances">
+<p>Drag New Instance to save the mask settings and preview mode. Apply the instance to a main image to generate its final mask. RGB and grayscale main views are supported; preview views are not valid final-mask targets.</p>
+<p>Reset restores parameter defaults while retaining the selected image. Apply keeps the dialog open. Close closes it when idle or requests cancellation during processing; cancellation takes effect between native processing steps. Documentation opens this guide. Closing an unused dialog performs no image processing.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Changes_in_220__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Changes in 2.2.0</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Changes_in_220', this );">[hide]</p>
+   <div id="Changes_in_220">
+<p>Compact 420-pixel interface; open-first workflow; repeated Apply; independent intermediate and overlay preview windows; source-preserving RGB luminance conversion; safe cleanup and dialog close handling; updated PiDoc guide.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2022–2026 Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-12-11 23:16:55 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 13:55:58 UTC</p>
 </div>
 <br/>
 <br/>

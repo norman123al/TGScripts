@@ -1,84 +1,48 @@
 \documentclass PIScriptDoc
-
 \script LocalSupportMask
-
-\keywords {
-   deconvolution, sharpening
-}
-
-\author {
-   Thorsten Glebe
-}
-
-\copyright {
-   2022 Dr. Thorsten Glebe
-}
-
-\brief {
-   A script to create a local support mask for Deconvolution.
-}
-
+\keywords {deconvolution, local support, star mask, deringing}
+\author {Thorsten Glebe}
+\copyright {2022–2026 Thorsten Glebe}
+\brief {Version 2.2.0. Create a grayscale local deringing support mask for Deconvolution.}
 \description {
+LocalSupportMask prepares a star mask for use as the local support image in Deconvolution. It accepts a linear grayscale or RGB main image, prepares its luminance with MultiscaleLinearTransform and HistogramTransformation, and generates the final mask with StarMask.
+\image LocalSupportMask_main_screen.png
+The compact dialog opens before an image is available. Select an open image or use Open image, then adjust the mask parameters. Apply creates a separate grayscale mask and keeps the dialog open. The source pixels, selections and existing masks are not modified.
+}
+\section {Quick start} {
+\list[ordered,spaced] {
+{Select a linear main image. A luminance image is often convenient; RGB is accepted and converted on a temporary copy.}
+{Keep the default parameters for a first trial. Choose Star mask overlay and click Create preview image.}
+{Inspect the separate preview window. Adjust Strength, Scale, growth and smoothing to cover the intended stars. Create another preview to compare settings.}
+{Click Apply to create the final grayscale local support mask.}
+{Select that mask as the local deringing support image in Deconvolution or DeconvolutionPreviewTG. Keep it registered to the target.}
+}
+}
+\section {Mask parameters} {
+\definition {
+{Strength}{Controls the mask brightness through the StarMask midtones balance. Higher displayed strength means a lower midtones balance and a brighter mask. Default 0.50; range 0–1. Saved instances retain the original script's midtones convention.}
+{Scale}{Number of wavelet layers used by StarMask for structure detection; default 5, range 2–12.}
+{Large scale}{Growth of large detected structures; default 0, range 0–15.}
+{Small scale}{Growth of small detected structures; default 1, range 0–15.}
+{Compensation}{Small-scale growth compensation; default 2, range 0–4.}
+{Smoothness}{Smoothing of the generated mask structures; default 10, range 0–40.}
+}
+The intermediate preparation retains the original multiscale and histogram settings. The exposed parameters affect the subsequent StarMask operation. This script is intended for linear input; it does not test or correct the input's processing history.
+}
+\section {Preview and output} {
+\definition {
+{Intermediate luminance}{Create a separate image showing the luminance after multiscale filtering and histogram preparation, before StarMask. This is useful for checking what StarMask will receive.}
+{Star mask overlay}{Create StarMask's overlay representation on the prepared luminance. This is a diagnostic color display, not the final grayscale support mask.}
+{Apply}{Always create a separate grayscale support mask. The preview choice does not change the final mask calculation.}
+}
+Preview windows and final masks remain available after closing the dialog. They use unique names, so repeated trials do not overwrite earlier results. Temporary processing windows are closed on success, cancellation or error. The interface has no persistent embedded bitmap preview, avoiding the former graphics-lifetime crash path.
+}
+\section {Toolbar and saved instances} {
+Drag New Instance to save the mask settings and preview mode. Apply the instance to a main image to generate its final mask. RGB and grayscale main views are supported; preview views are not valid final-mask targets.
 
-    \image[float,marginRight:1.25em,marginBottom:0.5em] LocalSupportMask_main_screen.png
-
-    The deconvolution process in pixinsight offers the possiblity to provide a so-called local support mask which is essentially a star mask to protect (bright) stars from deconvolution artifacts.
-    This script automates the generation of a local support mask and provides the essential parameters to influence the mask generation. The script works on linear grayscale or color image.
-
-    The image is required to be linear because deconvolution is applied before the image is stretched. A mask is best generated from the luminance data, thus the source image should be ideally grayscale (e.g. luminance extracted from RGB image).
-    The preview control shows either the MLT processed intermediate stage or the overlay preview of the mask (see \lref overlay_preview  Preview section below).
-} % description
-
-\section { \label parameter_reference Parameter Reference } {
-    \definition {
-        { \label target_image Target Image } {
-            The target image control allows to choose a main view of a linear image (either grayscale or RGB) as a target for local support mask generation.
-        }
-    } % target image
-    
-    \definition {
-        { \label mask_strength Strength } {
-            The 'Strength' parameter specifies the brightness of the star mask and thus the amount of protection of the stars.
-        }
-    } % scale
-
-    \definition {
-        { \label wavelet_scale Scale } {
-            The 'Scale' parameter specifies the number of wavelet layers for star mask generation.
-        }
-    } % scale
-
-    \definition {
-        { \label large_scale Large Scale } {
-            The 'Large-scale' parameter determines the growth of large scale structures in the star mask.
-        }
-    } % large scale
-
-    \definition {
-        { \label small_scale Small Scale } {
-            The 'Small-scale' parameter determines the growth of small scale structures in the star mask.
-        }
-    } % small scale
-
-    \definition {
-        { \label compensation_scale Compensation } {
-            The 'Compensation' parameter specifies the number of wavelet layers small scale growth compensation.
-        }
-    } % compensation
-
-    \definition {
-        { \label smoothness_scale Smoothness } {
-            The 'Smoothness' parameter determines the smoothness of the mask structures.
-        }
-    } % smoothness scale
-} % Parameter Reference
-
-\section { \label overlay_preview Overlay Preview } {
-
-    \center\image[float,marginRight:1.25em,marginBottom:0.5em] LocalSupportMask_overlay_preview.png
-
-By clicking on the magnifier tool button on the lower left corner, an overlay preview will be generated which can be inspected in the preview control. If the result is not satisfying, parameters can be changed and another click on the magnifier button wil regenerate the preview. An example of an overlay preview is shown in the following image.
-
-By clicking the 'Ok' button, the final mask will be created.
+Reset restores parameter defaults while retaining the selected image. Apply keeps the dialog open. Close closes it when idle or requests cancellation during processing; cancellation takes effect between native processing steps. Documentation opens this guide. Closing an unused dialog performs no image processing.
+}
+\section {Changes in 2.2.0} {
+Compact 420-pixel interface; open-first workflow; repeated Apply; independent intermediate and overlay preview windows; source-preserving RGB luminance conversion; safe cleanup and dialog close handling; updated PiDoc guide.
 }
 \make

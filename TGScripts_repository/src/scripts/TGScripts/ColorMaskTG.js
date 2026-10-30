@@ -74,9 +74,9 @@
 
 CoreApplication.ensureMinimumVersion(1, 9, 5);
 
-#include "lib/TGScriptsLib.js"
+#include "lib/TGCompactUI.js"
 
-#define VERSION   "2.1"
+#define VERSION   "2.2.0"
 #define TITLE     "ColorMaskTG"
 
 #define DEBUG     false
@@ -122,140 +122,12 @@ CoreApplication.ensureMinimumVersion(1, 9, 5);
  * The ColorMaskData object defines functional parameters for the
  * ColorMask routine.
  */
-function ColorMaskData()
-{
-   this.targetView     = null;
-   this.view_id        = "";
-   this.minHue_control = null;
-   this.maxHue_control = null;
-   this.minHue         = 0.0;
-   this.maxHue         = 0.0;
-   this.maskType       = MASK_LINEAR;
-   this.maskStrength   = DEFAULT_STRENGTH;
-   this.min_intensity  = DEFAULT_MIN_INTENSITY;
-   this.max_intensity  = DEFAULT_MAX_INTENSITY;
-   this.min_saturation = DEFAULT_MIN_SATURATION;
-   this.max_saturation = DEFAULT_MAX_SATURATION;
-   this.blurLayers     = 0;
-   this.maskSuff       = "";
-   this.maskName       = "";
 
-   /*
-    * Save parameters in process icon.
-    */
-   this.exportParameters = function()
-   {
-      Parameters.set("view_id"       , this.view_id);
-      Parameters.set("minHue"        , this.minHue);
-      Parameters.set("maxHue"        , this.maxHue);
-      Parameters.set("maskType"      , this.maskType);
-      Parameters.set("maskStrength"  , this.maskStrength);
-      Parameters.set("min_intensity" , this.min_intensity);
-      Parameters.set("max_intensity" , this.max_intensity);
-      Parameters.set("min_saturation", this.min_saturation);
-      Parameters.set("max_saturation", this.max_saturation);
-      Parameters.set("blurLayers"    , this.blurLayers);
-      Parameters.set("maskName"      , this.maskName);
-   }
-
-   /*
-    * Restore saved parameters.
-    */
-   this.importParameters = function()
-   {
-      if (Parameters.has("view_id"))
-      {
-         this.view_id = Parameters.getString("view_id");
-         if(this.view_id)
-         {
-            var window = ImageWindow.windowById(this.view_id);
-            if(!(window == null || window.isNull))
-            {
-               this.targetView = window.mainView;
-            }
-         }
-      }
-      if(Parameters.has("minHue"))
-         this.minHue = Parameters.getReal("minHue");
-      if(Parameters.has("maxHue"))
-         this.maxHue = Parameters.getReal("maxHue");
-      if (Parameters.has("maskType"))
-         this.maskType = Parameters.getInteger("maskType");
-      if(Parameters.has("maskStrength"))
-         this.maskStrength = Parameters.getReal("maskStrength");
-      if(Parameters.has("min_intensity"))
-         this.min_intensity = Parameters.getReal("min_intensity");
-      if(Parameters.has("max_intensity"))
-         this.max_intensity = Parameters.getReal("max_intensity");
-      if(Parameters.has("min_saturation"))
-         this.min_saturation = Parameters.getReal("min_saturation");
-      if(Parameters.has("max_saturation"))
-         this.max_saturation = Parameters.getReal("max_saturation");
-      if(Parameters.has("blurLayers"))
-         this.blurLayers = Parameters.getInteger("blurLayers");
-      if(Parameters.has("maskName"))
-         this.maskName = Parameters.getString("maskName");
-   }
-}
-
-// Global parameters.
-var data = new ColorMaskData;
-
-/*
- * Create color mask for specified image.
- * name is used to generate a unique name for the result.
- */
+// 2.2.0: Compact open-first interface, repeatable Apply, PiDoc help and safe cleanup.
 function doWork()
 {
-   var image = data.targetView.image;
-   var name  = data.targetView.id;
-
-   data.targetView.beginProcess(UndoFlag.NoSwapFile);
-   var t0 = new Date;
-
-   if (DEBUG)
-   {
-      console.writeln("ColorMask: ", name);
-      console.writeln("Minpoint: ", format("%6.3f", data.minHue));
-      console.writeln("Maxpoint: ", format("%6.3f", data.maxHue));
-      console.writeln("Mask type: ", format("%d", data.maskType));
-      console.writeln("Mask strength: ", format("%4.3f", data.maskStrength));
-      console.writeln("Min Intensity: ", format("%4.3f", data.min_intensity));
-      console.writeln("Max Intensity: ", format("%4.3f", data.max_intensity));
-      console.writeln("Min Saturation: ", format("%4.3f", data.min_saturation));
-      console.writeln("Max Saturation: ", format("%4.3f", data.max_saturation));
-      console.writeln("Mask suffix: ", data.maskSuff);
-      console.writeln("Mask name: ", data.maskName);
-   }
-
-   // Pick an unused name for the mask
-   var MaskName = null;
-   if(data.maskName)
-   { // take given mask name
-      MaskName = data.maskName;
-   }
-   else
-   { // construct a mask name
-      if ((ImageWindow.windowById(name + CM_SUFF + data.maskSuff)?.isNull ?? true))
-         MaskName = name + CM_SUFF + data.maskSuff;
-      else
-      {
-         for (var n = 1 ; n <= 99 ; n++)
-         {
-            if ((ImageWindow.windowById(name + CM_SUFF + data.maskSuff + n)?.isNull ?? true))
-            {
-               MaskName = name + CM_SUFF + data.maskSuff + n;
-               break;
-            }
-         }
-      }
-      if (MaskName == null)
-      {
-         errorMessageOk("Couldn't find a unique mask name. Bailing out.", TITLE);
-         return;
-      }
-   }
-
+   CM_validate();var image=data.targetView.image;var MaskName=TG_unique(data.maskName||data.targetView.id+CM_SUFF+data.maskSuff);var success=false;var working=TG_copy(data.targetView,"ColorMask_work");
+   try {
    // Build an ugly PixelMath expression to build the mask
    var PM = new PixelMath;
 
@@ -349,14 +221,14 @@ function doWork()
    PM.truncateLower = 0;
    PM.truncateUpper = 1;
    PM.createNewImage = true;
-   PM.showNewImage = true;
+   PM.showNewImage = false;
    PM.newImageId = MaskName;
    PM.newImageWidth = image.width;
    PM.newImageHeight = image.height;
    PM.newImageAlpha = false;
    PM.newImageColorSpace = PixelMath.Gray;
    PM.newImageSampleFormat = PixelMath.f32;
-   PM.executeOn(data.targetView, false /*swapFile */);
+   TG_checked(PM,working.mainView);
 
    if (data.blurLayers > 0)
    {
@@ -417,602 +289,51 @@ function doWork()
       MLT.toChrominance = true;
       MLT.linear = false;
 
-      MLT.executeOn(ImageWindow.windowById(MaskName).mainView, false /*swapFile */);
+      TG_checked(MLT,View.viewById(MaskName));
    }
 
 
-   data.targetView.endProcess();
-   var t1 = new Date;
-   Console.show();
-   Console.writeln(format("<end><cbr>ColorMask: %.2f s", (t1.getTime() - t0.getTime())/1000));
-}
 
-/*
- * Set up a canned color range.
- */
-function SetCannedRange(min, max, suff)
-{
-   data.minHue = min;
-   data.minHue_control.setValue(data.minHue);
-   data.maxHue = max;
-   data.maxHue_control.setValue(data.maxHue);
-   data.maskSuff = suff;
+      var result=View.viewById(MaskName).window;result.show();success=true;return result;
+   } finally {TG_close(working);var v=View.viewById(MaskName);if(!success&&TG_valid(v))TG_close(v.window);}
 }
-
-// -------------------------------------------------------------------------
-function getAllMainViews()
+const CM_FILE=#__FILE__;
+function ColorMaskData()
 {
-   var mainViews = [];
-   var images = ImageWindow.windows;
-   for ( var i in images )
-   {
-      if (images[i].mainView.isMainView) mainViews.push(images[i].mainView);
+   this.targetView=null;
+   TG_settings(this,{minHue:[0,0,360],maxHue:[0,0,360],maskType:[3,0,3,true],maskStrength:[1,0,1],min_intensity:[0,0,1],max_intensity:[1,0,1],min_saturation:[0,0,1],max_saturation:[1,0,1],blurLayers:[0,0,8,true]}, {}, {maskName:'',maskSuff:''},{view_id:'targetView'});
+}
+var data=new ColorMaskData;
+function CM_validate()
+{
+   if(!TG_valid(data.targetView)||!data.targetView.isMainView||!data.targetView.image.isColor)throw Error('Select an RGB main image.');
+   if(data.min_intensity>data.max_intensity||data.min_saturation>data.max_saturation)throw Error('Minimum intensity and saturation must not exceed their maximum values.');
+   if(data.maskName&&!/^[A-Za-z_][A-Za-z0-9_]*$/.test(data.maskName))throw Error('Use letters, digits and underscores for the mask name; do not start with a digit.');
+}
+var CM_Dialog=class extends Dialog
+{
+   constructor(){
+      super();TG_setup(this,TITLE,VERSION,'Create a grayscale mask from an RGB color range.');
+      this.target=TG_picker(this,'Target RGB image','targetView',v=>v.image.isColor);this.addGroup(this.target);
+      var hue=TG_group(this,'Hue selection');this.addGroup(hue);
+      this.presets=[[0,0],[300,60],[0,120],[60,180],[120,240],[180,300],[240,0]];
+      this.preset=TG_combo(hue,'Preset:',['Custom','All hues','Red','Yellow','Green','Cyan','Blue','Magenta'],1,i=>{if(i){data.minHue=this.presets[i-1][0];data.maxHue=this.presets[i-1][1];this.low.setValue(data.minHue);this.high.setValue(data.maxHue);}});
+      this.low=TG_number(hue,'From (°):',0,360,1,data.minHue,v=>{data.minHue=v;this.preset.currentItem=0;});
+      this.high=TG_number(hue,'To (°):',0,360,1,data.maxHue,v=>{data.maxHue=v;this.preset.currentItem=0;});
+      this.low.toolTip=this.high.toolTip='Hue wraps through red when From exceeds To. Equal values select a full hue cycle.';
+      var gates=TG_group(this,'Intensity and saturation');this.addGroup(gates);this.gates=[];
+      [['Min intensity:','min_intensity'],['Max intensity:','max_intensity'],['Min saturation:','min_saturation'],['Max saturation:','max_saturation']].forEach(x=>this.gates.push(TG_number(gates,x[0],0,1,3,data[x[1]],v=>data[x[1]]=v)));
+      var mask=TG_group(this,'Mask output');this.addGroup(mask);
+      this.type=TG_combo(mask,'Type:',['Chrominance','Lightness','Inverse lightness','Linear'],data.maskType,v=>data.maskType=v);
+      this.strength=TG_number(mask,'Strength:',0,1,3,data.maskStrength,v=>data.maskStrength=v);
+      this.strength.toolTip='Controls the hue profile. A value of 1 gives full strength throughout the selected range; smaller values soften its edges.';
+      this.blur=TG_spin(mask,'Blur layers:',0,8,data.blurLayers,v=>data.blurLayers=v);
+      this.name=new Edit(mask);this.name.text=data.maskName;this.name.toolTip='Optional image identifier. Existing names receive a numbered suffix.';this.name.onTextUpdated=t=>data.maskName=t.trim();mask.sizer.add(TG_row(mask,'Name:',this.name));
+      TG_finish(this,CM_FILE,'ColorMaskTG',doWork,()=>{data.reset();this.sync();this.refresh();});this.sync();
    }
-   return mainViews;
-}
-
-// -------------------------------------------------------------------------
-function excludeViews(vList)
-{
-   excludeMainViewsByColor(vList, true /*excludeMono*/);
-}
-
-/*
- * ColorMaskDialog is the GUI that collects the user parameters.
- */
-var ColorMaskDialog = class extends Dialog
-{
-   constructor()
-   {
-      super();
-      ColorMaskDialog_initialize.call(this);
-   }
+   sync(){this.low.setValue(data.minHue);this.high.setValue(data.maxHue);this.preset.currentItem=0;this.presets.forEach((p,i)=>{if(p[0]==data.minHue&&p[1]==data.maxHue)this.preset.currentItem=i+1;});['min_intensity','max_intensity','min_saturation','max_saturation'].forEach((k,i)=>this.gates[i].setValue(data[k]));this.type.currentItem=data.maskType;this.strength.setValue(data.maskStrength);this.blur.value=data.blurLayers;this.name.text=data.maskName;}
+   refresh(status){this.target.refresh();if(this.apply)this.apply.enabled=TG_valid(data.targetView);if(this.status&&status!==false)this.status.text='Apply creates a new mask and keeps the source selected.\nAssign the result as an image mask in PixInsight.';}
 };
-
-// Keep legacy with-based control setup outside the strict class body.
-function ColorMaskDialog_initialize()
-{
-
-   var labelMinWidth = Math.round(this.font.width("Start hue:") + 2.0 * this.font.width('M'));
-   var sliderMaxValue = 360;
-   var sliderMinWidth = 256;
-
-   // -------------------------------------------------------------------------
-   this.helpLabel = new Label(this);
-   with( this.helpLabel )
-   {
-      frameStyle = FrameStyle.Box;
-      margin = 4;
-      wordWrapping = true;
-      useRichText = true;
-      text = "<b>" + TITLE + " v" + VERSION + "</b> &mdash; This script builds a mask "
-           + "selecting a range of colors from a target image.</p>" +
-           + "<p>The range of colors is described by selecting a start and end hue "
-           + "(each expressed as a hue angle between 0 and 360°) or by clicking on one of the "
-           + "predefined color range buttons.</p>"
-           + "<p>The mask type can be Chrominance (more saturated colors are selected more strongly), "
-           + "Lightness (brighter areas are selected more strongly) or Linear "
-           + "(selection is only based on distance from the center of the color range.)"
-           + "<p>The Strength slider controls how strongly hues away from the midpoint of the "
-           + "selected range are included in the mask."
-           + "<p>Mask Blur provides the option to blur the mask by removing the specified "
-           + "number of small scale wavelet layers with MultiscaleLinearTransform."
-           + "<p>Copyright &copy; 2015-2017 Rick Stevenson. All rights reserved.</p>"
-           + "<p> Modified 2022 by Thorsten Glebe</p>";
-   }
-
-   // -------------------------------------------------------------------------
-   this.targetImage_Label = new Label(this);
-   with( this.targetImage_Label )
-   {
-      text = "Target image: ";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.targetImage_ViewList = new ViewList(this);
-   with( this.targetImage_ViewList )
-   {
-      minWidth = 360;
-      getMainViews(); // include main views only
-      excludeViews(this.targetImage_ViewList);
-
-      if ( data.targetView )
-      {
-         currentView = data.targetView;
-         if(currentView.image.isColor)
-         {
-            data.view_id = currentView.id;
-         }
-      }
-
-      toolTip = this.targetImage_Label.toolTip = "Select the image that will be used to generate the mask.";
-
-      onViewSelected = function(view)
-      {
-         if (view.id)
-			{
-            if (view.image.isColor)
-            {
-               data.targetView = view;
-               data.view_id    = view.id;
-            }
-			}
-         else
-         {
-				data.targetView = null;
-            data.view_id    = "";
-         }
-      }
-   }
-
-   this.targetImage_Sizer = new HorizontalSizer;
-   with( this.targetImage_Sizer )
-   {
-      spacing = 4;
-      add(this.targetImage_Label);
-      add(this.targetImage_ViewList, 100);
-   }
-
-   // -------------------------------------------------------------------------
-   this.minHue = new NumericControl(this);
-   with( this.minHue )
-   {
-      data.minHue_control = this.minHue;
-
-      label.text = "Start Hue:";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 360.0);
-      setPrecision(4);
-      setValue(data.minHue);
-
-      toolTip = "<p>Start of the color range specified as a Hue value between 0 and 360 degrees.</p>";
-
-      onValueUpdated = function(value) { data.minHue = value; data.maskSuff = ""; }
-   }
-
-   // -------------------------------------------------------------------------
-   this.maxHue = new NumericControl(this);
-   with( this.maxHue )
-   {
-      data.maxHue_control = this.maxHue;
-
-      label.text = "End Hue:";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 360.0);
-      setPrecision(4);
-      setValue(data.maxHue);
-
-      toolTip = "<p>End of the color range specified as a Hue value between 0 and 360 degrees.</p>";
-
-      onValueUpdated = function(value) { data.maxHue = value; data.maskSuff = ""; }
-   }
-
-   // -------------------------------------------------------------------------
-   this.min_intensity = new NumericControl(this);
-   with( this.min_intensity )
-   {
-      label.text = "Min Int.: ";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.min_intensity);
-
-      toolTip = "<p>Minimum intensity to select for the mask</p>";
-
-      onValueUpdated = function(value) { data.min_intensity = value; }
-   }
-
-   // -------------------------------------------------------------------------
-   this.max_intensity = new NumericControl(this);
-   with( this.max_intensity )
-   {
-      label.text = "Max Int.:";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.max_intensity);
-
-      toolTip = "<p>Maximum intensity to select for the mask</p>";
-
-      onValueUpdated = function(value) { data.max_intensity = value; }
-   }
-
-
-   // -------------------------------------------------------------------------
-   this.min_saturation = new NumericControl(this);
-   with( this.min_saturation )
-   {
-      label.text = "Min Sat.: ";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.min_saturation);
-
-      toolTip = "<p>Minimum saturation to select for the mask</p>";
-
-      onValueUpdated = function(value) { data.min_saturation = value; }
-   }
-
-   // -------------------------------------------------------------------------
-   this.max_saturation = new NumericControl(this);
-   with( this.max_saturation )
-   {
-      label.text = "Max Sat.:";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.max_saturation);
-
-      toolTip = "<p>Maximum saturation to select for the mask</p>";
-
-      onValueUpdated = function(value) { data.max_saturation = value; }
-   }
-
-   // -------------------------------------------------------------------------
-   this.red_Button = new PushButton(this);
-   with( this.red_Button )
-   {
-      text    = "Red";
-      toolTip = "<p>Set parameters to select red hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_RED, MAX_RED, "R"); }
-   }
-
-   this.green_Button = new PushButton(this);
-   with( this.green_Button )
-   {
-      text    = "Green";
-      toolTip = "<p>Set parameters to select green hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_GREEN, MAX_GREEN, "G"); }
-   }
-
-   this.blue_Button = new PushButton(this);
-   with( this.blue_Button )
-   {
-      text    = "Blue";
-      toolTip = "<p>Set parameters to select blue hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_BLUE, MAX_BLUE, "B"); }
-   }
-
-   this.RGB_ButtonPane = new HorizontalSizer;
-   with( this.RGB_ButtonPane )
-   {
-      spacing = 6;
-      add(this.red_Button);
-      add(this.green_Button);
-      add(this.blue_Button);
-   }
-
-   // -------------------------------------------------------------------------
-   this.cyan_Button = new PushButton(this);
-   with( this.cyan_Button )
-   {
-      text    = "Cyan";
-      toolTip = "<p>Set parameters to select cyan hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_CYAN, MAX_CYAN, "C"); }
-   }
-
-   this.magenta_Button = new PushButton(this);
-   with( this.magenta_Button )
-   {
-      text    = "Magenta";
-      toolTip = "<p>Set parameters to select magenta hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_MAGENTA, MAX_MAGENTA, "M"); }
-   }
-
-   this.yellow_Button = new PushButton(this);
-   with( this.yellow_Button )
-   {
-      text    = "Yellow";
-      toolTip = "<p>Set parameters to select yellow hues.</p>";
-
-      onClick = function() { SetCannedRange(MIN_YELLOW, MAX_YELLOW, "Y"); }
-   }
-
-   this.CMY_ButtonPane = new HorizontalSizer;
-   with( this.CMY_ButtonPane )
-   {
-      spacing = 6;
-      add(this.cyan_Button);
-      add(this.magenta_Button);
-      add(this.yellow_Button);
-   }
-
-   this.hueParams_Sizer = new VerticalSizer;
-   with( this.hueParams_Sizer )
-   {
-      margin = 6;
-      spacing = 4;
-      add(this.minHue);
-      add(this.maxHue);
-      add(this.min_intensity);
-      add(this.max_intensity);
-      add(this.min_saturation);
-      add(this.max_saturation);
-      add(this.RGB_ButtonPane);
-      add(this.CMY_ButtonPane);
-   }
-
-   // -------------------------------------------------------------------------
-   this.chrominanceMask_RadioButton = new RadioButton(this);
-   with( this.chrominanceMask_RadioButton )
-   {
-      data.chrominanceMask_RadioButton_control = this.chrominanceMask_RadioButton;
-      text = "Chrominance Mask";
-      checked = data.maskType == MASK_CHROMINANCE;
-      toolTip = "<p>Create a chrominance mask.</p>";
-
-      onCheck = function(checked) { if (checked) data.maskType = MASK_CHROMINANCE; }
-   }
-
-   this.lightnessMask_RadioButton = new RadioButton(this);
-   with( this.lightnessMask_RadioButton )
-   {
-      data.lightnessMask_RadioButton_control = this.lightnessMask_RadioButton;
-      text = "Lightness Mask";
-      checked = data.maskType == MASK_LIGHTNESS;
-      toolTip = "<p>Create a lightness mask.</p>";
-
-      onCheck = function(checked) { if (checked) data.maskType = MASK_LIGHTNESS; }
-   }
-
-   this.inv_lightnessMask_RadioButton = new RadioButton(this);
-   with( this.inv_lightnessMask_RadioButton )
-   {
-      data.inv_lightnessMask_RadioButton = this.inv_lightnessMask_RadioButton;
-      text = "Inv. Lightness Mask";
-      checked = data.maskType == MASK_INV_LIGHTNESS;
-      toolTip = "<p>Create a inverse lightness mask.</p>";
-
-      onCheck = function(checked) { if (checked) data.maskType = MASK_INV_LIGHTNESS; }
-   }
-
-   this.linearMask_RadioButton = new RadioButton(this);
-   with( this.linearMask_RadioButton )
-   {
-      data.linearMask_RadioButton_control = this.linearMask_RadioButton;
-      text = "Linear Mask";
-      checked = data.maskType == MASK_LINEAR;
-      toolTip = "<p>Create a linear mask.</p>";
-
-      onCheck = function(checked) { if (checked) data.maskType = MASK_LINEAR; }
-   }
-
-   this.maskStrength = new NumericControl(this);
-   with( this.maskStrength )
-   {
-      label.text = "Mask Strength:";
-      label.minWidth = labelMinWidth;
-      slider.setRange(0, sliderMaxValue);
-      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.maskStrength);
-      toolTip = "<p>Mask strength controls how strongly hues away from the midpoint of the "
-              + "selected range are included in the mask</p>";
-
-      onValueUpdated = function(value) { data.maskStrength = value; }
-   }
-
-   this.maskParams_Sizer = new VerticalSizer;
-   with( this.maskParams_Sizer )
-   {
-      margin = 6;
-      spacing = 4;
-      add(this.chrominanceMask_RadioButton);
-      add(this.lightnessMask_RadioButton);
-      add(this.inv_lightnessMask_RadioButton);
-      add(this.linearMask_RadioButton);
-      add(this.maskStrength);
-   }
-
-   // -------------------------------------------------------------------------
-   this.blurLayers_Label = new Label(this);
-   with( this.blurLayers_Label )
-   {
-      minWidth = labelMinWidth;
-      text = "Mask blur: layers to remove ";
-   }
-
-   this.blurLayers_SpinBox = new SpinBox(this);
-   with( this.blurLayers_SpinBox )
-   {
-      minValue = 0;
-      maxValue = 8;
-      value = data.blurLayers;
-      toolTip = this.blurLayers_Label.toolTip = "<b>Number of wavelet layers that will be removed to blur the mask.</b>";
-
-      onValueUpdated = function(value) { data.blurLayers = value; }
-   }
-
-   this.blurLayers_Sizer = new HorizontalSizer;
-   with( this.blurLayers_Sizer )
-   {
-      spacing = 4;
-      add(this.blurLayers_Label);
-      add(this.blurLayers_SpinBox);
-      addStretch();
-   }
-
-   this.maskName_Label = new Label (this);
-   with( this.maskName_Label )
-   {
-      text = "Mask name:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.maskName_Edit = new Edit( this );
-   with( this.maskName_Edit )
-   {
-      text = data.maskName;
-      setFixedWidth(MASK_NAME_MAX_LENGHT * this.font.width("M") );
-      toolTip = "<p>Name of the mask. In case no name is specificed the script will generate a mask name</p>";
-
-      onEditCompleted = function() { data.maskName = this.text; }
-   }
-
-   this.maskName_Sizer = new HorizontalSizer;
-   with( this.maskName_Sizer )
-   {
-      spacing = 4;
-      add(this.maskName_Label);
-      add(this.maskName_Edit);
-      addStretch();
-   }
-
-   this.maskPostprocess_Sizer = new VerticalSizer;
-   with( this.maskPostprocess_Sizer )
-   {
-      margin = 6;
-      spacing = 4;
-      add(this.blurLayers_Sizer);
-      add(this.maskName_Sizer);
-   }
-
-   // -------------------------------------------------------------------------
-   this.newInstance_Button = new ToolButton(this);
-   with( this.newInstance_Button )
-   {
-      icon = scaledResource(":/process-interface/new-instance.png");
-      toolTip = "New Instance";
-
-      onMousePress = function()
-      {
-         this.hasFocus = true;
-         data.exportParameters();
-         this.pushed = false;
-         this.dialog.newInstance();
-      }
-   }
-
-   this.ok_Button = new PushButton(this);
-   with( this.ok_Button )
-   {
-      text = " OK ";
-      icon = scaledResource( ":/icons/ok.png" );
-
-      onClick = () => { this.ok(); };
-   }
-
-   this.cancel_Button = new PushButton(this);
-   with( this.cancel_Button )
-   {
-      text = " Cancel ";
-      icon = scaledResource( ":/icons/cancel.png" );
-
-      onClick = () => { this.cancel(); }
-   }
-
-   this.buttons_Sizer = new HorizontalSizer;
-   with( this.buttons_Sizer )
-   {
-      spacing = 6;
-      add(this.newInstance_Button);
-      addStretch();
-      add(this.ok_Button);
-      add(this.cancel_Button);
-   }
-
-   this.sizer = new VerticalSizer;
-   with( this.sizer )
-   {
-      margin = 6;
-      spacing = 6;
-      add(this.helpLabel);
-      addSpacing(4);
-      add(this.targetImage_Sizer);
-      add(this.hueParams_Sizer);
-      add(this.maskParams_Sizer);
-      add(this.maskPostprocess_Sizer);
-      add(this.buttons_Sizer);
-   }
-
-   this.windowTitle = TITLE + " Script";
-   this.adjustToContents();
-   this.setFixedSize();
-}
-
-// Our dialog inherits all properties and methods from the core Dialog object.
-
-/*
- * Script entry point.
- */
-function main()
-{
-   Console.hide();
-
-   if (Parameters.isViewTarget)
-   {
-      data.importParameters();
-      data.targetView = Parameters.targetView;
-      data.view_id    = Parameters.targetView.id;
-
-      if (data.targetView.image.numberOfChannels != 3)
-      {
-         Console.show();
-         Console.criticalln("Not an RGB color image! image= ", data.view_id);
-      }
-      else
-      {
-         doWork();
-      }
-      return;
-   }
-   else
-   {
-      data.importParameters();
-      if(!data.targetView)
-      {
-         // Get access to the active image window
-         var window = ImageWindow.activeWindow;
-         if (!(window == null || window.isNull))
-         {
-            data.targetView = window.currentView;
-            data.view_id    = window.currentView.id;
-         }
-      }
-   }
-
-   var dialog = new ColorMaskDialog();
-   for (;;)
-   {
-      if (!dialog.execute())
-         return;
-
-      // A view must be selected.
-      if ( !data.targetView )
-      {
-         errorMessageOk("You must select a view to apply this script.", TITLE);
-         continue;
-      }
-
-      // Only works on a colour image, duh!
-      if (data.targetView.image.isGrayscale)
-      {
-         errorMessageOk("You must supply an RGB color image.", TITLE);
-         continue;
-      }
-
-      break;
-   }
-
-   doWork();
-}
-
-main();
+#ifndef TG_TEST
+TG_main(CM_Dialog,'targetView',v=>v.image.isColor,doWork);
+#endif

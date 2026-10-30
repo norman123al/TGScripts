@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | DarkStructureEnhanceTG</title>
-   <meta name="keywords" content="contrast enhancement, Carlos Sonnenstein, Oriol Lehmkuhl" />
-   <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script to enhance dark structures in an image." />
+   <meta name="keywords" content="dark structures, dust lanes, wavelets, TGScripts" />
+   <meta name="author" content="Carlos Sonnenstein; Oriol Lehmkuhl; Thorsten Glebe" />
+   <meta name="description" content="Enhance dark image structures with a generated multiscale mask. User guide for version 2.4.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -23,16 +23,16 @@
 <h1>DarkStructureEnhanceTG</h1>
 
 <div id="authors">
-<p>By Thorsten Glebe</p>
+<p>By Carlos Sonnenstein; Oriol Lehmkuhl; Thorsten Glebe</p>
 </div>
 
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script to enhance dark structures in an image. <a href="#__contents__">[more]</a></p></div>
+<p>Enhance dark image structures with a generated multiscale mask. User guide for version 2.4.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> contrast enhancement, Carlos Sonnenstein, Oriol Lehmkuhl</p>
+<p><strong>Keywords:</strong> dark structures, dust lanes, wavelets, TGScripts</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,8 +40,13 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
-<li class="pidoc_tocItem"><a href="#__Preview_Dark_Structure_Enhance__">3&emsp;Preview Dark Structure Enhance</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface_and_quick_start__">2&emsp;Interface and quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Processing_controls__">3&emsp;Processing controls</a></li>
+<li class="pidoc_tocItem"><a href="#__Comparison_previews__">4&emsp;Comparison previews</a></li>
+<li class="pidoc_tocItem"><a href="#__Output_Undo_and_masks__">5&emsp;Output, Undo and masks</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_instances__">6&emsp;Toolbar and instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Changes_in_240__">7&emsp;Changes in 2.4.0</a></li>
+<li class="pidoc_tocItem"><a href="#__Credits__">8&emsp;Credits</a></li>
 </ul>
 </div>
 
@@ -51,91 +56,119 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/DarkStructureEnhanceTG_main_screen.png" alt=""/>
-<p>The DarkStructureEnhance script written by Carlos Sonnenstein and Oriol Lehmkuhl is a useful tool for enhancing dark structures in an astronomical image.</p>
-<p>This is a slightly modified version of the original script. The &quot;new instance&quot; button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets. The default &quot;Amount&quot; for dark structure enhancement has been reduced slightly as the default seems to produce a too strong effect in most cases.</p>
-<p>As the effect of dark structure enhancement seems to be better with linear data, a warning pop up window is shown in case the target view selected is recognized as non-linear. In case the warning message is confirmed, the script will continue.</p>
-<p>Furthermore, minor code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+<p>DarkStructureEnhanceTG derives a grayscale structure mask and uses it to apply a darkening histogram transformation. The original wavelet-mask algorithm is retained. The compact interface separates full-image Apply from a nine-panel comparison on a preview.</p>
+<p>Requires PixInsight 1.9.5 or later. Run src/scripts/TGScripts/DarkStructureEnhanceTG.js with Script &gt; Execute Script File to use the repository version. The dialog opens without a loaded image.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
+<div class="pidoc_section" id="__Interface_and_quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface and quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface_and_quick_start', this );">[hide]</p>
+   <div id="Interface_and_quick_start">
+<img src="images/DarkStructureEnhanceTG_main_screen.png" alt=""/>
+
+<ol class="pidoc_list">
+<li>Select a stretched grayscale or RGB main image, or use Open image. An STF is only a display stretch; it does not stretch the actual pixels.</li>
+<li class="pidoc_spaced_list_item">Start with 8 layers, the 5 by 5 B3 Spline scaling function, Amount 0.30 and one iteration.</li>
+<li class="pidoc_spaced_list_item">Optionally choose a preview belonging to the target and click Create comparison. Create previews before opening the dialog.</li>
+<li class="pidoc_spaced_list_item">Keep Create a new image on Apply checked to preserve the target. Click the bottom check mark to process the full image.</li>
+<li class="pidoc_spaced_list_item">Inspect the result, adjust settings and apply again. The source stays selected and the dialog stays open.</li>
+</ol>
+
+<p>The screenshot uses synthetic demonstration data. A low first-channel median prompts a warning in the interactive dialog because the image may still be linear; this is a heuristic. Directly applied process instances do not display that warning.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Processing_controls__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Processing controls</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Processing_controls', this );">[hide]</p>
+   <div id="Processing_controls">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="target_image"></a> Target Image</p>
+<p>Layers</p>
 </dt>
 <dd>
-<p>The target image control allows to choose a main view as a target for dark structure enhancement.</p>
+<p>Range 5 to 12, default 8. Sets the number of fine wavelet layers removed when deriving the broad structure residual. The difference between that residual and the image contributes to the dark-structure mask.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="layers"></a> Layers To Remove</p>
+<p>Scaling</p>
 </dt>
 <dd>
-<p>This parameter specifies the number of wavelet layers to remove for mask generation. The higher the number the larger the selected structures will be. The &quot;Extract mask&quot; checkbox, if set, will bring up the resulting mask.</p>
+<p>Choose 3 by 3 Linear Interpolation or 5 by 5 B3 Spline. This changes the smoothing kernel used to derive the mask.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="scaling_function"></a> Scaling Function</p>
+<p>Show the generated mask</p>
 </dt>
 <dd>
-<p>The scaling function can be selected for the underlying ATrousWaveletTransformV1 operation.</p>
+<p>Retains and displays the grayscale mask for a successful full-image Apply. Comparison grids do not retain the nine intermediate masks.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="amount"></a> Amount</p>
+<p>Amount</p>
 </dt>
 <dd>
-<p>The 'Amount' slider controls the strenght of the effect.</p>
+<p>Range 0 to 0.99, default 0.30. Sets the masked histogram midtones value to 0.5 plus half the amount. Zero leaves the image unchanged; larger values darken the masked structures more strongly.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="iterations"></a> Iterations</p>
+<p>Iterations</p>
 </dt>
 <dd>
-<p>The effect might be applied multiple times, if 'Iterations' is chosen larger than 1.</p>
+<p>Range 1 to 10, default 1. Repeats the same histogram transformation with the generated mask. Increasing both amount and iterations can exaggerate dark structures.</p>
 </dd>
 </dl>
 
    </div>
 </div>
 
-<div class="pidoc_section" id="__Preview_Dark_Structure_Enhance__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="preview"></a>Preview Dark Structure Enhance</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_Dark_Structure_Enhance', this );">[hide]</p>
-   <div id="Preview_Dark_Structure_Enhance">
-<p>In case the selected <a href="#target_image">Target View</a> window contains previews, one of it's previews can be selected from which a series of dark structure enhanced images are produced, with varying strength of dark structure enhancement. The used parameter values are drawn as a signature in each subframe. The following image shows a sample preview output window.</p>
-
-<div style="text-align:center;">
-<img style="float:left;width:100%;" src="images/DarkStructureEnhanceTG_preview.png" alt=""/>
+<div class="pidoc_section" id="__Comparison_previews__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Comparison previews</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Comparison_previews', this );">[hide]</p>
+   <div id="Comparison_previews">
+<p>Create comparison processes the selected target preview region in a 3 by 3 grid. Columns vary layer count in steps of one; rows vary amount in steps of 0.10. Each panel is labeled with its actual settings. Near a parameter boundary the sampled range shifts to remain within the valid limits.</p>
+<p>The preview must be at least 64 by 64 pixels. Its pixels are copied from the corresponding main-image region, then processed independently. Wavelet behavior near crop boundaries can differ from a full-image result. A sufficiently large, representative preview gives a more useful comparison. Selecting a preview never redirects Apply: Apply always processes the complete target.</p>
+   </div>
 </div>
+
+<div class="pidoc_section" id="__Output_Undo_and_masks__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Output, Undo and masks</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Output_Undo_and_masks', this );">[hide]</p>
+   <div id="Output_Undo_and_masks">
+<p>By default Apply creates a new image and leaves source pixels unchanged. Turn off Create a new image on Apply to replace the target pixels in one Undo step. Existing target masks are not used or changed; enhancement uses its own generated mask on a temporary copy. Alpha channels, the source display stretch, RGB working space and FITS keywords are preserved in the new output. Temporary masks and working images are removed on completion or failure.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_and_instances__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Toolbar and instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_instances', this );">[hide]</p>
+   <div id="Toolbar_and_instances">
+<p>New Instance saves enhancement settings without the target or preview. Reset restores defaults and retains both selections. Apply runs the full target. Close closes the dialog, and Documentation opens this guide. New instances remember the output choice; older instances without that setting retain their original in-place behavior.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Changes_in_240__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Changes in 2.4.0</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Changes_in_240', this );">[hide]</p>
+   <div id="Changes_in_240">
+<p>Compact 420-pixel interface, open-first workflow, repeatable Apply, separate comparison action, optional new-image output, bounded instance settings and PiDoc help. Temporary images are cleaned up on errors. In-place updates have one Undo step, and comparison amounts stay within the supported range.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Credits__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Credits</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Credits', this );">[hide]</p>
+   <div id="Credits">
+<p>Original algorithm by Carlos Sonnenstein and PixInsight implementation by Oriol Lehmkuhl. TGScripts adaptation by Thorsten Glebe. Distributed under the GNU General Public License, version 3 or later; see the script source for the license notice.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2009 Carlos Sonnenstein and Oriol Lehmkuhl; 2022-2026 Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-07 23:13:04 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 13:23:00 UTC</p>
 </div>
 <br/>
 <br/>

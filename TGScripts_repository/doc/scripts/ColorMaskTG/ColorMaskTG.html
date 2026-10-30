@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | ColorMaskTG</title>
-   <meta name="keywords" content="mask creation, Rick Stevenson" />
-   <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A mask creation script using the HSI (hue, intensity, saturation) readout space." />
+   <meta name="keywords" content="color mask, hue, saturation, intensity, TGScripts" />
+   <meta name="author" content="Rick Stevenson; TGScripts adaptation by Thorsten Glebe" />
+   <meta name="description" content="Create grayscale masks from RGB hue, intensity and saturation. User guide for version 2.2.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -23,16 +23,16 @@
 <h1>ColorMaskTG</h1>
 
 <div id="authors">
-<p>By Thorsten Glebe</p>
+<p>By Rick Stevenson; TGScripts adaptation by Thorsten Glebe</p>
 </div>
 
 <hr class="separator"/>
 
 <div id="brief">
-<p>A mask creation script using the HSI (hue, intensity, saturation) readout space. <a href="#__contents__">[more]</a></p></div>
+<p>Create grayscale masks from RGB hue, intensity and saturation. User guide for version 2.2.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> mask creation, Rick Stevenson</p>
+<p><strong>Keywords:</strong> color mask, hue, saturation, intensity, TGScripts</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,8 +40,12 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Hue_Intensity_and_Saturation_selection__">2&emsp;Hue, Intensity and Saturation selection</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">3&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface_and_quick_start__">2&emsp;Interface and quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Hue_and_selection_limits__">3&emsp;Hue and selection limits</a></li>
+<li class="pidoc_tocItem"><a href="#__Mask_output__">4&emsp;Mask output</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_instances__">5&emsp;Toolbar and instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Changes_in_220__">6&emsp;Changes in 2.2.0</a></li>
+<li class="pidoc_tocItem"><a href="#__Credits_and_license__">7&emsp;Credits and license</a></li>
 </ul>
 </div>
 
@@ -51,134 +55,150 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/ColorMaskTG_main_screen.png" alt=""/>
-<p>The ColorMask script has been developed by Rick Stevenson, however it contained an issue which was investigated and well described by Adam Block in a youtube video on his channel: <a href="https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s" title="https://www.youtube.com/watch?v=3WzAwOw_nng&t=1s">PixInsight ColorMask Script: Confusion and Analysis</a>. From his description I could easily figure out the fix which then was published in another video by Adam: <a href="https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s" title="https://www.youtube.com/watch?v=GwU7z1tNvB4&t=5s">PixInsight ColorMaskScript FIX!</a>.</p>
-<p>I took the opportunity and played a bit more with the script and saw that it's capabilites were still quite limited so I added more options for mask generation. Now the script can create masks for almost any kind of processing task.</p>
+<p>ColorMaskTG creates a separate grayscale mask from a selected hue interval. Intensity and saturation limits refine the selection. The original color-selection expressions and multiscale blur are retained in a compact TGScripts interface.</p>
+<p>Requires PixInsight 1.9.5 or later with the V8 JavaScript runtime. Open the repository version with Script &gt; Execute Script File and select src/scripts/TGScripts/ColorMaskTG.js. No image needs to be open when the script starts.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Hue_Intensity_and_Saturation_selection__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="HSI_selection"></a>Hue, Intensity and Saturation selection</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Hue_Intensity_and_Saturation_selection', this );">[hide]</p>
-   <div id="Hue_Intensity_and_Saturation_selection">
-<p>The hue, intensity and saturation range can be best determined by switching the readout data to 'HSI':</p>
+<div class="pidoc_section" id="__Interface_and_quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface and quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface_and_quick_start', this );">[hide]</p>
+   <div id="Interface_and_quick_start">
+<img src="images/ColorMaskTG_main_screen.png" alt=""/>
 
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_hsi_readout.png" alt=""/>
-</div>
-<p>Then image cursor can be used to determine the upper and lower bounds of the parameters from the image regions which are subject to mask generation:</p>
+<ol class="pidoc_list">
+<li>Select an RGB main image, or use Open image to load one. Grayscale images are not suitable for hue selection.</li>
+<li class="pidoc_spaced_list_item">Select a preset, then adjust From and To if needed. Red wraps through zero degrees.</li>
+<li class="pidoc_spaced_list_item">Refine the intensity and saturation limits. Leave their default 0 to 1 ranges to include all values.</li>
+<li class="pidoc_spaced_list_item">Choose a mask type, strength and optional blur. An empty Name generates a name from the source.</li>
+<li class="pidoc_spaced_list_item">Click Apply, the check mark in the bottom toolbar. A new mask is created and the dialog stays open. Close the dialog to inspect and assign the mask in PixInsight.</li>
+</ol>
 
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_image_cursor.png" alt=""/>
-</div>
+<p>The screenshot shows actual PixInsight controls; the selected image is synthetic demonstration data. Applying never modifies the RGB source or automatically attaches the generated mask.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
+<div class="pidoc_section" id="__Hue_and_selection_limits__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Hue and selection limits</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Hue_and_selection_limits', this );">[hide]</p>
+   <div id="Hue_and_selection_limits">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="target_image"></a> Target Image</p>
+<p>Preset</p>
 </dt>
 <dd>
-<p>The target image control allows to choose a main view of an RGB image as a target for mask generation. Only RGB images are accepted for mask creation as other tools exists for mask generation from grayscale images (e.g. HistogramTransformation).</p>
+<p>All hues, Red, Yellow, Green, Cyan, Blue and Magenta set the hue endpoints. Editing either endpoint changes the preset to Custom.</p>
+</dd>
+<dt>
+<p>From and To</p>
+</dt>
+<dd>
+<p>Hue angles run from 0 to 360 degrees. A From value greater than To crosses zero, for example Red at 300 to 60. Equal endpoints cover a full hue cycle. At strengths below 1 the response still varies across that cycle.</p>
+</dd>
+<dt>
+<p>Intensity</p>
+</dt>
+<dd>
+<p>The minimum and maximum apply to PixelMath I(), the HSI intensity, rather than CIE lightness. Pixels outside the inclusive interval become black.</p>
+</dd>
+<dt>
+<p>Saturation</p>
+</dt>
+<dd>
+<p>These limits use PixelMath Si(), the HSI saturation. Low-saturation colors can be excluded to avoid selecting nearly neutral pixels. Minimum values must not exceed their maximum.</p>
 </dd>
 </dl>
 
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="hue_selection"></a> Hue Selection</p>
-</dt>
-<dd>
-<p>The hue can be selected either manuall via the image cursor (see description above) or using the push buttons for predifined color ranges. This is the functionality from the original script.</p>
-
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_hue_selection.png" alt=""/>
+   </div>
 </div>
-</dd>
-</dl>
 
+<div class="pidoc_section" id="__Mask_output__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Mask output</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Mask_output', this );">[hide]</p>
+   <div id="Mask_output">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="intensity_selection"></a> Intensity Selection</p>
+<p>Linear</p>
 </dt>
 <dd>
-<p>Minimum and Maximum intensity can be selected via the image cursor (I-value) by setting the 'Min Int.' and 'Max Int.' sliders. By default the full range is selected.</p>
+<p>Uses the hue-selection profile without lightness or chrominance weighting. This is the default.</p>
+</dd>
+<dt>
+<p>Chrominance</p>
+</dt>
+<dd>
+<p>Multiplies the profile by CIE chrominance.</p>
+</dd>
+<dt>
+<p>Lightness</p>
+</dt>
+<dd>
+<p>Multiplies the profile by CIE lightness, emphasizing brighter selected pixels.</p>
+</dd>
+<dt>
+<p>Inverse lightness</p>
+</dt>
+<dd>
+<p>Multiplies the profile by inverse CIE lightness, emphasizing darker selected pixels.</p>
+</dd>
+<dt>
+<p>Strength</p>
+</dt>
+<dd>
+<p>Range 0 to 1, default 1. Smaller values soften the hue profile; 1 gives full strength within the hue interval. The final PixelMath result is rescaled to 0 to 1, so strength is not a simple multiplier of final mask brightness.</p>
+</dd>
+<dt>
+<p>Blur layers</p>
+</dt>
+<dd>
+<p>Range 0 to 8, default 0. A positive value removes that many fine-scale layers with MultiscaleLinearTransform, retaining the residual. Larger values produce broader, smoother masks.</p>
+</dd>
+<dt>
+<p>Name</p>
+</dt>
+<dd>
+<p>Optional image identifier using letters, digits and underscores, with no leading digit. If a name already exists, a numbered suffix is added. The output is a 32-bit floating-point grayscale image without alpha channels.</p>
+</dd>
+</dl>
 
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_intensity_selection.png" alt=""/>
+   </div>
 </div>
-</dd>
-</dl>
 
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="saturation_selection"></a> Saturation Selection</p>
-</dt>
-<dd>
-<p>Minimum and Maximum saturation can be selected via the image cursor (S-value) by setting the 'Min Sat.' and 'Max Sat.' sliders. By default the full range is selected.</p>
-
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_saturation_selection.png" alt=""/>
+<div class="pidoc_section" id="__Toolbar_and_instances__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Toolbar and instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_instances', this );">[hide]</p>
+   <div id="Toolbar_and_instances">
+<p>From left to right: New Instance, Reset, Apply, Close and Documentation. Drag New Instance to save the selection settings without binding the RGB target. Apply an instance to another RGB main view, or open it globally to choose an image. Legacy instances with a saved target are still read. Reset restores all mask settings while retaining the selected image. Each Apply creates a separate result.</p>
+   </div>
 </div>
-</dd>
-</dl>
 
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="mask_modes"></a> Mask Modes</p>
-</dt>
-<dd>
-<p>A new mask mode 'Inv. Lightness Mask' was added which is the inversion of the 'Lightness Mask'. This allows to generate masks for dimm parts of the image, where brigher parts are protected. The 'Lightness Mask' mode works the inverse way, protecting dimm parts of the image.</p>
-
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_inv_lightness.png" alt=""/>
+<div class="pidoc_section" id="__Changes_in_220__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Changes in 2.2.0</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Changes_in_220', this );">[hide]</p>
+   <div id="Changes_in_220">
+<p>Compact 420-pixel interface, open-first workflow, preset list, repeatable Apply and local PiDoc help. Input ranges and names are validated, duplicate output names are handled safely, and processing errors clean up partial results without locking the source image.</p>
+   </div>
 </div>
-</dd>
-</dl>
 
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="mask_name"></a> Mask Name</p>
-</dt>
-<dd>
-<p>For convenience, a user specified mask name can be provided via the 'Mask Name' text field. If unused the script will generate a name for the mask.</p>
-
-<div style="text-align:center;">
-<img style="width:60%;" src="images/ColorMaskTG_mask_name.png" alt=""/>
-</div>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="new_instance"></a> New instance button</p>
-</dt>
-<dd>
-<p>A 'new instance' button (triangular button at the bottom left) has been added which can be used to create an icon instance on the Pixinsight desktop which contains the current state of the script. This allows to conveniently integrate the script into an icon set for image processing.</p>
-</dd>
-</dl>
-
+<div class="pidoc_section" id="__Credits_and_license__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Credits and license</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Credits_and_license', this );">[hide]</p>
+   <div id="Credits_and_license">
+<p>Based on ColorMask by Rick Stevenson, with TGScripts modifications by Thorsten Glebe. The source retains the original redistribution conditions and disclaimer.</p>
+<p>This product is based on software from the PixInsight project, developed by Pleiades Astrophoto and its contributors (http://pixinsight.com/).</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2015-2017 Rick Stevenson; 2022-2026 Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-10-31 18:18:42 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 13:23:00 UTC</p>
 </div>
 <br/>
 <br/>

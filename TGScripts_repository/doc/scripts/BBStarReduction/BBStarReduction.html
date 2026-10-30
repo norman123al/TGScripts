@@ -3,18 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | BBStarReduction</title>
-   <meta name="keywords" content="star reduction, StarXTerminator, Bill Blanshan" />
+   <meta name="keywords" content="star reduction, Bill Blanshan, StarXTerminator, starless, TGScripts" />
    <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script to apply Bill Blanshan's star reduction methods.
-Note: the script requires StarXTerminator to be installed and therefore the minimal required image size is 256x256 pixel. Please make sure StarXTerminator is set up properly and an AI is chosen before running this script." />
+   <meta name="description" content="Apply Bill Blanshan's three star reduction methods to stretched images. User guide for version 1.3.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -30,11 +29,10 @@ Note: the script requires StarXTerminator to be installed and therefore the mini
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script to apply Bill Blanshan's star reduction methods.</p>
-<p><strong>Note:</strong> the script requires StarXTerminator to be installed and therefore the minimal required image size is 256x256 pixel. Please make sure StarXTerminator is set up properly and an AI is chosen before running this script. <a href="#__contents__">[more]</a></p></div>
+<p>Apply Bill Blanshan's three star reduction methods to stretched images. User guide for version 1.3.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> star reduction, StarXTerminator, Bill Blanshan</p>
+<p><strong>Keywords:</strong> star reduction, Bill Blanshan, StarXTerminator, starless, TGScripts</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -42,9 +40,15 @@ Note: the script requires StarXTerminator to be installed and therefore the mini
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a></li>
-<li class="pidoc_tocItem"><a href="#__Preview_Star_Reduction__">3&emsp;Preview Star Reduction</a></li>
-<li class="pidoc_tocItem"><a href="#__Known_Issues__">4&emsp;Known Issues</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface__">2&emsp;Interface</a></li>
+<li class="pidoc_tocItem"><a href="#__Quick_start__">3&emsp;Quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Preparing_the_images__">4&emsp;Preparing the images</a></li>
+<li class="pidoc_tocItem"><a href="#__Reduction_controls__">5&emsp;Reduction controls</a></li>
+<li class="pidoc_tocItem"><a href="#__Comparing_settings_on_a_preview__">6&emsp;Comparing settings on a preview</a></li>
+<li class="pidoc_tocItem"><a href="#__Apply_output_and_Undo__">7&emsp;Apply, output and Undo</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_saved_instances__">8&emsp;Toolbar and saved instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting__">9&emsp;Troubleshooting</a></li>
+<li class="pidoc_tocItem"><a href="#__Credits_and_license__">10&emsp;Credits and license</a></li>
 </ul>
 </div>
 
@@ -54,92 +58,247 @@ Note: the script requires StarXTerminator to be installed and therefore the mini
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/BBStarReduction_main_screen.png" alt=""/>
-<p>Bill Blanshan published three methods for star reduction in an astronomical image which are so far available as PixelMath expressions: <a href="https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J" title="https://www.amazon.ca/clouddrive/share/t37K5QLnJq5H7yU9fJq6gpmc8oe823hM0snoi9WUa4J">BillsStarReductionMethods_V2.xpsm</a>. A prerequisite is a starless image which needs to be created prior and the name of the starless image has to be provided in the PixelMath expressions. The PixelMath expressions contain parameters which control the strength of the star reduction. The user has to edit the expressions in order to change the parameters.</p>
-<p>This script automates the generation of the starless image, let the user choose which star reduction method to use and has the ability to produce a preview showing the effect of the star reduction parameters. The state of the script can be stored as an icon by the &quot;new instance&quot; button and can be used via drag and drop on other images.</p>
+<p>BBStarReduction applies Bill Blanshan's V2 Transfer, Halo and Star PixelMath methods through a compact TGScripts interface. It can create a labeled comparison grid before processing the full image. A starless version of the target is required: generate it automatically with StarXTerminator or select an existing matching image.</p>
+<p>Version 1.3.0 supports opening the dialog before loading an image, repeated Apply, a new-image output option, and a separate Create comparison action. It corrects the Star mode mapping so that Strong, Moderate and Soft apply the corresponding formula in both the full-image result and the comparison grid.</p>
+<p>PixInsight 1.9.5 or later with the V8 JavaScript runtime is required. StarXTerminator is required only for automatic starless-image generation.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
+<div class="pidoc_section" id="__Interface__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface', this );">[hide]</p>
+   <div id="Interface">
+<p>The controls are grouped into Target image, Starless image, Star reduction and Compare on a preview. The bottom toolbar contains New Instance, Reset, Apply, Close and Documentation.</p>
+<img src="images/BBStarReduction_main_screen.png" alt=""/>
+<p>The screenshot shows the Star method with an existing starless image selected. Strength is disabled because this method uses Iterations and Mode. Transfer and Halo enable Strength and disable the two Star-only controls. The images in this guide are synthetic demonstration data, not an astronomical processing recommendation.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Quick_start__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quick_start', this );">[hide]</p>
+   <div id="Quick_start">
+<p>Launch the installed script from Script &gt; TG Scripts &gt; BBStarReduction. To run the repository version, choose Script &gt; Execute Script File and select src/scripts/TGScripts/BBStarReduction.js in the TGScripts repository. The dialog can open with no image loaded.</p>
+
+<ol class="pidoc_list">
+<li>Select a stretched main image under Target image, or click Open image to load one. A newly opened image is selected automatically.</li>
+<li class="pidoc_spaced_list_item">Leave Use an existing starless image unchecked to use StarXTerminator. Alternatively, check it and select an already open starless version of the target.</li>
+<li class="pidoc_spaced_list_item">Choose Transfer, Halo or Star and set the enabled reduction controls. Start with a modest strength or Soft mode.</li>
+<li class="pidoc_spaced_list_item">If the target has a preview, select it and click Create comparison to explore nine parameter combinations. This step is optional.</li>
+<li class="pidoc_spaced_list_item">Leave Create a new image on Apply checked to preserve the target. Click Apply, the green check mark, to process the full target with the chosen settings.</li>
+</ol>
+
+<p>The dialog remains open and retains its selected source after each result. You can change settings and apply again. Selecting a preview never changes Apply into a preview operation. Close the dialog to inspect or edit images normally in PixInsight; it does not close the images you opened or generated.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Preparing_the_images__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Preparing the images</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preparing_the_images', this );">[hide]</p>
+   <div id="Preparing_the_images">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="target_image"></a> Target Image</p>
+<p>Stretched target</p>
 </dt>
 <dd>
-<p>The target image control allows to choose a main view of an image (either grayscale or RGB) as a target for star reduction. Only views with an image size of at least 256x256 px are listed.</p>
+<p>Use a grayscale or RGB main view whose pixel values have already been stretched. An STF changes the display only and does not make linear pixels suitable for these methods. A low first-channel median triggers a confirmation in the interactive dialog; this is a heuristic, not a reliable test for linear data. A process instance applied directly to a view runs without that confirmation.</p>
+</dd>
+<dt>
+<p>Automatic starless image</p>
+</dt>
+<dd>
+<p>With Use an existing starless image unchecked, the script runs StarXTerminator on a temporary full-image copy. Install and configure StarXTerminator, including its AI model, before using this option. BBStarReduction requires a target at least 512&times;512 pixels for automatic removal. It uses the same full-image starless generation for Apply and comparison, then crops to the selected preview for the grid. This can take time even for a small preview.</p>
+</dd>
+<dt>
+<p>Existing starless image</p>
+</dt>
+<dd>
+<p>Open both images before selecting this option. The starless image must be derived from the same target, have identical dimensions and the same grayscale or RGB channels, and have matching alignment, crop and stretch. The script checks dimensions and color channels, but cannot verify alignment or tonal equivalence. A differently stretched or shifted starless image can damage background structure or produce artifacts. The target itself cannot be selected as its starless reference. The supplied starless image is never modified.</p>
 </dd>
 </dl>
 
+<p>A target change clears its starless and preview selections to avoid accidentally carrying them to a different image. Automatic starless images and temporary working images are removed after processing, including on failure. Existing image masks are not used; reduction processes the full image or the chosen comparison region.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Reduction_controls__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Reduction controls</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Reduction_controls', this );">[hide]</p>
+   <div id="Reduction_controls">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="transfer_method"></a> Transfer Method</p>
+<p>Method: Transfer</p>
 </dt>
 <dd>
-<p>This method is controlled by a single parameter <strong>Strength</strong>. In the original PixelMath methods this parameter is called <strong>S</strong> and ranges from 0.5 to 0. The lower S the stronger the star reduction. In this script the <strong>Strength</strong> parameter ranges from 0 to 1 with the canonical behavior of increasing star reduction with increased strength.</p>
-<p>This method does not use the <strong>Iterations</strong> and <strong>Mode</strong> parameter and therefore the respective controls are deactivated if this method is chosen.</p>
+<p>Apply the Transfer V2 expression. Strength controls the amount of reduction; Iterations and Mode are inactive. Transfer is the default method.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="halo_method"></a> Halo Method</p>
+<p>Method: Halo</p>
 </dt>
 <dd>
-<p>The halo method is also controlled by the <strong>Strength</strong> parameter, similar to the <a href="#transfer_method">transfer method</a>. The star reduction effect increases with increasing parameter value.</p>
+<p>Apply the Halo V2 expression. It also uses Strength and ignores Iterations and Mode. Compare it with Transfer on representative stars and bright halos to choose the result that suits the image.</p>
 </dd>
-</dl>
-
-
-<dl class="pidoc_list">
 <dt>
-<p><a id="star_method"></a> Star Method</p>
+<p>Strength</p>
 </dt>
 <dd>
-<p>The star method is a combination of several methods and is controlled by two parameters: <strong>Iterations</strong> and <strong>Mode</strong>. The star reduction effect increases with the number of iterations. The mode is self explanatory.</p>
-<p>This method does not use the <strong>Stregth</strong> parameter and therefore the Strength control is deactivated if this method is selected.</p>
+<p>Range 0.00 to 1.00; default 0.50. Increasing this value increases the requested reduction for Transfer and Halo. The original expressions use a parameter S that decreases from 0.5 to 0; the script converts the displayed strength automatically. Settings are not interchangeable with Star mode and iterations.</p>
+</dd>
+<dt>
+<p>Method: Star</p>
+</dt>
+<dd>
+<p>Apply the Star V2 expression with Iterations and Mode. Strength is inactive. The three modes are Strong, Moderate and Soft; the default is Soft. The selected mode is now passed correctly to the expression, including Strong.</p>
+</dd>
+<dt>
+<p>Iterations</p>
+</dt>
+<dd>
+<p>Star method only. Range 1 to 3; default 1. Larger values apply more reduction iterations. Inspect faint stars and surrounding structure before choosing a more aggressive setting.</p>
+</dd>
+<dt>
+<p>Mode</p>
+</dt>
+<dd>
+<p>Star method only. Strong, Moderate or Soft selects the corresponding branch of Bill Blanshan's expression. Try Soft first and compare the modes using the grid.</p>
 </dd>
 </dl>
 
    </div>
 </div>
 
-<div class="pidoc_section" id="__Preview_Star_Reduction__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="preview"></a>Preview Star Reduction</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preview_Star_Reduction', this );">[hide]</p>
-   <div id="Preview_Star_Reduction">
-<p>In case the selected <a href="#target_image">Target View</a> window contains previews, one of it's previews can be selected from which a series of star reduction images are produced, with varying strength of star reduction. The used parameter values are drawn as a signature in each subframe. The following image shows a sample preview output window.</p>
+<div class="pidoc_section" id="__Comparing_settings_on_a_preview__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Comparing settings on a preview</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Comparing_settings_on_a_preview', this );">[hide]</p>
+   <div id="Comparing_settings_on_a_preview">
+<p>Create a rectangular preview in the target image using PixInsight before opening the script. Select it in Compare on a preview and click Create comparison. Each preview must be at least 64&times;64 pixels. Only previews belonging to the selected target are listed. The preview defines a region of the target's main image; independently processed preview pixels are not used.</p>
 
-<div style="text-align:center;">
-<img style="float:left;width:100%;" src="images/BBStarReduction_preview.png" alt=""/>
-</div>
+<dl class="pidoc_list">
+<dt>
+<p>Transfer and Halo grids</p>
+</dt>
+<dd>
+<p>Nine strengths from 0.1 to 0.9 are arranged in reading order: 0.1, 0.2, 0.3 in the top row; 0.4, 0.5, 0.6 in the middle; and 0.7, 0.8, 0.9 in the bottom row.</p>
+</dd>
+<dt>
+<p>Star grid</p>
+</dt>
+<dd>
+<p>Columns are Strong, Moderate and Soft, from left to right. Rows are 1, 2 and 3 iterations, from top to bottom.</p>
+</dd>
+</dl>
+
+<img style="width:100%;" src="images/BBStarReduction_preview.png" alt=""/>
+<p>This screenshot shows the Star comparison generated from synthetic demonstration data. Every panel is labeled with its settings. The grid explores fixed combinations for the selected method, regardless of the currently entered strength, mode or iteration count. After comparing panels, enter the preferred settings yourself and click Apply.</p>
+<p>Comparison always creates a new image; it never replaces the target. A four-pixel black gap separates the panels and surrounds the grid. For a preview of width W and height H, the output is (3W + 16)&times;(3H + 16) pixels. A 256&times;256 preview produces a 784&times;784 grid. Labels overlay the bottom of each panel, so choose a region with enough space to inspect stars above them.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Known_Issues__">
-   <h3 class="pidoc_sectionTitle">4&emsp;<a id="known_issues"></a>Known Issues</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Known_Issues', this );">[hide]</p>
-   <div id="Known_Issues">
-<p>In case you run the script but do not see an effect in star reduction, check the console for the following error message from StarXTerminator:</p>
-<img style="float:left;width:100%;" src="images/StarXTerminator_IO_error.png" alt=""/>
-<p><br class="pidoc_clearfix"/></p>
-<p>To get rid of this error message, start the StarXTerminator process once. You do not have to run StarXTerminator, the process window can be closed again right away. Afterward the error message should not occur anymore until you close Pixinsight. The root cause is unclear, but under investigation by the author of StarXTerminator.</p>
+<div class="pidoc_section" id="__Apply_output_and_Undo__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Apply, output and Undo</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Apply_output_and_Undo', this );">[hide]</p>
+   <div id="Apply_output_and_Undo">
+<p>Create a new image on Apply is checked by default. Results get unique names based on the target and selected method. Each application starts from the retained target, so repeated applications produce separate alternatives. Grayscale or RGB format, channel count and sample precision are retained. Full-image copies carry the target's FITS keywords, RGB working space and display stretch.</p>
+<p>Uncheck this option to replace the full target with the result. A completed replacement creates one Undo step. Repeated in-place application acts on the already modified target and therefore accumulates reduction; restore the target with Undo before comparing independent settings. When reusing an existing starless image, its stretch must still match the target.</p>
+<p>Processing completes on a temporary image before the replacement is committed. A failure in starless generation or reduction leaves the target unchanged. PixelMath truncates its output to the normalized range 0 to 1. These expressions are intended for normalized, stretched images; inspect saturated stars, dark areas and fine background structure before saving a final result.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_and_saved_instances__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Toolbar and saved instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_saved_instances', this );">[hide]</p>
+   <div id="Toolbar_and_saved_instances">
+
+<dl class="pidoc_list">
+<dt>
+<p>New Instance (blue triangle)</p>
+</dt>
+<dd>
+<p>Drag to save Method, Strength, Iterations, Mode and the new-image output choice as a process icon. No image is required. The target, supplied starless image and preview are not stored: saved instances use automatic StarXTerminator when applied directly to a main view. To use an existing starless image, open the instance globally and select the paired images in the dialog. Dropping an instance onto a preview is rejected; use a main image.</p>
+</dd>
+<dt>
+<p>Reset (blue reset icon)</p>
+</dt>
+<dd>
+<p>Restore Transfer, Strength 0.50, one iteration, Soft mode and new-image output. The current target, starless image, source choice and preview are retained.</p>
+</dd>
+<dt>
+<p>Apply (green check mark)</p>
+</dt>
+<dd>
+<p>Process the full target with the selected settings and keep the dialog open. It is disabled until a target is selected.</p>
+</dd>
+<dt>
+<p>Close (red cross)</p>
+</dt>
+<dd>
+<p>Close the script and leave opened images and completed results available.</p>
+</dd>
+<dt>
+<p>Documentation (page icon)</p>
+</dt>
+<dd>
+<p>Open this guide. A script executed from the repository prefers the documentation alongside that copy.</p>
+</dd>
+</dl>
+
+<p>Older process instances retain their saved numeric settings, with out-of-range values bounded to valid ranges. Legacy instances without the new-image parameter retain their former in-place behavior. Legacy target identifiers are used when that image is still open, but dropping the instance on a main view always uses the receiving view. Legacy preview selections are not restored, because Apply now always processes the full target. Star mode results may differ from older versions because the former mode-offset bug has been corrected.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting__">
+   <h3 class="pidoc_sectionTitle">9&emsp;Troubleshooting</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting', this );">[hide]</p>
+   <div id="Troubleshooting">
+
+<dl class="pidoc_list">
+<dt>
+<p>No target or preview available</p>
+</dt>
+<dd>
+<p>Select or open a target. To make a comparison, close the script, create a preview of at least 64&times;64 pixels in PixInsight, reopen the script and select it. Apply does not require a preview.</p>
+</dd>
+<dt>
+<p>StarXTerminator unavailable or failed</p>
+</dt>
+<dd>
+<p>Select an existing starless image, or check that StarXTerminator is installed and configured. Open its process interface and verify the selected AI model. Inspect the Process Console for the specific error. A failed process produces an error message instead of leaving an empty comparison or partial result.</p>
+</dd>
+<dt>
+<p>Starless image mismatch</p>
+</dt>
+<dd>
+<p>Use a separate main image of the same dimensions and color channels. Also verify its alignment and stretch manually. Re-select it after changing the target.</p>
+</dd>
+<dt>
+<p>Little change or unwanted artifacts</p>
+</dt>
+<dd>
+<p>Verify that the target contains stars, the supplied reference is actually starless, and both images share the same stretch. Compare methods and gentler settings on a representative region. Check the Process Console if processing fails.</p>
+</dd>
+</dl>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Credits_and_license__">
+   <h3 class="pidoc_sectionTitle">10&emsp;Credits and license</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Credits_and_license', this );">[hide]</p>
+   <div id="Credits_and_license">
+<p>Star reduction methods and V2 PixelMath expressions by Bill Blanshan. Script and TGScripts interface by Thorsten Glebe. StarXTerminator is a separate process by RC Astro. The script is distributed under the GNU General Public License, version 3; its source retains the copyright and license notice.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2022-2026 Dr. Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-07 23:13:04 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 12:40:59 UTC</p>
 </div>
 <br/>
 <br/>

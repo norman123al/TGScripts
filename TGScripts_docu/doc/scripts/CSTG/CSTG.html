@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | CSTG</title>
-   <meta name="keywords" content="narrowband, continuum subtraction, Hartmut V. Bornemann" />
-   <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script to subtract the continuum radiation from a narrowband image." />
+   <meta name="keywords" content="continuum subtraction, narrowband, broadband, emission, TGScripts" />
+   <meta name="author" content="Hartmut V. Bornemann; Thorsten Glebe" />
+   <meta name="description" content="Estimate and subtract broadband continuum from a narrowband image. User guide for version 2.2.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -23,16 +23,16 @@
 <h1>CSTG</h1>
 
 <div id="authors">
-<p>By Thorsten Glebe</p>
+<p>By Hartmut V. Bornemann; Thorsten Glebe</p>
 </div>
 
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script to subtract the continuum radiation from a narrowband image. <a href="#__contents__">[more]</a></p></div>
+<p>Estimate and subtract broadband continuum from a narrowband image. User guide for version 2.2.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> narrowband, continuum subtraction, Hartmut V. Bornemann</p>
+<p><strong>Keywords:</strong> continuum subtraction, narrowband, broadband, emission, TGScripts</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,8 +40,13 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Info_Section__">2&emsp;Info Section</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">3&emsp;Parameter Reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Interface_and_quick_start__">2&emsp;Interface and quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Preparing_the_inputs__">3&emsp;Preparing the inputs</a></li>
+<li class="pidoc_tocItem"><a href="#__Estimation_controls__">4&emsp;Estimation controls</a></li>
+<li class="pidoc_tocItem"><a href="#__Reading_the_result__">5&emsp;Reading the result</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting__">6&emsp;Troubleshooting</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_instances__">7&emsp;Toolbar and instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Changes_in_220_and_credits__">8&emsp;Changes in 2.2.0 and credits</a></li>
 </ul>
 </div>
 
@@ -51,114 +56,119 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/CSTG_main_screen.png" alt=""/>
-<p>The CS script written by Hartmut V. Bornemann is a useful tool if narrowband data should be combined with broadband data.</p>
-<p>This is a slightly modified version of the original script. The &quot;new instance&quot; button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets.</p>
-<p>Furthermore, minor code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+<p>CSTG estimates a continuum subtraction factor by sampling how many pixels become black as increasingly more broadband signal is subtracted. It fits the peak of the curve's first derivative and creates a separate emission image. The original estimation method and sampling step are retained in a compact TGScripts interface.</p>
+<p>Requires PixInsight 1.9.5 or later. Open src/scripts/TGScripts/CSTG.js with Script &gt; Execute Script File to use the repository version. You may open the script before loading any images.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Info_Section__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="info_section"></a>Info Section</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Info_Section', this );">[hide]</p>
-   <div id="Info_Section">
-<p>The info button opens a new window which contains the documentation for the script:</p>
+<div class="pidoc_section" id="__Interface_and_quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Interface and quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Interface_and_quick_start', this );">[hide]</p>
+   <div id="Interface_and_quick_start">
+<img src="images/CSTG_main_screen.png" alt=""/>
 
-<div style="text-align:center;">
-<img style="width:80%;" src="images/CSTG_info.png" alt=""/>
-</div>
+<ol class="pidoc_list">
+<li>Select a grayscale narrowband main image, or use its Open image button.</li>
+<li class="pidoc_spaced_list_item">Select a registered broadband image with identical dimensions. For RGB, choose the relevant Red, Green or Blue channel. For grayscale the channel selector is disabled.</li>
+<li class="pidoc_spaced_list_item">Optionally select a separate grayscale star mask with matching dimensions. Leave the view list unselected to estimate without a mask.</li>
+<li class="pidoc_spaced_list_item">Start with Blackness at 90 percent. Choose whether to reduce small-scale noise and create a diagnostic plot.</li>
+<li class="pidoc_spaced_list_item">Click Apply, the check mark in the bottom toolbar. The emission image is created with an automatic display stretch. Inputs remain unchanged and selected for another run.</li>
+</ol>
+
+<p>Screenshots show the running PixInsight interface with synthetic demonstration inputs. Close the dialog to inspect image windows normally.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="nb_image"></a> Narrowband Image</p>
-</dt>
-<dd>
-<p>View selection for the narrowband image. Only grayscale main views can be selected.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="bb_image"></a> Broadband Image</p>
-</dt>
-<dd>
-<p>View selection for the broadband image. Only main views can be selected. When an RGB image is selected, the radio buttons for the channel selection can be used to indicate for which of the R,G,B channels the continuum subtraction should be performed.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="sm_image"></a> Starmask Image</p>
-</dt>
-<dd>
-<p>An optional starmask can be selected with the 'Starmask image:' view selection.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="blackness_level"></a> Blackness Level</p>
-</dt>
-<dd>
-<p>The resulting blackness can be adjusted with this slider.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="noise_reduction"></a> Noise Reduction</p>
-</dt>
-<dd>
-<p>The noise reduction check box allows to perform some noise reduction on the resulting subtracted image on the first wavelet layer.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="plot_curves"></a> Plot Curves</p>
-</dt>
-<dd>
-<p>The 'Plot curves' check box activates the output of a graph which shows the normalized data as a function of the mue parameter.</p>
-
-<div style="text-align:center;">
-<img style="width:80%;" src="images/CSTG_plot.png" alt=""/>
+<div class="pidoc_section" id="__Preparing_the_inputs__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Preparing the inputs</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Preparing_the_inputs', this );">[hide]</p>
+   <div id="Preparing_the_inputs">
+<p>Use calibrated, registered, linear images with compatible background correction. The script checks dimensions, but cannot determine whether stars and structures are actually aligned. The narrowband image must be grayscale. Narrowband, broadband and star mask must be separate images.</p>
+<p>The selected broadband channel is copied and multiplied by the ratio of narrowband mean to broadband mean, with values clipped to the normalized range. The reported continuum scale applies to this mean-matched copy, not directly to the original broadband image. Existing image masks and image selections do not restrict the operation. Source pixels and selections remain unchanged.</p>
+   </div>
 </div>
-</dd>
-</dl>
 
+<div class="pidoc_section" id="__Estimation_controls__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Estimation controls</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Estimation_controls', this );">[hide]</p>
+   <div id="Estimation_controls">
 
 <dl class="pidoc_list">
 <dt>
-<p><a id="execute_subtraction"></a> Execute Subtraction</p>
+<p>Blackness</p>
 </dt>
 <dd>
-<p>The 'Execute subraction' push button becomes active as soon as a broadband and narrowband view was selected. A progress indicator right next to the button shows the progress of the computation.</p>
+<p>Range 50 to 99 percent, default 90. Controls how far the black-pixel curve is sampled. It is not the desired blackness of the final emission image. If the derivative peak is too close to the sampled edge, a higher limit can help.</p>
+</dd>
+<dt>
+<p>Star mask</p>
+</dt>
+<dd>
+<p>Mask pixels above the mask's mean are excluded from estimation. Excluded pixels count toward the blackness threshold, as in the original method. The mask does not mask the final subtraction, which covers the full image.</p>
+</dd>
+<dt>
+<p>Noise reduction</p>
+</dt>
+<dd>
+<p>Applies the original first-wavelet-layer noise reduction to the emission image after subtraction. It does not change the estimated continuum scale.</p>
+</dd>
+<dt>
+<p>Diagnostic plot</p>
+</dt>
+<dd>
+<p>Creates a separate RGB plot directly in PixInsight. No external plotting executable is required. Blue shows the black-pixel fraction; orange shows the derivative normalized to its peak; the vertical line marks the fitted scale.</p>
 </dd>
 </dl>
 
+<p>The scale is sampled in steps of 0.004, retaining version 2.1's sampling behavior. A finite search limit prevents unbounded processing on unsuitable data. Close requests cancellation while estimating; the request takes effect at the next processing checkpoint. Temporary images are removed when estimation is cancelled or fails.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Reading_the_result__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Reading the result</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Reading_the_result', this );">[hide]</p>
+   <div id="Reading_the_result">
+<img style="width:100%;" src="images/CSTG_plot.png" alt=""/>
+<p>This plot was generated from the synthetic narrowband and broadband pair used in the interface screenshot. The selected scale is near the first derivative peak. Its numerical value is specific to these inputs.</p>
+<p>The output is a 32-bit floating-point grayscale image formed by subtracting the fitted fraction of the mean-matched broadband channel from the narrowband image. Values are clipped to 0 to 1. An STF is applied for inspection without stretching the pixels. The source FITS keywords are retained and an EMISSION keyword is added.</p>
+<p>Inspect residual stars, the background and faint structures before using the result. A numerical solution does not guarantee that the inputs are physically well matched. Incorrect registration, different background offsets, filter mismatch or strong continuum-color differences can leave artifacts.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Troubleshooting</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting', this );">[hide]</p>
+   <div id="Troubleshooting">
+<p>A missing solution can mean there are too few useful curve points, a degenerate fitted peak, or that the requested blackness cannot be reached because too many broadband samples are zero. Check alignment and backgrounds, reconsider the mask, and try a higher blackness limit. Both images need positive mean intensities. A new result is created only after successful estimation; inputs are never overwritten.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_and_instances__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Toolbar and instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_instances', this );">[hide]</p>
+   <div id="Toolbar_and_instances">
+<p>New Instance stores settings and the selected broadband and optional mask identifiers. It does not save a new narrowband binding: when dragged onto a grayscale main image, that receiving image becomes the narrowband input. Ensure the saved reference images still exist and match it. Opening the instance globally lets you review or change all selections. Legacy saved narrowband identifiers are read when present.</p>
+<p>Reset restores settings while retaining the input images. Apply runs again without closing the dialog. Close closes the dialog while idle or requests cancellation during processing. Documentation opens this guide.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Changes_in_220_and_credits__">
+   <h3 class="pidoc_sectionTitle">8&emsp;Changes in 2.2.0 and credits</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Changes_in_220_and_credits', this );">[hide]</p>
+   <div id="Changes_in_220_and_credits">
+<p>Compact 420-pixel interface, open-first input selection, repeatable Apply, safe cancellation and local PiDoc help. Native curve plotting replaces the external plotting dependency. Invalid inputs and degenerate fits produce clear errors, while temporary images are cleaned up.</p>
+<p>Based on Continuum Subtraction by Hartmut V. Bornemann, adapted for TGScripts by Thorsten Glebe. Distributed under the GNU General Public License, version 3 or later; see the script source for the license notice.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2017-2019 Hartmut V. Bornemann; 2022-2026 Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-01 09:19:11 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 13:22:59 UTC</p>
 </div>
 <br/>
 <br/>

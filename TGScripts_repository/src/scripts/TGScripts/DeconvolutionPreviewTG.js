@@ -1,7 +1,7 @@
 #engine v8
 // V8 migration (2026-10-19); requires PixInsight 1.9.5 or later.
 /*
-   DeconvolutionPreview v1.01
+   DeconvolutionPreviewTG v2.3.0
 
    A script for assisted deconvolution. The script provides several previews
    applying deconvolutions with varying point spread functions (PSF), as a
@@ -52,279 +52,14 @@
       6. bug fixing
 */
 
-#feature-id   DeconvolutionPreviewTG : TG Scripts > DeconvolutionPreviewTG
 
-#feature-info  A script for assisted deconvolution.<br/>\
-   <br/>\
-   The script provides several previews applying deconvolutions with varying point spread \
-   functions (PSF), as a function of the specified <i>sigma</i> and <i>shape</i> parameters. \
-   <br/>\
-   <br/> The sigma and shape values are plotted on each deconvolved preview for easy reference.<br/>\
-   <br/><b>How to use:</b> Create a preview on the image you want to run deconvolution on. Select the preview and, \
-   if available, the local support mask for that image. Then hit ok buttion to generate the previews.<br/>\
-   <br/>Copyright &copy; 2009 Juan M. G&oacute;mez / 2022 Thorsten Glebe
-
-#feature-icon  DeconvolutionPreview.xpm
-
-CoreApplication.ensureMinimumVersion(1, 9, 5);
-
-#include "lib/TGScriptsLib.js"
-
-#define VERSION "2.2"
-#define TITLE "DeconvolutionPreviewTG"
-
-#define DEFAULT_GAUSSIAN_START      1.50;
-#define DEFAULT_GAUSSIAN_AMOUNT     0.50;
-#define DEFAULT_GAUSSIAN_ITERATIONS 3;
-#define DEFAULT_SHAPE_START         2.00;
-#define DEFAULT_SHAPE_AMOUNT        0.50;
-#define DEFAULT_SHAPE_ITERATIONS    3;
-#define DEFAULT_DECON_ITERATIONS    30;
-#define DEFAULT_GLOBAL_DARK         0.0010;
-#define DEFAULT_LOCALSUPPORT_AMOUNT 0.7;
-
-// ----------------------------------------------------------------------------
-
-function DeconvolutionPreviewData()
-{
-   this.dialog               = null;
-   this.targetPreview        = null;
-   this.GaussianStart        = DEFAULT_GAUSSIAN_START;
-   this.GaussianAmount       = DEFAULT_GAUSSIAN_AMOUNT;
-   this.GaussianIterations   = DEFAULT_GAUSSIAN_ITERATIONS;
-   this.ShapeStart           = DEFAULT_SHAPE_START;
-   this.ShapeAmount          = DEFAULT_SHAPE_AMOUNT;
-   this.ShapeIterations      = DEFAULT_SHAPE_ITERATIONS;
-   this.deconiterations      = DEFAULT_DECON_ITERATIONS;
-   this.globaldark           = DEFAULT_GLOBAL_DARK;
-   this.localsupportmaskView = null;
-   this.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
-   this.prevWindow           = null;  // window of the preview
-   this.lsmprevWindow        = null;  // window of local support mask matching preview
-   this.prev_id              = "";
-   this.lsm_id               = "";
-
-   this.reset = function()
-   {
-      this.targetPreview        = null;
-      this.GaussianStart        = DEFAULT_GAUSSIAN_START;
-      this.GaussianAmount       = DEFAULT_GAUSSIAN_AMOUNT;
-      this.GaussianIterations   = DEFAULT_GAUSSIAN_ITERATIONS;
-      this.ShapeStart           = DEFAULT_SHAPE_START;
-      this.ShapeAmount          = DEFAULT_SHAPE_AMOUNT;
-      this.ShapeIterations      = DEFAULT_SHAPE_ITERATIONS;
-      this.deconiterations      = DEFAULT_DECON_ITERATIONS;
-      this.globaldark           = DEFAULT_GLOBAL_DARK;
-      this.localsupportmaskView = null;
-      this.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
-      this.prevWindow           = null;  // window of the preview
-      this.lsmprevWindow        = null;  // window of local support mask matching preview
-      this.prev_id              = "";
-      this.lsm_id               = "";
-   }
-
-   /*
-    * Save parameters in process icon.
-    */
-   this.exportParameters = function()
-   {
-      Parameters.set("GaussianStart"       , this.GaussianStart);
-      Parameters.set("GaussianAmount"      , this.GaussianAmount);
-      Parameters.set("GaussianIterations"  , this.GaussianIterations);
-      Parameters.set("ShapeStart"          , this.ShapeStart);
-      Parameters.set("ShapeAmount"         , this.ShapeAmount);
-      Parameters.set("ShapeIterations"     , this.ShapeIterations);
-      Parameters.set("deconiterations"     , this.deconiterations);
-      Parameters.set("globaldark"          , this.globaldark);
-      Parameters.set("localsupportamount"  , this.localsupportamount);
-      Parameters.set("prev_id"             , this.prev_id);
-      Parameters.set("lsm_id"              , this.lsm_id);
-   }
-
-   /*
-    * Restore saved parameters.
-    */
-   this.importParameters = function()
-   {
-      if (Parameters.has("GaussianStart"))
-         this.GaussianStart = Parameters.getReal("GaussianStart");
-      if (Parameters.has("GaussianAmount"))
-         this.GaussianAmount = Parameters.getReal("GaussianAmount");
-      if (Parameters.has("GaussianIterations"))
-         this.GaussianIterations = Parameters.getInteger("GaussianIterations");
-      if (Parameters.has("ShapeStart"))
-         this.ShapeStart = Parameters.getReal("ShapeStart");
-      if (Parameters.has("ShapeAmount"))
-         this.ShapeAmount = Parameters.getReal("ShapeAmount");
-      if (Parameters.has("ShapeIterations"))
-         this.ShapeIterations = Parameters.getInteger("ShapeIterations");
-      if (Parameters.has("deconiterations"))
-         this.deconiterations = Parameters.getInteger("deconiterations");
-      if (Parameters.has("globaldark"))
-         this.globaldark = Parameters.getReal("globaldark");
-      if (Parameters.has("localsupportamount"))
-         this.localsupportamount = Parameters.getReal("localsupportamount");
-      if (Parameters.has("prev_id"))
-      {
-         this.prev_id = Parameters.getString("prev_id");
-         if(this.prev_id)
-         {
-            var arrow = this.prev_id.indexOf ("->");
-            var parent_id = this.prev_id.substring (0, arrow);
-            Console.writeln("parent_id: ", parent_id);
-            var pwindow = ImageWindow.windowById(parent_id);
-            if(!(pwindow == null || pwindow.isNull))
-            {
-               var pid = this.prev_id.substring(arrow + 2, this.prev_id.length);
-               var preview = pwindow.previewById(pid);
-               if(preview)
-               {
-                  this.targetPreview = preview;
-               }
-            }
-         }
-      }
-      if (Parameters.has("lsm_id"))
-      {
-         this.lsm_id = Parameters.getString("lsm_id");
-         if(this.lsm_id)
-         {
-            var window = ImageWindow.windowById(this.lsm_id);
-            if(!(window == null || window.isNull))
-            {
-               this.localsupportmaskView = window.mainView;
-            }
-         }
-      }
-   }
-}
-
-var data = new DeconvolutionPreviewData;
-
-// -----------------------------------------------------------------------------
-function toggleAllControls( bEnable )
-{
-   data.dialog.GaussianStart_NC.enabled          = bEnable;
-   data.dialog.GaussianAmount_NC.enabled         = bEnable;
-   data.dialog.Gaussianiter_SpinBox.enabled      = bEnable;
-   data.dialog.ShapeStart_NC.enabled             = bEnable;
-   data.dialog.ShapeAmount_NC.enabled            = bEnable;
-   data.dialog.Shapeiter_SpinBox.enabled         = bEnable;
-   data.dialog.Deconiter_SpinBox.enabled         = bEnable;
-   data.dialog.globaldark_Control.enabled        = bEnable;
-   data.dialog.localsupportmask_ViewList.enabled = bEnable;
-   if(!bEnable)
-      data.dialog.localSupportAmountControl.enabled = bEnable;
-}
-
-function disableAllControls()
-{
-   toggleAllControls(false);
-}
-
-function enableAllControls()
-{
-   toggleAllControls(true);
-}
-
-// ----------------------------------------------------------------------------
-function createImageWindowOfView(view)
-{
-   var imageWindow = createRawImageWindow(uniqueViewId(mainViewIdOfView(view)), view.image);
-
-   imageWindow.mainView.beginProcess(UndoFlag.NoSwapFile);
-
-   imageWindow.mainView.image.selectedPoint = new Point(0, 0);
-   imageWindow.mainView.image.apply(view.image);
-   imageWindow.mainView.image.resetSelections();
-
-   imageWindow.mainView.endProcess();
-
-   return imageWindow;
-}
-
-// ----------------------------------------------------------------------------
-function generateImagesFromPreview( data )
-{
-   data.prevWindow = this.createImageWindowOfView(data.targetPreview);
-
-   // create local support mask for preview-image
-   if(data.localsupportmaskView)
-   {
-      var prect = data.targetPreview.window.previewRect( data.targetPreview );
-      data.localsupportmaskView.window.deletePreviews();
-      var lsmPreview = data.localsupportmaskView.window.createPreview(prect);
-      data.lsmprevWindow = this.createImageWindowOfView(lsmPreview);
-      data.localsupportmaskView.window.deletePreviews();
-   }
-
-}
-
-// ----------------------------------------------------------------------------
-function doDeconvolutionPreview( data )
-{
-   var v = data.prevWindow.mainView;
-   if ( (v == null || v.isNull) )
-      throw Error( "No target view has been specified." );
-
-   var img_width   = v.image.width;
-   var img_height  = v.image.height
-   var prev_width  = img_width*(data.GaussianIterations)+((data.GaussianIterations+1)*3);
-   var prev_height = img_height*(data.ShapeIterations)+((data.ShapeIterations+1)*3);
-
-   var preview_img = new ImageWindow (
-            prev_width,
-            prev_height,
-            v.image.numberOfChannels,
-            v.image.bitsPerSample, v.image.sampleType == PixelSampleType.Float,
-            v.image.colorSpace != ColorSpace.Gray, "DeconvolutionPreview");
-
-   var copy_img = new ImageWindow (
-            img_width,
-            img_height,
-            v.image.numberOfChannels,
-            v.image.bitsPerSample, v.image.sampleType == PixelSampleType.Float,
-            v.image.colorSpace != ColorSpace.Gray, "WorkingWindow");
-
-   for ( var j = 0; j < data.GaussianIterations; j++ )
-   {
-      for ( var i = 0; i < data.ShapeIterations; i++ )
-      {
-         with ( copy_img.mainView )
-         {
-            beginProcess( UndoFlag.NoSwapFile );
-            image.apply( v.image );
-            var GaussianSigma = data.GaussianStart + data.GaussianAmount*j;
-            var GaussianShape = data.ShapeStart + data.ShapeAmount*i;
-            doDeconvolution( copy_img.mainView, GaussianSigma, GaussianShape);
-
-            var signature_data = new DrawSignatureData( copy_img.mainView, "Sigma:" + GaussianSigma + " Shape: " + GaussianShape );
-            DrawSignature( signature_data );
-
-            endProcess();
-         }
-
-         with ( preview_img.mainView )
-         {
-            beginProcess( UndoFlag.NoSwapFile );
-            image.selectedPoint = new Point( img_width *j + j*3 + 3,
-                                             img_height*i + i*3 + 3 );
-            image.apply( copy_img.mainView.image );
-            endProcess();
-         }
-      }
-   }
-
-   copy_img.forceClose();
-   copy_img = null;
-
-   ApplyAutoSTF(preview_img.mainView, SHADOWS_CLIP, TARGET_BKG, true /*linked*/);
-   preview_img.zoomToFit();
-   preview_img.show();
-}
-
-// ----------------------------------------------------------------------------
-function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
+#feature-id DeconvolutionPreviewTG : TG Scripts > DeconvolutionPreviewTG
+#feature-info Compact PSF comparison and deconvolution. Copyright 2009 Juan M. Gómez / 2022-2026 Thorsten Glebe.
+CoreApplication.ensureMinimumVersion(1,9,5);
+#include "lib/TGCompactUI.js"
+#include "lib/TGCompactPreview.js"
+#define DP_VERSION "2.3.0"
+function DP_process( ParsedView, GaussianSigma, GaussianShape, support )
 {
    var p = new Deconvolution;
    with ( p )
@@ -334,7 +69,7 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
       deringing = true;
       deringingDark = data.globaldark;
       deringingBright = 0.0000;
-      if(!data.lsmprevWindow)
+      if(!support)
       {
          deringingSupport = false;
          deringingSupportViewId = "";
@@ -342,7 +77,7 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
       else
       {
          deringingSupport = true;
-         deringingSupportViewId = data.lsmprevWindow.mainView.id;
+         deringingSupportViewId = support.mainView.id;
       }
       deringingSupportAmount = data.localsupportamount;
 
@@ -376,592 +111,78 @@ function doDeconvolution( ParsedView, GaussianSigma, GaussianShape )
          [0]
       ];
    }
-   p.executeOn( ParsedView );
+   TG_checked(p,ParsedView);
 }
-
-// ----------------------------------------------------------------------------
-function doWork(data)
+const DP_FILE=#__FILE__;
+function DPData()
 {
-   Console.show();
-
-   // Check if image is linear
-   if(isStretched(data.targetPreview) > 0.01 && errorMessageOkCancel("Image seems to be non-linear, continue?", TITLE))
-      return;
-
-   generateImagesFromPreview(data);
-   doDeconvolutionPreview( data );
-   data.prevWindow.forceClose();
-   if(data.lsmprevWindow)
-   {
-      data.lsmprevWindow.forceClose();
-   }
-
-   Console.hide();
+   this.targetView=null;this.preview=null;this.localsupportmaskView=null;this.cancel=false;
+   TG_settings(this,{GaussianStart:[1.5,.1,9.99],GaussianAmount:[.5,.1,9.99],GaussianIterations:[3,1,10,true],ShapeStart:[2,.1,9.99],ShapeAmount:[.5,.1,9.99],ShapeIterations:[3,1,10,true],deconiterations:[30,1,100,true],globaldark:[.001,0,1],localsupportamount:[.7,0,1]}, {newImage:true},{},{lsm_id:'localsupportmaskView'});
+   var save=this.exportParameters,load=this.importParameters;
+   this.exportParameters=function(){save();if(TG_valid(this.localsupportmaskView))Parameters.set('lsm_id',this.localsupportmaskView.id);};
+   this.importParameters=function(){load();if(Parameters.has('prev_id')){var v=View.viewById(Parameters.getString('prev_id'));if(TG_valid(v)&&v.isPreview){this.preview=v;this.targetView=v.window.mainView;}}};
 }
-
-// ----------------------------------------------------------------------------
-var DeconvolutionPreviewDialog = class extends Dialog
+var data=new DPData;
+function DP_validate(grid)
 {
-   constructor()
-   {
-      super();
-      DeconvolutionPreviewDialog_initialize.call(this);
+   if(!TG_valid(data.targetView)||!data.targetView.isMainView)throw Error('Select a linear main image.');
+   if(grid&&(!TG_valid(data.preview)||!data.preview.isPreview||data.preview.window.mainView.fullId!=data.targetView.fullId))throw Error('Select a preview belonging to the target image.');
+   if(grid&&(data.preview.image.width<64||data.preview.image.height<64))throw Error('Use a preview at least 64 × 64 pixels.');
+   if(grid&&(data.GaussianStart+(data.GaussianIterations-1)*data.GaussianAmount>10||data.ShapeStart+(data.ShapeIterations-1)*data.ShapeAmount>10))throw Error('The last sigma and shape in the grid must not exceed 10. Reduce the start, step or count.');
+   var m=data.localsupportmaskView;
+   if(TG_valid(m)&&(m.image.isColor||!m.isMainView||m.fullId==data.targetView.fullId||m.image.width!=data.targetView.image.width||m.image.height!=data.targetView.image.height))throw Error('The support mask must be a separate, registered grayscale main image with the target dimensions.');
+}
+function DP_run(grid,progress)
+{
+   DP_validate(grid);var mask=null,cell=null,result=null,success=false,rect=grid?data.targetView.window.previewRect(data.preview):null;
+   try{
+      if(TG_valid(data.localsupportmaskView))mask=TG_copy(data.localsupportmaskView,'DP_support',rect);
+      if(!grid){
+         result=TG_copy(data.targetView,data.targetView.id+'_decon');DP_process(result.mainView,data.GaussianStart,data.ShapeStart,mask);
+         TG_restoreAlpha(result.mainView,data.targetView);
+         if(data.cancel)throw Error('Processing cancelled.');
+         if(data.newImage)result.show();else TG_commit(data.targetView,result.mainView);
+         success=true;return data.newImage?result:data.targetView.window;
+      }
+      var w=rect.width,h=rect.height,cols=data.GaussianIterations,rows=data.ShapeIterations;
+      if((w+3)*cols*(h+27)*rows*data.targetView.image.numberOfNominalChannels>150000000)throw Error('The comparison grid is too large. Use a smaller preview or fewer samples.');
+      result=new ImageWindow((w+3)*cols-3,(h+27)*rows-3,data.targetView.image.numberOfNominalChannels,32,true,data.targetView.image.isColor,TG_unique('DeconvolutionPreview'));
+      for(var y=0;y<rows;++y)for(var x=0;x<cols;++x){
+         CoreApplication.processEvents();if(data.cancel)throw Error('Processing cancelled.');
+         if(progress)progress(y*cols+x+1,rows*cols);
+         cell=TG_copy(data.targetView,'DP_cell',rect);var sigma=data.GaussianStart+x*data.GaussianAmount,shape=data.ShapeStart+y*data.ShapeAmount;
+         DP_process(cell.mainView,sigma,shape,mask);
+         result.mainView.beginProcess(UndoFlag.NoSwapFile);
+         try{result.mainView.image.apply(cell.mainView.image,ImageOp.Mov,new Point(x*(w+3),y*(h+27)+24),0,new Rect(0,0,w,h),0,cell.mainView.image.numberOfNominalChannels-1);}finally{result.mainView.endProcess();}
+         TG_caption(result.mainView,'σ'+sigma.toFixed(2)+' · β'+shape.toFixed(2),w,x*(w+3),y*(h+27));TG_close(cell);cell=null;
+      }
+      TG_autoSTF(result.mainView);result.show();result.zoomToFit();success=true;return result;
+   }finally{TG_close(mask);TG_close(cell);if(!success||(!grid&&!data.newImage))TG_close(result);}
+}
+var DP_Dialog=class extends Dialog
+{
+   constructor(){
+      super();TG_setup(this,'DeconvolutionPreviewTG',DP_VERSION,'Compare PSF settings on a preview, then deconvolve the full linear image.');
+      this.target=TG_picker(this,'Target image','targetView',v=>true);this.addGroup(this.target);this.preview=TG_previewPicker(this,this.target,'preview');
+      var psf=TG_group(this,'PSF · start value is used by Apply');this.addGroup(psf);this.fields={};
+      var header=new HorizontalSizer;header.spacing=5;header.addSpacing(64);for(var text of ['Start','Step','Count']){var h=new Label(psf);h.text=text;h.setScaledFixedWidth(72);h.textAlignment=TextAlignment.HorzCenter;header.add(h);}header.addStretch();psf.sizer.add(header);
+      for(var item of [['Sigma','Gaussian'],['Shape','Shape']]){
+         var row=new HorizontalSizer;row.spacing=5;var label=new Label(psf);label.text=item[0]+':';label.setScaledFixedWidth(64);row.add(label);
+         for(var suffix of ['Start','Amount','Iterations']){let key=item[1]+suffix;var n=new NumericEdit(psf);n.label.hide();n.setRange(suffix=='Iterations'?1:.1,suffix=='Iterations'?10:9.99);n.setPrecision(suffix=='Iterations'?0:2);n.setReal(suffix!='Iterations');n.edit.setScaledFixedWidth(72);n.setValue(data[key]);n.onValueUpdated=v=>data[key]=v;this.fields[key]=n;row.add(n);}
+         row.addStretch();psf.sizer.add(row);
+      }
+      this.fields.deconiterations=TG_spin(psf,'Iterations:',1,100,data.deconiterations,v=>data.deconiterations=v);
+      this.fields.globaldark=TG_number(psf,'Global dark:',0,1,4,data.globaldark,v=>data.globaldark=v);
+      this.mask=TG_picker(this,'Local support mask · optional','localsupportmaskView',v=>!v.image.isColor);this.addGroup(this.mask);
+      this.fields.localsupportamount=TG_number(this.mask,'Local amount:',0,1,2,data.localsupportamount,v=>data.localsupportamount=v);
+      var output=TG_group(this,'Output');this.addGroup(output);this.newImage=TG_check(output,'Create a new image on Apply',data.newImage,v=>data.newImage=v);
+      this.compare=new PushButton(output);this.compare.text='Create PSF comparison grid';this.compare.onClick=()=>this.run(()=>DP_run(true,(n,total)=>this.status.text='Deconvolving cell '+n+' of '+total+'…\nUse Close to cancel.'));output.sizer.add(this.compare);
+      TG_finish(this,DP_FILE,'DeconvolutionPreviewTG',()=>DP_run(false),()=>{data.reset();Object.keys(this.fields).forEach(k=>{var f=this.fields[k];if(k=='deconiterations')f.value=data[k];else f.setValue(data[k]);});this.newImage.checked=data.newImage;this.refresh();});
    }
+   refresh(status){this.target.refresh();if(this.preview)this.preview.refresh();if(this.mask)this.mask.refresh();if(this.apply)this.apply.enabled=TG_valid(data.targetView);if(this.compare)this.compare.enabled=TG_valid(data.targetView)&&TG_valid(data.preview);if(this.status&&status!==false)this.status.text='Grid: selected preview. Apply: full image at start values.\nUncheck new image for one-step Undo on the target.';}
 };
-
-// Keep legacy with-based control setup outside the strict class body.
-function DeconvolutionPreviewDialog_initialize()
-{
-
-   data.dialog = this;
-   var emWidth = this.font.width( 'M' );
-   var labelWidth1 = this.font.width( "PSF Gaussian Start:" + 'T' );
-
-   // help box
-   this.helpLabel = new Label( this );
-   with ( this.helpLabel )
-   {
-      frameStyle = FrameStyle.Box;
-      margin = 4;
-      wordWrapping = true;
-      useRichText = true;
-      text = "<p><b>" + TITLE + " v" + VERSION + "</b> &mdash; A script for assisted deconvolution.</p>"
-         + "<p>The script provides several previews applying deconvolutions with varying point "
-         + "spread functions (PSF), as a function of the specified <i>sigma</i> and <i>shape</i> parameters.</p>"
-         + "<p>The sigma and shape values are plotted on each deconvolved preview for easy reference."
-         + "<p><b>How to use:</b> Create a preview on the image you want to run deconvolution on. Select the preview and, if available, the local support mask for that image. Then hit ok buttion to generate the previews.</p>"
-         + "<p>Copyright &copy; 2009 Juan M. Gómez (Pixinsight user) / 2022 Thorsten Glebe</p>";
-   }
-
-   // -------------------------------------------------------------------------
-   // target preview view list
-   this.targetPreview_Label = new Label( this );
-   with ( this.targetPreview_Label )
-   {
-      minWidth = labelWidth1 + this.logicalPixelsToPhysical( 6+1 ); // align with labels inside group boxes below
-      text = "Target preview:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.targetPreview_ViewList = new ViewList( this );
-   with ( this.targetPreview_ViewList )
-   {
-      scaledMinWidth = 200;
-      getPreviews();
-      if ( data.targetPreview )
-         currentView = data.targetPreview;
-
-      toolTip = "Select the preview to perform the deconvolved previews.";
-
-      onViewSelected = function( view )
-      {
-         if(view.id)
-         {
-            data.targetPreview = view;
-            data.prev_id       = view.fullId;
-            enableAllControls();
-         }
-         else
-         {
-            data.targetPreview = null;
-            data.prev_id = "";
-            disableAllControls();
-         }
-      }
-   }
-
-   this.targetPreview_Sizer = new HorizontalSizer;
-   with ( this.targetPreview_Sizer )
-   {
-      spacing = 4;
-      add( this.targetPreview_Label );
-      add( this.targetPreview_ViewList, 100 );
-   }
-
-   // -------------------------------------------------------------------------
-   // PSF Gaussian parameters
-   this.GaussianStart_NC = new NumericControl( this );
-   with ( this.GaussianStart_NC )
-   {
-      enabled = data.targetPreview != null;
-      label.text = "PSF Sigma start:";
-      label.minWidth = labelWidth1;
-      setRange( 0.10, 9.99 );
-      slider.setRange( 0, 1000 );
-      slider.scaledMinWidth = 250;
-      setPrecision( 2 );
-      setValue( data.GaussianStart );
-      toolTip = "<p>PSF Sigma starting value.</p>";
-      onValueUpdated = function( value )
-      {
-         data.GaussianStart = value;
-      }
-   }
-
-   this.GaussianAmount_NC = new NumericControl( this );
-   with ( this.GaussianAmount_NC )
-   {
-      enabled = data.targetPreview != null;
-      label.text = "Step size:";
-      label.minWidth = labelWidth1;
-      setRange( 0.25, 6.00 );
-      slider.setRange( 0, 1000 );
-      slider.scaledMinWidth = 250;
-      setPrecision( 2 );
-      setValue( data.GaussianAmount );
-      toolTip = "<p>PSF Sigma amount for each iteration.</p>";
-      onValueUpdated = function( value )
-      {
-         data.GaussianAmount = value;
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   this.Gaussianiter_Label = new Label( this );
-   with ( this.Gaussianiter_Label )
-   {
-      minWidth = labelWidth1;
-      text = "Iterations:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.Gaussianiter_SpinBox = new SpinBox( this );
-   with ( this.Gaussianiter_SpinBox )
-   {
-      enabled = data.targetPreview != null;
-      minValue = 1;
-      maxValue = 10;
-      value = data.GaussianIterations;
-      toolTip = "<p>Number of PSF Sigma iterations.</p>";
-      onValueUpdated = function( value )
-      {
-         data.GaussianIterations = value;
-      }
-   }
-
-   this.Gaussianiter_Sizer = new HorizontalSizer;
-   with ( this.Gaussianiter_Sizer )
-   {
-      spacing = 4;
-      add( this.Gaussianiter_Label );
-      add( this.Gaussianiter_SpinBox );
-      addStretch();
-   }
-
-   // -------------------------------------------------------------------------
-   this.GaussianParGroupBox = new GroupBox( this );
-   with ( this.GaussianParGroupBox )
-   {
-      title = "PSF Sigma Parameters";
-      sizer = new VerticalSizer;
-      with ( sizer )
-      {
-         margin = 6;
-         spacing = 4;
-         add( this.GaussianAmount_NC );
-         add( this.GaussianStart_NC );
-         add( this.Gaussianiter_Sizer );
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   // PSF Shape parameters
-   this.ShapeStart_NC = new NumericControl( this );
-   with ( this.ShapeStart_NC )
-   {
-      enabled = data.targetPreview != null;
-      label.text = "PSF Shape start:";
-      label.minWidth = labelWidth1;
-      setRange( 0.10, 9.99 );
-      slider.setRange( 0, 1000 );
-      slider.scaledMinWidth = 250;
-      setPrecision( 2 );
-      setValue( data.ShapeStart );
-      toolTip = "<p>PSF Shape starting value.</p>";
-      onValueUpdated = function( value )
-      {
-         data.ShapeStart = value;
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   this.ShapeAmount_NC = new NumericControl( this );
-   with ( this.ShapeAmount_NC )
-   {
-      enabled = data.targetPreview != null;
-      label.text = "Step size:";
-      label.minWidth = labelWidth1;
-      setRange( 0.10, 9.99 );
-      slider.setRange( 0, 1000 );
-      slider.scaledMinWidth = 250;
-      setPrecision( 2 );
-      setValue( data.ShapeAmount );
-      toolTip = "<p>PSF Shape amount for each iteration.</p>";
-      onValueUpdated = function ( value )
-      {
-         data.ShapeAmount = value;
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   this.Shapeiter_Label = new Label( this );
-   with ( this.Shapeiter_Label )
-   {
-      minWidth = labelWidth1;
-      text = "Iterations:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.Shapeiter_SpinBox = new SpinBox( this );
-   with ( this.Shapeiter_SpinBox )
-   {
-      enabled = data.targetPreview != null;
-      minValue = 1;
-      maxValue = 10;
-      value = data.ShapeIterations;
-      toolTip = "<p>Number of PSF Shape iterations.</p>";
-      onValueUpdated = function( value )
-      {
-         data.ShapeIterations = value;
-      }
-   }
-
-   this.Shapeiter_Sizer = new HorizontalSizer;
-   with ( this.Shapeiter_Sizer )
-   {
-      spacing = 4;
-      add( this.Shapeiter_Label );
-      add( this.Shapeiter_SpinBox );
-      addStretch();
-   }
-
-   // -------------------------------------------------------------------------
-   this.ShapeParGroupBox = new GroupBox( this );
-   with ( this.ShapeParGroupBox )
-   {
-      title = "PSF Shape Parameters";
-      sizer = new VerticalSizer;
-      with ( sizer )
-      {
-         margin = 6;
-         spacing = 4;
-         add( this.ShapeAmount_NC );
-         add( this.ShapeStart_NC );
-         add( this.Shapeiter_Sizer );
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   // iterations parameter
-   this.Deconiter_Label = new Label( this );
-   with ( this.Deconiter_Label )
-   {
-      minWidth = labelWidth1;
-      text = "Decon Iterations:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.Deconiter_SpinBox = new SpinBox( this );
-   with ( this.Deconiter_SpinBox )
-   {
-      enabled = data.targetPreview != null;
-      minValue = 1;
-      maxValue = 59;
-      value = data.deconiterations;
-      toolTip = "<p>Number of Deconvolution iterations.</p>";
-      onValueUpdated = function( value )
-      {
-         data.deconiterations = value;
-      };
-   }
-
-   this.Deconiter_Sizer = new HorizontalSizer;
-   with ( this.Deconiter_Sizer )
-   {
-      spacing = 4;
-      add( this.Deconiter_Label );
-      add( this.Deconiter_SpinBox );
-      addStretch();
-   }
-
-   // -------------------------------------------------------------------------
-   // global dark numeric control
-   this.globaldark_Control = new NumericControl(this);
-   with( this.globaldark_Control )
-   {
-      enabled = data.targetPreview != null;
-      label.text = "Global dark: ";
-      label.minWidth = labelWidth1;
-//      slider.setRange(0, sliderMaxValue);
-//      slider.minWidth = sliderMinWidth;
-      setRange(0.0, 1.0);
-      setPrecision(4);
-      setValue(data.globaldark);
-      onValueUpdated = function(value)
-      {
-         data.globaldark = value;
-      }
-      toolTip = "<p>Global deringing regularization strength.</p>";
-   }
-
-   // -------------------------------------------------------------------------
-   // local support mask selector
-   this.localsupportmask_Label = new Label( this );
-   with (this.localsupportmask_Label )
-   {
-      minWidth = labelWidth1;
-      text = "Local support mask:";
-      textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-   }
-
-   this.localsupportmask_ViewList = new ViewList( this );
-   with ( this.localsupportmask_ViewList )
-   {
-      enabled = data.targetPreview != null;
-      scaledMinWidth = 200;
-      getMainViews(); // include main views only, no previews
-      if ( data.localsupportmaskView )
-         currentView = data.localsupportmaskView;
-
-      toolTip = "Select the local support mask.";
-
-      onViewSelected = function( view )
-      {
-         if(view.id)
-         {
-            data.localsupportmaskView = view;
-            data.lsm_id = view.id;
-            data.dialog.localSupportAmountControl.enabled = true;
-         }
-         else
-         {
-            data.localsupportmaskView = null;
-            data.localsupportamount   = DEFAULT_LOCALSUPPORT_AMOUNT;
-            data.lsm_id = "";
-            data.dialog.localSupportAmountControl.enabled = false;
-            data.dialog.localSupportAmountControl.setValue(data.localsupportamount);
-         }
-      }
-   }
-
-   this.localsupportmask_Sizer = new HorizontalSizer;
-   with( this.localsupportmask_Sizer )
-   {
-      spacing = 4;
-      add( this.localsupportmask_Label );
-      add( this.localsupportmask_ViewList, 100 );
-      addStretch();
-   }
-
-   // -------------------------------------------------------------------------
-   this.localSupportAmountControl = new NumericControl( this );
-   with ( this.localSupportAmountControl )
-   {
-      enabled = data.localsupportmaskView != null;
-      label.text = "Local amount:";
-      label.minWidth = labelWidth1;
-      setRange( 0, 1);
-      slider.setRange( 0, 100 );
-      slider.scaledMinWidth = 25;
-      setPrecision( 2 );
-      setValue( data.localsupportamount );
-      toolTip = "<p>Strength of local support mask.</p>";
-      onValueUpdated = function ( value )
-      {
-         data.localsupportamount = value;
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   // Decon group box
-   this.DeconParGroupBox = new GroupBox( this );
-   with ( this.DeconParGroupBox )
-   {
-      title = "Decon Parameters";
-      sizer = new VerticalSizer;
-      with ( sizer )
-      {
-         margin = 6;
-         spacing = 4;
-         add( this.Deconiter_Sizer );
-         add( this.globaldark_Control );
-         add( this.localsupportmask_Sizer );
-         add( this.localSupportAmountControl );
-      }
-   }
-
-   // -------------------------------------------------------------------------
-   // usual control buttons
-   this.newInstance_Button = new ToolButton(this);
-   with( this.newInstance_Button )
-   {
-      icon = scaledResource( ":/process-interface/new-instance.png" );
-      toolTip = "New Instance";
-
-      onMousePress = function()
-      {
-         this.hasFocus = true;
-         data.exportParameters();
-         this.pushed = false;
-         this.dialog.newInstance();
-      }
-   }
-
-   this.apply_Button = new ToolButton( this );
-   with ( this.apply_Button )
-   {
-      icon = scaledResource( ":/process-interface/apply.png" );
-      toolTip = "Apply current settings to preview";
-
-      onClick = () => {
-         if(data.targetPreview)
-         {
-            Console.show();
-            doDeconvolution(data.targetPreview, data.GaussianAmount, data.ShapeAmount);
-            Console.hide();
-            this.cancel();
-         }
-      }
-   }
-
-
-   this.ok_Button = new ToolButton( this );
-   with ( this.ok_Button )
-   {
-      icon = scaledResource( ":/process-interface/execute.png" );
-      toolTip = "Execute script";
-
-      onClick = () => { this.ok(); }
-   }
-
-   this.cancel_Button = new ToolButton( this );
-   with ( this.cancel_Button )
-   {
-      icon = scaledResource( ":/process-interface/cancel.png" );
-      toolTip = "Cancel script";
-
-      onClick = () => { this.cancel(); }
-   }
-
-   this.reset_Button = new ToolButton(this);
-   with( this.reset_Button )
-   {
-      icon = scaledResource( ":/process-interface/reset.png" );
-      toolTip = "Reset to defaults";
-
-      onMousePress = function()
-      {
-         if(data.dialog.targetPreview_ViewList.currentView)
-         {
-            data.dialog.targetPreview_ViewList.remove(data.dialog.targetPreview_ViewList.currentView);
-            data.dialog.targetPreview_ViewList.getPreviews();
-         }
-         if(data.dialog.localsupportmask_ViewList.currentView)
-         {
-            data.dialog.localsupportmask_ViewList.remove(data.dialog.localsupportmask_ViewList.currentView);
-            data.dialog.localsupportmask_ViewList.getMainViews();
-         }
-         data.reset();
-         data.dialog.GaussianStart_NC.setValue(data.GaussianStart);
-         data.dialog.GaussianAmount_NC.setValue(data.GaussianAmount);
-         data.dialog.Gaussianiter_SpinBox.value = data.GaussianIterations;
-         data.dialog.ShapeStart_NC.setValue(data.ShapeStart);
-         data.dialog.ShapeAmount_NC.setValue(data.ShapeAmount);
-         data.dialog.Shapeiter_SpinBox.value = data.ShapeIterations;
-         data.dialog.Deconiter_SpinBox.value = data.deconiterations;
-         data.dialog.globaldark_Control.setValue(data.globaldark);
-         data.dialog.localSupportAmountControl.setValue(data.localsupportamount);
-         disableAllControls();
-      }
-   }
-
-   this.buttons_Sizer = new HorizontalSizer;
-   with ( this.buttons_Sizer )
-   {
-      spacing = 4;
-      add( this.newInstance_Button );
-      add( this.apply_Button );
-      addStretch();
-      add( this.ok_Button );
-      add( this.cancel_Button );
-      add( this.reset_Button );
-   }
-
-   this.sizer = new VerticalSizer;
-   with ( this.sizer )
-   {
-      margin = 8;
-      spacing = 6;
-      add( this.helpLabel );
-      addSpacing( 4 );
-      add( this.targetPreview_Sizer );
-      add( this.GaussianParGroupBox);
-      add( this.ShapeParGroupBox);
-      addSpacing( 4 );
-      add( this.DeconParGroupBox );
-      addSpacing( 4 );
-      add( this.buttons_Sizer );
-   }
-
-   this.windowTitle = TITLE + " Script";
-   this.adjustToContents();
-   this.setFixedSize();
-}
-
-
-/*
- * Script entry point.
- */
-function main()
-{
-   Console.hide();
-
-   if (Parameters.isViewTarget)
-   {
-      data.importParameters();
-      if(Parameters.targetView.isPreview)
-      {
-         data.targetPreview = Parameters.targetView;
-         data.prev_id       = Parameters.targetView.fullId;
-         doWork(data);
-      }
-      return;
-   }
-   else
-   {
-      data.importParameters();
-      if(!data.targetView)
-      {
-         // Get access to the active image window
-         var window = ImageWindow.activeWindow;
-
-         if (!(window == null || window.isNull) && window.currentView.isPreview)
-         {
-            data.targetPreview = window.currentView;
-            data.prev_id       = window.currentView.fullId;
-         }
-      }
-   }
-
-   var dialog = new DeconvolutionPreviewDialog();
-   for ( ;; )
-   {
-      if ( !dialog.execute() )
-         break;
-
-      // A view must be selected.
-      if ( !data.targetPreview )
-      {
-         errorMessageOk("You must select a view to apply this script.", TITLE);
-         continue;
-      }
-
-      //console.show();
-      doWork(data);
-      break;
-   }
-
-   console.hide();
-}
-
-main();
+#ifndef TG_TEST
+Console.hide();if(Parameters.isGlobalTarget||Parameters.isViewTarget)data.importParameters();
+if(Parameters.isViewTarget){var v=Parameters.targetView;data.targetView=v.window.mainView;if(v.isPreview)data.preview=v;DP_run(v.isPreview);}
+else{var w=ImageWindow.activeWindow;if(TG_valid(w)){data.targetView=w.mainView;if(w.currentView.isPreview)data.preview=w.currentView;}var d=new DP_Dialog;try{d.execute();}finally{d.dispose();}}
+#endif

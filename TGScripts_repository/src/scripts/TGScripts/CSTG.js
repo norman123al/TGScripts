@@ -24,7 +24,7 @@
  * */
 
 /*
-   CSTG.js v2.0
+   CSTG.js v2.2.0
 
    Modified 2022 by Thorsten Glebe (based on CS.js version 1.2.1)
 
@@ -60,11 +60,11 @@
 
 CoreApplication.ensureMinimumVersion(1, 9, 5);
 
-#include "lib/TGScriptsLib.js"
+#include "lib/TGCompactUI.js"
 
 #define TITLE "Continuum Subtraction"
 #define SCRIPTNAME "CSTG"
-#define VERSION "2.1"
+#define VERSION "2.2.0"
 
 // original step size
 //#define DEFAULT_STEP_SIZE 0.00025
@@ -72,94 +72,8 @@ CoreApplication.ensureMinimumVersion(1, 9, 5);
 // new step size, faster execution, slightly less accurate mu
 #define DEFAULT_STEP_SIZE 0.001
 
-function CSData()
-{
-   this.dialog     = null;
-	this.cancel     = false;
-	this.nb 		    = null; // narrowband view
-	this.bb 		    = null; // broadband view
-	this.mask 	    = null; // mask
-   this.channel    = 0;
-   this.limit      = 90;
-   this.noisecheck = false;
-   this.plotcheck  = true;
-   this.enabled    = false;
-   this.nb_id      = "";
-   this.bb_id      = "";
-   this.mask_id    = "";
 
-
-   /*
-    * Save parameters in process icon.
-    */
-   this.exportParameters = function()
-   {
-      Parameters.set("channel"   , this.channel);
-      Parameters.set("limit"     , this.limit);
-      Parameters.set("noisecheck", this.noisecheck);
-      Parameters.set("plotcheck" , this.plotcheck);
-      Parameters.set("enabled"   , this.enabled);
-      Parameters.set("nb_id"     , this.nb_id);
-      Parameters.set("bb_id"     , this.bb_id);
-      Parameters.set("mask_id"   , this.mask_id);
-   }
-
-   /*
-    * Restore saved parameters.
-    */
-   this.importParameters = function()
-   {
-      if (Parameters.has("channel"))
-         this.channel = Parameters.getInteger("channel");
-      if (Parameters.has("limit"))
-         this.limit = Parameters.getInteger("limit");
-      if (Parameters.has("noisecheck"))
-         this.noisecheck = Parameters.getBoolean("noisecheck");
-      if (Parameters.has("plotcheck"))
-         this.plotcheck = Parameters.getBoolean("plotcheck");
-      if (Parameters.has("enabled"))
-         this.enabled = Parameters.getBoolean("enabled");
-      if (Parameters.has("nb_id"))
-      {
-         this.nb_id = Parameters.getString("nb_id");
-         if(this.nb_id)
-         {
-            var window = ImageWindow.windowById(this.nb_id);
-            if(!(window == null || window.isNull))
-            {
-               this.nb = window.mainView;
-            }
-         }
-      }
-      if (Parameters.has("bb_id"))
-      {
-         this.bb_id = Parameters.getString("bb_id");
-         if(this.bb_id)
-         {
-            var window = ImageWindow.windowById(this.bb_id);
-            if(!(window == null || window.isNull))
-            {
-               this.bb = window.mainView;
-            }
-         }
-      }
-      if (Parameters.has("mask_id"))
-      {
-         this.mask_id = Parameters.getString("mask_id");
-         if(this.mask_id)
-         {
-            var window = ImageWindow.windowById(this.mask_id);
-            if(!(window == null || window.isNull))
-            {
-               this.mask = window.mainView;
-            }
-         }
-      }
-   }
-}
-
-var data = new CSData;
-
+// 2.2.0: Compact open-first interface, repeatable Apply, PiDoc help and safe cleanup.
 function ContinuumSubtraction(dlg)
 {
    this.nb        = null;     // input narrowband view
@@ -171,160 +85,38 @@ function ContinuumSubtraction(dlg)
    this.denoise   = false;    // de-noise the result image
    this.csImage   = null;     // result, i.e. the recduced narrow band image
 
-   this.execute = function(callback)
+   this.execute=function(callback)
    {
-       Console.writeln("nb "+this.nb.id + this.nb.propertyValue( "CS:js" ));
-           //return 0;
-      if (this.nb == null || this.bb == null)
-      {
-         errorMessageOk("Narrowband and/or broadband view not set", TITLE);
-         return false;
-      }
-      if (this.nb.id == this.bb.id)
-      {
-         errorMessageOk("Narrowband and broadband must be different", TITLE);
-         return false;
-      }
-      //
-      // check geometry
-      //
-      if (!this.nb.image.bounds.isEqualTo(this.bb.image.bounds))
-      {
-         errorMessageOk("Narrowband and broadband have different geometry", TITLE);
-         return false;
-      }
-      if (this.mask != null)
-      {
-         if (this.nb.id == this.mask.id || this.bb.id == this.mask.id)
-         {
-            errorMessageOk("The mask must be different to narrowband and broadband", TITLE);
-            return false;
-         }
-         if (!this.nb.image.bounds.isEqualTo(this.mask.image.bounds))
-         {
-            errorMessageOk("Narrowband and broadband have different geometry", TITLE);
-            return false;
-         }
-         if (this.maskFlags == null)
-         {
-            this.maskFlags = getMaskArray(this.mask);
-         }
-      }
-      var pixCount   = this.nb.image.width * this.nb.image.height;
-      //
-      // linear fit bb channel to nb
-      //
-      //
-      // make temp copy of the broadband channel for subtraction
-      //
-      var bbLfit = copyView(this.bb, data.channel);
+      var fitted=null,success=false,plotWindow=null;
+      if(!TG_valid(this.nb)||!TG_valid(this.bb))throw Error('Narrowband and broadband inputs are required.');
 
-      equalizeMean(bbLfit, this.nb);
-      //
-      // nb and bb pixels to array
-      //
-      var a          = [];
+      try {
+         if(!TG_valid(this.nb)||!TG_valid(this.bb))throw Error('Narrowband and broadband inputs are required.');
+         fitted=TG_copyImage(this.bb.image,this.bb.id+'_lfit',undefined,data.channel).mainView;
+         var nbPixels=TG_samples(this.nb),bbPixels=TG_samples(fitted),n=nbPixels.length,nbMean=0,bbMean=0;
+         for(var i=0;i<n;++i){if(!isFinite(nbPixels[i])||!isFinite(bbPixels[i]))throw Error('Input images contain non-finite samples.');nbMean+=nbPixels[i];bbMean+=bbPixels[i];}
+         if(nbMean<=0||bbMean<=0)throw Error('Continuum estimation requires positive mean intensities in both inputs.');
+         var p=new PixelMath;p.expression='$T*'+(nbMean/bbMean);p.useSingleExpression=true;p.rescale=false;p.truncate=true;p.createNewImage=false;TG_checked(p,fitted);
+         bbPixels=TG_samples(fitted);
+         var flags=this.mask?getMaskArray(this.mask):new Int8Array(n).fill(1),attainable=0,active=0;
+         for(var i=0;i<n;++i){if(flags[i])++active;if(!flags[i]||nbPixels[i]<=0||bbPixels[i]>0)++attainable;}
+         if(active<16)throw Error('Too few pixels remain for continuum estimation.');
+         if(attainable<data.limit/100*n)throw Error('The requested blackness cannot be reached: too many broadband samples are zero.');
+         var nbMedian=this.nb.computeOrFetchProperty('Median').at(0),bbMedian=fitted.computeOrFetchProperty('Median').at(0);
+         var initial=Math.max(nbMedian,bbMedian)>0?Math.min(nbMedian,bbMedian)/Math.max(nbMedian,bbMedian)*.5:0;
+         var curves=new mueCurves(nbPixels,bbPixels,flags,initial,DEFAULT_STEP_SIZE,callback,data.limit/100*n,null);
+         if(data.cancel)return false;this.mue=curves.mue;
+         if(!isFinite(this.mue)||this.mue<=0||!curves.xyy||curves.xyy.length<2)throw Error('No reliable continuum solution. Check registration, matching linear backgrounds and the star mask, or increase the blackness limit.');
+         Console.noteln('Continuum scale μ = '+this.mue.toFixed(8)+' after broadband mean matching.');
+         this.csImage=subtract(this.nb,fitted,this.bb,null,this.mue,data.channel);
+         if(this.denoise)noiseReduction(this.csImage);
+         this.csImage.setPropertyValue('CS:js','T');ApplyAutoSTF(this.csImage,-2.8,.25);
+         var keywords=this.nb.window.keywords.filter(k=>k.name!='EMISSION');keywords.push(new FITSKeyword('EMISSION','T','Continuum-subtracted narrowband image'));this.csImage.window.keywords=keywords;
+         if(this.plot)plotWindow=plotter(curves.xyy,this.mue,this.nb.id,this.bb.id,this.csImage.id,this.mask?this.mask.id:'');
+         if(data.cancel)return false;success=true;return true;
+      } finally {if(TG_valid(fitted))TG_close(fitted.window);if(!success){if(TG_valid(this.csImage))TG_close(this.csImage.window);this.csImage=null;TG_close(plotWindow);}}
+   };
 
-      bbLfit.image.getPixels(a);
-      var bbPixels   = new Float32Array(a);
-
-      this.nb.image.getPixels(a);
-      var nbPixels   = new Float32Array(a);
-      //
-      // broadband data in bbPixels array
-      //
-      Console.writeln("Narrowdband image...." + this.nb.id);
-      Console.writeln("Broadband image......" + bbLfit.id);
-      if (this.mask != null)
-         Console.writeln("Mask image..........." + this.nb.id);
-
-      if (this.maskFlags == null)
-      {
-         this.maskFlags = new Int8Array(pixCount);
-         for (var j = 0; j < pixCount; j++) this.maskFlags[j] = 1;
-      }
-
-      // bb and nb should have nearly same mean after LinearFit
-
-      var bbMedian   = bbLfit.image.median();
-      var beginWith = Math.min(this.nb.image.median(), bbMedian)
-                    / Math.max(this.nb.image.median(), bbMedian) * 0.5;
-
-      var stepSize = DEFAULT_STEP_SIZE;
-
-      Console.writeln("Start with mue......." + beginWith);
-      Console.writeln("Increment............" + stepSize);
-      //
-      // evaluate mue
-      //
-      var limit = data.limit / 100 * nbPixels.length;
-      //
-      var curves = new mueCurves(nbPixels,
-                                 bbPixels,
-                                 this.maskFlags,
-                                 beginWith,
-                                 stepSize,
-                                 callback,
-                                 limit,
-                                 dlg);
-      if (data.cancel) return -1;
-      this.mue = curves.mue;
-
-      if (this.mue > 0)
-      {
-         Console.writeln("Curve points " + curves.xyy.length);
-
-         Console.writeln("Reduction factor mue: " + this.mue.toFixed(8) +
-            " of linear fitted " + this.bb.id);
-      }
-
-      if (this.mue > 0)
-      {
-         this.csImage = subtract(this.nb, bbLfit, this.bb,
-                                 null/*this.mask*/, this.mue, data.channel);
-         //
-         // denoise
-         //
-         if (this.denoise) noiseReduction(this.csImage);
-         //
-         // set flag in view
-         //
-         if (!this.csImage.setPropertyValue("CS:js", "T" ))
-            Console.writeln("View setPropertyValue failed " + this.csImage.id);
-         //
-         // STF
-         //
-         ApplyAutoSTF ( this.csImage, -2.80, 0.25 );
-         //
-         // plot graph
-         //
-         if (this.plot)
-         {
-            if (this.mask == null)
-               plotter(
-                  curves.xyy, this.mue, this.nb.id, this.bb.id, this.csImage.id, "");
-            else
-               plotter(
-                  curves.xyy, this.mue, this.nb.id, this.bb.id, this.csImage.id, this.mask.id);
-         }
-         //
-         // add keywords
-         //
-         var keywords = [];
-         keywords.push(new FITSKeyword("EMISSION", "T", "Emission line image"));
-         this.csImage.beginProcess(UndoFlag.NoSwapFile);
-         this.csImage.window.keywords = keywords;
-         this.csImage.endProcess();
-      }
-      else
-      {
-         message ("CS processing returned no solution");
-      }
-
-      bbLfit.window.forceClose();
-
-      return this.mue > 0;
-   }
 	/* ***************************************************************************
 	 *
 	 * Evaluate the optimal quantity to be subtracted from the narrow band channel
@@ -356,7 +148,7 @@ function ContinuumSubtraction(dlg)
 
 		for (;;)
 		{
-			ii += 1;							// 0..
+			if(++ii>10000)throw Error('Continuum search exceeded its range. Check the input backgrounds or use a star mask.');							// 0..
 
          CoreApplication.processEvents();
          if (data.cancel)
@@ -420,6 +212,7 @@ function ContinuumSubtraction(dlg)
    function findTurningPoint(xy, n, stps)
    {
       //
+      if(xy.length<12)return {mue:-1};
       // normalize xy array of points
       //
       for (var k = 0; k < xy.length; k++) xy[k] = new Point(xy[k].x, xy[k].y /  n);
@@ -478,7 +271,9 @@ function ContinuumSubtraction(dlg)
          }
       }
 
-      var coeff = Polynomials(points, 3); // Polynomials(points, 4);
+      if(ms<=0||im<0||points.length<4)return {mue:-1};
+      var coeff = Polynomials(points, 3);
+      if(!coeff||coeff.length<4||!coeff.every(isFinite))return {mue:-1}; // Polynomials(points, 4);
 
       for (var k in coeff) Console.writeln("Coeff "+k+'\t'+coeff[k]);
 
@@ -518,6 +313,7 @@ function ContinuumSubtraction(dlg)
          mue = X[1];
 
 
+      if(!isFinite(mue)||mue<xy[0].x||mue>xy[xy.length-1].x)return {mue:-1};
       Console.writeln("solved " + mue);
 
       // -----------------------------------------------------------------------
@@ -614,7 +410,7 @@ function ContinuumSubtraction(dlg)
          newImageSampleFormat = PixelMath.f32;
          setDescription(d);
    		//Console.noteln("Pixelmath............" + name + " = " + expression);
-         executeOn(nb);
+         TG_checked(P,bb);
 			var view = View.viewById(name);
        	return view;
       }
@@ -674,34 +470,18 @@ function ContinuumSubtraction(dlg)
          toLuminance = true;
          toChrominance = true;
          linear = false;
-         executeOn(view);
+         TG_checked(P,view);
          Console.writeln("Noise reduction");
       }
-   }
-
-   function gnuplotExecutable()
-   {
-      var gnu = File.systemTempDirectory + "/gnuplot.exe";
-      if (File.exists(gnu)) return gnu;
-      var f = File.currentWorkingDirectory;
-      if (!f.endsWith("/bin")) f += "/bin";
-      f += "/gnuplot.exe";
-      if (File.exists(f))
-      {
-         File.copyFile( gnu, f );
-         return gnu;
-      }
-      return "";  // not found
    }
 
    function getMaskArray(mask)
    {
       if (mask == null) return null;
       var pixCount   = mask.image.width * mask.image.height;
-      var maskPix    = [];
-      mask.image.getPixels (maskPix);
+      var maskPix = TG_samples(mask);
       var cnt = 0;
-      var threshold = mask.image.mean();
+      var threshold = mask.computeOrFetchProperty('Mean').at(0);
       var maskFlags	= new Int8Array(pixCount);		// mask map with 1
       for (var j = 0; j < pixCount; j++)
       {
@@ -739,502 +519,25 @@ function ContinuumSubtraction(dlg)
       return newName;
    }
 
-   function copyView(view, channel)
+   function plotter(curves,mu,nb,bb,result,mask)
    {
-      var newName = getNewName(view.id, "_lfit");
-      var P = new PixelMath;
-      with (P)
-      {
-         expression = '$T[' + channel.toString() + ']';
-         expression1 = "";
-         expression2 = "";
-         expression3 = "";
-         useSingleExpression = true;
-         symbols = "";
-         generateOutput = true;
-         singleThreaded = false;
-         use64BitWorkingImage = false;
-         rescale = false;
-         rescaleLower = 0;
-         rescaleUpper = 1;
-         truncate = true;
-         truncateLower = 0;
-         truncateUpper = 1;
-         createNewImage = true;
-         showNewImage = false;
-         newImageId = newName;
-         newImageWidth = 0;
-         newImageHeight = 0;
-         newImageAlpha = false;
-         newImageColorSpace = PixelMath.Gray;
-         newImageSampleFormat = PixelMath.SameAsTarget;
-         executeOn(view);
-      }
-      return View.viewById(newName);
+      var x0=curves[0].x,x1=curves[curves.length-1].x;
+      if(x1<=x0)throw Error('Invalid diagnostic curve range.');
+      var bitmap=new Bitmap(720,440);bitmap.fill(0xfff9fafb);var g=new Graphics(bitmap);
+      function px(x){return 65+620*(x-x0)/(x1-x0);}
+      function py(y){return 370-300*Math.max(0,Math.min(1,y));}
+      try {
+         g.font=new Font('Helvetica',11);g.pen=new Pen(0xff222222);g.drawText(20,25,'CSTG · '+nb+' / '+bb);g.drawText(20,48,'Continuum scale μ = '+mu.toFixed(5)+'  ·  '+(mask?'Mask: '+mask:'No star mask'));
+         for(var i=0;i<=5;++i){var y=py(i/5);g.pen=new Pen(0xffdddddd);g.drawLine(65,y,685,y);g.pen=new Pen(0xff444444);g.drawText(15,y+4,(i/5).toFixed(1));}
+         g.drawLine(65,70,65,370);g.drawLine(65,370,685,370);
+         for(var i=0;i<=4;++i){var x=x0+(x1-x0)*i/4;g.drawText(px(x)-15,390,x.toFixed(2));}
+         for(var i=1;i<curves.length;++i){var a=curves[i-1],b=curves[i];g.pen=new Pen(0xff2563eb,2);g.drawLine(px(a.x),py(a.y),px(b.x),py(b.y));g.pen=new Pen(0xffd97706,2);g.drawLine(px(a.x),py(a.slope),px(b.x),py(b.slope));}
+         g.pen=new Pen(0xff202020);g.drawLine(px(mu),70,px(mu),370);g.drawText(310,412,'Continuum scale μ');g.pen=new Pen(0xff2563eb);g.drawText(65,432,'Black-pixel fraction');g.pen=new Pen(0xffd97706);g.drawText(280,432,'Normalized derivative');
+      } finally {g.end();}
+      var w=new ImageWindow(bitmap.width,bitmap.height,3,8,false,true,TG_unique('CSTG_curves'));
+      try{w.mainView.beginProcess(UndoFlag.NoSwapFile);try{w.mainView.image.blend(bitmap);}finally{w.mainView.endProcess();}w.show();return w;}catch(e){TG_close(w);throw e;}
    }
 
-   function plotter(curves, mue, nbId, bbId, csId, smId)
-   {
-      // fetch the program from temp
-      //
-      var GNUPlot = gnuplotExecutable()
-
-      if (GNUPlot == "")
-      {
-         Console.writeln("GNUPlot program file missing");
-         return;
-      }
-
-      nbId = nbId.replaceAll('_', "\\\\\\\_");
-      bbId = bbId.replaceAll('_', "\\\\\\\_");
-      csId = csId.replaceAll('_', "\\\\\\\_");
-      if (smId != "") smId = smId.replaceAll('_', "\\\\\\\_");
-      var mueStr = "mue = " + mue.toFixed(6);
-
-      var scriptPath = tempFile("gbnuScript", "plt");
-      var imagePath  = tempFile("image", "svg");
-      var outputPath = tempFile("output", "txt");
-      var dataPath   = tempFile("cs_data", "csv");
-      //
-      // generate data file
-      //
-      var a = [];
-      var t = 0.01;	// 1%
-
-      for (var i in curves)
-      {
-         t = 0;
-         a.push(curves[i].x.toFixed(8) + '\t' +
-                curves[i].y.toFixed(8) + '\t' +
-                curves[i].slope.toFixed(8));
-      }
-      File.writeTextFile(dataPath, a.join('\n') );
-
-      var minx = curves[0].x;
-      var maxx = curves[curves.length - 1].x;
-      var cent = (minx + maxx) / 2;
-
-      // write GNUPlot script
-
-      var script = [];
-      script.push("set terminal svg size 600,500 enhanced background rgb 'white' font \"Helvetica,10\"");
-      script.push("set output \"" + imagePath + "\"");
-      var title =" set title font \"Times Bold, 20\" enhanced \"Continuum Subtraction";
-      title += "\\n{/*0.8 Narrowband: " + nbId + '}';
-      title += "\\n{/*0.8 Broadband: " + bbId + '}';
-      if (smId != "")
-         title += "\\n{/*0.8 Starmask: " + smId + '}';
-      else
-         title += "\\n{/*0.8 No mask" + smId + '}';
-      title += "\\n{/*0.8 Subtracted: " + csId + '}';
-      title += '\"';
-      script.push(title);
-      script.push("set xlabel \"" + mueStr + "\" font \"Courier, 12\"");
-      script.push("set ylabel \"Normalized data\" font \"Helvetica, 12\"");
-      script.push("set style line 1 lc rgb 'black' lt 1 lw 1 dashtype 0");
-      script.push("set style line 2 lc rgb 'black' lt 1 lw 1 dashtype 1");
-      script.push("set style line 3 lc rgb 'grey' lt 0 lw 1 dashtype '-'");
-      script.push("set grid back ls 3");
-
-      script.push("set key left top");
-
-      script.push("set arrow 1 from " + mue.toString() + ",0 to " +
-         mue.toString() + ",1 nohead filled back lw 1");
-
-      if (mue < cent)
-         script.push("set key right top");
-      else
-         script.push("set key left top");
-      script.push("plot \"" + dataPath + "\"  using 1:2 title 'Blackness' with lines ls 1, \\");
-      script.push(" \"" + dataPath + "\"  using 1:3 title '1st Deviation' with lines ls 2");
-      script.push("quit");
-
-      File.writeTextFile( scriptPath, script.join('\n'));
-
-      var P = new ExternalProcess();
-      with (P)
-      {
-         workingDirectory = File.systemTempDirectory;
-
-         redirectStandardInput( scriptPath );
-         redirectStandardOutput( outputPath );
-
-         onStarted = function()
-         {
-            Console.writeln("Start " + GNUPlot);
-         }
-
-         onError = function( errorCode )
-         {
-            Console.writeln("Fehler# " + errorCode);
-         }
-
-         onFinished = function( exitCode, exitStatus )
-         {
-            Console.writeln("End Exit code " + exitCode + '\t' +
-                            ", Status " + exitStatus);
-         }
-
-         start(GNUPlot);
-         waitForFinished();
-      }
-
-      var txt = File.readTextFile( outputPath );
-
-      Console.writeln(txt);
-      Console.flush();
-
-      // load image
-
-      if (File.exists(imagePath))
-      {
-         try
-         {
-            var bm = new Bitmap(imagePath);
-            var window = new ImageWindow(bm.width, bm.height, 3, 32, true, true, "CS_Plot");
-            window.mainView.beginProcess(UndoFlag.NoSwapFile);
-            window.mainView.image.blend( bm );
-            window.mainView.endProcess();
-            window.show();
-         }
-         catch (ex)
-         {
-            Console.writeln("Image load error: " + ex);
-         }
-         File.remove( imagePath );
-      }
-
-      File.remove( scriptPath );
-      File.remove( outputPath );
-      File.remove( dataPath );
-
-      function tempFile(name, ext)
-      {
-         var workingDir = File.systemTempDirectory;
-         workingDir = workingDir.replaceAll('\\', '/');
-         if (!workingDir.endsWith('/')) workingDir += '/';
-         var filename = "";
-         var index = 0;
-         while (true)
-         {
-            if (index == 0)
-               filename = workingDir + name + '.' + ext;
-            else
-               filename = workingDir + name + index.toString() + '.' + ext;
-            if (!File.exists(filename)) break;
-            index += 1;
-         }
-         return filename;
-      }
-   }
-
-   function lstqr()
-   {
-      // instance variables
-      var pointArray = [];
-      var numOfEntries = 0;
-      var a = 0;
-      var b = 0;
-      var c = 0;
-      var det = 0;
-      var x = 0;
-      var xs = 0;
-      var ys = 0;
-
-      this.add = function(p)
-      {
-        numOfEntries += 1;
-        pointArray.push(p);
-      }
-
-      this.addPoint = function(x, y)
-      {
-        numOfEntries += 1;
-        pointArray.push([x, y]);
-      }
-
-      function aTerm()
-      {
-        if (numOfEntries < 3)
-        {
-            throw new InvalidOperationException(
-               "Insufficient pairs of co-ordinates: " + numOfEntries);
-        }
-        //notation sjk to mean the sum of x_i^j*y_i^k.
-        var s40 = getSx4(); //sum of x^4
-        var s30 = getSx3(); //sum of x^3
-        var s20 = getSx2(); //sum of x^2
-        var s10 = getSx();  //sum of x
-        var s00 = numOfEntries;  //sum of x^0 * y^0  ie 1 * number of entries
-
-        var s21 = getSx2y(); //sum of x^2*y
-        var s11 = getSxy();  //sum of x*y
-        var s01 = getSy();   //sum of y
-
-        //a = Da/D
-        return (s21 * (s20 * s00 - s10 * s10) - s11
-               * (s30 * s00 - s10 * s20) + s01
-               * (s30 * s10 - s20 * s20))
-               / (s40 * (s20 * s00 - s10 * s10) - s30
-               * (s30 * s00 - s10 * s20) + s20
-               * (s30 * s10 - s20 * s20));
-      }
-
-      /// <summary>
-      /// returns the b term of the equation ax^2 + bx + c
-      /// </summary>
-      /// <returns>b term</returns>
-      function bTerm()
-      {
-        if (numOfEntries < 3)
-        {
-            throw new InvalidOperationException("Insufficient pairs of co-ordinates");
-        }
-        //notation sjk to mean the sum of x_i^j*y_i^k.
-        var s40 = getSx4(); //sum of x^4
-        var s30 = getSx3(); //sum of x^3
-        var s20 = getSx2(); //sum of x^2
-        var s10 = getSx();  //sum of x
-        var s00 = numOfEntries;  //sum of x^0 * y^0  ie 1 * number of entries
-
-        var s21 = getSx2y(); //sum of x^2*y
-        var s11 = getSxy();  //sum of x*y
-        var s01 = getSy();   //sum of y
-
-        //b = Db/D
-        return (s40 * (s11 * s00 - s01 * s10) - s30
-               * (s21 * s00 - s01 * s20) + s20
-               * (s21 * s10 - s11 * s20))
-               / (s40 * (s20 * s00 - s10 * s10) - s30
-               * (s30 * s00 - s10 * s20) + s20
-               * (s30 * s10 - s20 * s20));
-      }
-
-      /// <summary>
-      /// returns the c term of the equation ax^2 + bx + c
-      /// </summary>
-      /// <returns>c term</returns>
-      function cTerm()
-      {
-        if (numOfEntries < 3)
-        {
-            throw new InvalidOperationException("Insufficient pairs of co-ordinates");
-        }
-        //notation sjk to mean the sum of x_i^j*y_i^k.
-        var s40 = getSx4(); //sum of x^4
-        var s30 = getSx3(); //sum of x^3
-        var s20 = getSx2(); //sum of x^2
-        var s10 = getSx();  //sum of x
-        var s00 = numOfEntries;  //sum of x^0 * y^0  ie 1 * number of entries
-
-        var s21 = getSx2y(); //sum of x^2*y
-        var s11 = getSxy();  //sum of x*y
-        var s01 = getSy();   //sum of y
-
-        //c = Dc/D
-        return (s40 * (s20 * s01 - s10 * s11) - s30
-               * (s30 * s01 - s10 * s21) + s20 * (s30 * s11 - s20 * s21))
-               / (s40 * (s20 * s00 - s10 * s10) - s30
-               * (s30 * s00 - s10 * s20) + s20
-               * (s30 * s10 - s20 * s20));
-      }
-
-      function rSquare() // get r-squared
-      {
-        if (numOfEntries < 3)
-        {
-            throw new InvalidOperationException("Insufficient pairs of co-ordinates");
-        }
-        // 1 - (total sum of squares / residual sum of squares)
-        return 1 - getSSerr() / getSStot();
-      }
-
-
-      /*helper methods*/
-      function getSx() // get sum of x
-      {
-        var Sx = 0;
-        for (var ppair of pointArray)
-        {
-            Sx += ppair[0];
-        }
-        return Sx;
-      }
-
-      function getSy() // get sum of y
-      {
-        var Sy = 0;
-        for (var ppair of pointArray)
-        {
-            Sy += ppair[1];
-        }
-        return Sy;
-      }
-
-      function getSx2() // get sum of x^2
-      {
-        var Sx2 = 0;
-        for (var ppair of pointArray)
-        {
-            Sx2 += Math.pow(ppair[0], 2); // sum of x^2
-        }
-        return Sx2;
-      }
-
-      function getSx3() // get sum of x^3
-      {
-        var Sx3 = 0;
-        for (var ppair of pointArray)
-        {
-            Sx3 += Math.pow(ppair[0], 3); // sum of x^3
-        }
-        return Sx3;
-      }
-
-      function getSx4() // get sum of x^4
-      {
-        var Sx4 = 0;
-        for (var ppair of pointArray)
-        {
-            Sx4 += Math.pow(ppair[0], 4); // sum of x^4
-        }
-        return Sx4;
-      }
-
-      function getSxy() // get sum of x*y
-      {
-        var Sxy = 0;
-        for (var ppair of pointArray)
-        {
-            Sxy += ppair[0] * ppair[1]; // sum of x*y
-        }
-        return Sxy;
-      }
-
-      function getSx2y() // get sum of x^2*y
-      {
-        var Sx2y = 0;
-        for (var ppair of pointArray)
-        {
-            Sx2y += Math.pow(ppair[0], 2) * ppair[1]; // sum of x^2*y
-        }
-        return Sx2y;
-      }
-
-      function getYMean() // mean value of y
-      {
-        var y_tot = 0;
-        for (var ppair of pointArray)
-        {
-            y_tot += ppair[1];
-        }
-        return y_tot / numOfEntries;
-      }
-
-      function getSStot() // total sum of squares
-      {
-        //the sum of the squares of the differences between
-        //the measured y values and the mean y value
-        var ss_tot = 0;
-        for (var ppair of pointArray)
-        {
-            ss_tot += Math.pow(ppair[1] - getYMean(), 2);
-        }
-        return ss_tot;
-      }
-
-      function getSSerr() // residual sum of squares
-      {
-        //the sum of the squares of te difference between
-        //the measured y values and the values of y predicted by the equation
-        var ss_err = 0;
-        for (var ppair of pointArray)
-        {
-            ss_err += Math.pow(ppair[1] - getPredictedY(ppair[0]), 2);
-        }
-        return ss_err;
-      }
-
-      function getPredictedY(x)
-      {
-        //returns value of y predicted by the equation for a given value of x
-        return aTerm() * Math.Pow(x, 2) + bTerm() * x + cTerm();
-      }
-
-      this.solve = function()
-      {
-         a = aTerm();
-         b = bTerm();
-         c = cTerm();
-         det = b * b - 4 * a * c;
-         if (det < 0.0)
-         {
-            x = -b / (2 * a);
-         }
-         else if (det > 0.0)
-         {
-            var x1 = (-b + Math.sqrt(det)) / (2 * a);
-            var x2 = (-b - Math.sqrt(det)) / (2 * a);
-            x = (x1 + x2) / 2.0;
-         }
-         else
-         {
-            x = (-b + System.Math.sqrt(det)) / (2 * a);
-         }
-
-         xs = -b / ( 2 * a);
-         ys = (4.0 * a * c - b * b) / (4 * a);
-      }
-
-      this.A = function()
-      {
-         return a;
-      }
-
-      this.B = function()
-      {
-         return b;
-      }
-
-      this.C = function()
-      {
-         return c;
-      }
-
-      this.Det = function()
-      {
-         return det;
-      }
-
-      this.X = function()
-      {
-         return x;
-      }
-
-      this.Y = function (x) // get Y(x)
-      {
-        return a * x * x + b * x + c;
-      }
-
-      this.XS = function()
-      {
-         return xs;
-      }
-
-      this.YS = function()
-      {
-         return ys;
-      }
-
-      this.N = function()
-      {
-         return numOfEntries;
-      }
-   }
-   // ========================================================================
-   //      STF Auto Stretch routine
-   // ========================================================================
-   //
    function ApplyAutoSTF( view, shadowsClipping, targetBackground )
    {
       var stf = new ScreenTransferFunction;
@@ -1258,561 +561,11 @@ function ContinuumSubtraction(dlg)
                   [c0, 1, m, 0, 1],
                   [0, 1, 0.5, 0, 1] ];
 
-      stf.executeOn( view );
+      TG_checked(stf,view);
    }
 }
 //
 // +++ End of object ContinuumSubtraction() +++
-
-var infoDialog = class extends Dialog
-{
-   constructor()
-   {
-      super();
-      infoDialog_initialize.call(this);
-   }
-};
-
-// Keep legacy with-based control setup outside the strict class body.
-function infoDialog_initialize()
-{
-
-   var dlg = this;
-
-   this.helpLabel = new Label( this );
-   with ( this.helpLabel )
-   {
-      frameStyle = FrameStyle.Box;
-      margin = 4;
-      wordWrapping = true;
-      useRichText = true;
-
-      text = "<p><b>" + SCRIPTNAME + " - " + TITLE + " v" + VERSION + "</b></p>" +
-      "<p><b>Purpose</p>" +
-      "<p>Subtract a fraction of broadband image from a narrowband image.</>" +
-      "<p>This frees the unwanted radiation from an emission line object image " +
-      "and creates a new image, which can be added to the broadband channel.</p>" +
-      "<p>Using this script, one can add more then one emission to a broadband (i.e: Ha, SII to R)." +
-      " Simply repeat this script for each narrowband and add the result(s) to the calibrated RGB channel(s)</p>" +
-      "<p><b>Usage:</b></p>" +
-      "<p>1. add the views of the narrowband image and the broadband image</>" +
-      "<p>2. (opt.) add the view of a starmask</>" +
-      "<p>3. press 'Execute Subtraction' and wait for the result</><br>" +
-      "<p>4. add the new image (emission_narrowbandId) to the broadband with PixelMath and apply a factor (start with 1)</>" +
-      "<p>I.e.:</p>" +
-      "<p>$T + emission_M1_Halpha * f</p>" +
-      "<p>play with f</p>" +
-      "<br>" +
-      "<p>This script implements my method of continuum subtraction.</p>" +
-      "<br>" +
-      "<p><b>mailto:hvb356@hotmail.de</p>";
-   }
-
-   this.btnOK = new PushButton(this);
-   with (this.btnOK)
-   {
-      icon = this.scaledResource(":/icons/ok.png");
-      text = "OK";
-      onPress = function() { parent.done(0); };
-   }
-
-   var buttonsSizer = new HorizontalSizer();
-   buttonsSizer.margin = 4;
-   buttonsSizer.addStretch();
-   buttonsSizer.add(this.btnOK);
-
-   this.sizer = new VerticalSizer(this);
-   this.sizer.add (this.helpLabel);
-   this.sizer.addSpacing(12);
-   this.sizer.add(buttonsSizer);
-
-   this.setScaledMinSize(600, 400);
-
-   this.windowTitle = SCRIPTNAME + " - Info";
-
-//	this.adjustToContents();
-// 	this.userResizable = true;
-   CoreApplication.processEvents();
-   this.bringToFront();
-}
-
-var showDialog = class extends Dialog
-{
-   constructor()
-   {
-      super();
-      showDialog_initialize.call(this);
-   }
-};
-
-// Keep legacy with-based control setup outside the strict class body.
-function showDialog_initialize()
-{
-
-   data.dialog = this;
-
-   var dlg 					= this;
-
-   var labelWidth1 = this.font.width( "Contrast Limit:" );
-
-   // ------------------------------------------------------------------------
-   // GUI
-   // ------------------------------------------------------------------------
-   this.lblHeadLine = new Label(this)
-   with (this.lblHeadLine)
-   {
-      useRichText = true;
-      text ="<b>Subtract continuum radiation from narrowband image</b>";
-   }
-
-   // my ©
-   this.lblCopyright = new Label(this)
-   this.lblCopyright.text      = "© 2016, Hartmut V. Bornemann / 2022, Thorsten Glebe";
-
-   this.iconInfo = new ToolButton(this);
-   with (this.iconInfo)
-   {
-      icon = this.scaledResource(":/icons/info.png");
-
-      onClick = function(checked )
-      {
-         var dialog = new infoDialog();
-	      dialog.execute();
-         CoreApplication.processEvents();
-         dlg.bringToFront();
-      }
-   }
-
-   var infoSizer = new HorizontalSizer();
-   infoSizer.margin = 4;
-   infoSizer.add(this.lblCopyright);
-   infoSizer.addStretch();
-   infoSizer.add(this.iconInfo);
-
-   // new instance button
-   this.newInstance_Button = new ToolButton(this);
-   with( this.newInstance_Button )
-   {
-      icon = new Bitmap( ":/process-interface/new-instance.png" );
-      toolTip = "New Instance";
-      onMousePress = function()
-      {
-         this.hasFocus = true;
-         data.exportParameters();
-         this.pushed = false;
-         this.dialog.newInstance();
-      }
-   }
-
-   this.newInstanceSizer = new HorizontalSizer;
-   with ( this.newInstanceSizer )
-   {
-		margin = 4;
-      add( this.newInstance_Button );
-      addStretch();
-   }
-
-   // execute button
-   this.execButton = new PushButton( this );
-   with ( this.execButton )
-   {
-      icon = this.scaledResource(":/icons/ok.png");
-      text = "Execute Subtraction";
-      enabled = data.enabled;
-
-      onPress = function()
-      {
-         Console.show();
-         var t0 = new Date;
-
-         dlg.execButton.enabled = false;
-         dlg.lblTick.text = "Prep";
-
-         var cs     = new ContinuumSubtraction(dlg);
-         cs.nb      = data.nb;
-         cs.bb      = data.bb;
-         cs.mask    = data.mask;
-         cs.denoise = data.noisecheck;
-         cs.plot    = data.plotcheck;
-         if (!cs.execute(callback)) return;
-
-         if (data.cancel) return;
-
-         View.viewById( cs.csImage.id ).window.show();
-
-         // reset progress indicator
-         data.dialog.lblTick.text = "Ready";
-         data.dialog.delay.start();
-
-         var t1 = new Date;
-         Console.writeln(format("<end><cbr>doWork: %.2f s", (t1.getTime() - t0.getTime())/1000));
-      }
-   }
-
-	this.cancelButton = new PushButton( this );
-	with (this.cancelButton)
-	{
-      icon = this.scaledResource(":/icons/cancel.png");
-		text = "Cancel";
-      onPress = function()
-      {
-         data.cancel = true;
-			dlg.cursor = new Cursor(StdCursor.Arrow);
-         dlg.done(0);
-		}
-	}
-
-	this.lblTick = new Label(this);
-	with (this.lblTick)
-	{
-      frameStyle = FrameStyle.Box;
-		textAlignment = TextAlignment.Right|TextAlignment.VertCenter;
-      var w = this.font.width( 'MLinearFit' );
-      setFixedWidth( w );
-   }
-
-
-   this.buttonSizer = new HorizontalSizer;
-   with ( this.buttonSizer )
-   {
-		margin = 4;
-		add( this.cancelButton );
-		addSpacing(16);
-		add( this.lblTick );
-		addSpacing(16);
-		addStretch();
-      add( this.execButton );
-   }
-
-   // ------------------------------------------------------------------------
-   //
-   // NB view selection
-   //
-   // ------------------------------------------------------------------------
-   this.nbLabel = new Label( this );
-   with ( this.nbLabel ) {
-      text = "Narrowband image:";
-   }
-
-   this.nbViews = new ViewList(this);
-   with ( this.nbViews )
-   {
-      getMainViews();
-      excludeViews(dlg.nbViews);
-      if(data.nb)
-      {
-         currentView = data.nb;
-      }
-
-      toolTip = "<p>Select the narrowband image.</p>";
-
-      onViewSelected = function( view )
-      {
-			if (view.id == "")
-			{
-				data.nb = null;
-            data.nb_id = "";
-				dlg.execButton.enabled = false;
-			}
-         else
-         {
-            if (view.image.isGrayscale)
-            {
-   				data.nb 		= view;
-               data.nb_id  = view.id;
-               dlg.execButton.enabled = data.bb != null;
-            }
-            else
-            {
-   				dlg.execButton.enabled = false;
-            }
-         }
-         data.enabled = dlg.execButton.enabled;
-      }
-   }
-
-   this.nbImageSizer = new HorizontalSizer;
-   with ( this.nbImageSizer )
-   {
-		addStretch();
-      add( this.nbLabel );
-      spacing = 8;
-      add( this.nbViews );
-   }
-
-   // ------------------------------------------------------------------------
-   //
-   // BB view selection
-   //
-   // ------------------------------------------------------------------------
-   this.bbLabel = new Label( this );
-   with ( this.bbLabel ) {
-      text = "Broadband image:";
-   }
-
-   this.bbViews = new ViewList(this);
-   with ( this.bbViews )
-   {
-      getMainViews();
-      //excludeViews(dlg.bbViews);
-      if(data.bb)
-      {
-         currentView = data.bb;
-      }
-
-      toolTip = "<p>Select the broadband image which " + "will be subtracted from the narrowband image.</p>";
-
-      onViewSelected = function( view )
-      {
-			if (view.id == "")
-			{
-				data.bb = null;
-            data.bb_id = "";
-				dlg.execButton.enabled = false;
-			}
-         else
-         {
-            data.bb 		= view;
-            data.bb_id  = view.id;
-            dlg.execButton.enabled = data.nb != null;
-            dlg.rbR.enabled = data.bb.image.isColor;
-            dlg.rbG.enabled = data.bb.image.isColor;
-            dlg.rbB.enabled = data.bb.image.isColor;
-         }
-         data.enabled = dlg.execButton.enabled;
-      }
-   }
-
-   this.bbImageSizer = new HorizontalSizer;
-   with ( this.bbImageSizer )
-   {
-		addStretch();
-      add( this.bbLabel );
-      spacing = 8;
-      add( this.bbViews );
-   }
-
-   this.lblChannel = new Label(this);
-   this.lblChannel.text = 'Channel:';
-
-   this.rbR = new RadioButton(this);
-   with( this.rbR )
-   {
-      checked = data.channel == 0;
-      enabled = false;
-      text    = 'R';
-      onCheck = function( checked ){ if (checked) data.channel = 0};
-   }
-
-
-   this.rbG = new RadioButton(this);
-   with( this.rbG )
-   {
-      checked = data.channel == 1;
-      text    = 'G';
-      enabled = false;
-      onCheck = function( checked ){ if (checked) data.channel = 1};
-   }
-
-
-   this.rbB = new RadioButton(this);
-   with( this.rbB )
-   {
-      checked = data.channel == 2;
-      enabled = false;
-      text    = 'B';
-      onCheck = function( checked ){ if (checked) data.channel = 2};
-   }
-
-
-   this.bbChannelSizer = new HorizontalSizer;
-   with ( this.bbChannelSizer )
-   {
-		addStretch();
-      addStretch();;
-      add( this.lblChannel );
-      spacing = 8;
-      add( this.rbR );
-      spacing = 8;
-      add( this.rbG );
-      spacing = 8;
-      add( this.rbB );
-   }
-
-
-   // ------------------------------------------------------------------------
-   //
-   // Starmask view selection
-   //
-   // ------------------------------------------------------------------------
-   this.smLabel = new Label( this );
-   with ( this.smLabel )
-   {
-      text = "Starmask image:";
-   }
-
-   this.smViews = new ViewList(this);
-   with ( this.smViews )
-   {
-      getMainViews();
-      excludeViews(dlg.smViews);
-      if(data.mask)
-      {
-         currentView = data.mask;
-      }
-
-      toolTip = "<p>Select the starmask image to excludes stars in evaluation process.</p>";
-
-      onViewSelected = function( view )
-      {
-			if (view.id == "")
-			{
-				data.mask = null;
-            data.mask_id = "";
-				return;
-			}
-         if (view.image.isGrayscale)
-         {
-            data.mask    = view;
-            data.mask_id = view.id;
-         }
-      }
-   }
-
-   this.smImageSizer = new HorizontalSizer;
-   with ( this.smImageSizer )
-   {
-		addStretch();
-      add( this.smLabel );
-      spacing = 8;
-      add( this.smViews );
-   }
-
-   this.numlimit = new NumericControl(this);
-   with (this.numlimit)
-   {
-      setPrecision(0);
-      setRange(50, 99);
-      setValue(data.limit);
-
-      onValueUpdated = function(value) { data.limit = value; }
-      label.text = "Evaluate to blackness level [%]:";
-   }
-
-   this.limitImageSizer = new HorizontalSizer;
-   with ( this.limitImageSizer )
-   {
-		addStretch();
-      add( this.numlimit );
-   }
-
-
-   this.parmsGroupBox = new GroupBox( this );
-   with (this.parmsGroupBox)
-   {
-      sizer = new VerticalSizer;
-      sizer.margin = 6;
-		sizer.add( this.nbImageSizer );
-      sizer.spacing = 12;
-      sizer.add( this.bbImageSizer );
-      sizer.spacing = 4;
-      sizer.add( this.bbChannelSizer);
-      sizer.spacing = 12;
-      sizer.add( this.smImageSizer );
-      sizer.spacing = 12;
-      sizer.add( this.limitImageSizer);
-      title = "Views";
-   }
-
-   this.noiseCheck = new CheckBox(this);
-   with (this.noiseCheck)
-   {
-      checked = data.noisecheck;
-      text = "Noise reduction after subtraction";
-      onCheck = function( checked ){ data.noisecheck = checked };
-   }
-
-   this.plotCheck = new CheckBox(this);
-   with (this.plotCheck)
-   {
-      checked = data.plotcheck;
-      text = "Plot curves";
-      onCheck = function( checked ){ data.plotcheck = checked };
-   }
-
-   // ------------------------------------------------------------------------
-   this.input_GroupBox = new GroupBox( this );
-   with ( this.input_GroupBox )
-   {
-      title = "";
-      sizer = new VerticalSizer;
-   }
-
-   with ( this.input_GroupBox.sizer )
-   {
-      margin = 6;
-      addSpacing (4);
-      add( this.parmsGroupBox );
-      addSpacing (8);
-      add( this.noiseCheck );
-      addSpacing (8);
-      add( this.plotCheck);
-      addSpacing (8);
-      add( this.buttonSizer );
-   }
-
-   // ------------------------------------------------------------------------
-   // finally arrange all sizing elements and ajust the dialog frame
-   // ------------------------------------------------------------------------
-   this.sizer = new VerticalSizer(this);
-   with( this.sizer )
-   {
-      margin = 6;
-      spacing = 6;
-      add( this.lblHeadLine );
-      add( infoSizer );
-      add( this.input_GroupBox );
-      add( this.newInstanceSizer );
-   }
-   this.windowTitle = SCRIPTNAME + " " + VERSION;
-
-//   this.adjustToContents();
-//   this.userResizable = false;
-
-   var labelWidth = this.cancelButton.frameRect.width * 0.75;
-   this.lblTick.text = "Idle";
-
- 	this.refreshTick = 0;
-
-	this.delay = new Timer;
-	with (this.delay)
-	{
-		interval = 2;
-		singleShot = true;
-		onTimeout = function()
-		{
-			dlg.cursor = new Cursor(StdCursor.Arrow);
-         dlg.done(0);
-		}
-	}
-
-   function callback(progress)
-   {
-      dlg.lblTick.text = (progress * 100).toFixed(2) + '%';
-      CoreApplication.processEvents();
-   }
-}
-
-
-function linearFit(referenceView, imageToFit)
-{
-   var P = new LinearFit;
-   P.referenceViewId = referenceView.id;
-   P.rejectLow = 0.000000;
-   P.rejectHigh = 0.920000;
-   P.executeOn(imageToFit);
-}
-
 
 function solveQ (a, b, c)
 {
@@ -1838,6 +591,7 @@ function Polynomials(points, degree)
    while (d > 0)
    {
       coeff = FindPolynomialLeastSquaresFit(points, d);
+      if(!coeff){--d;continue;}
       var cnt = 0;
       for (var i = 0; i < coeff.length; i++)
       {
@@ -1917,12 +671,12 @@ function Solve( M )
    if (M == null) throw ("Coefficient matrix is empty");
    if (M.cols != M.rows + 1)
    {
-      throw new RuntimeException("The algorithm must be provided with a (n x n+1) matrix.");
+      throw new Error("The algorithm must be provided with a (n x n+1) matrix.");
    }
    var rowCount = M.rows;
    if (rowCount < 1)
    {
-      throw new RuntimeException("The matrix must at least have one row.");
+      throw new Error("The matrix must at least have one row.");
    }
 
    // pivoting
@@ -1941,7 +695,7 @@ function Solve( M )
             }
          }
 
-         if (M.at(swapRow, col) != 0) // found a non-zero coefficient?
+         if (swapRow < rowCount && M.at(swapRow, col) != 0) // found a non-zero coefficient?
          {
             // yes, then swap it with the above
             var tmp = new Array(rowCount + 1);
@@ -2052,62 +806,50 @@ function poly(coeffs, x)
 //   End Polynomials functions
 // ========================================================================
 
-function getKeyString(window, keyName)
+const CS_FILE=#__FILE__;
+function CSData()
 {
-   //
-   // search key keyName
-   //
-   for (var i in window.keywords)
-   {
-      with (window.keywords[i])
-      {
-         if (name == keyName)
-         {
-            var s = strippedValue;
-            return s;
-         }
-      }
-   }
-   return null;
+   this.nb=null;this.bb=null;this.mask=null;this.cancel=false;
+   TG_settings(this,{channel:[0,0,2,true],limit:[90,50,99,true]},{noisecheck:false,plotcheck:true},{},{nb_id:'nb',bb_id:'bb',mask_id:'mask'});
+   var save=this.exportParameters;
+   this.exportParameters=function(){save();if(TG_valid(this.bb))Parameters.set('bb_id',this.bb.id);if(TG_valid(this.mask))Parameters.set('mask_id',this.mask.id);};
 }
-
-function excludeViews(vList)
+var data=new CSData;
+function CS_validate()
 {
-   var all = getAllMainViews();
-
-   for (var i in all)
-   {
-      var v = all[i];
-      if (v.image.isColor)
-      {
-         vList.remove(v);
-         continue;
-      }
-      var t = getKeyString(v.window, "EMISSION");
-      if (t == 'T')
-      {
-         vList.remove(v);
-         continue;
-      }
+   if(!TG_valid(data.nb)||!data.nb.isMainView||data.nb.image.isColor)throw Error('Select a grayscale narrowband main image.');
+   if(!TG_valid(data.bb)||!data.bb.isMainView)throw Error('Select the registered broadband main image.');
+   for(var v of [data.bb,data.mask])if(TG_valid(v)){
+      if(v.fullId==data.nb.fullId)throw Error('The narrowband, broadband and mask inputs must be different images.');
+      if(v.image.width!=data.nb.image.width||v.image.height!=data.nb.image.height)throw Error('All inputs must have identical pixel dimensions and be registered.');
    }
+   if(TG_valid(data.mask)&&(data.mask.image.isColor||data.mask.fullId==data.bb.fullId))throw Error('Select a separate grayscale star mask.');
+   if(!data.bb.image.isColor)data.channel=0;
 }
-
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// Main script entry point
-//
-function main()
+function CS_run(progress)
 {
-	Console.show();
-   if (Parameters.isGlobalTarget || Parameters.isViewTarget)
-   {
-      data.importParameters();
-   }
-
-   Console.abortEnabled = true;
-	var dialog = new showDialog();
-   dialog.execute();
+   CS_validate();var cs=new ContinuumSubtraction;cs.nb=data.nb;cs.bb=data.bb;cs.mask=TG_valid(data.mask)?data.mask:null;cs.plot=data.plotcheck;cs.denoise=data.noisecheck;
+   if(!cs.execute(progress||function(){}))return null;cs.csImage.window.show();return cs.csImage.window;
 }
-
-main();
+var CS_Dialog=class extends Dialog
+{
+   constructor(){
+      super();TG_setup(this,'CSTG',VERSION,'Subtract broadband continuum from a narrowband image.');
+      this.nb=TG_picker(this,'Narrowband · grayscale','nb',v=>!v.image.isColor);this.addGroup(this.nb);
+      this.bb=TG_picker(this,'Broadband · registered to narrowband','bb',v=>true);this.addGroup(this.bb);
+      this.channel=TG_combo(this.bb,'Channel:',['Red','Green','Blue'],data.channel,v=>data.channel=v);
+      this.mask=TG_picker(this,'Star mask · optional grayscale','mask',v=>!v.image.isColor);this.addGroup(this.mask);
+      var fit=TG_group(this,'Continuum estimate');this.addGroup(fit);
+      this.limit=TG_number(fit,'Blackness (%):',50,99,0,data.limit,v=>data.limit=Math.round(v));
+      this.limit.toolTip='Stop sampling the black-pixel curve at this percentage. Raise it if the derivative peak is too close to the sampled edge.';
+      this.noise=TG_check(fit,'Reduce small-scale noise in the result',data.noisecheck,v=>data.noisecheck=v);
+      this.plot=TG_check(fit,'Create a diagnostic curve plot',data.plotcheck,v=>data.plotcheck=v);
+      fit.sizer.add(TG_label(fit,'Use aligned, linear input images. The star mask excludes bright pixels from estimation only.'));
+      TG_finish(this,CS_FILE,'CSTG',()=>CS_run(p=>{this.status.text='Estimating continuum: '+(p*100).toFixed(1)+'% black pixels.\nUse Close to cancel.';}),()=>{data.reset();this.limit.setValue(data.limit);this.channel.currentItem=data.channel;this.noise.checked=data.noisecheck;this.plot.checked=data.plotcheck;this.refresh();});
+      this.instance.toolTip='Drag to save settings and broadband/star-mask references. The receiving image becomes the narrowband input.';
+   }
+   refresh(status){this.nb.refresh();this.bb.refresh();this.mask.refresh();if(this.channel){this.channel.enabled=TG_valid(data.bb)&&data.bb.image.isColor;if(!this.channel.enabled){data.channel=0;this.channel.currentItem=0;}}if(this.apply)this.apply.enabled=TG_valid(data.nb)&&TG_valid(data.bb);if(this.status&&status!==false)this.status.text='Apply creates an emission image; inputs stay unchanged.\nNew Instance retains broadband and mask references.';}
+};
+#ifndef TG_TEST
+TG_main(CS_Dialog,'nb',v=>!v.image.isColor,()=>CS_run());
+#endif

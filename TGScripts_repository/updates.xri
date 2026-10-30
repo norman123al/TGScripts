@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="4b9ed6cc53fd4034b5b2f91c68da5a11b53b8845" type="script" releaseDate="20261030">
+      <package fileName="TGScripts_repository.tar.gz" sha1="522103743f67fc6f7d67bf890d1d065043dc07ce" type="script" releaseDate="20261030">
          <title>
             TGScripts snapshot - 2026 Okt 30
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Allow window resizing and fit the initial size to the screen. Keep action buttons visible while content scrolls, and preserve window size when sections are collapsed or expanded.
+               Updated BBStarReduction, CSTG, ColorMaskTG, DarkStructureEnhanceTG, DeconvolutionPreviewTG, EmissionLineIntegrationTG and LocalSupportMask with compact interfaces and consistent controls. Open scripts before loading images, apply repeatedly, and use separate preview or comparison actions. Includes source-preserving output options, corrected BBStarReduction mode selection, removal of deprecated calls, and improved validation and cleanup. Refreshed PiDoc documentation includes current interface screenshots and workflow guidance.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-30T11:55:01.605Z" encoding="Base64">QHTYUf/a3JYFNptnZUdG9lGHc3N1OV/SuEPz6ADqNkj5qny0JwCUixQirujIeYI3B22ViPsbu10lFnfDWARTDw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-10-30T14:26:37.135Z" encoding="Base64">/FkTsj711IA4grhNUXA1A3flrMzRNtNd1ZpHp8mihBEGjvRsU1x7Rczqg//S/kb1bx8IzNyzBvtlQpsSKnoUBg==</Signature>

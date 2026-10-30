@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+   <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+   <title>PixInsight Reference Documentation | EmissionLineIntegrationTG</title>
+   <meta name="keywords" content="narrowband, RGB, emission, continuum subtraction" />
+   <meta name="author" content="Hartmut V. Bornemann; Thorsten Glebe" />
+   <meta name="description" content="Version 2.2.1. Add continuum-subtracted narrowband emission to selected channels of a linear RGB image." />
+   <meta name="robots" content="INDEX,FOLLOW" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
+   <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
+   <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
+   <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
+</head>
+<body>
+<script type="text/javascript">
+   pidoc_generateDynamicContents();
+</script>
+
+<h1>EmissionLineIntegrationTG</h1>
+
+<div id="authors">
+<p>By Hartmut V. Bornemann; Thorsten Glebe</p>
+</div>
+
+<hr class="separator"/>
+
+<div id="brief">
+<p>Version 2.2.1. Add continuum-subtracted narrowband emission to selected channels of a linear RGB image. <a href="#__contents__">[more]</a></p></div>
+
+<div id="keywords">
+<p><strong>Keywords:</strong> narrowband, RGB, emission, continuum subtraction</p>
+</div>
+
+<h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
+<p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'toc', this );">[hide]</p>
+<div id="toc">
+<ul>
+<li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
+<li class="pidoc_tocItem"><a href="#__Quick_start__">2&emsp;Quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__How_the_result_is_calculated__">3&emsp;How the result is calculated</a></li>
+<li class="pidoc_tocItem"><a href="#__Controls__">4&emsp;Controls</a></li>
+<li class="pidoc_tocItem"><a href="#__Outputs_cancellation_and_instances__">5&emsp;Outputs, cancellation and instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Symbol_buttons__">6&emsp;Symbol buttons</a></li>
+<li class="pidoc_tocItem"><a href="#__Troubleshooting__">7&emsp;Troubleshooting</a></li>
+</ul>
+</div>
+
+<div id="__contents__">
+
+<div class="pidoc_section" id="__Description__">
+   <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
+   <div id="Description">
+<p>EmissionLineIntegrationTG estimates the continuum contribution in a narrowband exposure, subtracts it, and adds the remaining emission to an RGB channel. Assign a grayscale narrowband image to at least one of Red, Green or Blue; unused channels remain unchanged. The same narrowband input can be assigned to multiple channels.</p>
+<img src="images/EmissionLineIntegrationTG_main_screen.png" alt=""/>
+<p>The dialog opens without an image. Use the image selectors or the Open Image symbol beside each selector to open an image file later. All inputs must have identical pixel dimensions and be registered. Matching dimensions alone do not establish registration. Use linear, background-corrected data.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quick_start', this );">[hide]</p>
+   <div id="Quick_start">
+
+<ol class="pidoc_list">
+<li>Open Script &gt; TG Scripts &gt; EmissionLineIntegrationTG.</li>
+<li class="pidoc_spaced_list_item">Select the linear RGB target.</li>
+<li class="pidoc_spaced_list_item">Assign one or more grayscale narrowband images to their destination RGB channels. Start with Amplify at 1.00.</li>
+<li class="pidoc_spaced_list_item">Optionally select a separate grayscale star mask to exclude bright mask pixels from continuum estimation.</li>
+<li class="pidoc_spaced_list_item">To compare a region, create a PixInsight preview on the RGB image, select it, and click the magnifier symbol on the bottom toolbar. The continuum estimate still uses the full images.</li>
+<li class="pidoc_spaced_list_item">Adjust Amplify and click Apply. A new RGB image is created by default, and the dialog stays open.</li>
+</ol>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__How_the_result_is_calculated__">
+   <h3 class="pidoc_sectionTitle">3&emsp;How the result is calculated</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'How_the_result_is_calculated', this );">[hide]</p>
+   <div id="How_the_result_is_calculated">
+<p>For each assigned channel, a temporary copy of that RGB channel is scaled to match the mean of its narrowband image. The continuum estimator samples increasing subtraction factors and finds the peak in the derivative of the black-pixel curve.</p>
+<p>The emission image is narrowband minus the estimated continuum scale times the mean-matched broadband channel, clipped to the range 0–1. The output channel is its original value plus Amplify times that emission image, also clipped to 0–1. No automatic rescaling is applied. Strong amplification can therefore clip highlights.</p>
+<p>The Process Console reports the estimated continuum scales. These scales refer to the mean-matched broadband data; they are not calibrated physical flux measurements. Results depend on the filters, background treatment and image registration.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Controls__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Controls</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Controls', this );">[hide]</p>
+   <div id="Controls">
+
+<dl class="pidoc_list">
+<dt>
+<p>RGB target and Preview</p>
+</dt>
+<dd>
+<p>Select the full RGB image. The optional preview determines only the displayed before/after region, not the pixels used for continuum fitting.</p>
+</dd>
+<dt>
+<p>Red, Green and Blue narrowband inputs</p>
+</dt>
+<dd>
+<p>Each optional grayscale image supplies emission to its named channel. Select no view to leave that channel unchanged.</p>
+</dd>
+<dt>
+<p>Amplify</p>
+</dt>
+<dd>
+<p>Emission multiplier from 0 to 100, default 1.00. A value of zero adds no emission; the selected input is still evaluated.</p>
+</dd>
+<dt>
+<p>Star mask</p>
+</dt>
+<dd>
+<p>Optional registered grayscale mask. Pixels above its mean are excluded from continuum estimation only. It does not mask the final addition. Existing masks attached to input windows are not applied.</p>
+</dd>
+<dt>
+<p>Blackness</p>
+</dt>
+<dd>
+<p>Stop sampling at this black-pixel percentage, default 90. Increase it if the derivative peak is too close to the end of the sampled curve. Invalid or degenerate estimates produce an error instead of an incomplete RGB result.</p>
+</dd>
+<dt>
+<p>Create a new RGB image on Apply</p>
+</dt>
+<dd>
+<p>Enabled by default. Disable to update the original in one Undo step.</p>
+</dd>
+<dt>
+<p>Retain separate emission images</p>
+</dt>
+<dd>
+<p>Keep the continuum-subtracted grayscale products after Apply. Comparison previews do not retain these intermediates.</p>
+</dd>
+</dl>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Outputs_cancellation_and_instances__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Outputs, cancellation and instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Outputs_cancellation_and_instances', this );">[hide]</p>
+   <div id="Outputs_cancellation_and_instances">
+<p>The comparison window shows Original RGB and With emission side by side with a shared automatic screen stretch. Each comparison recomputes the continuum estimate from the full input images. Apply also recomputes it, so changed source pixels or parameters are used immediately.</p>
+<p>Full-image outputs preserve the source sample precision, alpha channels, FITS keywords, RGB working space and screen stretch. Other metadata, including astrometric solutions, is not copied. The source images remain unchanged when creating a new output. Repeated results use unique names.</p>
+<p>Drag New Instance to save settings and narrowband/mask references. Apply it to an RGB main image; the referenced inputs must still be open. Reset restores processing defaults while retaining the inputs and preview. Close requests cancellation during processing, or closes an idle dialog. Documentation opens this guide. Temporary images are cleaned up on success, cancellation and failure.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Symbol_buttons__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Symbol buttons</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Symbol_buttons', this );">[hide]</p>
+   <div id="Symbol_buttons">
+<p>Hover over a symbol to see its action. The Open Image button (page with an arrow) beside each image selector opens a file for that input.</p>
+<p>The bottom toolbar contains these buttons, from left to right:</p>
+
+<dl class="pidoc_list">
+<dt>
+<p>Triangle: New Instance</p>
+</dt>
+<dd>
+<p>Drag to the workspace to save settings and narrowband/mask references.</p>
+</dd>
+<dt>
+<p>Reset symbol</p>
+</dt>
+<dd>
+<p>Restore processing defaults while retaining the selected images and preview.</p>
+</dd>
+<dt>
+<p>Magnifier: Compare</p>
+</dt>
+<dd>
+<p>Create the before/after comparison for the selected RGB preview. Enabled when the RGB target, at least one narrowband input, and a preview are selected.</p>
+</dd>
+<dt>
+<p>Green check: Apply</p>
+</dt>
+<dd>
+<p>Integrate the emission into the full RGB image and keep the dialog open. The new-image checkbox determines whether to create a copy or update the original with one Undo step.</p>
+</dd>
+<dt>
+<p>Red cross: Close or Cancel</p>
+</dt>
+<dd>
+<p>Close an idle interface, or request cancellation during processing.</p>
+</dd>
+<dt>
+<p>Page: Documentation</p>
+</dt>
+<dd>
+<p>Open this PiDoc guide.</p>
+</dd>
+</dl>
+
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Troubleshooting__">
+   <h3 class="pidoc_sectionTitle">7&emsp;Troubleshooting</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Troubleshooting', this );">[hide]</p>
+   <div id="Troubleshooting">
+<p>No reliable continuum solution can indicate mismatched backgrounds, poor registration, clipped or empty inputs, too few unmasked pixels, or a derivative peak outside the sampled interval. Inspect the data and star mask before changing Blackness. The script cannot establish whether an input is truly linear or registered.</p>
+   </div>
+</div>
+
+<hr class="separator"/>
+
+<div id="copyright">
+   <p>Copyright &copy; 2017–2019 Hartmut V. Bornemann; 2022–2026 Thorsten Glebe</p>
+</div>
+
+<div id="footer">
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 14:12:38 UTC</p>
+</div>
+<br/>
+<br/>
+
+</div> <!-- contents -->
+
+</body>
+</html>

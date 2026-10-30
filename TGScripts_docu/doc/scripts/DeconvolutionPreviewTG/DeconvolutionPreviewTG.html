@@ -3,17 +3,17 @@
 <head>
    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
    <title>PixInsight Reference Documentation | DeconvolutionPreviewTG</title>
-   <meta name="keywords" content="deconvolution, PSF, Juan M. Gómez" />
-   <meta name="author" content="Thorsten Glebe" />
-   <meta name="description" content="A script to evaluate deconvolution using a synthetic PSF." />
+   <meta name="keywords" content="deconvolution, PSF, Richardson-Lucy, preview" />
+   <meta name="author" content="Juan M. Gómez; Thorsten Glebe" />
+   <meta name="description" content="Version 2.3.0. Compare synthetic PSF settings on a preview and apply deconvolution to a full linear image." />
    <meta name="robots" content="INDEX,FOLLOW" />
-   <meta name="generator" content="PixInsight Documentation Compiler script version 1.6.9" />
+   <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
+   <meta name="pidoc-document-class" content="PIScriptDoc" />
    <script type="text/javascript" src="../../pidoc/scripts/pidoc-utility.js"></script>
    <link type="text/css" href="../../pidoc/css/pidoc-common.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-highlight.css" rel="stylesheet" />
    <link type="text/css" href="../../pidoc/css/pidoc-tool.css" rel="stylesheet" />
-   <link rel="icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
-   <link rel="shortcut icon" href="../../pidoc/icons/pidoc-icon.png" type="image/png" />
+   <link rel="icon" href="../../pidoc/icons/pidoc-icon.svg" />
 </head>
 <body>
 <script type="text/javascript">
@@ -23,16 +23,16 @@
 <h1>DeconvolutionPreviewTG</h1>
 
 <div id="authors">
-<p>By Thorsten Glebe</p>
+<p>By Juan M. Gómez; Thorsten Glebe</p>
 </div>
 
 <hr class="separator"/>
 
 <div id="brief">
-<p>A script to evaluate deconvolution using a synthetic PSF. <a href="#__contents__">[more]</a></p></div>
+<p>Version 2.3.0. Compare synthetic PSF settings on a preview and apply deconvolution to a full linear image. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
-<p><strong>Keywords:</strong> deconvolution, PSF, Juan M. Gómez</p>
+<p><strong>Keywords:</strong> deconvolution, PSF, Richardson-Lucy, preview</p>
 </div>
 
 <h3 class="pidoc_sectionTitle" id="__toc__">Contents</h3>
@@ -40,14 +40,11 @@
 <div id="toc">
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
-<li class="pidoc_tocItem"><a href="#__Parameter_Reference__">2&emsp;Parameter Reference</a>
-<ul>
-<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_PSF_Sigma_Parameters__">2.1&emsp;PSF Sigma Parameters</a></li>
-<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_PSF_Shape_Parameters__">2.2&emsp;PSF Shape Parameters</a></li>
-<li class="pidoc_tocSubitem"><a href="#__Parameter_Reference_:_Decon_Parameters__">2.3&emsp;Decon Parameters</a></li>
-</ul>
-</li>
-<li class="pidoc_tocItem"><a href="#__Deconvolution_Preview_Example__">3&emsp;Deconvolution Preview Example</a></li>
+<li class="pidoc_tocItem"><a href="#__Quick_start__">2&emsp;Quick start</a></li>
+<li class="pidoc_tocItem"><a href="#__Parameter_reference__">3&emsp;Parameter reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Outputs_and_repeated_trials__">4&emsp;Outputs and repeated trials</a></li>
+<li class="pidoc_tocItem"><a href="#__Toolbar_and_saved_instances__">5&emsp;Toolbar and saved instances</a></li>
+<li class="pidoc_tocItem"><a href="#__Changes_in_230__">6&emsp;Changes in 2.3.0</a></li>
 </ul>
 </div>
 
@@ -57,163 +54,143 @@
    <h3 class="pidoc_sectionTitle">1&emsp;Description</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Description', this );">[hide]</p>
    <div id="Description">
-<img style="float:left;margin-right:1.25em;margin-bottom:0.5em;" src="images/DeconvolutionPreviewTG_main_screen.png" alt=""/>
-<p>The DeconvolutionPreview script written by Juan M. Gómez is a useful tool for finding the optimal settings for a synthetical PSF function for Pixinsights deconvolution process.</p>
-<p>This is an improved version of the original script. The &quot;new instance&quot; button has been added which allows to save the parameter settings in a desktop icon for better integration into processing workflow icon sets. For images produced by modern, huge sensors, e.g. full frame sensors of up to 60 MP image size this script seems not to play well anymore. The generated preview is huge and the image details relevant for investigations are barely visible. The script was crashing the Pixinsight process when an autostretch was applied to the resulting preview image.</p>
-<p>Therefore, this script works now on image previews instead of the main view. The user can define the region of interest by creating a preview and then run this script on the image preview. The crash was fixed and in addition some relevant deconvolution parameters are exposed in the script GUI as well. The script checks if the selected preview is in linear state and if not, issues a warning message box. In case the warning message is confirmed, the script continues the processing. The &quot;apply&quot; button can be used to run the deconvolution with the current settings on the selected preview. This allows a comparison to the unchanged image via the preview undo/redo functionality of Pixinsight.</p>
-<p>Furthermore, code refactoring was made for maintainability reasons and this documentation was added as the original script does not come with a Pixinsight documentation.</p>
+<p>DeconvolutionPreviewTG helps compare parametric point spread functions before processing a full image. The compact interface can open without an image. Select an existing image or use Open image when ready; Apply keeps the dialog open for further trials.</p>
+<img src="images/DeconvolutionPreviewTG_main_screen.png" alt=""/>
+<p>The processing uses regularized Richardson-Lucy deconvolution. RGB images are processed through their luminance. Use linear data, before a permanent histogram stretch. A screen stretch is only a display aid and does not make the image nonlinear.</p>
    </div>
 </div>
 
-<div class="pidoc_section" id="__Parameter_Reference__">
-   <h3 class="pidoc_sectionTitle">2&emsp;<a id="parameter_reference"></a>Parameter Reference</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_Reference', this );">[hide]</p>
-   <div id="Parameter_Reference">
+<div class="pidoc_section" id="__Quick_start__">
+   <h3 class="pidoc_sectionTitle">2&emsp;Quick start</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quick_start', this );">[hide]</p>
+   <div id="Quick_start">
 
-<dl class="pidoc_list">
-<dt>
-<p><a id="target_preview"></a> Target Preview</p>
-</dt>
-<dd>
-<p>The target preview image control allows to choose a preview of a main view for the deconvolution preview generation.</p>
-</dd>
-</dl>
-
-<div class="pidoc_subsection" id="__Parameter_Reference_:_PSF_Sigma_Parameters__">
-   <h4 class="pidoc_subsectionTitle">2.1&emsp;<a id="psf_sigma"></a>PSF Sigma Parameters</h4>
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="psf_sigma_step_size"></a> Step Size</p>
-</dt>
-<dd>
-<p>Increment of the PSF sigma size per step.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="sigma_start"></a> PSF Sigma start</p>
-</dt>
-<dd>
-<p>Start of the PSF sigma value range.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="sigma_iterations"></a> Iterations</p>
-</dt>
-<dd>
-<p>Number of iterations for PSF sigma increment.</p>
-</dd>
-</dl>
-
-</div>
-
-<div class="pidoc_subsection" id="__Parameter_Reference_:_PSF_Shape_Parameters__">
-   <h4 class="pidoc_subsectionTitle">2.2&emsp;<a id="psf_shape"></a>PSF Shape Parameters</h4>
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="psf_shape_step_size"></a> Step Size</p>
-</dt>
-<dd>
-<p>Increment of the PSF shape size per step.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="shape_start"></a> PSF Shape start</p>
-</dt>
-<dd>
-<p>Start of the PSF shape value range.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="shape_iterations"></a> Iterations</p>
-</dt>
-<dd>
-<p>Number of iterations for PSF shape increment.</p>
-</dd>
-</dl>
-
-</div>
-
-<div class="pidoc_subsection" id="__Parameter_Reference_:_Decon_Parameters__">
-   <h4 class="pidoc_subsectionTitle">2.3&emsp;<a id="decon_parameters"></a>Decon Parameters</h4>
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="decon_iterations"></a> Decon Iterations</p>
-</dt>
-<dd>
-<p>Number of deconvolution iterations.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="global_dark"></a> Global Dark</p>
-</dt>
-<dd>
-<p>Global dark value for deringing.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="local_support"></a> Local Support Mask</p>
-</dt>
-<dd>
-<p>A local support mask can be specified for the deringing and protection of stars.</p>
-</dd>
-</dl>
-
-
-<dl class="pidoc_list">
-<dt>
-<p><a id="local_amount"></a> Local Amount</p>
-</dt>
-<dd>
-<p>The strength of the local support mask can be set by this parameter.</p>
-</dd>
-</dl>
-
-</div>
+<ol class="pidoc_list">
+<li>Select a linear grayscale or RGB main image.</li>
+<li class="pidoc_spaced_list_item">Create a representative PixInsight preview on the target, at least 64 × 64 pixels, and choose it in the Preview list. A small region containing stars and faint detail makes comparisons faster.</li>
+<li class="pidoc_spaced_list_item">Optionally select a registered grayscale local support mask with the full target dimensions. LocalSupportMask can generate one.</li>
+<li class="pidoc_spaced_list_item">Set the sigma and shape start values, steps and counts. Click Create PSF comparison grid. Columns vary sigma; rows vary shape. Each cell identifies its settings.</li>
+<li class="pidoc_spaced_list_item">Inspect the grid at an appropriate zoom. Copy the preferred sigma and shape into the two Start fields. Apply uses these values on the full target image.</li>
+</ol>
 
    </div>
 </div>
 
-<div class="pidoc_section" id="__Deconvolution_Preview_Example__">
-   <h3 class="pidoc_sectionTitle">3&emsp;<a id="example"></a>Deconvolution Preview Example</h3>
-   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Deconvolution_Preview_Example', this );">[hide]</p>
-   <div id="Deconvolution_Preview_Example">
-<p>The following image shows an output which will be generated by the script. The differences between the deconvolution settings are subtle and therefore a zoomed in view is required, which is best achieved by using a preview on the image.</p>
+<div class="pidoc_section" id="__Parameter_reference__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Parameter reference</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Parameter_reference', this );">[hide]</p>
+   <div id="Parameter_reference">
 
-<div style="text-align:center;">
-<img style="float:left;width:100%;" src="images/DeconvolutionPreviewTG_preview.png" alt=""/>
+<dl class="pidoc_list">
+<dt>
+<p>Sigma: Start, Step, Count</p>
+</dt>
+<dd>
+<p>Sigma controls the width of the synthetic PSF. Grid columns use Start plus column index times Step. Count is 1–10. Apply uses Start alone.</p>
+</dd>
+<dt>
+<p>Shape: Start, Step, Count</p>
+</dt>
+<dd>
+<p>Shape controls the parametric PSF profile. Grid rows use Start plus row index times Step. Count is 1–10. Apply uses Start alone. The last sigma and shape in a grid must each be at most 10.</p>
+</dd>
+<dt>
+<p>Iterations</p>
+</dt>
+<dd>
+<p>Number of Richardson-Lucy iterations for every grid cell or full-image application; default 30. More iterations take longer and can reveal noise or ringing.</p>
+</dd>
+<dt>
+<p>Global dark</p>
+</dt>
+<dd>
+<p>Global dark deringing amount; default 0.0010. Evaluate star edges and background artifacts when adjusting it.</p>
+</dd>
+<dt>
+<p>Local support mask</p>
+</dt>
+<dd>
+<p>Optional separate grayscale image registered to the target. Grid processing crops a temporary copy to the selected preview. Existing mask previews are preserved.</p>
+</dd>
+<dt>
+<p>Local amount</p>
+</dt>
+<dd>
+<p>Strength of local deringing support; default 0.70. Used only when a support mask is selected.</p>
+</dd>
+</dl>
+
+   </div>
 </div>
+
+<div class="pidoc_section" id="__Outputs_and_repeated_trials__">
+   <h3 class="pidoc_sectionTitle">4&emsp;Outputs and repeated trials</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Outputs_and_repeated_trials', this );">[hide]</p>
+   <div id="Outputs_and_repeated_trials">
+<p>Create PSF comparison grid always creates a separate image and leaves the target unchanged. Its automatic screen stretch is for viewing. Grid labels and separators are not scientific image data.</p>
+<p>Apply processes the full target at the Start settings. Create a new image on Apply is enabled by default. Disable it to update the original with one Undo step. Existing image masks are not used as additional processing masks. The chosen local support mask is passed explicitly to Deconvolution.</p>
+<p>Repeated Apply starts from the currently selected target. New output images receive unique names. Temporary processing images are closed on success, error or cancellation. Full-image copies retain sample precision, alpha channels, FITS keywords, RGB working space and the source screen stretch. Other metadata, including astrometric solutions, is not copied.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Toolbar_and_saved_instances__">
+   <h3 class="pidoc_sectionTitle">5&emsp;Toolbar and saved instances</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Toolbar_and_saved_instances', this );">[hide]</p>
+   <div id="Toolbar_and_saved_instances">
+
+<dl class="pidoc_list">
+<dt>
+<p>New Instance</p>
+</dt>
+<dd>
+<p>Drag the triangle to the workspace to save processing settings and the support-mask reference. Apply an instance to a main image for full-image deconvolution, or to a preview for a comparison grid. The referenced support mask must still be open.</p>
+</dd>
+<dt>
+<p>Reset</p>
+</dt>
+<dd>
+<p>Restore default settings while retaining selected images and preview.</p>
+</dd>
+<dt>
+<p>Apply</p>
+</dt>
+<dd>
+<p>Process the full target without closing the interface.</p>
+</dd>
+<dt>
+<p>Close</p>
+</dt>
+<dd>
+<p>Close the interface. During processing, request cancellation; it takes effect between native processing steps.</p>
+</dd>
+<dt>
+<p>Documentation</p>
+</dt>
+<dd>
+<p>Open this guide.</p>
+</dd>
+</dl>
+
+<p>Old instances containing a preview reference can still restore that selection if it exists. New instances select their target from the receiving image or preview.</p>
+   </div>
+</div>
+
+<div class="pidoc_section" id="__Changes_in_230__">
+   <h3 class="pidoc_sectionTitle">6&emsp;Changes in 2.3.0</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Changes_in_230', this );">[hide]</p>
+   <div id="Changes_in_230">
+<p>Compact 420-pixel layout; open-first workflow; separate comparison and full-image actions; repeatable Apply; source-preserving outputs; bounded instance parameters; safe temporary crops and graphics cleanup; updated PiDoc guide.</p>
    </div>
 </div>
 
 <hr class="separator"/>
 
 <div id="copyright">
-   <p>Copyright &copy; 2022 Dr. Thorsten Glebe</p>
+   <p>Copyright &copy; 2009 Juan M. Gómez; 2022–2026 Thorsten Glebe</p>
 </div>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.6.9 on 2022-11-06 15:54:17 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-10-30 13:55:58 UTC</p>
 </div>
 <br/>
 <br/>
