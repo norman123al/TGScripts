@@ -2,7 +2,16 @@
 
 **PixInsight tools for astronomical image processing, by Thorsten Glebe.**
 
-TGScripts brings together original scripts and enhanced versions of community tools for star reduction, mask creation, narrowband processing, intensity matching, linear master blending, deconvolution, subframe quality review, and optical inspection. The collection also includes a starting point for developing your own PixInsight scripts.
+Add Astro Bucket List 0.8.0 to TGScripts
+
+- Manage imaging targets by constellation with configurable months and calendar sorting.
+- Import and export Stellarium lists, including checked objects.
+- Edit catalog information, apparent size, filters, comments and imaging status.
+- Provide embedded finder-chart and DSS survey tabs, using configured local star catalogs.
+- Enforce the 120-arcminute DSS limit for oversized targets.
+- Include collection-path process instances and compiled PiDoc documentation.
+
+Validated in PixInsight, including local-catalog charts and maximum-size DSS downloads.TGScripts brings together original scripts and enhanced versions of community tools for imaging-list planning, star reduction, mask creation, narrowband processing, intensity matching, linear master blending, deconvolution, subframe quality review, and optical inspection. The collection also includes a starting point for developing your own PixInsight scripts.
 
 [Installation](#installation) · [Script overview](#script-overview) · [Script gallery](#script-gallery) · [Help and troubleshooting](#help-and-troubleshooting) · [Credits and license](#credits-and-license)
 
@@ -18,7 +27,7 @@ Install through PixInsight's update system to receive the scripts and their bund
    ```
 
 3. Select **Resources → Updates → Check for Updates** and install the available TGScripts update. Restart PixInsight if prompted to complete installation.
-4. Open a script from **Script → TG Scripts**. The newer tools appear as **Linear Master Blend**, **LRGB Deconvolution Match**, **ROI Linear Fit**, **Star Spike Protection Mask**, and **Subframe Quality Review**.
+4. Open a script from **Script → TG Scripts**. The newer tools appear as **Astro Bucket List**, **Linear Master Blend**, **LRGB Deconvolution Match**, **ROI Linear Fit**, **Star Spike Protection Mask**, and **Subframe Quality Review**.
 
 To try a newly added script before the next updater release, download or clone this repository and use **Script → Execute Script File** to open its JavaScript file from `TGScripts_repository/src/scripts/TGScripts/`.
 
@@ -49,6 +58,7 @@ The packaged updater release may lag behind the repository source. To use the V8
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.1 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;10&#8209;19 |
 | Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.1 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;10&#8209;19 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.8.0 | Groups Stellarium lists by constellation and month, tracks imaging status, updates catalog information and apparent sizes, and creates survey or local-catalog finder charts framed to each target. | 2026&#8209;10&#8209;29 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.2 | Applies Bill Blanshan's three star reduction methods, with parameter previews. | 2026&#8209;10&#8209;19 |
 | Select colors | [ColorMaskTG](#colormasktg) | 2.1 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;10&#8209;19 |
 | Isolate emission | [CSTG](#cstg) | 2.1 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;19 |
@@ -65,7 +75,7 @@ The packaged updater release may lag behind the repository source. To use the V8
 
 Versions follow the declarations in the repository source.
 
-Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. The ten migrated legacy scripts include the local V8 compatibility update made on **2026-10-19**.
+Dates use **YYYY-MM-DD** and otherwise reflect the latest Git commit touching each script’s main JavaScript file; documentation and shared-library changes are excluded. The ten migrated legacy scripts include the local V8 compatibility update made on **2026-10-19**.
 
 ## Script gallery
 
@@ -100,6 +110,16 @@ Based on David Serrano's AberrationSpotter. [Source](TGScripts_repository/src/sc
 ![AberrationSpotterTG dialog with crop dimensions, spacing, and center toggle](TGScripts_repository/doc/scripts/AberrationSpotterTG/images/AberrationSpotterTG_main_screen.png)
 
 </details>
+
+### Astro Bucket List
+
+**Version:** 0.8.0 · **Added to repository:** 2026-10-29
+
+Maintains **Stellarium observing lists** grouped by IAU constellation and planning month, with searchable object-type, filter and comments columns. A configuration gear provides constellation planning settings, and Add object prevents duplicates across the collection. Check objects to export a selected subset as a new Stellarium list. Use Edit object to record imaging status independently. Import and export one or more lists in a `.sol` file, add objects by catalog identifier, and keep imaging flags, editable dates, descriptions, catalog information and notes with the collection. Manual catalog text survives lookups, and leftover hollow-circle source markers are removed from saved comments. Start with an empty list or open your own collection. The New Instance triangle stores the saved collection path in a PixInsight process icon.
+
+The main window has **Table**, **Finder chart** and **DSS survey image** tabs. Calendar-month sorting retains constellation groups and export selections. The previews offer DSS2 Red survey images and **monochrome sky charts**. Oversized DSS targets always use the maximum allowed width, independent of automatic fitting. Sky charts use configured local Gaia catalogs, including DR3/SP, or bundled bright stars when Gaia is unavailable. Maps use gray stars and constellation names on black, with object-size framing and no image-FOV rectangle. They work offline; new SIMBAD lookups and DSS downloads require internet access.
+
+Requires **PixInsight 1.9.5+ with V8** and the bundled CatalogStarGenerator and AnnotateImage libraries. Choose **Script → TG Scripts → Astro Bucket List** to open the manager. Constellation planning months are configurable and saved with each collection. Save your working `.sol` collection outside the installation directory so a repository update cannot replace it. [Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_repository/doc/source/AstroBucketList.pidoc)
 
 ### BBStarReduction
 
@@ -388,8 +408,9 @@ Please [open an issue](https://github.com/norman123al/TGScripts/issues) with the
 
 | Location | Contents |
 | --- | --- |
-| [TGScripts_repository/src/scripts/TGScripts](TGScripts_repository/src/scripts/TGScripts) | The 15 menu scripts. |
+| [TGScripts_repository/src/scripts/TGScripts](TGScripts_repository/src/scripts/TGScripts) | The 16 menu scripts, with script-specific helpers and data. |
 | [TGScripts_repository/src/scripts/TGScripts/lib](TGScripts_repository/src/scripts/TGScripts/lib) | Shared helpers and libraries used by the scripts. |
+| [TGScripts_repository/doc/source](TGScripts_repository/doc/source) | PiDoc sources for newer script guides. |
 | [TGScripts_repository/doc/scripts](TGScripts_repository/doc/scripts) | Compiled PixInsight documentation and guide images. |
 | [TGScripts_repository/images](TGScripts_repository/images) | Installation images and additional README screenshots. |
 | [TGScripts_repository/updates.xri](TGScripts_repository/updates.xri) | PixInsight update manifest. |
@@ -401,6 +422,6 @@ The files in `lib/` support the menu scripts and are not standalone tools.
 
 Maintained by **Thorsten Glebe**. This collection includes original tools and adaptations of scripts by **Mike Schuster, David Serrano, Rick Stevenson, Hartmut V. Bornemann, Carlos Sonnenstein, Oriol Lehmkuhl, and Juan M. Gómez**. BBStarReduction implements star reduction methods by **Bill Blanshan**. Individual source files retain their original attribution and copyright notices.
 
-The repository includes the [GNU General Public License v3.0](LICENSE). Linear Master Blend and LRGB Deconvolution Match have their own MIT licenses: [Linear Master Blend license](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend-LICENSE.txt) and [LRGB Deconvolution Match license](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch-LICENSE.txt). See individual source headers for applicable notices and terms. The software is provided without warranty.
+The repository includes the [GNU General Public License v3.0](LICENSE). Astro Bucket List, Linear Master Blend and LRGB Deconvolution Match have their own MIT licenses: [Astro Bucket List license](TGScripts_repository/src/scripts/TGScripts/AstroBucketList-LICENSE.txt), [Linear Master Blend license](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend-LICENSE.txt) and [LRGB Deconvolution Match license](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch-LICENSE.txt). See individual source headers for applicable notices and terms. The software is provided without warranty.
 
 Visit Thorsten's [astrophotography gallery on AstroBin](https://www.astrobin.com/users/norman123al/).

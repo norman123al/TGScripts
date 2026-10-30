@@ -1,0 +1,111 @@
+\documentclass{PIScriptDoc}
+\script{AstroBucketList}
+\keywords{astronomy, imaging, bucket list, Stellarium, observing lists, constellation, SIMBAD, finder chart, DSS}
+\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.8.0.}
+
+\description{
+Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.5 or later using the V8 JavaScript runtime. It groups objects by their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
+}
+
+\section{Start and use the script}{
+Choose Script > TG Scripts > Astro Bucket List. The script requires PixInsight 1.9.5 or later with the V8 runtime and its standard CatalogStarGenerator and AnnotateImage libraries. The documentation button in the lower-right corner opens this guide.
+
+On first launch the manager opens an empty list. No predefined bucket list is loaded. Use Add object to enter targets, New list to create additional lists, Open to load a collection, or Import to merge one or more files into the current collection. Open offers to save any unsaved changes before replacing the current collection.
+
+Save stores the collection in a .sol file of your choice. Keep your collection outside the script installation directory. A normal launch reopens the last collection successfully saved by the manager when that file is available; otherwise it starts with an empty list.
+
+Select a list from the List menu, or choose All objects (unique) to see every target once. The tree groups objects by constellation. Checkboxes in the first column select objects for export; they do not represent imaging status. Check shown selects all rows in the current filtered view, retaining any previous selection. Uncheck all clears every checked object, including those currently hidden. The footer reports how many objects are checked. Export selections are temporary and are not saved in the collection or process instance. The Object type column beside the name shows the classification supplied by the object catalog, such as Galaxy, Planetary nebula or Open star cluster. Recognized catalog abbreviations are expanded for display. If only a broad classification is available it is shown as Deep-sky object or Star; an entry without a classification is shown as Unspecified. The column uses saved catalog information and does not trigger lookups. 
+
+The Comments column shows your saved imaging notes. Leftover hollow-circle symbols are removed from comments when a collection is opened or imported, and from comments saved or exported by the manager. Cleanup marks an opened collection as modified; choose Save to persist it. Other comment text and line breaks are retained. Imported bracketed month/constellation source headings are omitted from the column and its tooltip but remain in the editor and details pane. Long or multiline remarks have a compact one-line preview; hover over the cell or select the object to read the full text in its tooltip or details pane. Use Edit object > Comments to enter or change this text, then Save the collection. Existing imaging notes appear automatically. 
+
+The Filters column shows saved filter information. For an object without an explicit Filters value, recognizable filter mentions in its comments are shown, including combinations such as LRGB, SHO, HaRGB and individual emission-line filters. These are mentions from your notes, not automatically generated exposure recommendations. Edit object > Filters lets you enter any filter names, correct the suggested text or clear it. An explicitly cleared value remains blank. Filter information is saved with the collection and retained by catalog lookups.
+
+The main window has Table, Finder chart and DSS survey image tabs. Select an object in Table to use either preview tab. The file and list controls remain available above all three tabs.
+
+Sort by offers Constellation, Month: January–December, and Month: December–January. Month sorting follows the numeric calendar order while retaining constellation groups; unassigned months stay at the end in either direction. Sorting preserves the highlighted object and export checkboxes and does not modify the saved collection.
+
+Find searches identifiers, names, object types, filters, descriptions, comments and constellations. Month and imaging-state filters narrow the display. Double-click a target, or choose Edit object, to edit its details. The object-information section can be collapsed. The close button offers to save unsaved changes.
+}
+
+\section{Save a collection path as a process instance}{
+The New Instance triangle in the lower-left corner saves the current collection path as a PixInsight process icon.
+
+\list[ordered,spaced]{
+   {Open a collection or create your lists and choose Save. The triangle is enabled when the collection has a filename.}
+   {Save any changes you want to retain, then drag the New Instance triangle onto the PixInsight workspace.}
+   {Save the process icon using PixInsight's standard process-icon or project commands if you want to keep it for another session.}
+   {Run the process icon globally to reopen that collection in the manager.}
+}
+
+The instance stores only the collection path. Objects, notes, imaging flags and unsaved changes are not embedded in the process icon; the manager reads the saved .sol file when the icon runs. The instance's path takes precedence over the most recently saved collection. You can create separate icons for different collection files.
+
+If the file has moved, been renamed or cannot be read, the manager reports the problem instead of opening a different collection. Open the intended file and create a new instance to update the path. Save as changes the path used for newly created instances; existing process icons keep their saved paths.
+}
+
+\section{Constellations and planning months}{
+For objects with coordinates, the constellation is calculated from the IAU boundary table of Roman (1987), after mean-equatorial precession from J2000 to B1875. This calculation works offline. For an imported object without coordinates, a recognized imported constellation is used until coordinates become available. An object without either is shown as unassigned and remains editable.
+
+Click the Configuration gear button in the lower-right corner to assign a planning month to each constellation. Initial assignments are provided for some constellations; others are unassigned until you choose a month. Serpens Caput and Serpens Cauda are separate planning entries. The mapping is saved with the collection and applies to every list in it.
+
+Actual sky position determines the grouping. An imported object whose constellation heading does not match its coordinates can appear in a different month. Imported notes remain available. These are personal planning categories; the script does not calculate local altitude, darkness, Moon distance, or visibility for a particular observing site.
+}
+
+\section{Imaging state and notes}{
+Open Edit object and use I have imaged this object to record or clear imaging status. The Imaging status column shows the saved state and date independently of the export checkboxes. Edit object lets you enter or change the imaging date directly in YYYY-MM-DD format. The date field is always editable. Entering a date marks the object as imaged; clearing the date retains the imaged flag with an unknown date. Unchecking the imaging flag clears the date. Checking it with no date supplies today as an editable initial value. Invalid dates prevent Apply. The editor also stores an editable description, display name, imaging notes and catalog information. A target recognized by its identifier or a matching primary catalog alias shares its imaging state across all lists containing it. Distinct members of a galaxy group remain separate targets.
+
+Save persists all lists, imaging flags, dates, descriptions, comments, filter information, apparent dimensions and month assignments inside the .sol file, in the namespaced _astroBucketList metadata fields. A changed window title has an asterisk, and closing offers Save, Discard or Cancel. There is no automatic overwrite of an imported source file. Before replacing an existing saved file, the script preserves that version in a timestamped .bak file beside it. If replacement fails, it attempts to restore the previous primary file.
+}
+
+\section{Import and export}{
+The script accepts Stellarium observingLists JSON in .sol, .ol and .json files. A .sol file may contain one list or multiple lists. Export can write checked objects, the selected list or the complete collection. When objects are checked, Checked objects is selected initially in the export dialog. This creates a new single Stellarium list containing each checked target once, even when it belongs to several source lists. Identifiers, coordinates and saved object metadata, including imaging status and date, are retained. Objects hidden by the current filters remain part of the checked export. Save the result as a .sol file.
+
+Full and selected-list exports preserve list UUIDs, memberships and unfamiliar Stellarium metadata fields. A checked-object or selected-list export cannot overwrite the currently open full collection. Opening another collection clears the temporary export selection.
+
+Import is transactional: if any selected file is invalid, the current collection is unchanged. Lists with a known UUID are merged; new objects and lists are appended. Reimporting the same file does not duplicate its objects, and an incoming unmarked copy does not erase an existing imaged flag.
+
+Stellarium imports the same files through its observing-list window, opened with Alt+B. Native catalog objects keep their identifiers. Newly resolved objects default to named coordinate markers, so they can be centered in Stellarium even if its local catalog lacks their names. Double-click a marker entry to create and select it. Date, location, landscape and other existing Stellarium fields are retained on imported entries.
+
+Keep the collection saved by Astro Bucket List as your master. Stellarium does not manage the script's imaging flags or notes and can discard these extra fields when it edits or re-exports a list. Reimport into the saved master to retain existing imaging flags; do not rely on Stellarium to archive the extra metadata.
+}
+
+\section{Add an object and obtain catalog information}{
+Select a specific list and choose Add object. Enter a designation such as M 31, NGC 7000, LDN 1228 or PN G075.5+01.7, then choose Look up. Look up retrieves current information from SIMBAD, using Harvard and Strasbourg mirrors, even when the object is already in the collection. The requested identifier is sent to the service; your list, notes and imaging flags are not uploaded.
+
+Add object rejects a target already present anywhere in the current collection, including a match through a known catalog alias. The message names the list or lists containing it. Select the existing object to edit its information. Imported memberships in multiple lists remain linked; repeatedly importing the same list does not create duplicate entries.
+
+A successful lookup fills J2000/ICRS coordinates, the SIMBAD identifier, object type, available morphological or spectral information, angular size and V magnitude, and catalog aliases. This is catalog information, not a generated prose account. The constellation and planning month are calculated locally. You can edit the display name, description, comments and Catalog information before applying. Edited catalog text is saved with the collection and retained by Look up and Update catalogs, including a deliberately empty text. Use catalog text restores the latest retrieved summary; choose Apply to retain the reset. The catalog source is available in the field tooltip. Coordinates and apparent dimensions have separate editor fields. Update catalogs refreshes the object type. Editing the catalog prose does not change these structured values. If a catalog object has no coordinates or cannot be resolved, enter the position manually and retain the coordinate-marker option.
+
+RA accepts decimal degrees or sexagesimal hours, for example 83.822 or 05h35m17.28s. Dec accepts signed decimal degrees or sexagesimal degrees, for example -5.391 or -05d23m27.6s. Invalid coordinate ranges and impossible dates prevent Apply. Lookup uses secure HTTPS connections, response limits and timeouts, and can be stopped through the PixInsight process console.
+}
+
+\section{Apparent object size and catalog updates}{
+The Apparent size column shows the major diameter and, when available, the minor diameter, in arcminutes (the prime symbol). Unknown means no measured size is available. A missing minor diameter is left unspecified. The script does not treat Stellarium's field-of-view setting as an object measurement.
+
+Look up in the object editor obtains available angular dimensions from SIMBAD. Update catalogs lets you refresh the selected object, objects with unknown sizes, or all objects in the chosen list. In All objects (unique), the latter options cover the collection. These scopes use the list, regardless of the current search or month filter. Coordinates, object type, identifiers and catalog details are refreshed together. Only object identifiers are sent to SIMBAD. No size is invented when a catalog has none. Dimensions describe the catalog's measured extent and can vary with wavelength, surface-brightness limit and source.
+
+In Edit object, leave Use catalog size checked to follow the catalog measurement. Uncheck it to enter a major and optional minor diameter in arcminutes. For arcseconds, divide by 60; for degrees, multiply by 60. The minor diameter must not exceed the major diameter. Leave both fields empty to explicitly mark the size unknown. Manual values, including an explicit unknown, survive catalog refreshes. Recheck Use catalog size to return to the catalog value. Size metadata is saved and exported with the collection, alongside the source information.
+
+Catalog refresh preserves imaging flags, dates, comments, filters, personal descriptions, edited catalog information, manual dimensions and existing list memberships. Linked memberships receive the same update. A failed lookup leaves that object unchanged. Stop a batch through the PixInsight process console; successful updates remain in memory. The completion message reports failures and missing catalog sizes. Choose Save to persist the updates.
+}
+
+\section{Finder charts}{
+Select an object with coordinates in the Table tab, then switch to Finder chart or DSS survey image. The table action buttons switch to the same tabs. Both previews are embedded in the main window. Finder chart provides a monochrome sky map with a black background, muted gray stars and constellation lines; DSS survey image provides the survey photograph. Both use the saved J2000 position and apparent dimensions. When a size is known, Fit object size is selected: the survey width starts at 1.5 times the major diameter, and sky coverage is four times that width. Uncheck Fit object size to choose the fields manually, except for a DSS target larger than its 120-arcminute limit. Unknown sizes start at a 30-arcminute survey width and 30-degree sky coverage; catalog lookup is optional.
+
+In DSS survey image, use a square Survey field of 5 to 120 arcminutes and choose Load survey image. If the object's major diameter exceeds 120 arcminutes, the request always uses 120 arcminutes, even when Fit object size is unchecked. The width control is locked at the limit and the explanation appears below it. For smaller or unknown objects, manual widths remain available when fitting is unchecked. The STScI survey image is centered on the object and displayed with a crosshair. This method requires internet access and is useful for identifying the appearance of a target and its immediate surroundings.
+
+In the Finder chart tab, use Sky coverage from 0.1 to 120 degrees, and choose Create chart. The 1024-pixel square map uses a black background, gray magnitude-scaled star symbols, subdued grid lines, constellation asterisms and names, and Messier outlines with short labels. Star density adapts to the angular width so wide maps remain readable and close views include fainter stars. North is up and east is left. A small crosshair marks the object center. The sky map does not draw an image or camera FOV rectangle. Sky coverage belongs to the Finder chart tab; Survey field belongs to the DSS survey image tab. Automatic framing is bounded by the chart limits, which are indicated below the controls. Include NGC/IC objects adds their outlines and labels; faint objects are omitted at wider scales to reduce clutter.
+
+Each preview tab keeps its own field controls and loaded image. Switching tabs retains both previews. Selecting a different object, changing its position or size, or editing preview settings clears the affected preview so a stale image is not shown for a new target. Select Create chart or Load survey image to render or download the current target. A target without coordinates cannot start a preview request. The chart source is shown below the controls. Configured full Gaia DR3, EDR3 or DR2 XPSD catalogs are preferred through the Gaia process's BestAvailable selection. If those are unavailable, a configured Gaia DR3/SP database is used. The bundled named-star catalog supplements the bright stars missing from Gaia. If no usable Gaia database is configured, the bundled named and bright stars provide an offline chart with fewer faint stars. Star positions are propagated to J2000 for consistency with the list coordinates. Constellation, Messier and NGC/IC annotations also use files bundled with PixInsight. Sky charts do not require a network connection and do not change the Gaia configuration.
+
+The optional Open as image button loads an independent native PixInsight image from the current preview; it does not open another preview dialog. Close the list manager to work with that image and save it using PixInsight's usual image commands. The exported image includes the target, coordinates, orientation and sky coverage. Preview charts are cached for the current manager session; temporary files are removed when the manager closes. An image already opened in PixInsight retains its loaded pixels.
+
+A chart error is reported without changing the collection or existing image windows. DSS limits its width to 120 arcminutes; the DSS tab enforces this width for objects exceeding the limit, regardless of automatic fitting. Use Finder chart for a larger field. Automatic sky coverage is capped at 120 degrees; the Finder chart tab indicates when this limit is reached. Survey images describe the historical survey exposure; sky charts plot catalog positions and symbols. Neither mode calculates current visibility, guiding coordinates, altitude, or exposure conditions.
+}
+
+\section{Data sources}{
+Constellation boundaries are from Roman (1987), CDS catalog VI/42, distributed in Astropy's constellation data. Online object data are supplied by the SIMBAD astronomical database at CDS, Strasbourg; survey finder images are supplied by the Digitized Sky Survey at STScI.
+
+Sky-chart rendering uses PixInsight's bundled CatalogStarGenerator and AnnotateImage engines by Andres del Pozo and Juan Conejero, their annotation catalogs, and configured local Gaia data. These libraries and catalogs remain part of the PixInsight installation under their existing licenses. The map includes a center crosshair, magnitude-scaled gray star symbols and a descriptive footer.
+}
+
+\make
