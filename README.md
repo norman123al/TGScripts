@@ -2,16 +2,7 @@
 
 **PixInsight tools for astronomical image processing, by Thorsten Glebe.**
 
-Add Astro Bucket List 0.8.0 to TGScripts
-
-- Manage imaging targets by constellation with configurable months and calendar sorting.
-- Import and export Stellarium lists, including checked objects.
-- Edit catalog information, apparent size, filters, comments and imaging status.
-- Provide embedded finder-chart and DSS survey tabs, using configured local star catalogs.
-- Enforce the 120-arcminute DSS limit for oversized targets.
-- Include collection-path process instances and compiled PiDoc documentation.
-
-Validated in PixInsight, including local-catalog charts and maximum-size DSS downloads.TGScripts brings together original scripts and enhanced versions of community tools for imaging-list planning, star reduction, mask creation, narrowband processing, intensity matching, linear master blending, deconvolution, subframe quality review, and optical inspection. The collection also includes a starting point for developing your own PixInsight scripts.
+TGScripts brings together original scripts and enhanced versions of community tools for imaging-list planning, star reduction, mask creation, narrowband processing, intensity matching, linear master blending, deconvolution, subframe quality review, and optical inspection. The collection also includes a starting point for developing your own PixInsight scripts.
 
 [Installation](#installation) · [Script overview](#script-overview) · [Script gallery](#script-gallery) · [Help and troubleshooting](#help-and-troubleshooting) · [Credits and license](#credits-and-license)
 
