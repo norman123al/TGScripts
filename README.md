@@ -49,7 +49,7 @@ The packaged updater release may lag behind the repository source. For manual ex
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.2.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;10&#8209;30 |
 | Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.2.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;10&#8209;30 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.8.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;10&#8209;30 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.12.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;10&#8209;30 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [ColorMaskTG](#colormasktg) | 2.2.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;10&#8209;30 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -108,18 +108,18 @@ Based on David Serrano's AberrationSpotter. [Source](TGScripts_repository/src/sc
 
 ### Astro Bucket List
 
-**Version:** 0.8.0 · **Last update:** 2026-10-30
+**Version:** 0.12.0 · **Last update:** 2026-10-30
 
-Organizes **Stellarium observing lists** by IAU constellation and configurable planning month. Search and filter targets, add objects by catalog identifier, and record imaging status, dates, descriptions, filters, and notes. Export checkboxes select objects for a Stellarium list independently of their imaging status. Import, save, and export collections as `.sol` files.
+Organizes **Stellarium observing lists** in a flat table with a Constellation column and configurable planning months. Each object has its own row; there are no collapsible groups. Separate **Filter objects** and **Sort rows** panels distinguish which targets are shown from their display order. **Reset filters** clears all view filters while keeping sort order and export checks. **Sort by** and optional **Then by** support two criteria with independent directions, such as Dec increasing followed by largest object size. Filter targets by constellation, object type, month and imaging state, sort by calendar month, apparent size, RA or Dec, add objects by catalog identifier, and record imaging status, dates, descriptions, filters, and notes. Export checkboxes select objects for a Stellarium list independently of their imaging status. Use Ctrl-click or Shift-click to highlight multiple rows, then **Check selected** to check them together; **Check shown** checks the entire filtered view. Import, save, and export collections as `.sol` files.
 
-The **Table**, **Finder chart**, and **DSS survey image** tabs combine list management with target previews. SIMBAD lookups update catalog information and apparent sizes. Monochrome finder charts use configured local Gaia catalogs, including DR3/SP, or bundled bright stars; object sizes guide framing. Local charts work offline, while new SIMBAD lookups and DSS downloads require internet access. DSS fields are limited to **5–120 arcminutes**, with oversized targets using the maximum width.
+The **Table**, **Finder chart**, and **DSS survey image** tabs combine list management with target previews. SIMBAD lookups update catalog information and apparent sizes. Landscape finder charts offer **Modern Editorial** (dark sky, sans-serif labels) and **Vintage Atlas** (ivory paper, sepia markings, serif labels). Both provide clearer labels, a separate title band, coordinates, a symbol key and an angular scale. **Constellation borders** draws dashed region boundaries by default, with an option to hide them. Use the preview tabs to open the charts and DSS images. They use configured local Gaia catalogs, including DR3/SP, or bundled bright stars; default coverage is the larger of the object diameter and 5 degrees, with automatic fitting off. **Fainter NGC/IC** controls catalog depth with the actual magnitude limits shown. Caldwell, Collinder clusters, supernova remnants and Mandel–Wilson nebulae have independent catalog checkboxes; unavailable local catalogs are disabled. Local charts work offline, while new SIMBAD lookups and DSS downloads require internet access. DSS fields are limited to **5–120 arcminutes**, with oversized targets using the maximum width.
 
 Requires **PixInsight 1.9.5+ with V8** and the bundled CatalogStarGenerator and AnnotateImage libraries. Save working collections outside the installation directory. The New Instance triangle stores the saved collection path in a process icon. [Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_repository/doc/source/AstroBucketList.pidoc)
 
 <details>
 <summary>View Astro Bucket List interface</summary>
 
-![Astro Bucket List 0.8.0 setup with collection controls, constellation planning, Table, Finder chart and DSS tabs](TGScripts_repository/images/AstroBucketList_main_screen.jpg)
+![Astro Bucket List setup with collection controls, constellation planning, Table, Finder chart and DSS tabs](TGScripts_repository/images/AstroBucketList_main_screen.jpg)
 
 </details>
 
