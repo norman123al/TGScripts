@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="b727352113e273ea5679526e0501dbf2de13d647" type="script" releaseDate="20261101">
+      <package fileName="TGScripts_repository.tar.gz" sha1="bd0f1e900ff1a70bc2ffdea507c7df1f47e10550" type="script" releaseDate="20261101">
          <title>
             TGScripts snapshot - 2026 Nov 01
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Astro Bucket List 0.27.1 expands collection management with list merging, deduplication, multiple list memberships, checked-object transfers and direct selection export. Planning gains broadband/narrowband classification, relative month filtering and three-level sorting. Finder and DSS previews update automatically with persistent configuration and expanded chart details. Compact collapsible controls, improved save handling and updated PiDoc documentation complete this release.
+               Astro Bucket List 0.33.0 adds dependent constellation and object-type filters, finder charts for all filtered targets, and zoomable Finder and DSS previews. Further improvements include navigation to existing duplicate objects, second-click deselection, .bak backups and optional reopening of the last collection, disabled by default. NGC/IC objects and configured nebula contours now start enabled. PiDoc documentation has been updated.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-10-31T23:42:47.285Z" encoding="Base64">sRaW66YZI4XDKEiyR4LXFq/VmAqdZKnMm3/FlL4RkTXo5/pbrF3JlG09MIM0j0EoYhcn1nCtG0zMzKwflF/mCg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-01T19:00:32.313Z" encoding="Base64">NjHpxTL5699uPv3OZ9Tnb7s5/eXBEtE8mH/hecdsI+GAxX3cBSG/5IizXHmydZCFWL5+d55Oszxy61NUxc66AQ==</Signature>

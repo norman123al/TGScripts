@@ -1,4 +1,4 @@
-Astro Bucket List 0.27.1
+Astro Bucket List 0.33.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -10,6 +10,12 @@ A collection is the .sol file; it contains one or more named lists. Check object
 then use Add selected to list, Move selected to list or Export selected. Checked
 objects take priority, including hidden checks across the collection. With no
 checks, these actions use highlighted rows selected with Ctrl-click or Shift-click.
+Click the sole highlighted row again to deselect it, clearing the current object,
+its information and single-object previews. Export checks remain intact. A plain
+click on several highlighted rows first reduces them to one; another deselects
+that row. Ctrl/Shift selection and checkbox actions keep their normal behavior.
+Double-click still opens Finder. Sorting does not reselect a deliberately cleared
+sole result. All filtered objects charts remain independent of row selection.
 Choose an existing destination or Create new list and enter its name. Add keeps
 all existing memberships. Move offers a Source list, including from All objects,
 and reports how many selected objects belong to it. Only those memberships are
@@ -25,8 +31,35 @@ checks retained. Save persists the reorganized collection.
 Save asks before overwriting the current collection; declining keeps your edits
 and the existing file. The first Save asks for a filename. Use Save as to create
 a separate file. Save as and Export confirm existing filenames in the chooser.
-Successful writes leave no timestamped backups. Existing backups are untouched.
+Replacing a saved file keeps its exact previous contents beside it as
+filename.sol.bak. Each successful save replaces this single backup with the
+immediately preceding version. Save as and Export do the same when replacing
+an existing destination. New filenames create no backup; cancellation leaves
+both files untouched. Failed replacements attempt to restore both previous
+files and report recovery paths if restoration fails. Backups with other names
+are untouched. To recover, copy the .bak file to a new .sol filename and Open it.
+No timestamped backup copies are created.
 Use the Table, Finder chart and DSS survey image tabs in the main window.
+With a Constellation filter active, choose Chart > All filtered objects on the
+Finder chart tab to show all current table rows together. The selected list and
+all other filters apply; export checks and highlighted rows do not limit it.
+Numbered rings match an object key in table sort order. Missing coordinates are
+reported and marked in the key. Coverage expands to fit the targets and their
+known sizes, with the configured width as a minimum and 170 degrees as the
+group limit. Close-up is omitted for group charts. Both styles and chart detail
+options work; context catalog limits never exclude explicit table targets.
+Filter/list/sort changes update the preview automatically. Clearing the
+constellation filter restores Selected object mode. Scope is temporary and
+DSS remains a single-object image. Open as image includes the full object key.
+Both previews support mouse-wheel zoom around the pointer. Drag with the left
+button to pan and double-click to fit the whole image. Zoom ranges from Fit
+to 1600% of fit and is reported in the information block. It magnifies loaded
+pixels without changing coverage, requesting data or altering collection data.
+Each tab retains its view while switching tabs; a new target or changed chart
+settings resets the affected view to Fit. Open as image opens the full image.
+NGC/IC and Messier catalog objects start enabled when installed. Nebula contours
+starts enabled with a configured valid outline file; selecting a first valid
+file also enables them. Chart details can turn these defaults off.
 Objects appear in a flat table with a Constellation column and no collapsible
 groups. Sort by can order objects by calendar month in either direction;
 unassigned months stay last. Size sorting ranks major diameters across all
@@ -46,6 +79,15 @@ without changing the active list, filters, sort order, export checks or edits.
 Collection, Lists and the filter/sort groups stay compact at the left; extra
 window width remains to their right. Minimum window dimensions follow the
 controls, keeping the table, buttons and previews separated when resized.
+Constellation offers only constellations represented in the selected list and
+planning month; All months includes all represented constellations. The relative
+three-month option includes all three months. Other filters do not narrow this
+menu. Object type offers only types matching the selected list, Find, Month,
+Constellation, Target band and Imaging status. It excludes its own current
+choice so alternative matching types remain selectable. Unavailable choices
+reset to All, first Constellation and then Object type. Empty matches leave
+only All object types. Switching lists, editing objects and changing month
+assignments refresh the choices. Sorting and hidden export checks are retained.
 The Month menu includes Previous / current / next: the three planning months
 around your computer's current local month, with December-January wraparound.
 It uses the configured constellation months and excludes unassigned months.
@@ -58,11 +100,21 @@ Dec: increasing, then Size: largest first, finally RA: increasing, equal
 declinations are ordered by decreasing size, then equal sizes by increasing RA.
 Missing values remain last at each level. Reset filters keeps all three sort
 choices. Sorting preserves export checks.
-The first launch opens an empty list. Add objects, create additional lists,
+Normal launches start with an empty list by default. Add objects, create additional lists,
 or use Open and Merge lists to load your own Stellarium .sol, .ol or .json files.
 No predefined bucket list is included or loaded. Save your collection outside
-the script installation directory. Normal launches reopen the last collection
-saved by the manager if it is available; otherwise they open an empty list.
+the script installation directory. Configuration > Startup offers Remember
+last opened or saved collection, off by default. Apply stores this independent
+toggle in PixInsight settings beside the filename. It applies across collections
+and launches, and is not stored in the .sol file or in process instances.
+Enabling it remembers the current file, if any; successful Open, Save and Save as
+then update the remembered path. Normal launches reopen that file when available.
+Failed or cancelled actions retain the previous path. Export and Merge lists do
+not replace it. Unsaved edits are never saved automatically. Turning it off
+clears the remembered path and leaves the current collection open; subsequent
+normal launches start empty. Cancel in Configuration leaves the setting intact.
+An explicit process instance still opens its stored collection path, and that
+file is remembered only when the separate toggle is enabled.
 
 NEW INSTANCE
 Save the collection, then drag the New Instance triangle at the lower left
@@ -120,6 +172,11 @@ a date marks the object as imaged. Edited catalog text survives lookups;
 Use catalog text restores the retrieved summary. Save retains these fields.
 Leftover hollow circles and generated source headings are removed from comments.
 Save after opening a collection to retain any automatic cleanup.
+Duplicate warnings identify the existing entry, catalog match and containing
+lists. Open existing object reveals it in All objects, clears Find and filters,
+and opens its editor without copying or adding the new entry. Sorting and
+checked objects are retained. Back to new object keeps the entered form and
+table view intact. Find includes stored catalog aliases with flexible spacing.
 Add object rejects duplicates anywhere in the collection, including known
 catalog aliases, and identifies the lists containing the existing object.
 When Find has no matching rows, Add searched object opens the editor with the
@@ -171,7 +228,7 @@ unknown sizes. Preferences apply to all targets and are remembered between
 launches. Chart details displays Annotations and Catalogs horizontally. The catalog checklist
 shows each catalog's purpose: Messier, NGC/IC, Caldwell, Collinder clusters,
 Green supernova remnants, WISE H II regions and Mandel-Wilson IFN. All use local
-bundled data. Messier starts enabled; unavailable choices cannot be checked.
+bundled data. Messier and NGC/IC start enabled; unavailable choices cannot be checked.
 Select a row to adjust Labels and, where supported, the faintest Magnitude:
 Automatic adapts to sky coverage, Custom specifies a limit, No limit includes
 all magnitudes. Missing magnitudes are retained. SNR, WISE H II and IFN catalogs
@@ -222,8 +279,8 @@ No outline file selected, File missing or Not loaded. Tooltips identify the
 Stellarium outline format and show the full path and any error. Clear file
 stages an empty selection. Apply deselects it and turns contours off without
 deleting the file; Cancel retains the current selection. The path or
-cleared choice is remembered across launches. Enable Nebula contours to draw
-the loaded data. Without a valid file this option is disabled, and only
+cleared choice is remembered across launches. Nebula contours starts enabled
+with a valid loaded file; Chart details can turn it off. Without a valid file this option is disabled, and only
 boundaries represented in the file can be drawn.
 Close-up inset adds a separate square projection beside the unobscured
 overview. Its preferred width starts at 2 degrees and applies to all targets.
