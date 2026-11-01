@@ -2,7 +2,7 @@
 
 **PixInsight tools for astronomical image processing, by Thorsten Glebe.**
 
-TGScripts brings together original scripts and enhanced versions of community tools for imaging-list planning, star reduction, mask creation, narrowband processing, intensity matching, linear master blending, deconvolution, subframe quality review, and optical inspection. The collection also includes a starting point for developing your own PixInsight scripts.
+A collection of tools for imaging-target planning, image processing, quality review, and PixInsight script development.
 
 [Installation](#installation) · [Script overview](#script-overview) · [Script gallery](#script-gallery) · [Help and troubleshooting](#help-and-troubleshooting) · [Credits and license](#credits-and-license)
 
@@ -18,7 +18,7 @@ Install through PixInsight's update system to receive the scripts and their bund
    ```
 
 3. Select **Resources → Updates → Check for Updates** and install the available TGScripts update. Restart PixInsight if prompted to complete installation.
-4. Open a script from **Script → TG Scripts**. The newer tools appear as **Astro Bucket List**, **Linear Master Blend**, **LRGB Deconvolution Match**, **ROI Linear Fit**, **Star Spike Protection Mask**, and **Subframe Quality Review**.
+4. Open a script from **Script → TG Scripts**.
 
 To try a newly added script before the next updater release, download or clone this repository and use **Script → Execute Script File** to open its JavaScript file from `TGScripts_repository/src/scripts/TGScripts/`.
 
@@ -37,9 +37,9 @@ To try a newly added script before the next updater release, download or clone t
 
 ### Requirements
 
-- **PixInsight:** all current repository scripts require **PixInsight 1.9.5 or later with the V8 scripting engine**. The older scripts and their shared libraries have been migrated to V8, including their dialogs, preview controls, and process constants.
+- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**.
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
-- **BBStarReduction:** automatic starless-image generation requires [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) configured with an AI model and a target of at least **512 × 512 pixels**. You can instead provide an existing, matching starless image without StarXTerminator.
+- **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
 The packaged updater release may lag behind the repository source. For manual execution, keep each script with its bundled helpers and the `lib` folder. The update manifest may accept older PixInsight versions; the current scripts require the version listed above.
 
@@ -70,17 +70,15 @@ Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script�
 
 ## Script gallery
 
-Each entry links to its source file. Most scripts also provide a documentation button in PixInsight; the bundled guides contain parameter details and examples. Screenshots show actual PixInsight interfaces. The redesigned tools, Astro Bucket List, and Subframe Quality Review setup were captured on **2026-10-30**. Some populated examples remain from earlier releases, as identified in their captions. Expand an interface below to view it.
+Short descriptions below cover each script’s purpose and main features; follow the guide links for usage and parameter details. Expand an entry to view its interface. Astro Bucket List screenshots show **0.33.0**, captured on **2026-11-01**; some other examples show earlier releases.
 
 ### AberrationInspectorTG
 
 **Version:** 2.2.0 · **Last update:** 2026-10-30
 
-Creates an **n × n mosaic** of crops sampled across an image to compare star shapes and field-dependent aberrations. Choose **2–9 rows and columns**, panel sizes up to **2048 × 2048 pixels**, spacing, and background brightness. Odd-sized grids include the center.
+Builds a **grid of image crops** to compare star shapes across the field and reveal optical aberrations. Offers adjustable panel size, spacing, and background brightness.
 
-The redesigned dialog can open an image directly and shows the requested output dimensions. Apply creates a new inspection image and leaves the dialog open for another comparison. Settings can be saved as a process icon.
-
-Based on Mike Schuster's AberrationInspector. [Source](TGScripts_repository/src/scripts/TGScripts/AberrationInspectorTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationInspectorTG/AberrationInspectorTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/AberrationInspectorTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationInspectorTG/AberrationInspectorTG.html)
 
 <details>
 <summary>View AberrationInspectorTG interface</summary>
@@ -93,11 +91,9 @@ Based on Mike Schuster's AberrationInspector. [Source](TGScripts_repository/src/
 
 **Version:** 2.2.0 · **Last update:** 2026-10-30
 
-Collects the **four corners of a selected image**, with an optional center crop, into one inspection image. Set horizontal and vertical crop sizes up to **2048 × 2048 pixels**, spacing, and background brightness to compare optical performance across the field.
+Combines the **four image corners and an optional center crop** into one inspection image. Adjustable crop sizes, spacing, and background brightness make field comparisons easier.
 
-Select an open image or load one from the dialog. The output summary shows the montage dimensions; Apply creates a new image and keeps the dialog open. Settings can be saved as a process icon.
-
-Based on David Serrano's AberrationSpotter. [Source](TGScripts_repository/src/scripts/TGScripts/AberrationSpotterTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationSpotterTG/AberrationSpotterTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/AberrationSpotterTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationSpotterTG/AberrationSpotterTG.html)
 
 <details>
 <summary>View AberrationSpotterTG interface</summary>
@@ -110,33 +106,32 @@ Based on David Serrano's AberrationSpotter. [Source](TGScripts_repository/src/sc
 
 **Version:** 0.33.0 · **Last update:** 2026-11-01
 
-Organizes **Stellarium observing lists** in a flat table with a Constellation column and configurable planning months. **Target band** classifies objects as broadband or narrowband from saved filters and metadata, with galaxies (including starburst galaxies), star clusters, reflection nebulae, dark nebulae and IFN always Broadband in Automatic mode and narrowband preferred for mixed filter mentions on other targets. Narrowband filters remain optional for these Broadband targets. Unclassified targets can be found with the Target band filter; Edit object provides manual overrides, preserved with the collection. **Add selected to list**, **Move selected to list** and **Export selected** use checked objects, including hidden checks, or highlighted rows if none are checked. List actions offer existing or new destinations; Move also offers a source list and reports the selected subset that belongs to it. Direct Export selected opens the file chooser and writes the targets once into one Stellarium list. An object can belong to several lists with linked imaging information; moves remove only the chosen source membership. Each object has its own row; the table has no collapsible groups. Separate **Filter objects** and **Sort rows** panels distinguish which targets are shown from their display order. **Find**, **Filter objects** and **Sort rows** share one collapsible section that retains all view choices and gives more height to the table. Filtering and sorting keep their separate group titles. Find has its own row with **Clear search**; filters use two labelled columns with labels aligned closely to their controls. **Collection** groups file actions separately from the **Lists** selector and list-management actions. The smaller list selector has no redundant label and sits above its actions, and Collection and Lists are side by side. Both are inside one collapsible **Collection and lists** section above the tabs, expanded initially. One click hides or restores both groups without changing the active list or collection. These groups stay compact at the left, leaving spare width to the right. The minimum window size follows its controls to prevent overlap. The month menu also offers **Previous / current / next**, showing the three planning months around the current local month, including December–January wraparound. **Reset filters** clears all view filters while keeping sort order and export checks. **Sort by**, **Then by** and **Finally by** support up to three criteria with independent directions, such as Dec increasing, largest object size, then RA increasing. Each later criterion breaks ties in the preceding criteria; None skips an optional criterion. When Find has no matches, **Add searched object** prefills the editor with the search identifier; choose a destination list and look up or enter its coordinates. Filter targets by constellation, object type, month and imaging state, sort by calendar month, apparent size, RA or Dec, add objects by catalog identifier, and record imaging status, dates, catalog information, filters, and notes. Object checkboxes select targets for list actions and export independently of their imaging status. Use Ctrl-click or Shift-click to highlight multiple rows, then **Check selected** to check them together; **Check shown** checks the entire filtered view. Import, save, and export collections as `.sol` files.
+Plans imaging targets with **Stellarium-compatible observing lists**, constellation and month filters, flexible sorting, and broadband/narrowband classification. Tracks imaging status and notes, merges collections, and exports selected targets. Includes SIMBAD lookups, customizable finder charts for individual or filtered targets, and DSS survey previews.
 
-The **Table**, **Finder chart**, and **DSS survey image** tabs combine list management with target previews. SIMBAD lookups update catalog information and apparent sizes. Landscape finder charts offer **Modern Editorial** (dark sky, sans-serif labels) and **Vintage Atlas** (ivory paper, sepia markings, serif labels). Both provide clearer labels, a separate title band, coordinates, a symbol key and an angular scale. **Constellation borders** draws dashed region boundaries by default, with an option to hide them. Use the preview tabs to open the charts and DSS images. They use configured local Gaia catalogs, including DR3/SP, or bundled bright stars; default coverage is 45 degrees, with automatic fitting off. Configuration preferences apply to every target and are remembered across launches. **Chart details** separates annotations from a catalog checklist. Choose Messier, NGC/IC, Caldwell, Collinder, Green SNR, WISE H II regions or Mandel–Wilson IFN; the checklist explains each purpose and marks unavailable local data. Each catalog has a label switch, plus automatic, custom or unlimited magnitude depth where its data support it. Both previews load automatically when their tab is selected and after settings or target changes. Unchanged previews are reused. One information block holds each preview's target, status and limitations; failures offer Retry. Double-click a table object to open Finder; use Edit object for edits. Local charts work offline, while new SIMBAD lookups and DSS downloads require internet access. DSS fields are limited to **5–120 arcminutes**, with oversized targets using the maximum width.
-
-Requires **PixInsight 1.9.5+ with V8** and the bundled CatalogStarGenerator and AnnotateImage libraries. Save working collections outside the installation directory. The New Instance triangle stores the saved collection path in a process icon. [Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_repository/doc/source/AstroBucketList.pidoc)
+[Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_repository/doc/source/AstroBucketList.pidoc)
 
 <details>
 <summary>View Astro Bucket List interface</summary>
 
-![Astro Bucket List setup with collection controls, constellation planning, Table, Finder chart and DSS tabs](TGScripts_repository/images/AstroBucketList_main_screen.jpg)
+**Target table**
+
+![Astro Bucket List 0.33.0 with Andromeda targets, search and filters, multi-level sorting, and imaging notes](TGScripts_repository/images/AstroBucketList_main_screen.jpg)
+
+**Finder chart — filtered targets in Andromeda**
+
+![Astro Bucket List 0.33.0 finder chart with numbered targets, constellation outlines, and a target key](TGScripts_repository/images/AstroBucketList_finder_chart.jpg)
+
+**DSS survey — NGC 7640**
+
+![Astro Bucket List 0.33.0 DSS2 Red survey preview of NGC 7640](TGScripts_repository/images/AstroBucketList_dss_survey.jpg)
 
 </details>
-
-Optional **Chart details** add star names and catalog magnitudes, and object type, angular size and magnitude where available. **Label density** in Chart settings controls Sparse/Normal/Detailed labelling. **Nebula contours** reads local Stellarium/SkyChart outline data; choose another file if needed. A separately projected **Close-up inset** sits beside the overview with editable coverage, keeping the overview unobscured. All options work with both chart styles and appear in exported chart images.
-
-**Merge lists** imports saved .sol files into the current collection. Matching objects are deduplicated within each list and share reconciled metadata across all memberships. Distinct comments, catalog information, filter information and aliases are combined; current single-value fields and manual choices win conflicts, with missing values filled from the import. Imaging flags are retained, repeated imports do not repeat text, and source files remain unchanged. Choose **Save** to persist the merged collection.
-
-**Catalog information** is the single editable field for object descriptions and catalog facts. Imported descriptions are folded into it without repeating matching lines, and the object-information panel reports the combined text once. **Chart details** groups catalogs, constellation borders and annotations, with **All details** to select or clear the available choices. The bottom **Configuration gear** opens a separate window with a **Finder chart** group for coverage, Fit object size, style, label density and close-up controls, plus a **DSS survey image** group for survey width and fitting. It also contains outline-file selection and constellation months. Apply commits proposed settings; Cancel discards them. The bottom **Chart details** symbol opens a separate window with Apply and Cancel. Both it and the checkable **All details** symbol are enabled only on the Finder chart tab. Accepted details refresh Finder; cancellation retains the loaded chart. DSS uses its tab for information and the survey image. All preview preferences apply across targets and are remembered between launches. Fitting, the DSS maximum and close-up bounds affect only the displayed field, retaining preferred widths for subsequent objects. Settings can be edited without a target selected. Compact style and label-density controls sit at the bottom of the Finder chart group, aligned with the numeric fields. The outline status reports whether a Stellarium outline file is loaded; **Clear file** stages an empty selection; Apply deselects it and turns contours off without deleting the file. The bottom **Open as image** symbol opens the active preview as a native image and is enabled only on Finder or DSS with a loaded preview. The Chart details window arranges annotations, the catalog checklist and its properties horizontally; the main Finder tab uses its area for information and the preview. **All objects** shows each target once across its list memberships. Collapsing Object information keeps the window dimensions and expands the table. Close prompts occur only for actual collection changes; automatic cleanup and unchanged Apply do not mark it modified. Enter in **Find** refreshes the search; a sole result becomes the target for both preview tabs without changing export checks.
-
 
 ### BBStarReduction
 
 **Version:** 1.3.0 · **Last update:** 2026-10-30
 
-Reduces stars in a **stretched grayscale or RGB image** using Bill Blanshan's **Transfer, Halo, or Star** method. Generate a temporary starless image with StarXTerminator, or select an **existing starless image** with matching dimensions, channels, alignment, and stretch.
-
-Use a preview of at least **64 × 64 pixels** to create a labeled comparison grid. Apply processes the full target and creates a **new image by default**; disable that option to modify the target with one Undo step. Automatic star removal requires a configured StarXTerminator and a target of at least **512 × 512 pixels**; an existing starless image avoids that dependency.
+Reduces stars in **stretched images** using Bill Blanshan’s Transfer, Halo, and Star methods. Supports StarXTerminator or an existing starless image, comparison grids, and output to a new image or the original.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/BBStarReduction.js) · [Guide](TGScripts_repository/doc/scripts/BBStarReduction/BBStarReduction.html)
 
@@ -151,11 +146,9 @@ Use a preview of at least **64 × 64 pixels** to create a labeled comparison gri
 
 **Version:** 2.2.0 · **Last update:** 2026-10-30
 
-Creates a **grayscale mask from an RGB color range**, refined by intensity and saturation limits. Choose a preset or custom hue interval, including ranges crossing red, then select Linear, Chrominance, Lightness, or Inverse lightness weighting. Strength, blur layers, and output name control the result.
+Creates **color-selective grayscale masks** from RGB images. Combines hue presets or custom ranges with intensity and saturation limits, adjustable weighting, strength, and smoothing.
 
-Select or open the target from the dialog. Apply creates a new 32-bit floating-point mask and leaves the source unchanged; assign the result as an image mask in PixInsight.
-
-Based on Rick Stevenson's ColorMask. [Source](TGScripts_repository/src/scripts/TGScripts/ColorMaskTG.js) · [Guide](TGScripts_repository/doc/scripts/ColorMaskTG/ColorMaskTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/ColorMaskTG.js) · [Guide](TGScripts_repository/doc/scripts/ColorMaskTG/ColorMaskTG.html)
 
 <details>
 <summary>View ColorMaskTG interface</summary>
@@ -168,11 +161,9 @@ Based on Rick Stevenson's ColorMask. [Source](TGScripts_repository/src/scripts/T
 
 **Version:** 2.2.0 · **Last update:** 2026-10-30
 
-Performs **continuum subtraction** to isolate emission-line signal in a linear narrowband image. Supply an aligned grayscale narrowband image and an equally sized broadband image or RGB channel. An optional grayscale star mask excludes bright pixels from estimation.
+Isolates **narrowband emission through continuum subtraction** using a matching broadband image or RGB channel. Includes automatic subtraction-factor estimation, optional star masking, noise reduction, and diagnostic plots.
 
-The script matches the broadband mean to the narrowband image and estimates the subtraction factor from the black-pixel response curve. Optional noise reduction and a **native PixInsight diagnostic plot** help inspect the result. Apply creates a new 32-bit floating-point emission image and keeps both inputs unchanged.
-
-Based on Hartmut V. Bornemann's CS script. [Source](TGScripts_repository/src/scripts/TGScripts/CSTG.js) · [Guide](TGScripts_repository/doc/scripts/CSTG/CSTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/CSTG.js) · [Guide](TGScripts_repository/doc/scripts/CSTG/CSTG.html)
 
 <details>
 <summary>View CSTG interface</summary>
@@ -185,11 +176,9 @@ Based on Hartmut V. Bornemann's CS script. [Source](TGScripts_repository/src/scr
 
 **Version:** 2.4.0 · **Last update:** 2026-10-30
 
-Enhances **dark structures in stretched grayscale or RGB images**, such as dust lanes, using a wavelet-derived mask. Adjust the mask layers, scaling function, enhancement amount, and iterations; optionally retain the generated mask.
+Enhances **dust lanes and other dark structures in stretched images** using a generated mask. Provides adjustable strength and scale, comparison grids, and optional mask output.
 
-A preview of at least **64 × 64 pixels** can generate a **3 × 3 comparison grid**, with layers across columns and amount down rows. Apply always processes the full target, creating a **new image by default** or modifying the target with one Undo step when that option is disabled.
-
-Based on DarkStructureEnhance by Carlos Sonnenstein and Oriol Lehmkuhl. [Source](TGScripts_repository/src/scripts/TGScripts/DarkStructureEnhanceTG.js) · [Guide](TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/DarkStructureEnhanceTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/DarkStructureEnhanceTG.js) · [Guide](TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/DarkStructureEnhanceTG.html)
 
 <details>
 <summary>View DarkStructureEnhanceTG interface</summary>
@@ -202,11 +191,9 @@ Based on DarkStructureEnhance by Carlos Sonnenstein and Oriol Lehmkuhl. [Source]
 
 **Version:** 2.3.0 · **Last update:** 2026-10-30
 
-Compares deconvolution results across the **sigma and shape of a synthetic point spread function (PSF)**. Use a preview of at least **64 × 64 pixels** on a linear grayscale or RGB image, then set the start, step, and count for each PSF parameter. Controls include iterations, dark deringing, and an optional registered grayscale local support mask.
+Helps tune **deconvolution for linear images** by comparing synthetic PSF settings in a preview grid. Includes deringing and local support-mask controls, then applies the chosen settings to the full image.
 
-The comparison grid varies sigma across columns and shape down rows. **Apply processes the full target using the Start values**, creating a new image by default; disabling that option modifies the target with one Undo step.
-
-Based on Juan M. Gómez's DeconvolutionPreview. [Source](TGScripts_repository/src/scripts/TGScripts/DeconvolutionPreviewTG.js) · [Guide](TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/DeconvolutionPreviewTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/DeconvolutionPreviewTG.js) · [Guide](TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/DeconvolutionPreviewTG.html)
 
 <details>
 <summary>View DeconvolutionPreviewTG interface</summary>
@@ -219,11 +206,9 @@ Based on Juan M. Gómez's DeconvolutionPreview. [Source](TGScripts_repository/sr
 
 **Version:** 2.2.1 · **Last update:** 2026-10-30
 
-Adds **continuum-subtracted narrowband emission to a linear RGB image**. Supply aligned, equally sized grayscale narrowband data for at least one RGB channel, with independent amplification controls. An optional grayscale star mask affects continuum estimation only; channels without narrowband input remain unchanged.
+Adds **continuum-subtracted narrowband emission to RGB images**, with independent amplification for each channel. Includes before/after previews, optional star masking, and separate emission-image output.
 
-The compact dialog can open each input directly. Its magnifier opens a **separate Original RGB / With emission comparison** for a selected preview, while estimation uses the full images. Apply creates a new RGB image by default, or modifies the target with one Undo step when that option is disabled. Separate emission images can be retained.
-
-Based on Hartmut V. Bornemann's EmissionLineIntegration. [Source](TGScripts_repository/src/scripts/TGScripts/EmissionLineIntegrationTG.js) · [Guide](TGScripts_repository/doc/scripts/EmissionLineIntegrationTG/EmissionLineIntegrationTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/EmissionLineIntegrationTG.js) · [Guide](TGScripts_repository/doc/scripts/EmissionLineIntegrationTG/EmissionLineIntegrationTG.html)
 
 <details>
 <summary>View EmissionLineIntegrationTG interface</summary>
@@ -236,13 +221,9 @@ Based on Hartmut V. Bornemann's EmissionLineIntegration. [Source](TGScripts_repo
 
 **Version:** 1.20.1 · **Last update:** 2026-10-19
 
-Normalizes and integrates **two aligned linear master images** using measured source quality. Preview automatically chooses the master with the lower combined stellar **FWHM** as the brightness reference. It matches the other master's stellar flux and local background to that reference independently in each channel.
+Combines **two aligned linear masters** using automatic brightness and background matching, measured quality weights, and an adjustable sharpness preference. Provides blink previews and measurement comparisons before creating a new integrated image.
 
-Integration starts with a base balance of **40% PSF Signal Weight, 40% PSF SNR, and 20% inverse combined FWHM**. **Sharpness preference** (0–8, default **1**) then gives extra weight to the master with narrower stars. Set it to **0** to use the base balance alone; higher values favor sharpness more strongly and can reduce the noise benefit of the other master. Recalculate Preview after changing it. The resulting weights apply to every pixel and all RGB channels. This is a weighted average of the complete masters; including a source with broader stars can broaden the output stars, so inspect both detail and noise.
-
-The **Output preview** supports zoom, pan, display stretching, and blinking against either master. The **Measurements** tab shows the stellar-flux fit, selected reference, noise, FWHM X/Y, PSF quality metrics, source contributions, and output measurements. Create produces a **new 32-bit floating-point linear image** using the preview's normalization and weights; both originals remain unchanged.
-
-Use registered, cropped floating-point images with identical dimensions and matching grayscale or RGB channels, without alpha channels. Correct gradients first and provide at least **10 reliable matched stars per channel** for brightness matching. Requires PixInsight 1.9.5+ with V8. [Source](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend.js) · [Guide](TGScripts_repository/doc/scripts/LinearMasterBlend/LinearMasterBlend.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/LinearMasterBlend.js) · [Guide](TGScripts_repository/doc/scripts/LinearMasterBlend/LinearMasterBlend.html)
 
 <details>
 <summary>View Linear Master Blend interface</summary>
@@ -261,9 +242,7 @@ Use registered, cropped floating-point images with identical dimensions and matc
 
 **Version:** 2.2.0 · **Last update:** 2026-10-30
 
-Creates a **grayscale local support mask for deconvolution deringing** from a linear grayscale or RGB main image. Adjust mask strength, scale, structure growth, compensation, and smoothness. RGB inputs are converted to luminance internally.
-
-The redesigned dialog opens **separate preview images** for intermediate luminance or the star-mask overlay. Apply creates the final support mask; the source image stays unchanged.
+Generates **stellar support masks for deconvolution deringing** from linear grayscale or RGB images. Offers adjustable strength, scale, growth, and smoothing, with intermediate and mask-overlay previews.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/LocalSupportMask.js) · [Guide](TGScripts_repository/doc/scripts/LocalSupportMask/LocalSupportMask.html)
 
@@ -278,15 +257,9 @@ The redesigned dialog opens **separate preview images** for intermediate luminan
 
 **Version:** 1.13.2 · **Last update:** 2026-10-30
 
-Prepares **registered linear luminance and RGB images for LRGB composition**, including data from different telescopes and original pixel scales. Choose the sharper reference yourself or let the script select it from measured stellar FWHM. Set its BlurXTerminator **Sharpen Stars** and **Adjust Star Halos**, then inspect the **Reference before/after** preview.
+Matches **stellar sharpness and halos in registered linear L and RGB images** using BlurXTerminator. Provides automatic sharpening estimates, halo optimization, blink comparisons, FWHM plots, and a match-quality report.
 
-The script estimates **Sharpen Stars** for the other image from the measured reference sharpening and holds that estimate fixed. It optimizes only **Adjust Star Halos**, comparing flux-normalized outer stellar profiles within your chosen halo limits. The reference result stays fixed; **Sharpen Nonstellar** is shared by both images and **Automatic PSF** remains enabled. The sharpening estimate is empirical and is not clipped; matching stops if BlurXTerminator rejects it.
-
-Use **Matched L / RGB** to blink the deconvolved luminance against luminance extracted from the deconvolved RGB image. **FWHM comparison** plots each image before/after and the final L/RGB width comparison, with fitted lines and paired-star statistics. The **BlurXTerminator report** lists the applied settings, halo mismatch, dark-ring flags, and stopping reason. **PASS** requires both halo-profile and stellar-width checks to pass, including separate RGB-channel width checks; **REVIEW** means the results need inspection.
-
-After reviewing the previews, use the **green checkmark** to create two new linear images, or the **blue square** to apply the results to both inputs with **one Undo step per image**. Preview calculations leave the inputs unchanged. Display stretching and brightness alignment affect only previews; neither result action stretches, combines, or saves the images to disk.
-
-Requires **PixInsight 1.9.5+ with V8** and an installed, licensed **BlurXTerminator** with its AI model. Supply registered, equally sized floating-point grayscale L and three-channel RGB images, without alpha channels or empty registration borders. At least **20 reliable common stars and 20 usable halo profiles** are required. Registration, resampling, final stretching, and LRGB combination are separate steps. [Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
 
 <details>
 <summary>View LRGB Deconvolution Match interface</summary>
@@ -309,9 +282,9 @@ Requires **PixInsight 1.9.5+ with V8** and an installed, licensed **BlurXTermina
 
 **Version:** 1.1.6 · **Last update:** 2026-10-04
 
-Matches a target image's **intensity scale** to a reference using a rectangular **region of interest (ROI)**. The script measures PixInsight's native LinearFit transformation inside that region and applies it to the **entire target**, with separate fits for RGB channels. Enter coordinates or copy them from an existing preview; inspect the fit with a scatter plot before applying it.
+Matches a target’s **intensity scale to a reference** using a selected region of interest, then applies the fit to the full image. Supports RGB channels, preview-based region selection, scatter plots, and Undo.
 
-Use two registered main images with identical dimensions and matching color types. The reference stays unchanged; the target is modified in place with Undo support. Requires PixInsight 1.9.5+ with V8. [Source](TGScripts_repository/src/scripts/TGScripts/ROILinearFit.js)
+[Source](TGScripts_repository/src/scripts/TGScripts/ROILinearFit.js)
 
 <details>
 <summary>View ROI Linear Fit interface</summary>
@@ -324,9 +297,9 @@ Use two registered main images with identical dimensions and matching color type
 
 **Version:** 1.7.2 · **Last update:** 2026-10-10
 
-Creates a **full-size grayscale protection mask for bright stars and diffraction spikes**. It follows the luminance profiles of stellar cores and spikes, with controls for star selection, spike detection, core size, mask growth, and blur. Preview the mask, compare it with the source, and optionally save the result as a 32-bit floating-point XISF image.
+Creates **soft protection masks for bright stars and diffraction spikes** from stretched stars-only images. Includes star and spike detection controls, adjustable mask growth and blur, previews, and XISF export.
 
-Designed for a **stretched stars-only image** with roughly straight spikes on two perpendicular axes. Detection uses actual pixel values, not the STF display stretch. **Black protects, white permits processing; apply the mask with Invert Mask off.** The source pixels remain unchanged. Requires PixInsight 1.9.5+ with V8. [Source](TGScripts_repository/src/scripts/TGScripts/StarSpikeProtectionMask.js)
+[Source](TGScripts_repository/src/scripts/TGScripts/StarSpikeProtectionMask.js)
 
 <details>
 <summary>View Star Spike Protection Mask interface</summary>
@@ -339,22 +312,9 @@ Designed for a **stretched stars-only image** with roughly straight spikes on tw
 
 **Version:** 0.42.3 · **Last update:** 2026-10-30
 
-Reviews **registered light frames from a completed WeightedBatchPreprocessing (WBPP) run** to help decide which original exposures to exclude before rerunning WBPP. It measures PSF signal weight, star count, FWHM, eccentricity, sky brightness, relative transparency, and sky quality, with optional center/corner measurements and guiding-log data. **Score ranges from 0 to 1; higher is better.** Scores describe relative quality within each filter/exposure group. **Below-mean Quality** reports the percentage of assessed, enabled indicators worse than their group mean. Its baseline includes manually rejected subframes and excludes masters; switching Score modes does not change its manual indicator selection.
+Helps select **WBPP subframes to keep or reject** using four quality rankings, field and corner measurements, sky-quality indicators, and optional guiding logs. Includes blink comparisons, quality and correlation plots, FWHM grading, and SQM/Gaia sky calibration. Manually rejected originals can be moved with a confirmation step and restored through a move journal.
 
-- **Four comparison rankings:** **R1** uses manual weights for field quality; **R2** adds corners; **R3** equally weights indicators strongly correlated with PSF signal weight (absolute Pearson correlation ≥ 0.7), using PSF signal weight only as the correlation reference, with no direct R3 contribution; **R4** averages the available normalized R1–R3 ranks. Rank **1 is worst**. The **Score selection** panel identifies the current mode and offers **Include corner measurements (R2)**, **Use R3: strongly correlated KPIs**, and **Use R4: rank of ranks**. Unavailable ranks are omitted from R4, as is R2 when corner scoring is off. R3 can include qualifying individual corner FWHM/eccentricity indicators. If none qualify, R3 remains unavailable and the active Score falls back to manual evaluation.
-- **Review and measurements:** shortlists the worst **10%** by default and flags missing required measurements. Sorting, a REVIEW-only filter, tooltips, and collapsible information panels help inspect individual frames. The magnifier measures the field; the adjacent **Measure corners** grid button measures the center and four corners. Repeated measurement reuses unchanged results and sky calibration; previews load when needed. Corner measurements automatically adapt parallel processing to available CPU and memory. The resizable dialog provides scrolling and collapsible panels while keeping its action bar accessible.
-- **Sky indicator selection:** choose **Sky quality** (default, weight **20**), **Transparency**, or **Sky brightness** for the sky contribution to scoring. Transparency compares matched, background-subtracted stellar flux per second, relative to the best comparable reference; RGB uses green, and at least **10 common stars** are required. Sky quality combines relative transparency with exposure-normalized, pedestal-corrected sky brightness as a relative signal-to-noise proxy; the reference is **100%**, and higher values are possible. Only the selected sky indicator contributes, avoiding double-counting the three measures. These are relative comparisons, not absolute atmospheric measurements.
-- **Blink frame / reference:** compare with the best scoring subframe or matching linear filter master, rotate through subframes in the visible Review order, or cycle through regions. Playback intervals of **0.10–10 seconds**, preserved zoom/pan, display stretching, and brightness alignment aid comparison without changing source pixels.
-- **Quality and correlation plots:** inspect one bar per frame by value or acquisition time, with master comparison for measured indicators, a mean for non-rejected frames, and optional autofocus-start markers. **Masters receive no Score or R1–R4 ranks** and are excluded from score baselines and the REVIEW quota; they remain available for measurement comparisons and blink. Blue information buttons explain the indicators, plot legend, and calibration. Eccentricity bands use **0.42** and **0.60**; field, center, and corner eccentricity axes adapt to the data within 0–1. The scatter plot compares two selectable indicators and explains their Pearson correlation.
-- **FWHM grading:** enter telescope aperture and optional **Zenith seeing** in **Input files and observing conditions**, then open the settings icon on a field, center, or corner FWHM plot. Good/Medium/Bad bands account for aperture, image scale, target altitude, wavelength, and optional optical blur. With a seeing estimate, the default Good/Medium limits are **115%/135%** of expected FWHM; otherwise fixed seeing limits are used. The dialog shows the resulting limits in pixels.
-- **Sky brightness and SQM:** background uses the lowest mean of the center and four corner previews when corner scoring is enabled, otherwise the whole-image mean; RGB uses the **green channel**. Enter **Session SQM** and its local date/time to anchor relative sky-brightness estimates to the eligible exposure nearest that time. A pink dashed line marks the SQM reference, and an approximate Bortle class determines the quality shading. The log-derived time preset can be corrected directly or with **Choose**. Without SQM, select a Bortle class to calibrate with local Gaia photometry, or choose **—** to disable calibration and shading. Stars, nebulosity, gradients, and transparency affect these estimates; Bortle ranges are approximate.
-- **Guiding and logs:** an optional folder supplies Autorun autofocus events and PHD2 samples matched to each exposure. Minimum, average, and maximum guiding errors appear in arcseconds, with bands based on the imaging pixel scale. **Use available guiding data** is the default; **Require guiding data** and **Ignore guiding KPI** remain available.
-
-**FWHM, eccentricity, and sky-brightness bands are visual inspection guides; their grading settings do not change Score, REVIEW, or rejection decisions.** FWHM grading requires a configured aperture and valid image scale. Sky calibration supports luminance, green, V, and RGB green-channel data in compatible acquisition groups; separate red and blue groups can reuse a compatible measured green group's calibration. The Gaia method additionally requires sky coordinates and a configured local Gaia DR3/SP, DR3, or EDR3 catalog. Supplying SQM uses the reading directly; a missing or ambiguous reading time leaves calibration unavailable rather than falling back to Gaia.
-
-**REVIEW is a suggestion, not a rejection decision.** Mark unwanted originals manually, then use the green checkmark to inspect and confirm the move plan. Only uniquely verified original lights are moved, preserving relative subdirectories and recording a move journal. The **Undo** arrow can restore eligible files from that journal, even after reopening the script, without overwriting existing files; scan the files and configure the rejected-originals destination first. Refresh WBPP's inputs before rerunning it. Measurements, calibration, and pending decisions last only while the dialog stays open; process instances save settings, not the measured session.
-
-Requires **PixInsight 1.9.5+ with V8**. Supports XISF/FITS monochrome and registered, debayered OSC lights from one telescope setup. Select the WBPP output directory and a separate original-light root. Master comparisons require a matching **linear, uncropped, non-drizzled integration** with the same dimensions as the registered lights. [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
 <details>
 <summary>View Subframe Quality Review interface</summary>
@@ -365,7 +325,7 @@ Requires **PixInsight 1.9.5+ with V8**. Supports XISF/FITS monochrome and regist
 
 **Earlier populated examples — 0.39.14**
 
-The following images illustrate a previously measured Abell 74 session. Their layout and scoring predate 0.42.3: current versions exclude masters from Score and rankings, use the revised R3 selection, and offer the new sky indicators. Updated populated examples will replace these in a later refresh.
+These earlier examples show an Abell 74 session; their layout and scoring differ from the current version.
 
 **Blink frame / reference**
 
@@ -405,7 +365,7 @@ The following images illustrate a previously measured Abell 74 session. Their la
 
 **Version:** 1.6 · **Last update:** 2026-10-19
 
-A **development template** for building PixInsight scripts. It provides image selection, a zoomable preview with display stretching, image statistics and properties, parameter storage in process icons, and standard reset, execution, and documentation controls. Use it as a starting point for a new tool rather than as an image-processing operation.
+Provides a **starting point for PixInsight script development** with image selection, zoomable previews, display stretching, image statistics, reusable process icons, and standard dialog controls.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/TGScriptSkeleton.js)
 
