@@ -1,4 +1,4 @@
-Astro Bucket List 0.33.2
+Astro Bucket List 0.34.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -6,7 +6,13 @@ PixInsight 1.9.5 or later with V8 and its standard CatalogStarGenerator and
 AnnotateImage libraries. Use the documentation button for the full guide.
 
 COLLECTIONS
-A collection is the .sol file; it contains one or more named lists. Check objects,
+A collection is the .sol file; it owns objects independently of its named lists.
+All objects shows every target once, including objects without any membership.
+Delete list and Remove from list change only logical groupings; they keep the
+objects and all their information in the collection. Delete object beside Add
+and Edit removes the current target from the collection and every list only
+after confirmation, with No as the default. Declining leaves everything intact.
+Save persists these changes. A collection can have no named lists. Check objects,
 then use Add selected to list, Move selected to list or Export selected. Checked
 objects take priority, including hidden checks across the collection. With no
 checks, these actions use highlighted rows selected with Ctrl-click or Shift-click.
@@ -188,7 +194,8 @@ table view intact. Find includes stored catalog aliases with flexible spacing.
 Add object rejects duplicates anywhere in the collection, including known
 catalog aliases, and identifies the lists containing the existing object.
 When Find has no matching rows, Add searched object opens the editor with the
-search text as its catalog identifier. Choose Add to list, then Look up or
+search text as its catalog identifier. Choose an optional Add to list destination
+or No list — collection only, then Look up or
 enter coordinates manually. Apply checks for duplicates before closing.
 Cancel leaves the collection unchanged. A successful search-based addition
 clears view filters and highlights the new entry, retaining sort order and
@@ -198,7 +205,7 @@ a range, then choose Check selected to check those highlighted rows. Existing
 checks are retained, including hidden objects. Highlighting alone does not check
 an object. The footer counts highlighted rows and export checks separately.
 Sorting retains highlights; filtering retains only highlights still visible.
-Edit object, Remove from list and previews use the current row.
+Edit object, Delete object, Remove from list and previews use the current row.
 Check shown checks all filtered rows;
 Uncheck all clears the selection. Export > Checked objects writes each target
 once into a new Stellarium list. Use Edit object to record imaging status.
@@ -208,7 +215,7 @@ Distinct comments, catalog information, filters and aliases are combined. Curren
 single-value fields and manual choices win conflicts; missing data is filled.
 An incoming unmarked copy never clears an imaged flag. Reimporting the same
 data does not repeat objects or text. The source files remain unchanged; use
-Save to persist the combined collection. Export also supports the selected list or all lists.
+Save to persist the combined collection. Export also supports the selected list or Entire collection.
 Keep the manager's saved collection as your master: Stellarium may discard
 manager-specific notes and imaging status when it re-exports the file.
 
@@ -221,6 +228,9 @@ LOAD THE SAVED COLLECTION IN STELLARIUM
 4. Choose a named list from Stellarium's dropdown. Every list in the saved
    collection is imported, including multiple lists stored in one .sol file.
 5. Double-click an object to select it and move the sky view to its position.
+Ungrouped targets appear in Stellarium in Objects without a list. This export
+view is not a logical group when reopened in Astro Bucket List. Selected-object
+and selected-list exports contain only objects in their chosen scope.
 Save and import again to transfer later changes. If Stellarium asks to replace
 a list with the same internal identifier, accept to update it or decline to
 keep its current contents. Keep the Astro Bucket List collection as your master

@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{AstroBucketList}
 \keywords{astronomy, imaging, bucket list, Stellarium, observing lists, constellation, SIMBAD, finder chart, DSS}
-\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.33.2.}
+\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.34.0.}
 
 \description{
 Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.5 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
@@ -40,7 +40,11 @@ Find searches identifiers, names, object types, target bands, filters, catalog i
 }
 
 \section{Organize objects into lists}{
-A collection is the complete .sol file. Each list is a named group inside that collection; List details changes the list name and description independently of the filename. An object may belong to multiple lists. All objects combines their contents and displays each target once, without removing its memberships.
+A collection is the complete .sol file and owns every object independently of its lists. Each list is a named logical group inside that collection; List details changes the list name and description independently of the filename. An object may belong to no lists, one list or several lists. All objects displays every collection target once, including targets without a list membership. Repeated memberships do not create duplicate rows in this view.
+
+Delete list deletes only the named grouping. Remove from list removes only the current object's membership in the selected list. Both keep every object in the collection, together with its catalog information, comments, filters, apparent size and imaging history. Objects whose final membership is removed remain available in All objects and can be added to another list later. A collection can be saved and reopened with no named lists.
+
+To remove an object from the collection itself, select its row and use Delete object beside Add object and Edit object. This action always asks for confirmation, names the target and explains that it will be removed from every list together with its information. No is the default; declining or closing the question leaves the collection unchanged. Confirming removes only the current object, even when several rows are highlighted or checked. Save persists the deletion. Use Remove from list when you only want to change a grouping.
 
 Check the objects to organize, then choose Add selected to list or Move selected to list. Checked objects take priority, including hidden checks across the collection. If nothing is checked, Ctrl-click or Shift-click to highlight rows and use those instead. The destination dialog reports the selected count.
 
@@ -50,7 +54,7 @@ In the destination dialog, choose an existing list or Create new list and enter 
 
 New memberships retain the complete object information, including comments, filters, apparent dimensions, manual target band, imaging status and imaging date. Edits and imaging-state changes remain linked across memberships. Creating another membership is different from adding a duplicate catalog object: Add object still rejects a target already present in the collection and directs you to Add selected to list.
 
-After applying, the manager displays the destination for review. Filters, all three sort choices and export checks are retained, and transferred objects that remain visible stay highlighted. Choose Save to persist the reorganized collection. Saving and reopening retains its lists and shared identities; selected-object export still writes each target once. Export selected beside the object actions opens the file chooser directly and writes the selected objects as one Stellarium list. It uses the same checked-first, highlighted-fallback selection rule. Cancel leaves files unchanged, and a partial export cannot overwrite the open collection file. Exporting does not change checks, memberships, imaging data or unsaved edits. The Collection Export command remains available for checked objects, one named list or all lists.
+After applying, the manager displays the destination for review. Filters, all three sort choices and export checks are retained, and transferred objects that remain visible stay highlighted. Choose Save to persist the reorganized collection. Saving and reopening retains its objects, lists and shared identities; selected-object export still writes each target once, including selected targets without a list membership. Export selected beside the object actions opens the file chooser directly and writes the selected objects as one Stellarium list. It uses the same checked-first, highlighted-fallback selection rule. Cancel leaves files unchanged, and a partial export cannot overwrite the open collection file. Exporting does not change checks, memberships, imaging data or unsaved edits. The Collection Export command remains available for checked objects, one named list or Entire collection. Partial exports contain only objects in the chosen scope, including their saved metadata.
 }
 
 \section{Save a collection path as a process instance}{
@@ -115,14 +119,14 @@ The merge summary reports added lists and objects, matching objects reconciled, 
 Use the desktop version of Stellarium. The collection saved by Astro Bucket List is already an observing-list file; no conversion is needed.
 
 \list[ordered,spaced]{
-   {In Astro Bucket List, choose Save and note the .sol filename shown in the Collection group. Save includes all named lists in the collection. To transfer only part of it, use Export and choose Selected list only or Checked objects instead.}
+   {In Astro Bucket List, choose Save and note the .sol filename shown in the Collection group. Save includes every collection object and all named lists. To transfer only part of it, use Export and choose Selected list only or Checked objects instead.}
    {In Stellarium, press Alt+B to open Observing lists.}
    {Click the import button to open Import observing list. Browse to the saved .sol file, select it and choose Open. If necessary, choose the Stellarium Single Observing List (*.sol) file filter.}
    {Choose the imported list by name in Stellarium's observing-list dropdown. When the file contains several lists, all of them are imported and can be selected separately, even though the file filter calls .sol a single observing list.}
    {Double-click an object in the list to select it and move the sky view to its position. Named coordinate markers also work when the target's catalog identifier is absent from Stellarium's local catalog.}
 }
 
-To transfer later changes, save the collection in Astro Bucket List and import it again. Stellarium can ask whether to replace a list with the same internal list identifier. Accept to update that Stellarium list, or decline to retain its current contents. Lists with different identifiers can coexist even when their names match. The All objects view in Astro Bucket List combines targets for browsing; the saved collection retains its named lists.
+To transfer later changes, save the collection in Astro Bucket List and import it again. Stellarium can ask whether to replace a list with the same internal list identifier. Accept to update that Stellarium list, or decline to retain its current contents. Lists with different identifiers can coexist even when their names match. The saved collection retains its named lists. Objects without a membership are additionally exposed to Stellarium in an observing list named Objects without a list. This is an export view: reopening the collection in Astro Bucket List keeps those objects in All objects without creating a logical grouping for them. An empty collection without named lists exports an empty observing list with this name.
 
 Native catalog objects keep their identifiers. Newly resolved objects default to named coordinate markers. Date, location, landscape and other existing Stellarium fields are retained on imported entries.
 
@@ -142,7 +146,7 @@ Turning it off and applying clears the remembered path while leaving the current
 }
 
 \section{Add an object and obtain catalog information}{
-Choose Add object and select the destination in Add to list. The currently selected list, or the only available list, is selected initially. When viewing All objects with several lists, choose a destination before applying. If the collection has no lists, use New list first. Enter a designation such as M 31, NGC 7000, LDN 1228 or PN G075.5+01.7, then choose Look up. Look up retrieves current information from SIMBAD, using Harvard and Strasbourg mirrors, even when the object is already in the collection. The requested identifier is sent to the service; your list, notes and imaging flags are not uploaded.
+Choose Add object. In Add to list, select an optional destination or keep No list — collection only. The currently selected named list is selected initially; All objects defaults to the collection-only choice. You can add targets even when no lists exist. Enter a designation such as M 31, NGC 7000, LDN 1228 or PN G075.5+01.7, then choose Look up. Look up retrieves current information from SIMBAD, using Harvard and Strasbourg mirrors, even when the object is already in the collection. The requested identifier is sent to the service; your list, notes and imaging flags are not uploaded.
 
 If Find has no matching rows, the table shows a notice and the add button becomes Add searched object. It opens the same editor with your search text already in Catalog identifier. Choose Look up to retrieve information, or enter coordinates manually. Search alone never queries a catalog or adds an entry. Other active filters or the selected list may be hiding an existing object; Reset filters can widen the search. Duplicate checking covers the entire collection and known catalog aliases. When an addition matches an existing entry, choose Back to new object to retain all entered fields, or Open existing object to inspect the stored entry. Cancel leaves the collection and search unchanged. After a successful search-based addition, the manager selects the destination list, clears the view filters and highlights the new object, preserving sorting and export checks. Choose Save to persist it.
 
