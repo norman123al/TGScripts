@@ -1,4 +1,4 @@
-Astro Bucket List 0.34.0
+Astro Bucket List 0.34.1
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -37,6 +37,10 @@ checks retained. Save persists the reorganized collection.
 Save asks before overwriting the current collection; declining keeps your edits
 and the existing file. The first Save asks for a filename. Use Save as to create
 a separate file. Save as and Export confirm existing filenames in the chooser.
+Open and all save/export actions share a 32 MB limit on decoded JSON text.
+The exact formatted output is checked before writing. Oversized output leaves
+the destination and backup intact and your edits unsaved. Export fewer objects
+or smaller lists to reduce output. UTF-8 files can occupy more bytes on disk.
 Replacing a saved file keeps its exact previous contents beside it as
 filename.sol.bak. Each successful save replaces this single backup with the
 immediately preceding version. Save as and Export do the same when replacing
