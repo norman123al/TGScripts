@@ -4,7 +4,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.33.0 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.33.2 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Files are saved only on an explicit Save / Export command.
  */
@@ -12,7 +12,7 @@
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.33.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.33.2. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.33.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.33.2 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This file has no GUI or filesystem dependencies; used by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.33.0', EXT = '_astroBucketList';
+   const VERSION = '0.33.2', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1285,7 +1285,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.33.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.33.2 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1294,7 +1294,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.33.0"
+#define VERSION "0.33.2"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1770,7 +1770,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.33.0';
+const ABL_VERSION='0.33.2';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -1823,40 +1823,57 @@ function ablStableSection(manager,bar,section){
 }
 function ablRow(parent,label,control){let l=new Label(parent);l.text=label;l.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;l.setFixedWidth(parent.logicalPixelsToPhysical(150));let s=new HorizontalSizer;s.spacing=8;s.add(l);s.add(control,100);return s;}
 function ablRead(path){let s=File.readTextFile(path);if(s.length>32*1024*1024)throw Error('This observing-list file exceeds 32 MB.');return ABL.parseDocument(s);}
-// Validate a complete temporary document before replacing a saved collection.
-// Keep exactly one previous version at <filename>.bak. Move any older backup
-// aside until the new primary file is installed; failed saves restore both
-// previous files where possible, retaining recovery paths if rollback fails.
+// Keep cloud document identities stable. Renaming the primary to a backup and
+// a temporary file to the primary can make iCloud undo both operations later.
+// Stage and validate locally, copy the previous bytes to .bak, then overwrite
+// the primary in place. Recovery copies survive failures outside the sync folder.
 function ablWrite(path,doc){
-   const output=JSON.stringify(doc,null,2)+'\n',suffix=String(Date.now())+'-'+ABL.uuid().slice(1,9);
-   const temp=path+'.tmp-'+suffix,recovery=path+'.tmp-previous-'+suffix,backup=path+'.bak',previousBackup=path+'.tmp-backup-'+suffix;
-   let moved=false,backupMoved=false,original=recovery;
+   const output=JSON.stringify(doc,null,2)+'\n';ABL.parseDocument(output);
+   const directory=File.systemTempDirectory+'/AstroBucketList-save-'+ABL.uuid().slice(1,-1);
+   const staged=directory+'/new.sol',previous=directory+'/previous.sol',olderBackup=directory+'/older-backup.bak',backup=path+'.bak';
+   const equal=(a,b)=>a.length===b.length&&a.toBase64()===b.toBase64();
+   const verify=(p,bytes)=>{if(!equal(File.readFile(p),bytes))throw Error('File verification failed: '+p);};
+   const write=(p,bytes)=>{File.writeFile(p,bytes);verify(p,bytes);};
+   let original=null,oldBackup=null,primaryTouched=false,backupTouched=false,complete=false;
+   File.createDirectory(directory);
    try{
-      File.writeTextFile(temp,output);
-      ABL.parseDocument(File.readTextFile(temp));
-      try{
-         if(File.exists(path)){
-            File.move(path,recovery);moved=true;
-            if(File.exists(backup)){File.move(backup,previousBackup);backupMoved=true;}
-            File.move(recovery,backup);original=backup;
-         }
-         File.move(temp,path);
-      }catch(e){
-         let failures=[];
-         if(moved&&!File.exists(path))try{File.move(original,path);}catch(restoreError){
-            failures.push('The previous collection remains at '+original+'. '+String(restoreError));
-         }
-         if(backupMoved)try{
-            if(File.exists(backup))throw Error('The backup path still holds the previous collection.');
-            File.move(previousBackup,backup);
-         }catch(restoreError){failures.push('The older backup remains at '+previousBackup+'. '+String(restoreError));}
-         if(failures.length)throw Error('Could not save or completely restore the previous files.\n'+failures.join('\n')+'\n'+String(e));
-         throw e;
+      File.writeTextFile(staged,output);
+      if(File.readTextFile(staged)!==output)throw Error('The staged collection could not be verified.');
+      const next=File.readFile(staged);
+      if(File.exists(path)){
+         original=File.readFile(path);write(previous,original);
+         if(File.exists(backup)){oldBackup=File.readFile(backup);write(olderBackup,oldBackup);}
       }
-      // The primary and its immediate predecessor are now committed. A cleanup
-      // failure must not report this successful save as an unsaved collection.
-      if(backupMoved)try{File.remove(previousBackup);}catch(e){console.warningln('Collection saved with its .bak file. An older backup could not be removed: '+previousBackup+'. '+String(e));}
-   }finally{if(File.exists(temp))File.remove(temp);}
+      try{
+         if(original!==null){
+            verify(path,original);
+            backupTouched=true;write(backup,original);
+            verify(path,original);
+         }
+         primaryTouched=true;write(path,next);
+         if(original!==null)verify(backup,original);
+         complete=true;
+      }catch(e){
+         let failures=[],primaryRestored=true;
+         if(primaryTouched)try{
+            if(original!==null)write(path,original);else if(File.exists(path))File.remove(path);
+         }catch(restoreError){
+            primaryRestored=false;failures.push('The primary could not be restored: '+String(restoreError));
+         }
+         // If primary rollback fails, leave the immediate predecessor in .bak.
+         // Never replace that recovery copy with the older backup in this case.
+         if(backupTouched&&primaryRestored)try{
+            if(oldBackup!==null)write(backup,oldBackup);else if(File.exists(backup))File.remove(backup);
+         }catch(restoreError){failures.push('The older backup could not be restored: '+String(restoreError));}
+         throw Error(String(e)+(failures.length?'\n'+failures.join('\n'):''));
+      }
+   }catch(e){
+      throw Error('Could not save the collection: '+path+'\n'+String(e)+'\nLocal recovery files are retained in:\n'+directory);
+   }finally{
+      // Cleanup cannot turn a verified completed save into a reported failure.
+      if(complete)try{for(let p of [staged,previous,olderBackup])if(File.exists(p))File.remove(p);File.removeDirectory(directory);}
+      catch(e){console.warningln('Collection saved. Local temporary files remain in '+directory+'. '+String(e));}
+   }
 }
 // Bound downloads and allow console cancellation while keeping the UI alive.
 function ablTransfer(url,maxBytes,timeoutSeconds=30){
@@ -3042,9 +3059,14 @@ function ablStartupCollection(instancePath=null,lastPath='',io={exists:p=>File.e
       if(typeof instancePath!=='string'||!instancePath.trim())throw Error('This process instance has no collection path. Open and save a collection, then create a New Instance.');
       try{doc=io.read(instancePath);path=instancePath;}
       catch(e){throw Error('The collection saved in this process instance could not be opened:\n'+instancePath+'\n'+e.message);}
-   }else if(lastPath&&io.exists(lastPath)){
-      try{doc=io.read(lastPath);path=lastPath;}
-      catch(e){io.notice('The last saved collection could not be opened. You can choose another file with Open.\n'+e.message);}
+   }else if(lastPath){
+      // A remembered filename can disappear after a move, rename or a sync
+      // operation. Explain the empty manager without silently forgetting the
+      // path: Open will update it after a replacement is loaded successfully.
+      if(!io.exists(lastPath))
+         io.notice('The remembered collection file was not found:\n\n'+lastPath+'\n\nAn empty collection will open. Use Open to choose the file at its current location. Remembering remains enabled, and a successful Open or Save will update the remembered path.');
+      else try{doc=io.read(lastPath);path=lastPath;}
+      catch(e){io.notice('The remembered collection could not be opened:\n\n'+lastPath+'\n\n'+e.message+'\n\nAn empty collection will open. Use Open to choose an accessible collection. The remembered path is kept until Open or Save succeeds.');}
    }
    if(!doc){doc=ABL.newDocument();ABL.addList(doc,'My imaging bucket list');}
    return {doc,path};

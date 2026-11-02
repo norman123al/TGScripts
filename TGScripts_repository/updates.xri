@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="bd0f1e900ff1a70bc2ffdea507c7df1f47e10550" type="script" releaseDate="20261101">
+      <package fileName="TGScripts_repository.tar.gz" sha1="43c07368bab6a2760fb452340d6cbf7841007b6f" type="script" releaseDate="20261102">
          <title>
-            TGScripts snapshot - 2026 Nov 01
+            TGScripts snapshot - 2026 Nov 02
          </title>
          <remove>
             src/scripts/TGScripts
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Astro Bucket List 0.33.0 adds dependent constellation and object-type filters, finder charts for all filtered targets, and zoomable Finder and DSS previews. Further improvements include navigation to existing duplicate objects, second-click deselection, .bak backups and optional reopening of the last collection, disabled by default. NGC/IC objects and configured nebula contours now start enabled. PiDoc documentation has been updated.
+               Astro Bucket List 0.33.2 fixes save and backup handling in iCloud Drive by preserving filenames instead of renaming files during replacement. Saved contents are verified, and failed saves retain local recovery copies. Startup now clearly reports missing or unreadable remembered collections. Documentation has been updated.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-01T19:00:32.313Z" encoding="Base64">NjHpxTL5699uPv3OZ9Tnb7s5/eXBEtE8mH/hecdsI+GAxX3cBSG/5IizXHmydZCFWL5+d55Oszxy61NUxc66AQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-02T17:59:43.276Z" encoding="Base64">iu+JnbYJmfwLMWZciJfo5T4tjnyGWjuOGbi/T/Ub1dOWlj3Dst6wBzK94zYiROzJf7YIzud64dt3w8G1SND8Dg==</Signature>

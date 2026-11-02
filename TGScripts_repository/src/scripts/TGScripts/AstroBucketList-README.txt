@@ -1,4 +1,4 @@
-Astro Bucket List 0.33.0
+Astro Bucket List 0.33.2
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -102,6 +102,11 @@ Missing values remain last at each level. Reset filters keeps all three sort
 choices. Sorting preserves export checks.
 Normal launches start with an empty list by default. Add objects, create additional lists,
 or use Open and Merge lists to load your own Stellarium .sol, .ol or .json files.
+Saves keep stable collection and backup filenames. New contents are validated
+in local temporary storage, the previous bytes are copied to .bak, and the
+collection is overwritten and verified at its original path. No temporary
+files are placed beside the collection. Failed saves retain local recovery
+files at the location reported in the error message.
 No predefined bucket list is included or loaded. Save your collection outside
 the script installation directory. Configuration > Startup offers Remember
 last opened or saved collection, off by default. Apply stores this independent
@@ -109,6 +114,9 @@ toggle in PixInsight settings beside the filename. It applies across collections
 and launches, and is not stored in the .sol file or in process instances.
 Enabling it remembers the current file, if any; successful Open, Save and Save as
 then update the remembered path. Normal launches reopen that file when available.
+A missing or unreadable file reports its full path before opening an empty list;
+use Open to select its current location. The previous path is kept until Open or
+Save succeeds. Adding or editing an object does not rename the collection.
 Failed or cancelled actions retain the previous path. Export and Merge lists do
 not replace it. Unsaved edits are never saved automatically. Turning it off
 clears the remembered path and leaves the current collection open; subsequent
