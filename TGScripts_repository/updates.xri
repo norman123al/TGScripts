@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="6037ee8f29191880f382db95512de280bc603c07" type="script" releaseDate="20261102">
+      <package fileName="TGScripts_repository.tar.gz" sha1="9aed0e860814d0b6131294cad2a8ef34efe64990" type="script" releaseDate="20261102">
          <title>
             TGScripts snapshot - 2026 Nov 02
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Astro Bucket List 0.34.1: Fixes saves that could produce collections too large to reopen. Save, Save as and Export now enforce the same size limit as Open before changing files. Rejected saves preserve the existing collection, backup and unsaved edits.
+               Astro Bucket List 0.34.1: Improves internal documentation for collection storage, list memberships, save/read validation, recovery and previews. No functional changes.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-02T19:25:52.169Z" encoding="Base64">OL/ypMkqN8ziKHujDy77fvU3Yd9KD7MjyE3E+0MXzmS9o2XixP0K0Q1BGzEJrP8y50xrg8Mdk+Q6NMnk5KPTDw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-02T20:04:00.862Z" encoding="Base64">d7Z4/PQJDXkwC/sT1r05WHR8pxenW7Q5uahHcgtNXG+jHjDxDcZklm9FFl2ZXwQ/4RVWvhIaDCenXzq0iEqtDQ==</Signature>
