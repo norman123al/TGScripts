@@ -4,7 +4,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.34.0 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.34.1 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Files are saved only on an explicit Save / Export command.
  */
@@ -12,7 +12,7 @@
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.34.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.34.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.34.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.34.1 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This file has no GUI or filesystem dependencies; used by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.34.0', EXT = '_astroBucketList';
+   const VERSION = '0.34.1', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1335,7 +1335,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.34.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.34.1 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1344,7 +1344,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.34.0"
+#define VERSION "0.34.1"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1820,7 +1820,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.34.0';
+const ABL_VERSION='0.34.1';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -1871,13 +1871,23 @@ function ablStableSection(manager,bar,section){
    };
 }
 function ablRow(parent,label,control){let l=new Label(parent);l.text=label;l.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;l.setFixedWidth(parent.logicalPixelsToPhysical(150));let s=new HorizontalSizer;s.spacing=8;s.add(l);s.add(control,100);return s;}
-function ablRead(path){let s=File.readTextFile(path);if(s.length>32*1024*1024)throw Error('This observing-list file exceeds 32 MB.');return ABL.parseDocument(s);}
+// Preserve the existing limit on decoded JSON text (UTF-16 code units, not
+// UTF-8 file bytes). Reading and saving must use exactly the same validation:
+// list memberships and the persistent inventory serialize shared objects more
+// than once, so neither object counts nor the input file size predict output.
+function ablParseCollectionText(s){
+   if(s.length>32*1024*1024)throw Error('This collection exceeds the 32 MB text-size limit for opening and saving. Export fewer objects or smaller lists.');
+   return ABL.parseDocument(s);
+}
+function ablRead(path){return ablParseCollectionText(File.readTextFile(path));}
 // Keep cloud document identities stable. Renaming the primary to a backup and
 // a temporary file to the primary can make iCloud undo both operations later.
 // Stage and validate locally, copy the previous bytes to .bak, then overwrite
 // the primary in place. Recovery copies survive failures outside the sync folder.
 function ablWrite(path,doc){
-   const output=JSON.stringify(doc,null,2)+'\n';ABL.parseDocument(output);
+   // Validate the exact formatted output, including escapes and final newline,
+   // before creating recovery files or touching the destination and its backup.
+   const output=JSON.stringify(doc,null,2)+'\n';ablParseCollectionText(output);
    const directory=File.systemTempDirectory+'/AstroBucketList-save-'+ABL.uuid().slice(1,-1);
    const staged=directory+'/new.sol',previous=directory+'/previous.sol',olderBackup=directory+'/older-backup.bak',backup=path+'.bak';
    const equal=(a,b)=>a.length===b.length&&a.toBase64()===b.toBase64();
