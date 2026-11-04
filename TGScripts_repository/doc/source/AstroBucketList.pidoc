@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{AstroBucketList}
 \keywords{astronomy, imaging, bucket list, Stellarium, observing lists, constellation, SIMBAD, finder chart, DSS}
-\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.34.0.}
+\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.34.1.}
 
 \description{
 Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.5 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
@@ -101,6 +101,8 @@ Save persists all lists, imaging flags, dates, catalog information, comments, fi
 }
 
 \section{Import and export}{
+Open, Save, Save as and Export share the same 32 MB limit on decoded JSON text. Before writing, the script validates the complete formatted output, including repeated object data in lists and collection storage. A larger result is rejected before changing the destination or its backup; your edits stay unsaved and the current collection path is retained. Export fewer objects or smaller lists to reduce the output. The limit is measured on decoded text, so the UTF-8 file on disk can be larger when names or comments contain non-ASCII characters.
+
 The script accepts Stellarium observingLists JSON in .sol, .ol and .json files. A .sol file may contain one list or multiple lists. Export can write checked objects, the selected list or the complete collection. When objects are checked, Checked objects is selected initially in the export dialog. This creates a new single Stellarium list containing each checked target once, even when it belongs to several source lists. Identifiers, coordinates and saved object metadata, including imaging status and date, are retained. Objects hidden by the current filters remain part of the checked export. Save the result as a .sol file.
 
 Full and selected-list exports preserve list UUIDs, memberships and unfamiliar Stellarium metadata fields. A checked-object or selected-list export cannot overwrite the currently open full collection. Opening another collection clears the temporary export selection.

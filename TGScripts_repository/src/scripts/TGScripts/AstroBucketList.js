@@ -4,15 +4,15 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.34.0 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.34.1 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
- * Files are saved only on an explicit Save / Export command.
+ * Collection files are written only by explicit Save / Export actions.
  */
 // BEGIN ABL_PORTABLE
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.34.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.34.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.34.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.34.1 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
- * This file has no GUI or filesystem dependencies; used by PJSR V8 and tests.
+ * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.34.0', EXT = '_astroBucketList';
+   const VERSION = '0.34.1', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -545,8 +545,9 @@ var ABL = (function () {
       .replace(/^SH2-/,'SH2-').replace(/^(PN|SNR)G0+(?=\d)/,'$1G').replace(/([+-])0+(?=\d)/g,'$1');
    const html = s => text(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
-   // Public coordinate values are always decimal degrees. Sexagesimal RA
-   // without an explicit degree suffix is interpreted as hours on input.
+   // Return decimal degrees, or null for missing/invalid input. Numeric input
+   // is degrees; sexagesimal RA without a degree suffix is hours. Stored SOL
+   // fields may retain their original strings; geometry uses position().
    function coordinate(value,ra) {
       if(typeof value==='number') {
          if(!Number.isFinite(value)||(!ra&&Math.abs(value)>90))return null;
@@ -606,6 +607,8 @@ var ABL = (function () {
    }
    function monthKey(code,ra) {return code==='Ser'?(Number.isFinite(ra)&&ra>=255?'SerCau':'SerCap'):code;}
    function meta(o) {if(!plain(o[EXT]))o[EXT]={};return o[EXT];}
+   // Collection metadata owns the object inventory and planning-month map.
+   // Object metadata uses the same extension key on each individual target.
    function config(doc) {
       if(!plain(doc[EXT]))doc[EXT]={};
       let c=doc[EXT];c.schemaVersion=2;
@@ -614,11 +617,11 @@ var ABL = (function () {
       if(typeof c.unlistedListId!=='string'||!c.unlistedListId)c.unlistedListId=uuid();
       return c;
    }
+   // Return one reference per membership, plus one with listId='' for each
+   // ungrouped target. Callers needing unique targets should use records().
    function refs(doc) {
       let result=[],listed=new Set;
       for(let id of Object.keys(doc.observingLists))for(let object of doc.observingLists[id].objects){result.push({listId:id,object});listed.add(meta(object).objectId);}
-      // A reference without a list is still a full collection object. Keep
-      // membership references for callers that report the object's groups.
       for(let object of doc[EXT]?.objects||[])if(!listed.has(meta(object).objectId))result.push({listId:'',object});
       return result;
    }
@@ -651,8 +654,11 @@ var ABL = (function () {
    }
    function linkObjects(doc) {
       const inventory=config(doc),registry=[],canonical=new Map;
-      // The inventory owns object lifetime. List arrays only reference those
-      // objects; reconstruction also migrates ordinary Stellarium list files.
+      // Rebuild shared in-memory objects after parsing or JSON copying. Visit
+      // the inventory first so its values take priority over list copies.
+      // List-only imports also populate the inventory here. List memberships
+      // then reference the canonical objects; JSON serialization duplicates
+      // their data because Stellarium requires inline objects in each list.
       for(let o of inventory.objects.concat(Object.values(doc.observingLists).flatMap(l=>l.objects))){
          let m=meta(o),match=registry.find(x=>same(x,o));
          if(match){
@@ -664,8 +670,9 @@ var ABL = (function () {
       for(let list of Object.values(doc.observingLists))list.objects=list.objects.map(o=>canonical.get(o));
    }
    function newDocument() {let d={defaultListOlud:'',observingLists:{},shortName:'Observing list for Stellarium',version:'2.1'};config(d);return d;}
-   // Work on a deep copy and retain unknown Stellarium fields. Stable target
-   // IDs link repeated memberships without merging different galaxy members.
+   // Validate an independent copy, retain unknown Stellarium fields and rebuild
+   // object identities. This checks document structure; file I/O also applies
+   // the serialized-text size limit through ablParseCollectionText().
    function normalizeDocument(raw) {
       if(!plain(raw)||!plain(raw.observingLists))throw Error('This file does not contain Stellarium observingLists.');
       let doc=copy(raw),ids=Object.keys(doc.observingLists);
@@ -683,8 +690,9 @@ var ABL = (function () {
          if(list.objects.length>100000)throw Error('A list exceeds the 100,000-object limit.');
          if(typeof list.name!=='string')list.name='Imported list';
          for(let o of list.objects)validateEntry(o,list.name);
-         // This export-only view exposes ungrouped objects in Stellarium. It
-         // is not a user-created logical grouping inside Astro Bucket List.
+         // Absorb the marked export view into the inventory, then remove the
+         // view. Its marker, rather than its name, distinguishes it from a
+         // user-created list named "Objects without a list".
          if(list[EXT]?.collectionView===true){for(let o of list.objects)inventory.objects.push(o);delete doc.observingLists[id];if(doc.defaultListOlud===id)doc.defaultListOlud='';}
       }
       if(Object.keys(doc.observingLists).length>1000)throw Error('This file contains too many lists (limit 1,000).');
@@ -697,19 +705,23 @@ var ABL = (function () {
       name=text(name).trim();if(!name)throw Error('Enter a list name.');
       let id=uuid();doc.observingLists[id]={name,description:'','creation date':stamp(),'last edit':stamp(),objects:[],sorting:''};return id;
    }
+   // Capture every member in the inventory before removing its grouping,
+   // including when the caller supplies an ordinary list-only SOL document.
    function deleteList(doc,id){
       if(!own(doc.observingLists,id))return false;
       linkObjects(doc);delete doc.observingLists[id];
       if(doc.defaultListOlud===id)doc.defaultListOlud='';return true;
    }
+   // Removing the final membership still leaves the target in the inventory.
    function removeFromList(doc,listId,id){
       let list=doc.observingLists[listId];if(!list)return false;
       linkObjects(doc);let count=list.objects.length;
       list.objects=list.objects.filter(o=>meta(o).objectId!==id);
       if(count===list.objects.length)return false;list['last edit']=stamp();return true;
    }
-   // Only this explicit operation removes an object from the inventory.
-   // The dialog must obtain confirmation before calling it.
+   // Delete the target from both the inventory and every list membership.
+   // Unlike membership removal, this discards object data. The UI must obtain
+   // confirmation before calling this operation on the live collection.
    function deleteObject(doc,id){
       linkObjects(doc);let inventory=config(doc),count=inventory.objects.length;
       inventory.objects=inventory.objects.filter(o=>meta(o).objectId!==id);
@@ -749,7 +761,7 @@ var ABL = (function () {
       if(added)destination['last edit']=stamp();
       return {doc:next,destinationId,added,alreadyPresent,moved,created,changed:created||added>0||moved>0};
    }
-   // Keep current scalar values, fill genuinely missing values, and union
+   // Keep current scalar values, fill missing values, and union
    // extension arrays. Define properties explicitly so imported prototype-like
    // keys remain data rather than changing the prototype of a destination.
    function mergeMissing(current,incoming) {
@@ -876,6 +888,9 @@ var ABL = (function () {
          mergedObjects:new Set(Array.from(merged).map(root)).size,duplicatesRemoved,idMap};
    }
 
+   // Build a separate SOL document. Omitted/null ids exports the collection;
+   // an array selects named lists and must also restrict the saved inventory,
+   // otherwise a partial export would include unrelated collection objects.
    function exportDocument(doc,ids) {
       let d=copy(doc);linkObjects(d);
       if(ids){
@@ -890,6 +905,9 @@ var ABL = (function () {
       // values are recalculated from metadata; viewing never dirties a list.
       for(let r of refs(d)){let c=targetBand(r.object);meta(r.object).targetBand={mode:c.mode,value:c.value};}
       let unlisted=refs(d).filter(r=>!r.listId).map(r=>r.object);
+      // Expose ungrouped targets to Stellarium through a marked observing list.
+      // normalizeDocument() restores them as ungrouped objects when reopened.
+      // An empty collection still needs one observing list for SOL export.
       if(!ids&&(unlisted.length||!Object.keys(d.observingLists).length)){
          let id=config(d).unlistedListId;while(own(d.observingLists,id))id=uuid();config(d).unlistedListId=id;
          d.observingLists[id]={name:'Objects without a list',description:'Collection objects without a logical list membership.',objects:unlisted,sorting:'',[EXT]:{collectionView:true}};
@@ -897,15 +915,18 @@ var ABL = (function () {
       }
       return d;
    }
-   // A checked-object export is a new single Stellarium list. Keep each
-   // target once even when it belongs to several lists in the collection.
+   // Export the supplied IDs once each in a new Stellarium list, including
+   // ungrouped targets. The UI resolves checks versus highlighted rows before
+   // calling this function; neither selection state is persisted here.
    function exportObjects(doc,ids) {
       let d=copy(doc);linkObjects(d);let wanted=new Set(ids),seen=new Set,objects=[];
       for(let r of refs(d)){let id=meta(r.object).objectId;if(wanted.has(id)&&!seen.has(id)){seen.add(id);objects.push(r.object);}}
       if(!objects.length)throw Error('Check at least one object to export.');
       d.observingLists={};config(d).objects=objects;let id=addList(d,'Selected objects');d.observingLists[id].objects=objects;d.defaultListOlud=id;return exportDocument(d);
    }
-   // Apply imaging state to every list membership of the same linked target.
+   // Apply an object-metadata patch, including notes or imaging state, through
+   // the collection references. Ungrouped targets are updated too; timestamps
+   // change only on lists that contain the target.
    function setState(doc,id,patch) {
       let count=0;
       for(let r of refs(doc))if(meta(r.object).objectId===id){
@@ -972,9 +993,9 @@ var ABL = (function () {
       if(!category||category==='CustomObject')return 'Unspecified';
       return category.replace(/([a-z])([A-Z])/g,'$1 $2');
    }
-   // Remove obsolete import markers and complete generated provenance lines.
-   // Restrict removal to the known heading format so user prose, bracketed
-   // remarks, degree symbols and remaining line breaks are preserved.
+   // Remove hollow-circle glyphs and generated month/constellation source
+   // headings. Whole-line removal matches only that heading format; other
+   // bracketed notes, degree symbols and remaining line breaks are preserved.
    function cleanNotes(notes) {
       return text(notes).replace(/^[ \t]*[○◯][ \t]*/gm,'').replace(/[○◯]/g,'')
          .replace(/^[ \t]*\[[^\]\r\n]+\/[^\]\r\n]+;[ \t]*source line[ \t]+\d+[ \t]*\][ \t]*(?:\r\n|\r|\n|$)/gmi,'');
@@ -1335,7 +1356,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.34.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.34.1 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1344,7 +1365,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.34.0"
+#define VERSION "0.34.1"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1377,9 +1398,6 @@ function ablLocalChartCatalog(makeServer=()=>new Gaia){
    return null;
 }
 
-// This uses the same bundled rendering libraries as FindingChart, called as
-// libraries to avoid the process's legacy invocation of nested script dialogs.
-// Every catalog used here is local; DSS downloads remain a separate mode.
 // Place constellation names in the visible part of their IAU regions. The
 // bundled asterism centroid can lie outside a cropped map (notably Serpens).
 class ABLConstellationLayer extends ConstLinesLayer {
@@ -1541,9 +1559,9 @@ function ablChartCatalogKeys(options){
    return ['caldwell','collinder','snr','wise-hii','mandel-wilson'].filter(key=>selected.includes(key));
 }
 function ablChartMagnitudeLimits(degrees){return {normal:Math.min(14,9-2*Math.log10(degrees/30)),faint:Math.min(16,11-2*Math.log10(degrees/30))};}
-// Normalize per-catalog display settings for both rendering and cache keys.
-// Unknown/unsupported properties have no effect. Older internal call sites
-// with ngc/faintNGC/extraCatalogs still receive their established defaults.
+// Normalize per-catalog display settings for rendering and cache keys. When
+// catalogs[key] is absent, derive defaults from ngc/faintNGC/extraCatalogs.
+// Installed catalog capabilities determine which properties are effective.
 function ablChartCatalogOptions(options={}){
    return ablChartCatalogs().map(entry=>{
       let raw=options.catalogs&&options.catalogs[entry.key],legacy=entry.key==='messier'||entry.key==='ngc'&&(options.ngc===true||options.faintNGC===true)||ablChartCatalogKeys(options).includes(entry.key);
@@ -1763,8 +1781,9 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
       let keyFont=new Font(style.face,21,'px'),key=targets?ablTableChartKey(targets,keyFont,details):null;
       let map=bitmap;bitmap=new Bitmap(width+(inset?640:0),header+height+footer+(key?key.height:0));bitmap.fill(style.band);let g=new Graphics(bitmap);
       try{
-         // Mark the object's center only: no rectangle implying an image or
-         // camera field of view. Object size determines automatic chart zoom.
+         // Mark the selected target's center with a crosshair. Chart coverage
+         // is supplied by the caller; this marker does not represent a camera
+         // footprint or the target's apparent size.
          g.drawBitmap(0,header,map);let cx=width/2,cy=header+height/2;
          g.antialiasing=true;g.textAntialiasing=true;
          if(!targets){g.pen=new Pen(style.sky,6);for(let pass=0;pass<2;++pass){if(pass)g.pen=new Pen(style.accent,2.5);g.drawLine(cx-23,cy,cx-9,cy);g.drawLine(cx+9,cy,cx+23,cy);g.drawLine(cx,cy-23,cx,cy-9);g.drawLine(cx,cy+9,cx,cy+23);}}
@@ -1820,7 +1839,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.34.0';
+const ABL_VERSION='0.34.1';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -1845,8 +1864,10 @@ function ablButton(parent,label,handler,tip){let b=new PushButton(parent);b.text
 // TGScripts dialogs. No global stylesheet or other script's settings change.
 function ablTool(parent,resource,tip,handler){let b=new ToolButton(parent);b.icon=parent.scaledResource(resource);b.setScaledFixedSize(24,24);b.toolTip=tip;b.onClick=handler;return b;}
 function ablGroup(parent,title){let g=new GroupBox(parent);g.title=title;g.sizer=new VerticalSizer;g.sizer.margin=10;g.sizer.spacing=8;return g;}
-// Compare persisted content, not UI activity or bookkeeping timestamps. The
-// normalized, cleaned document becomes the baseline on open and after saving.
+// Compare normalized collection content with the open/last-saved baseline.
+// JSON copying expands shared objects, so strip bookkeeping fields from both
+// inventory entries and list copies. View state and local preferences are
+// held outside this document and do not contribute to the dirty flag.
 function ablCollectionSignature(doc){
    let copy=ABL.copy(doc);
    let objects=(copy[ABL.EXT]?.objects||[]).slice();
@@ -1871,13 +1892,25 @@ function ablStableSection(manager,bar,section){
    };
 }
 function ablRow(parent,label,control){let l=new Label(parent);l.text=label;l.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;l.setFixedWidth(parent.logicalPixelsToPhysical(150));let s=new HorizontalSizer;s.spacing=8;s.add(l);s.add(control,100);return s;}
-function ablRead(path){let s=File.readTextFile(path);if(s.length>32*1024*1024)throw Error('This observing-list file exceeds 32 MB.');return ABL.parseDocument(s);}
-// Keep cloud document identities stable. Renaming the primary to a backup and
-// a temporary file to the primary can make iCloud undo both operations later.
-// Stage and validate locally, copy the previous bytes to .bak, then overwrite
-// the primary in place. Recovery copies survive failures outside the sync folder.
+// Shared preflight for Open, Save and Export. String.length measures UTF-16
+// code units: the limit is 33,554,432 decoded text units, not UTF-8 file bytes
+// or a memory budget. Validate the serialized text because shared inventory
+// and list objects occur repeatedly in JSON. Return a normalized copy; this
+// function does not modify the caller's live collection or any files.
+function ablParseCollectionText(s){
+   if(s.length>32*1024*1024)throw Error('This collection exceeds the 32 MB text-size limit for opening and saving. Export fewer objects or smaller lists.');
+   return ABL.parseDocument(s);
+}
+function ablRead(path){return ablParseCollectionText(File.readTextFile(path));}
+// Save with stable filenames: iCloud can reverse a primary/backup rename chain.
+// Validate before I/O, stage locally, retain recovery copies, then write and
+// verify the backup and primary in place. These writes are not atomic; failures
+// trigger best-effort restoration and retain available local recovery files.
 function ablWrite(path,doc){
-   const output=JSON.stringify(doc,null,2)+'\n';ABL.parseDocument(output);
+   // Include JSON escapes, indentation and the final newline in the same
+   // validation used by ablRead(). Rejection occurs before any filesystem
+   // change, so a size error cannot replace a readable collection or backup.
+   const output=JSON.stringify(doc,null,2)+'\n';ablParseCollectionText(output);
    const directory=File.systemTempDirectory+'/AstroBucketList-save-'+ABL.uuid().slice(1,-1);
    const staged=directory+'/new.sol',previous=directory+'/previous.sol',olderBackup=directory+'/older-backup.bak',backup=path+'.bak';
    const equal=(a,b)=>a.length===b.length&&a.toBase64()===b.toBase64();
@@ -1887,6 +1920,9 @@ function ablWrite(path,doc){
    File.createDirectory(directory);
    try{
       File.writeTextFile(staged,output);
+      // Check the text-to-file round trip before using the staged bytes for
+      // the primary. Byte comparisons below also preserve the original BOM
+      // and line endings in backups without decoding and re-encoding them.
       if(File.readTextFile(staged)!==output)throw Error('The staged collection could not be verified.');
       const next=File.readFile(staged);
       if(File.exists(path)){
@@ -1895,6 +1931,8 @@ function ablWrite(path,doc){
       }
       try{
          if(original!==null){
+            // Detect changes since the original was read, including changes
+            // during backup creation. This is a conflict check, not a file lock.
             verify(path,original);
             backupTouched=true;write(backup,original);
             verify(path,original);
@@ -2355,10 +2393,10 @@ class ABLChartDetailsDialog extends Dialog { constructor(manager){
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.detailsGroup);this.sizer.add(buttons);this.adjustToContents();
 }}
 
-// The dialog owns only its preview bitmap. Parent-owned temporary chart files
-// survive until the manager closes; Open as image loads independent pixels.
-// Both preview pages belong to the main TabBox. Changing tabs never closes
-// a bitmap; selecting a different target invalidates both previews instead.
+// Each tab page owns its preview bitmap; the manager owns temporary chart
+// files and the render cache. Open as image loads independent pixels. Tab
+// changes retain preview pixels; a changed target or chart key invalidates
+// the affected page, and hidden pages defer rendering until activated.
 class ABLChartPage extends Control { constructor(parent,manager,sky){
    super(parent);this.manager=manager;this.sky=sky;this.object=null;this.objectKey=null;this.bitmap=null;this.loadedPath='';this.updating=false;
    this.tableGroup=null;this.frameError='';
@@ -2659,9 +2697,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.exportButton=ablButton(this,'Export…',()=>this.safe(()=>this.exportFiles()));
    let files=new HorizontalSizer;files.spacing=6;for(let b of [this.openButton,this.importButton,this.saveButton,this.saveAsButton,this.exportButton])files.add(b);files.addStretch();
    this.tabs=new TabBox(this);this.tablePage=new Control(this.tabs);
-   // Filtering changes which objects are visible; sorting changes their order.
-   // Separate native groups make that distinction visible without relying on
-   // tooltips, and keep all membership controls together.
+   // Search, filters and sorting share a collapsible section. Separate group
+   // titles distinguish row visibility from row order; none of these controls
+   // changes the collection or an object's list memberships.
    this.filterSection=new Control(this.tablePage);this.filterColumn=new Control(this.filterSection);
    this.filterBar=new SectionBar(this.tablePage,'Find, filter and sort');ablStableSection(this,this.filterBar,this.filterSection);
    this.filterGroup=ablGroup(this.filterColumn,'Filter objects');this.sortGroup=ablGroup(this.filterSection,'Sort rows');
@@ -2682,7 +2720,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.bandFilter.toolTip='Filter by imaging target band. Unclassified finds objects that need a manual choice in Edit object.';
    this.clearFilters=()=>{this.searchEdit.text='';this.monthFilter.currentItem=0;this.statusFilter.currentItem=0;this.constellationFilter.currentItem=0;this.typeFilter.currentItem=0;this.bandFilter.currentItem=0;};
    this.resetFiltersButton=ablButton(this.filterGroup,'Reset filters',()=>{
-      // Reset view membership only. Keep list choice, row order, export checks
+      // Reset view filters only. Keep list choice, row order, export checks
       // and saved object metadata, including imaging/filter information.
       this.clearFilters();this.refreshTree();
    },'Clear Find, Month, imaging state, Constellation, Object type and Target band. Keep the sort order and checked objects.');
@@ -2845,8 +2883,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    // No is the first/default answer for collection-wide deletion.
    this.confirmObjectDeletion=s=>this.executeDialog(new MessageBox(ABL.html(s),ABL_TITLE,StdIcon.Question,StdButton.No,StdButton.Yes))===StdButton.Yes;
    this.selected=()=>{let n=this.tree.currentNode;return n&&n.record&&n.record.id!==this.clearedSelectionId?ABL.record(n.record.object,this.doc):null;};
-   // Checkboxes define batch actions when present; otherwise preserve the
-   // existing highlighted-row workflow. Hidden checks remain part of the set.
+   // Batch actions prefer checked objects across the whole collection. With
+   // no checks, use highlighted rows. Edit/Delete and single-target previews
+   // instead use selected(), which resolves the current active row.
    this.actionSelectionIds=()=>this.exportIds.size?Array.from(this.exportIds):this.tree.selectedNodes.filter(n=>n.record).map(n=>n.record.id);
    this.transferSelected=mode=>{
       let ids=this.actionSelectionIds();if(!ids.length)return;
@@ -2878,8 +2917,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // Read the constellation only after an obsolete selection has reset.
       populate(this.typeFilter,ABL.filter(all,Object.assign(this.filterOptions(),{objectType:null}),date),'objectType','All object types');
    };
-   // Rebuild only for changes to membership, sorting or filters. The checkbox
-   // callback below keeps native tree items alive throughout their Qt event.
+   // Rebuild rows after data, selection-navigation or view changes. Never call
+   // this from a checkbox callback: Qt still owns the native item during that
+   // event, so check/uncheck handlers update existing rows in place.
    this.refreshTree=(selectId='')=>{
       this.stateRefreshTimer.stop();
       this.selectionUpdateTimer.stop();this.rowClick=null;
@@ -3018,8 +3058,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.monthFilter.onItemSelected=this.statusFilter.onItemSelected=this.constellationFilter.onItemSelected=this.typeFilter.onItemSelected=this.bandFilter.onItemSelected=this.sortSelect.onItemSelected=this.secondarySortSelect.onItemSelected=this.tertiarySortSelect.onItemSelected=()=>this.refreshTree();
    this.chooseSavePath=(name)=>{let d=new SaveFileDialog;d.caption='Save observing lists';d.filters=[['Stellarium observing lists','*.sol'],['Stellarium observing-list collection','*.ol']];d.defaultExtension='sol';d.initialPath=name||'Astro_Bucket_List.sol';d.overwritePrompt=true;return this.executeDialog(d)?d.filePath:'';};
    this.save=(as=false)=>{let choosePath=as||!this.path,target=choosePath?this.chooseSavePath(this.path||'Astro_Bucket_List.sol'):this.path;if(!target)return false;
-      // Save As and first saves already use the native file dialog's prompt.
-      // Saving to the current path needs the same explicit overwrite choice.
+      // Save As and first saves use the native file dialog's overwrite prompt.
+      // Advance the path and clean baseline only after io.write() succeeds;
+      // validation or write errors leave pending edits and the current path.
       if(!choosePath&&File.exists(target)&&!this.confirm('Overwrite the existing collection?\n\n'+target+'\n\nIts previous contents will be kept in '+target+'.bak, replacing the previous backup.'))return false;
       let data=ABL.exportDocument(this.doc);this.io.write(target,data);this.path=target;this.savedSignature=ablCollectionSignature(this.doc);this.dirty=false;this.updateHeader();
       this.rememberCurrentCollection();return true;};
@@ -3101,8 +3142,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.resize(Math.max(this.minWidth,this.logicalPixelsToPhysical(1560)),Math.max(this.minHeight,this.logicalPixelsToPhysical(820)));
 }}
 
-// Process icons store only the user-selected path. Collection contents and
-// unsaved edits remain owned by the SOL document, never by the process icon.
+// Process icons store only the collection path. Running an icon reloads the
+// saved file; it cannot preserve unsaved edits held in the manager's memory.
 function ablStoreInstance(path,parameters=Parameters){
    if(typeof path!=='string'||!path.trim())throw Error('Save the collection before creating a process instance.');
    parameters.clear();parameters.set('collectionPath',path);
