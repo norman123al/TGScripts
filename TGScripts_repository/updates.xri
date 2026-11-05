@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="9aed0e860814d0b6131294cad2a8ef34efe64990" type="script" releaseDate="20261102">
+      <package fileName="TGScripts_repository.tar.gz" sha1="6e0bcc0bbfbb549fc2e112380f1218e3b399312f" type="script" releaseDate="20261105">
          <title>
-            TGScripts snapshot - 2026 Nov 02
+            TGScripts snapshot - 2026 Nov 05
          </title>
          <remove>
             src/scripts/TGScripts
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               Astro Bucket List 0.34.1: Improves internal documentation for collection storage, list memberships, save/read validation, recovery and previews. No functional changes.
+               LRGB Deconvolution Match 1.14.2: Improved dialog resizing, smaller default previews, fixed-width input groups with expanding section headers, and updated tooltips and documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-02T20:04:00.862Z" encoding="Base64">d7Z4/PQJDXkwC/sT1r05WHR8pxenW7Q5uahHcgtNXG+jHjDxDcZklm9FFl2ZXwQ/4RVWvhIaDCenXzq0iEqtDQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-05T22:11:28.994Z" encoding="Base64">rtlljvGdwUT5Ko+34zPYx/H1esSkt2mdDeyWObomWFdUEqOKgnLiswI2bPQXff/LtdavJyKcvtwcQcIMW7pDDw==</Signature>

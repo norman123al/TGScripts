@@ -5,7 +5,7 @@
 #feature-info Prepare registered linear Luminance and RGB images for LRGB composition, including data from different telescope setups and original pixel scales. Compare stellar halos and widths with BlurXTerminator and blink the results.
 #endif
 
-/* LRGB Deconvolution Match 1.13.2 -- PixInsight 1.9.5+, V8.
+/* LRGB Deconvolution Match 1.14.2 -- PixInsight 1.9.5+, V8.
  * Helps prepare linear Luminance and RGB images for LRGB composition when
  * acquired with different telescope setups, potentially at different original
  * pixel scales. Inputs must already be registered to a common pixel grid.
@@ -22,7 +22,7 @@
  * Reviewed results can be created as new windows or applied to both input
  * images with Undo support. Applying results does not save files to disk.
  */
-const LDM_VERSION = '1.13.2';
+const LDM_VERSION = '1.14.2';
 const LDM_SCRIPT_FILE = #__FILE__;
 const LDM_DEFAULT_STARS = 0.5;
 // Supported by the installed BlurXTerminator parameter interface.
@@ -877,6 +877,22 @@ function ldmNumber(parent,label,value,lo,hi,digits) {
    n.setPrecision(digits); n.setValue(value); return n;
 }
 
+// Native wrapped labels can report a one-line minimum. Reserve the actual
+// wrapped height so that shrinking a dialog cannot clip explanatory text.
+function ldmFitLabel(label) {
+   let width=Math.max(1,label.width-8*label.displayPixelRatio),lines=0;
+   let text=label.text.replace(/<br\s*\/?\s*>/gi,'\n').replace(/<[^>]*>/g,'');
+   for(let paragraph of text.split('\n')){
+      let line='';++lines;
+      for(let word of paragraph.split(/\s+/).filter(Boolean)){
+         let next=line?line+' '+word:word;
+         if(line && label.font.width(next)>width){++lines;line=word;}else line=next;
+      }
+   }
+   let height=Math.ceil(lines*label.font.lineSpacing+2*label.displayPixelRatio);
+   if(label.minHeight!==height)label.minHeight=height;
+}
+
 
 
 /** Ordinary least squares of vertical on horizontal FWHM, with a free intercept.
@@ -1089,8 +1105,8 @@ class LDMDialog extends Dialog {
       this.intro=new Label(this); this.intro.wordWrapping=true;
       this.intro.text='Prepare registered linear Luminance and RGB images for LRGB composition, including data from different telescope setups and original pixel scales. '+
          'Deconvolve the reference, then match the other image. Create new linear images or apply the results to the inputs.';
-      const labelWidth=Math.max(this.font.width('Minimum Adjust Star Halos:')+8,Math.round(185*this.displayPixelRatio));
-      const fieldWidth=Math.max(this.font.width('0.000')+24,Math.round(65*this.displayPixelRatio));
+      const labelWidth=this.font.width('Minimum Adjust Star Halos:')+8*this.displayPixelRatio;
+      const fieldWidth=this.font.width('0.000')+24*this.displayPixelRatio;
       let group=(parent,title)=>{
          let g=new GroupBox(parent);g.title=title;
          g.sizer=new VerticalSizer;g.sizer.margin=10;g.sizer.spacing=8;return g;
@@ -1101,10 +1117,15 @@ class LDMDialog extends Dialog {
          n.setFixedWidth(labelWidth+fieldWidth+Math.round(10*this.displayPixelRatio));
          g.sizer.add(n);return n;
       };
-      this.imagesGroup=group(this,'Images');
-      this.referenceGroup=group(this,'Reference deconvolution');
-      this.otherGroup=group(this,'Other image: halo optimization');
-      this.sharedGroup=group(this,'Shared deconvolution');
+      this.imagesGroup=new Control(this);
+      this.imagesGroup.sizer=new VerticalSizer;this.imagesGroup.sizer.margin=6;this.imagesGroup.sizer.spacing=8;
+      this.imagesBar=new SectionBar(this,'Images');this.imagesBar.setSection(this.imagesGroup);
+      this.deconvolutionSection=new Control(this);
+      this.deconvolutionSection.sizer=new VerticalSizer;this.deconvolutionSection.sizer.spacing=8;
+      this.deconvolutionBar=new SectionBar(this,'Deconvolution settings');this.deconvolutionBar.setSection(this.deconvolutionSection);
+      this.referenceGroup=group(this.deconvolutionSection,'Reference deconvolution');
+      this.otherGroup=group(this.deconvolutionSection,'Other image: halo optimization');
+      this.sharedGroup=group(this.deconvolutionSection,'Shared deconvolution');
       this.lList=new ViewList(this.imagesGroup); this.lList.getMainViews(); this.lList.currentView=new View;
       this.rgbList=new ViewList(this.imagesGroup); this.rgbList.getMainViews(); this.rgbList.currentView=new View;
       if(o.l && ldmExists(View.viewById(o.l)))this.lList.currentView=View.viewById(o.l);
@@ -1123,16 +1144,16 @@ class LDMDialog extends Dialog {
       this.referenceHalo.toolTip='Default Adjust Star Halos is 0.00. Your chosen value is applied once to the reference and remains fixed during matching.';
       this.nonstellar=number(this.sharedGroup,'Sharpen Nonstellar:',o.nonstellar,0,1,2);
       this.nonstellar.toolTip='Your chosen value is fixed for both images. Automatic PSF stays enabled. Sharpen Stars is estimated from measured widths; only the other image\'s Adjust Star Halos is optimized.';
-      this.estimateNote=new Label(this.otherGroup);this.estimateNote.wordWrapping=true;
-      this.estimateNote.text='Sharpen Stars is estimated from FWHM and held fixed, without clipping. Outer star profiles drive halo matching.';
-      this.otherGroup.sizer.add(this.estimateNote);
+      this.otherGroup.toolTip='Sharpen Stars is estimated from FWHM and held fixed, without clipping. Outer star profiles drive halo matching.';
       this.haloMin=number(this.otherGroup,'Minimum Adjust Star Halos:',o.haloMin,LDM_MIN_HALO,LDM_MAX_HALO,2);
       this.haloMax=number(this.otherGroup,'Maximum Adjust Star Halos:',o.haloMax,LDM_MIN_HALO,LDM_MAX_HALO,2);
-      this.haloMin.toolTip=this.haloMax.toolTip='Default bounds -0.50 to +0.50 allow the full supported Adjust Star Halos range on the other image. Equal bounds hold its halo setting fixed. The reference uses its own settings.';
+      this.haloMin.toolTip=this.haloMax.toolTip=this.otherGroup.toolTip+'\n\nDefault bounds -0.50 to +0.50 allow the full supported Adjust Star Halos range on the other image. Equal bounds hold its halo setting fixed. The reference uses its own settings.';
 
 
       this.tabs=new TabBox(this);this.referencePage=new Control(this.tabs);this.previewPage=new Control(this.tabs);this.scatterPage=new Control(this.tabs);
-      this.referenceViewer=new ImageView(this.referencePage);this.referenceViewer.setScaledMinSize(700,350);
+      this.referenceViewer=new ImageView(this.referencePage);this.referenceViewer.setScaledMinSize(525,263);
+      this.referenceViewer.statusMessage.wordWrapping=true;
+      this.referenceViewer.scrollbox.setScaledMinSize(80,60);
       this.referenceViewer.setStatusMessage('Select both images, then use this tab\'s magnifier to deconvolve only the reference.');
       this.referenceDisplay=new CheckBox(this.referencePage);this.referenceDisplay.text='Display STF';this.referenceDisplay.checked=o.referenceDisplay;
       this.referenceDisplay.toolTip='Apply the same display transfer, derived from the original reference, to both before/after buffers. No brightness normalization and no change to output pixels.';
@@ -1146,7 +1167,9 @@ class LDMDialog extends Dialog {
       referenceTools.add(this.referenceCalculate);referenceTools.add(this.referenceDisplay);referenceTools.addStretch();referenceTools.add(this.referencePlay);referenceTools.add(this.referenceStep);
       this.referencePage.sizer=new VerticalSizer;this.referencePage.sizer.margin=6;this.referencePage.sizer.spacing=6;
       this.referencePage.sizer.add(this.referenceViewer,100);this.referencePage.sizer.add(referenceTools);
-      this.viewer=new ImageView(this.previewPage); this.viewer.setScaledMinSize(700,350);
+      this.viewer=new ImageView(this.previewPage);this.viewer.setScaledMinSize(525,263);
+      this.viewer.statusMessage.wordWrapping=true;
+      this.viewer.scrollbox.setScaledMinSize(80,60);
       this.viewer.setStatusMessage('Click the magnifier to calculate deconvolved preview copies.');
       this.autoDisplay=new CheckBox(this.previewPage); this.autoDisplay.text='Display STF'; this.autoDisplay.checked=o.autoDisplay;
       this.normalizeDisplay=new CheckBox(this.previewPage); this.normalizeDisplay.text='Align preview brightness'; this.normalizeDisplay.checked=o.normalizeDisplay;
@@ -1159,21 +1182,34 @@ class LDMDialog extends Dialog {
       display.add(this.autoDisplay); display.add(this.normalizeDisplay); display.addStretch(); display.add(this.play); display.add(this.step);
       this.previewPage.sizer=new VerticalSizer; this.previewPage.sizer.margin=6;this.previewPage.sizer.spacing=6;
       this.previewPage.sizer.add(this.viewer,100);this.previewPage.sizer.add(display);
-      this.scatter=new LDMScatter(this.scatterPage);
-      this.matchSummary=new Label(this.scatterPage);this.matchSummary.wordWrapping=true;
+      // The full plot and legend scroll without setting the minimum size of
+      // every tab. Keep their readable canvas independent of the dialog size.
+      this.scatterScroll=new ScrollBox(this.scatterPage);this.scatterScroll.autoScroll=false;
+      this.scatterScroll.horizontalScrollBarVisible=this.scatterScroll.verticalScrollBarVisible=false;
+      this.scatterScroll.setScaledMinSize(80,60);
+      this.scatterContent=new Control(this.scatterScroll.viewport);
+      this.scatter=new LDMScatter(this.scatterContent);
+      this.matchSummary=new Label(this.scatterContent);this.matchSummary.wordWrapping=true;
       this.matchSummary.minHeight=3*this.font.height;
-      this.rSquaredNote=new Label(this.scatterPage);this.rSquaredNote.useRichText=true;this.rSquaredNote.wordWrapping=true;
+      this.rSquaredNote=new Label(this.scatterContent);this.rSquaredNote.useRichText=true;this.rSquaredNote.wordWrapping=true;
       this.rSquaredNote.text='<b>R<sup>2</sup> (coefficient of determination)</b> is the fraction of the variation in y explained by its fitted line. '+
          '1 means a perfect straight-line fit; 0 means no variation explained. A high R<sup>2</sup> does not establish equal star widths or a good LRGB match. '+
          'It is undefined when all y widths are equal.';
       this.rSquaredNote.minHeight=4*this.font.height;
-      this.scatterPage.sizer=new VerticalSizer;this.scatterPage.sizer.margin=6;this.scatterPage.sizer.spacing=6;
-      this.scatterPage.sizer.add(this.scatter,100);this.scatterPage.sizer.add(this.matchSummary);this.scatterPage.sizer.add(this.rSquaredNote);
+      this.scatterContent.sizer=new VerticalSizer;this.scatterContent.sizer.margin=6;this.scatterContent.sizer.spacing=6;
+      this.scatterContent.sizer.add(this.scatter,100);this.scatterContent.sizer.add(this.matchSummary);this.scatterContent.sizer.add(this.rSquaredNote);
+      this.scatterPage.sizer=new VerticalSizer;this.scatterPage.sizer.add(this.scatterScroll,100);
+      this.scatterScroll.viewport.onResize=()=>this.layoutScatter();
+      this.scatterContent.onResize=()=>this.layoutScatter();
+      this.scatterScroll.onHorizontalScrollPosUpdated=()=>this.positionScatter();
+      this.scatterScroll.onVerticalScrollPosUpdated=()=>this.positionScatter();
 
 
       this.tabs.addPage(this.referencePage,'Reference before/after');
       this.tabs.addPage(this.previewPage,'Matched L / RGB');this.tabs.addPage(this.scatterPage,'FWHM comparison');
-      this.reportGroup=group(this,'BlurXTerminator report');
+      this.reportGroup=new Control(this);
+      this.reportGroup.sizer=new VerticalSizer;this.reportGroup.sizer.margin=6;this.reportGroup.sizer.spacing=8;
+      this.reportBar=new SectionBar(this,'BlurXTerminator report');this.reportBar.setSection(this.reportGroup);
       this.reportTable=new TreeBox(this.reportGroup);this.reportTable.numberOfColumns=4;
       this.reportTable.headerVisible=true;this.reportTable.rootDecoration=false;this.reportTable.alternateRowColor=true;
       this.reportTable.setScaledFixedHeight(78);
@@ -1203,9 +1239,11 @@ class LDMDialog extends Dialog {
       actions.add(this.instance);actions.add(this.preview);actions.add(this.reset);actions.addStretch();actions.add(this.create);actions.add(this.applyInputs);actions.add(this.close);actions.add(this.help);
       let deconvolutionRow=new HorizontalSizer;deconvolutionRow.spacing=10;
       deconvolutionRow.add(this.referenceGroup,50);deconvolutionRow.add(this.otherGroup,50);
+      this.deconvolutionSection.sizer.add(deconvolutionRow);this.deconvolutionSection.sizer.add(this.sharedGroup);
       this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;
-      this.sizer.add(this.intro);this.sizer.add(this.imagesGroup);this.sizer.add(deconvolutionRow);this.sizer.add(this.sharedGroup);
-      this.sizer.add(this.tabs,100);this.sizer.add(this.reportGroup);this.sizer.add(this.status);this.sizer.add(actions);
+      this.sizer.add(this.intro);this.sizer.add(this.imagesBar);this.sizer.add(this.imagesGroup);
+      this.sizer.add(this.deconvolutionBar);this.sizer.add(this.deconvolutionSection);
+      this.sizer.add(this.tabs,100);this.sizer.add(this.reportBar);this.sizer.add(this.reportGroup);this.sizer.add(this.status);this.sizer.add(actions);
       this.numeric=[this.referenceStars,this.referenceHalo,this.nonstellar,this.haloMin,this.haloMax];
       for(let n of this.numeric)n.onValueUpdated=()=>this.invalidate();
       this.lList.onViewSelected=this.rgbList.onViewSelected=this.reference.onItemSelected=()=>this.invalidate();
@@ -1217,9 +1255,81 @@ class LDMDialog extends Dialog {
             finally{this.busy(false);}
          }
       };
-      this.tabs.onPageSelected=()=>this.stopBlink();
+      this.tabs.onPageSelected=()=>{this.stopBlink();this.layoutScatter();this.scheduleLayout();};
+      this.wrappedLabels=[this.intro,this.reportNote,this.status,this.matchSummary,this.rSquaredNote,
+         this.referenceViewer.statusMessage,this.viewer.statusMessage];
+      // Reflow after the native resize event has finished. Resizing a contained
+      // dialog inside that event can leave its outer frame at the previous size.
+      this.layoutTimer=new Timer(0.025,false,this);
+      this.layoutTimer.onTimeout=()=>this.layoutText();
+      for(let label of this.wrappedLabels)label.onResize=()=>this.scheduleLayout();
+      for(let viewer of [this.referenceViewer,this.viewer]){
+         viewer.sizer.setStretchFactor(viewer.scroll_Sizer,100);
+         viewer.coords_Control.minHeight=viewer.font.lineSpacing+8*viewer.displayPixelRatio;
+      }
+      for(let bar of [this.imagesBar,this.deconvolutionBar,this.reportBar])bar.toggleSection=()=>{
+         if(this.running)return;
+         let width=this.width,height=this.height;
+         bar.section.visible=!bar.section.visible;bar.updateIcon();
+         this.ensureLayoutUpdated();this.resize(Math.max(width,this.smartMinWidth),Math.max(height,this.smartMinHeight));
+      };
+      this.onShow=()=>{this.layoutText();this.layoutScatter();};
+      this.onResize=()=>this.scheduleLayout();
       this.onClose=()=>{if(this.running)return false;this.stopBlink();return true;};
-      this.updateMeasurements();this.updateButtons();this.adjustToContents();
+      this.updateMeasurements();this.updateButtons();this.ensureLayoutUpdated();this.adjustToContents();
+      // Preferred startup dimensions are not permanent minimum dimensions.
+      // Thereafter the native layout enforces only the space needed by controls.
+      this.compactSizingReady=true;
+      this.referenceViewer.setMinSize(0,0);this.viewer.setMinSize(0,0);
+      this.setVariableSize();this.layoutText();this.ensureLayoutUpdated();
+      let scale=this.displayPixelRatio,canvas=this.referenceViewer.scrollbox;
+      this.resize(Math.max(this.smartMinWidth,this.width+Math.round(525*scale)-canvas.width),
+         Math.max(this.smartMinHeight,this.height+Math.round(263*scale)-canvas.height));
+      this.ensureLayoutUpdated();
+      // Keep input contents at their initial width, with extra room on their
+      // right. Section bars, previews and report follow the dialog width.
+      let settingsWidth=Math.max(this.imagesGroup.width,this.deconvolutionSection.width);
+      for(let control of [this.imagesGroup,this.deconvolutionSection]){
+         control.setFixedWidth(settingsWidth);this.sizer.setAlignment(control,Alignment.Left);
+      }
+      this.ensureLayoutUpdated();
+   }
+   scheduleLayout(){if(this.layoutTimer && !this.layingOutText)this.layoutTimer.start();}
+   layoutText(){
+      if(!this.wrappedLabels || this.layingOutText)return;this.layingOutText=true;
+      try{
+         for(let label of this.wrappedLabels)if(label.width>0)ldmFitLabel(label);
+         for(let viewer of [this.referenceViewer,this.viewer]){
+            let s=viewer.displayPixelRatio;
+            viewer.toolBar_Control.minHeight=8*s+Math.max(24*s,viewer.statusMessage.minHeight);
+            viewer.minHeight=Math.max(this.compactSizingReady?0:263*s,
+               viewer.toolBar_Control.minHeight+68*s+viewer.coords_Control.minHeight);
+         }
+         // Wrapping can increase the required height during a corner drag.
+         // Apply that new minimum before the bottom action row can be clipped.
+         this.ensureLayoutUpdated();
+         let pages=[this.referencePage,this.previewPage,this.scatterPage],page=pages[this.tabs.currentPageIndex];
+         if(page.width>0 && page.height>0){
+            this.tabs.minWidth=Math.max(...pages.map(p=>p.smartMinWidth))+this.tabs.width-page.width;
+            this.tabs.minHeight=Math.max(...pages.map(p=>p.smartMinHeight))+this.tabs.height-page.height;
+            this.ensureLayoutUpdated();
+         }
+         if(this.compactSizingReady)
+            this.resize(Math.max(this.width,this.smartMinWidth),Math.max(this.height,this.smartMinHeight));
+      }finally{this.layingOutText=false;}
+   }
+   positionScatter(){this.scatterContent.move(-this.scatterScroll.horizontalScrollPosition,-this.scatterScroll.verticalScrollPosition);}
+   layoutScatter(){
+      if(!this.scatterContent?.sizer || this.layingOutScatter)return;this.layingOutScatter=true;
+      try{
+         let scroll=this.scatterScroll,view=scroll.viewport;this.scatterContent.ensureLayoutUpdated();
+         let minWidth=this.scatterContent.smartMinWidth,minHeight=this.scatterContent.smartMinHeight;
+         for(let pass=0;pass<2;++pass){scroll.horizontalScrollBarVisible=minWidth>view.width;scroll.verticalScrollBarVisible=minHeight>view.height;}
+         let width=Math.max(view.width,minWidth),height=Math.max(view.height,minHeight);
+         scroll.pageWidth=view.width;scroll.pageHeight=view.height;scroll.lineWidth=scroll.lineHeight=3*this.font.height;
+         scroll.setHorizontalScrollRange(0,Math.max(0,width-view.width));scroll.setVerticalScrollRange(0,Math.max(0,height-view.height));
+         this.scatterContent.resize(width,height);this.positionScatter();
+      }finally{this.layingOutScatter=false;}
    }
    options() {
       let o=ldmDefaults();o.l=ldmExists(this.lList.currentView)?this.lList.currentView.id:'';
@@ -1243,6 +1353,7 @@ class LDMDialog extends Dialog {
       let a=this.analysis,name=a.referenceKey==='l'?a.sourceL:a.sourceRGB+' (extracted luminance)';
       this.referenceViewer.setStatusMessage(name+(index===0?' | BEFORE BXT':' | AFTER initial BXT')+
          (this.referenceDisplay.checked?' | shared display STF':' | linear display'));
+      this.layoutText();
    }
    clearReferenceFrames() {
       this.stopBlink();this.referenceViewer.clear();
@@ -1260,6 +1371,7 @@ class LDMDialog extends Dialog {
       let reference=this.analysis && (index===0?'l':'rgb')===this.analysis.referenceKey;
       this.viewer.setStatusMessage((index===0?'Deconvolved L':'Extracted luminance of deconvolved RGB')+(reference?' [fixed reference]':' [other image]')+
          (this.autoDisplay.checked?' | shared display STF':' | linear display')+(this.normalizeDisplay.checked?' | preview brightness aligned':''));
+      this.layoutText();
    }
    clearFrames() {
       this.stopBlink();this.viewer.clear();
@@ -1271,12 +1383,13 @@ class LDMDialog extends Dialog {
       this.updateMeasurements();
       this.viewer.setStatusMessage('Click the magnifier to calculate a fresh preview.');
       this.referenceViewer.setStatusMessage('Use this tab\'s magnifier to calculate the reference before/after preview.');
-      this.status.text='Ready to calculate.';this.updateButtons();
+      this.status.text='Ready to calculate.';this.updateButtons();this.scheduleLayout();
    }
    busy(value) {
       this.running=value;
-      for(let c of [...this.numeric,this.lList,this.rgbList,this.reference,this.tabs,this.instance,this.preview,this.referenceCalculate,this.reset,this.create,this.applyInputs,this.close,this.help])c.enabled=!value;
+      for(let c of [...this.numeric,this.lList,this.rgbList,this.reference,this.imagesBar,this.deconvolutionBar,this.reportBar,this.tabs,this.instance,this.preview,this.referenceCalculate,this.reset,this.create,this.applyInputs,this.close,this.help])c.enabled=!value;
       this.updateButtons();
+      this.scheduleLayout();
    }
    calculateReference() {
       if(this.running)return;this.invalidate();this.busy(true);console.show();
@@ -1296,6 +1409,7 @@ class LDMDialog extends Dialog {
          for(let i=0;i<row.cells.length;++i){node.setText(i,row.cells[i]);node.setToolTip(i,row.cells[i]);}
       }
       this.reportNote.text=report.lines.join('\n');
+      this.layoutText();
    }
    showReferenceSettings(){this.updateReport();}
    calculate() {
@@ -1321,7 +1435,7 @@ class LDMDialog extends Dialog {
       } finally {console.abortEnabled=abort;this.busy(false);}
    }
    updateMeasurements() {
-      let a=this.analysis;this.scatter.setAnalysis(a);this.updateReport();
+      let a=this.analysis;this.scatter.setAnalysis(a);this.updateReport();this.scheduleLayout();
       if(!a || !a.final){
          this.matchSummary.text=a?'Match the other image to add its measurements and the final comparison.':'Calculate the reference preview to measure star widths.';
          return;
@@ -1365,9 +1479,9 @@ class LDMDialog extends Dialog {
       for(let k of ['referenceStars','referenceHalo','nonstellar','haloMin','haloMax'])this[k].setValue(o[k]);
       for(let k of ['autoDisplay','normalizeDisplay','referenceDisplay'])this[k].checked=o[k];this.reference.currentItem=0;
       this.lList.currentView=new View;this.rgbList.currentView=new View;
-      this.adjustToContents();
+      this.ensureLayoutUpdated();
    }
-   dispose() {this.clearFrames();this.clearReferenceFrames();if(this.analysis)this.analysis.dispose();this.analysis=null;}
+   dispose() {this.layoutTimer.stop();this.clearFrames();this.clearReferenceFrames();if(this.analysis)this.analysis.dispose();this.analysis=null;}
 }
 
 function ldmMain() {
