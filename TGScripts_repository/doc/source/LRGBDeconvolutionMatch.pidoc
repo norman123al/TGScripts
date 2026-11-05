@@ -14,7 +14,7 @@ After reviewing the results, choose either to create new linear image windows or
 \section{Opening the script}{
 With the script installed in the TGScripts folder through the standard PixInsight script installation, choose Script > TG Scripts > LRGB Deconvolution Match. Click the document symbol at the bottom right to open this manual.
 
-Version 1.14.2 requires PixInsight 1.9.5 or later and an installed, licensed BlurXTerminator with its AI model. Open a grayscale luminance image and a three-channel RGB image before starting.
+Version 1.14.3 requires PixInsight 1.9.5 or later and an installed, licensed BlurXTerminator with its AI model. Open a grayscale luminance image and a three-channel RGB image before starting.
 
 If BlurXTerminator is unavailable, the script shows an explanatory message and closes without changing any images.
 
@@ -22,7 +22,7 @@ The Images, Deconvolution settings and BlurXTerminator report sections can be co
 
 Drag the triangle at the bottom-right corner to resize the dialog. The image previews start with a compact preferred size and can shrink further; the minimum dialog size is determined by the visible controls. Collapse sections to allow a smaller window. Section toggles preserve your chosen window size when the controls fit, and expanding a section enlarges the window only when necessary to avoid overlap. In a small window, use the scroll bars in FWHM comparison to reach the complete plot, legend and explanatory text.
 
-The contents of Images and Deconvolution settings retain their initial width and stay aligned to the left when the dialog is widened. Additional space appears to their right. The collapsible section headers, previews and report expand with the window. Hover over the Other image group or either halo limit field for an explanation of its estimated sharpening and halo matching.
+The contents of Images and Deconvolution settings retain their initial width and stay aligned to the left when the dialog is widened. Additional space appears to their right. The collapsible section headers, previews and report expand with the window. The FWHM comparison scroll bars adapt to the space needed by the plot and wrapped text as the window is resized. Hover over the Other image group or either halo limit field for an explanation of its estimated sharpening and halo matching.
 }
 
 \section{Preparing the input images}{

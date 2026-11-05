@@ -5,7 +5,7 @@
 #feature-info Prepare registered linear Luminance and RGB images for LRGB composition, including data from different telescope setups and original pixel scales. Compare stellar halos and widths with BlurXTerminator and blink the results.
 #endif
 
-/* LRGB Deconvolution Match 1.14.2 -- PixInsight 1.9.5+, V8.
+/* LRGB Deconvolution Match 1.14.3 -- PixInsight 1.9.5+, V8.
  * Helps prepare linear Luminance and RGB images for LRGB composition when
  * acquired with different telescope setups, potentially at different original
  * pixel scales. Inputs must already be registered to a common pixel grid.
@@ -22,7 +22,7 @@
  * Reviewed results can be created as new windows or applied to both input
  * images with Undo support. Applying results does not save files to disk.
  */
-const LDM_VERSION = '1.14.2';
+const LDM_VERSION = '1.14.3';
 const LDM_SCRIPT_FILE = #__FILE__;
 const LDM_DEFAULT_STARS = 0.5;
 // Supported by the installed BlurXTerminator parameter interface.
@@ -1316,6 +1316,9 @@ class LDMDialog extends Dialog {
          }
          if(this.compactSizingReady)
             this.resize(Math.max(this.width,this.smartMinWidth),Math.max(this.height,this.smartMinHeight));
+         // Reflow changes the plot content's minimum height even when the
+         // viewport does not resize. Refresh ranges and clamp scroll positions.
+         this.layoutScatter();
       }finally{this.layingOutText=false;}
    }
    positionScatter(){this.scatterContent.move(-this.scatterScroll.horizontalScrollPosition,-this.scatterScroll.verticalScrollPosition);}

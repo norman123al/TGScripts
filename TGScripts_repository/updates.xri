@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="6e0bcc0bbfbb549fc2e112380f1218e3b399312f" type="script" releaseDate="20261105">
+      <package fileName="TGScripts_repository.tar.gz" sha1="23aa6acc632b3326236eb42d724935b8d50ae59c" type="script" releaseDate="20261105">
          <title>
             TGScripts snapshot - 2026 Nov 05
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               LRGB Deconvolution Match 1.14.2: Improved dialog resizing, smaller default previews, fixed-width input groups with expanding section headers, and updated tooltips and documentation.
+               LRGB Deconvolution Match 1.14.3: Fixed FWHM comparison scrolling when resizing the dialog and updated the documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-05T22:11:28.994Z" encoding="Base64">rtlljvGdwUT5Ko+34zPYx/H1esSkt2mdDeyWObomWFdUEqOKgnLiswI2bPQXff/LtdavJyKcvtwcQcIMW7pDDw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-05T22:43:10.090Z" encoding="Base64">A6tKvso0jXz9w/5U1K3yVM86otZI4ukQRHel7W17IwhYPn37XPiv0NzB8yXE1au3PiIkLAg09ejhzMKQRu3aBQ==</Signature>
