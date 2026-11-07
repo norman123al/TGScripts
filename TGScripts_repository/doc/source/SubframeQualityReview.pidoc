@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.13.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.14.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -151,6 +151,8 @@ Cloud extinction uses ImageAnalysis to estimate stellar dimming beyond the norma
 The calculation is Cloud extinction = Relative extinction − (a + k × airmass). ImageAnalysis fits the atmospheric baseline robustly within each filter group, reducing the influence of unusually dim frames. Values near zero indicate little additional dimming. Positive residuals can indicate clouds, haze, or dew. Negative residuals are retained; they can occur through scatter around the fitted baseline. This is a relative estimate, not an absolute measurement of cloud cover.
 
 At least five comparable subframes with usable stellar measurements, valid exposure times, and known airmass are required. Airmass is derived from each frame's observation time, target coordinates, and observing location; recorded target altitude can provide a fallback. The manually chosen target altitude for FWHM grading is not used. If the group's airmass range is below 0.05, ImageAnalysis fits only a constant baseline.
+
+Observation times can be stored as complete timestamps or as separate date and time fields. Both standard FITS names (DATE-OBS, TIME-OBS, DATE-END, TIME-END) and their unhyphenated aliases are supported. Valid XISF observation times take priority, followed by standard FITS names and then aliases. Times without an explicit offset are interpreted as UTC; explicit offsets are converted to UTC. Incomplete or invalid timestamps are treated as unavailable, so a date alone cannot be mistaken for a midnight exposure.
 
 Use the magnifier or Measure corners button to obtain the measurement. Hover over its Review cell to see the calculated airmass and altitude, or why the measurement is unavailable. The plot information button explains the calculation and the group's available measurements. An undefined value appears as a dash, not zero.
 

@@ -26,7 +26,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.45.13 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.45.14 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -50,7 +50,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.45.13';
+const SQR_VERSION='0.45.14';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -652,10 +652,33 @@ function sqrWalk(root,exclude=[]){
 function sqrUnquote(v){let s=String(v||'').trim();return (s.startsWith("'")&&s.endsWith("'")?s.slice(1,-1).replace(/''/g,"'"):s).trim();}
 // Only observation geometry/time is carried into measurement crops. Inherited
 // noise, signal, normalization and WCS image transforms must not be copied.
-const SQR_OBSERVATION_KEYS=['DATE-OBS','DATE-END','TIME-OBS','TIME-END','RA','DEC','OBJCTRA','OBJCTDEC',
+const SQR_OBSERVATION_KEYS=['DATE-OBS','DATEOBS','DATE-END','DATEEND','TIME-OBS','TIMEOBS','TIME-END','TIMEEND','RA','DEC','OBJCTRA','OBJCTDEC',
    'OBSGEO-L','OBSGEO-B','OBSGEO-H','LONG-OBS','LAT-OBS','SITELONG','SITELAT','OBJCTALT','OBJCTAZ'];
 const SQR_OBSERVATION_PROPERTIES=['Observation:Time:Start','Observation:Time:End','Observation:Center:RA',
    'Observation:Center:Dec','Observation:Location:Longitude','Observation:Location:Latitude','Observation:Location:Elevation'];
+/** Return a complete UTC observation timestamp, or null when time is unknown.
+ * ImageAnalysis ignores separate TIME-OBS/TIME-END keywords. Join them before
+ * writing crops; never let a date-only value silently become midnight. Preserve
+ * the fractional seconds verbatim, including precision finer than Date's ms. */
+function sqrObservationTimestamp(dateValue,timeValue=''){
+   let stamp=dateValue instanceof Date?(Number.isFinite(dateValue.getTime())?dateValue.toISOString():''):sqrUnquote(dateValue);
+   if(/^\d{4}-\d{2}-\d{2}$/.test(stamp))stamp+='T'+sqrUnquote(timeValue);
+   let m=stamp.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i);
+   if(!m)return null;
+   let [year,month,day,hour,minute]=m.slice(1,6).map(Number),second=Number(m[6]||0);
+   if(month<1||month>12||day<1||day>31||hour>23||minute>59||second>59)return null;
+   let base=Date.parse(m[1]+'-'+m[2]+'-'+m[3]+'T'+m[4]+':'+m[5]+':'+(m[6]||'00')+'Z'),calendar=new Date(base);
+   if(!Number.isFinite(base)||calendar.getUTCFullYear()!==year||calendar.getUTCMonth()!==month-1||calendar.getUTCDate()!==day)return null;
+   let zone=m[8]||'Z',offset=0;
+   if(zone.toUpperCase()!=='Z'){
+      let parts=zone.slice(1).replace(':',''),hours=Number(parts.slice(0,2)),minutes=Number(parts.slice(2));
+      if(hours>23||minutes>59)return null;
+      offset=(hours*60+minutes)*(zone[0]==='-'?-1:1);
+   }
+   let utc=new Date(base-offset*60000);
+   if(utc.getUTCFullYear()<0||utc.getUTCFullYear()>9999)return null;
+   return utc.toISOString().slice(0,19)+(m[7]||'')+'Z';
+}
 /** Retain scalar observation metadata, preserving FITS angle conventions.
  * TimePoint properties become UTC FITS dates so worker payloads contain only
  * plain values. Native ImageAnalysis derives altitude and airmass; never use the
@@ -666,11 +689,15 @@ function sqrObservationMetadata(metadata){
       String(value).trim():"'"+String(value).replace(/'/g,"''")+"'";
    for(let name of SQR_OBSERVATION_KEYS)if(k[name]!==undefined&&String(k[name]).trim()!=='')keywords.set(name,[name,literal(k[name]),'']);
    for(let item of metadata?.observationKeywords||[])if(SQR_OBSERVATION_KEYS.includes(item[0]))keywords.set(item[0],item);
-   for(let id of SQR_OBSERVATION_PROPERTIES){let value=p[id];
-      if(id.startsWith('Observation:Time:')){
-         if(typeof value==='string'&&/^\d{4}-\d\d-\d\d[T ]\d\d:\d\d/.test(value)){
-            let name=id.endsWith(':Start')?'DATE-OBS':'DATE-END';keywords.set(name,[name,literal(value),'UTC observation time']);}
-      }else if(Number.isFinite(value))properties.push([id,value]);
+   for(let id of SQR_OBSERVATION_PROPERTIES)if(!id.startsWith('Observation:Time:')&&Number.isFinite(p[id]))properties.push([id,p[id]]);
+   for(let [suffix,property] of [['OBS','Start'],['END','End']]){
+      let names=['DATE-'+suffix,'DATE'+suffix,'TIME-'+suffix,'TIME'+suffix],value=name=>sqrUnquote(keywords.get(name)?.[1]);
+      // Valid XISF properties retain priority. Canonical FITS names win over
+      // non-hyphenated aliases, and raw keyword literals retain their priority.
+      let stamp=sqrObservationTimestamp(p['Observation:Time:'+property])||
+         sqrObservationTimestamp(value(names[0])||value(names[1]),value(names[2])||value(names[3]));
+      for(let name of names)keywords.delete(name);
+      if(stamp)keywords.set(names[0],[names[0],literal(stamp),'UTC observation time']);
    }
    // A celestial WCS reference is a valid fallback for target coordinates, but
    // its pixel transforms would be wrong after cropping and are not transferred.
