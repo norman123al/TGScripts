@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.44.0.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.13.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -32,11 +32,13 @@ Measurements and pending rejection decisions remain in memory while the dialog i
 }
 
 \section{Input files and observing conditions}{
-Drag a window edge or corner to adjust its height and width. The initial size fits the available screen. If the controls do not fit, use the outer scrollbars to reach them; the action buttons remain visible at the bottom.
+Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. Autofocus times remains aligned with the right edge of the path text fields. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. A prompt beside Scan files appears when scanning is needed. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.
+
+The Filter / group label aligns with the folder labels, with its selector immediately beside it. The SQM time Choose button shares the right edge of Autofocus times and the path text fields. In Guiding, the threshold message sits directly below Weight, aligned with the text of Guiding in Score.
 
 Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size; collapsing a section reduces scrolling or gives the active tab more room. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.
 
-Telescope aperture is at the bottom of this section, aligned with the folder controls. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.
+Telescope aperture is at the bottom of this section, aligned with the folder controls. The aperture, seeing, Session SQM, and reading time have evenly spaced control groups; the reading time moves to a second row only when the controls no longer fit together. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.
 
 Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcseconds at the zenith and a reference wavelength of 550 nm. A positive value enables grading relative to the expected FWHM for those conditions. Leave it at zero to use the fixed Good and Medium seeing limits. A forecast is an estimate, not a measurement of the actual conditions; check its reference conditions before entering it. If it already includes the target altitude correction, convert it to zenith seeing first.
 
@@ -74,7 +76,7 @@ The green Move checkmark and blue Undo arrow also require a Rejected originals f
 \section{Quality evaluation controls}{
 Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.
 
-The first column separates Measurements and review from Score selection. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Score selection contains the three checkboxes that determine the active Score. Its bold Current Score label identifies the selected R1, R2, R3, or R4 method. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is also reported in the bottom message area.
+The first column separates Measurements and review from Score selection. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Score selection contains the three checkboxes that determine the active Score, with the bold Current Score message to their right identifying the selected R1, R2, R3, or R4 method. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is also reported in the bottom message area.
 
 With the R3 and R4 options off, manual scoring uses R1 for field-only evaluation or R2 when corner measurements are included. The strongly correlated KPI option selects R3; the rank-of-ranks option selects R4. These two options are alternatives. The corner checkbox determines whether available corner measurements participate in the selected method.
 
@@ -141,6 +143,18 @@ For the master, this is the effective stellar throughput of the integrated image
 The reference is independent of Score, the current sort order, rejection flags, and whether corner scoring is enabled. Choose Transparency in the Sky KPI selector to use it in scoring. Higher values are better. Sky brightness and combined Sky quality then remain comparison indicators and do not enter scoring separately.
 
 Clouds can reduce transparency, but changing target altitude, focus, and image brightness normalization can also change the result. Compare calibrated, aligned subframes before brightness normalization; a low value alone does not establish the cause. The measurement is reused when adding corners or changing scoring settings.
+}
+
+\section{Cloud extinction}{
+Cloud extinction uses ImageAnalysis to estimate stellar dimming beyond the normal change with airmass. It is reported in magnitudes in the Review table, in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. Lower values indicate less additional dimming. It is a comparison indicator and does not enter Score or R1–R4.
+
+The calculation is Cloud extinction = Relative extinction − (a + k × airmass). ImageAnalysis fits the atmospheric baseline robustly within each filter group, reducing the influence of unusually dim frames. Values near zero indicate little additional dimming. Positive residuals can indicate clouds, haze, or dew. Negative residuals are retained; they can occur through scatter around the fitted baseline. This is a relative estimate, not an absolute measurement of cloud cover.
+
+At least five comparable subframes with usable stellar measurements, valid exposure times, and known airmass are required. Airmass is derived from each frame's observation time, target coordinates, and observing location; recorded target altitude can provide a fallback. The manually chosen target altitude for FWHM grading is not used. If the group's airmass range is below 0.05, ImageAnalysis fits only a constant baseline.
+
+Use the magnifier or Measure corners button to obtain the measurement. Hover over its Review cell to see the calculated airmass and altitude, or why the measurement is unavailable. The plot information button explains the calculation and the group's available measurements. An undefined value appears as a dash, not zero.
+
+Integrated masters are not applicable and are omitted from this indicator's plots. Adding corners and changing scoring settings reuse the field measurement.
 }
 
 \section{Sky quality}{
@@ -235,9 +249,11 @@ Manual weights remain editable in rank-of-ranks mode because they determine R1 a
 }
 
 \section{Review and measurements}{
-Below the table, Reading the table explains R1–R4, the score direction, Below-mean Quality, and the missing-data symbols. Selected image shows a subframe's keep or reject decision, REVIEW status, Score, and main issue. For the master, it identifies its exclusion from scoring and ranking. Its compact measurement table aligns FWHM, eccentricity, and star count across the field, center, and four corners.
+Above the table, Sort and filter places the sort criterion and order on one row, with the REVIEW filter below. Beside it, Reading the table shows the rank descriptions on the left and the score direction, Below-mean Quality, and missing-data symbols on the right. Both halves use matching rows with aligned labels and descriptions. Both groups keep fixed widths fitted to the minimum window width, and the guide's explanations remain on single lines as the window is resized. Below the table, Selected image shows a subframe's keep or reject decision, REVIEW status, Score, and main issue. For the master, it identifies its exclusion from scoring and ranking. Its compact measurement table aligns FWHM, eccentricity, and star count across the field, center, and four corners.
 
-Click the Review information bar to collapse or expand both panels together. Collapsing them reduces scrolling or gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.
+The bottom message area includes the visible and total subframe counts, the number of REVIEW candidates, and whether the master is included or hidden by the filter. These messages update when the selected group or REVIEW filter changes.
+
+Click the Review information bar to collapse or expand Reading the table and Selected image together. Sort and filter remains available. Collapsing the information panels reduces scrolling or gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.
 
 Hover over the selected-image assessment for the full explanation, or over its measurements for unavailable-region details. The filename is shown separately; hover over it for the full original or moved-file path and the registered-image path. Selecting another image updates these details without changing the window size.
 
