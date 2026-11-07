@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.42.3.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.43.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -12,7 +12,7 @@ The script supports monochrome images and registered, debayered OSC images from 
 }
 
 \section{Start and complete a review}{
-With TGScripts installed through the standard PixInsight script installation, choose Script > TG Scripts > Subframe Quality Review. The script requires PixInsight 1.9.5 or later. Use the documentation button at the lower right to reopen this guide.
+With TGScripts installed through the standard PixInsight script installation, choose Script > TG Scripts > Subframe Quality Review. The script requires PixInsight 1.9.6 or later with the ImageAnalysis process installed. Use the documentation button at the lower right to reopen this guide.
 
 \list[ordered,spaced]{
    {Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.}
@@ -102,7 +102,7 @@ If regional measurements are already available, their quality plots remain avail
 }
 
 \section{What is measured}{
-The script calls PixInsight's SubframeSelector process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels with one decimal place.
+The script calls PixInsight's ImageAnalysis process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels with one decimal place.
 
 Measurements are performed on temporary, floating-point image crops. This allows signal and noise information to be evaluated for the measured region without reusing inherited WBPP noise metadata. Source images are opened for reading; their pixels and metadata are not changed.
 

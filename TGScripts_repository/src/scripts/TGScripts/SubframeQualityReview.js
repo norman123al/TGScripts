@@ -26,10 +26,10 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.42.3 -- PixInsight 1.9.5+, V8.
+/* Subframe Quality Review 0.43.0 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
- * Uses native SubframeSelector measurements, including independent regional fits.
+ * Uses native ImageAnalysis measurements, including independent regional fits.
  */
 /*
  * Workflow and data ownership
@@ -50,7 +50,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.42.3';
+const SQR_VERSION='0.43.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -1132,8 +1132,8 @@ const SQR_ECCENTRICITY_DEFINITION='Eccentricity: 0 = round; closer to 1 = elonga
 function sqrEccentricityCategory(value){return value<=SQR_ECCENTRICITY_LIMITS.good?'Good':value<=SQR_ECCENTRICITY_LIMITS.medium?'Medium':'Bad';}
 const SQR_KPIS=[
    {label:'Score',key:'score',noMaster:true,direction:'Higher is better (0–1)',definition:'For manual or strongly correlated KPI scoring: Score = 1 − weighted mean penalty / 10. For rank-of-ranks scoring: Score is the mean of the available normalized R1, R2 and R3 ranks. Only subframes receive scores and ranks; the integrated master is excluded.'},
-   {label:'PSF signal weight',metric:'signal',region:0,direction:'Higher is better',definition:'The PSF signal weight measured by SubframeSelector in the usable field. Score compares this measurement with the other supported images in the same group.'},
-   {label:'Star count',metric:'stars',region:0,integer:true,direction:'Higher is better',definition:'Number of detected stars reported by SubframeSelector for the usable field. Comparisons use the other supported images in the same group.'},
+   {label:'PSF signal weight',metric:'signal',region:0,direction:'Higher is better',definition:'The PSF signal weight measured by ImageAnalysis in the usable field. Score compares this measurement with the other supported images in the same group.'},
+   {label:'Star count',metric:'stars',region:0,integer:true,direction:'Higher is better',definition:'Number of detected stars reported by ImageAnalysis for the usable field. Comparisons use the other supported images in the same group.'},
    {label:'Field FWHM (px)',metric:'fwhm',region:0,direction:'Lower is better'},
    {label:'Corner quality',key:'cornerSeverity',corners:true,direction:'Lower is better',definition:'Corner quality is the worst penalty for star size, corner-to-center size ratio, or elongation across the four corners. Missing measurements are assessed separately.'},
    {label:'Field eccentricity',metric:'eccentricity',region:0,direction:'Lower is rounder',definition:SQR_ECCENTRICITY_DEFINITION},
@@ -1618,12 +1618,18 @@ function sqrRegions(roi,patch){let [x0,y0,x1,y1]=roi,w=x1-x0,h=y1-y0,pw=Math.rou
 // Field scoring requires valid signal and PSF support. Regional shape checks
 // can remain useful when a small crop has no independent signal/noise estimate.
 function sqrMetricValid(m,minStars,requireSignal){return Number.isFinite(m.fwhm)&&m.fwhm>0&&m.stars>=minStars&&(!requireSignal||(Number.isFinite(m.signal)&&m.signal>0&&m.psfCount>=minStars));}
-/** Decode native SubframeSelector measurement columns into named properties.
- * Column indices belong to the PJSR process schema, not the review table.
+/** Decode native ImageAnalysis measurement columns into the existing metrics.
+ * Use process-provided column constants; the schema differs from older engines.
+ * FWHMpx preserves pixel units regardless of image scale metadata.
  * Missing or insufficient results remain explicit invalid metrics for REVIEW. */
 function sqrMeasurement(row,minStars,requireSignal=true){
-   if(!row||row.length<26)return {valid:false,error:'No measurement returned'};
-   let m={fwhm:row[5],eccentricity:row[6],signal:row[7],stars:row[14],psfCount:row[25]};
+   const C=ImageAnalysis;
+   if(!row||row.length<=Math.max(C.measurements_measurementFWHMpx,C.measurements_measurementEccentricity,
+      C.measurements_measurementPSFSignalWeight,C.measurements_measurementStars,C.measurements_measurementPSFCount))
+      return {valid:false,error:'No measurement returned'};
+   let m={fwhm:row[C.measurements_measurementFWHMpx],eccentricity:row[C.measurements_measurementEccentricity],
+      signal:row[C.measurements_measurementPSFSignalWeight],stars:row[C.measurements_measurementStars],
+      psfCount:row[C.measurements_measurementPSFCount]};
    m.valid=sqrMetricValid(m,minStars,requireSignal);
    if(!m.valid)m.error='Insufficient valid PSF measurements';return m;
 }
@@ -1838,7 +1844,7 @@ function sqrMeasurementPlan(jobs){
       return {batchSize:workers,overload:Math.max(1,Math.min(8,Math.floor(100*workers/processors)/100)),fileThreads:workers>1};
    }catch(e){return unchanged;}
 }
-/** Measure every submitted job with native SubframeSelector. Each job
+/** Measure every submitted job with native ImageAnalysis. Each job
  * identifies a temporary path and its destination row/region. Disable the file
  * cache because temporary crop paths must not reuse another image's metrics.
  * Bound corner batches so extra workers cannot multiply memory use without limit. */
@@ -1847,16 +1853,20 @@ function sqrMeasureBatch(jobs,o){
    for(let first=0;first<jobs.length;first+=plan.batchSize){
       if(console.abortRequested)throw new Error('Operation aborted.');
       let batch=jobs.slice(first,first+plan.batchSize);
-      let p=new SubframeSelector;p.routine=SubframeSelector.MeasureSubframes;p.nonInteractive=true;p.fileCache=false;
-      p.subframeScale=1;p.noNoiseAndSignalWarnings=true;p.maxPSFFits=o.maxFits;p.psfFit=SubframeSelector.Moffat4;
+      let p=new ImageAnalysis;p.task=ImageAnalysis.Task_Measure;p.fileCache=false;
+      // Extended gradients, banding and trails are not part of the current KPIs.
+      // Keep the same elliptical Moffat-4 model and fit limit as before.
+      p.extendedMeasurements=false;p.maxPSFFits=o.maxFits;p.psfFit=ImageAnalysis.PSF_Moffat4;
       p.useFileThreads=plan.fileThreads;p.fileThreadOverload=plan.overload;
-      p.psfFitCircular=false;p.onError=SubframeSelector.Continue;
-      p.subframes=batch.map(j=>[true,j.path,'','']);
+      p.psfFitCircular=false;p.onError=ImageAnalysis.OnError_Continue;
+      // Scoring and rejection remain owned by this script, not process expressions.
+      p.approvalExpression='';p.weightingExpression='';
+      p.frames=batch.map(j=>[true,j.path,'','']);
       let ok=p.executeGlobal();
       if(console.abortRequested)throw new Error('Operation aborted.');
       // Parallel processing and failed files can change output order and length.
-      // Match the returned file path (column 3), never the result's row position.
-      let results=new Map;for(let m of p.measurements)results.set(sqrKey(m[3]),m);
+      // Match the returned file path, never the result's row position.
+      let results=new Map;for(let m of p.measurements)results.set(sqrKey(m[ImageAnalysis.measurements_measurementPath]),m);
       for(let j of batch){let m=results.get(sqrKey(j.path));
          j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
             {valid:false,error:ok?'No measurement returned':'Measurement failed'};}
@@ -2170,8 +2180,8 @@ function sqrRegionMeasurementReason(row,region,minStars){
    let m=row.metrics[region];
    if(!m)return 'Not measured: no result is available.';
    if(m.error&&m.error!=='Insufficient valid PSF measurements'){
-      if(m.error==='No measurement returned')return 'SubframeSelector returned no measurement for this preview.';
-      if(m.error==='Measurement failed')return 'SubframeSelector failed to measure this preview; no detailed cause was returned.';
+      if(m.error==='No measurement returned')return 'ImageAnalysis returned no measurement for this preview.';
+      if(m.error==='Measurement failed')return 'ImageAnalysis failed to measure this preview; no detailed cause was returned.';
       return 'Measurement error: '+m.error;
    }
    let reasons=[];
@@ -3758,7 +3768,8 @@ class SQRDialog extends Dialog {
 // Run globally with optional saved settings. SQR_LIBRARY suppresses this entry
 // point so validation harnesses can exercise the engine without opening the UI.
 function sqrMain(){
-   CoreApplication.ensureMinimumVersion(1,9,5);
+   CoreApplication.ensureMinimumVersion(1,9,6);
+   if(typeof ImageAnalysis==='undefined')throw new Error('The ImageAnalysis process is required. Check your PixInsight installation.');
    let o=sqrDefaults();if(Parameters.has('configJSON')){let saved=JSON.parse(Parameters.getString('configJSON'));o={...o,...saved,logFolder:sqrLogFolderOption(saved),measureCorners:false};}
    if(Parameters.isViewTarget)throw new Error('Run this file-based review script globally.');
    let dialog=new SQRDialog(o);console.hide();dialog.execute();dialog.clearFrames();
