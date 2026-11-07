@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.43.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.44.0." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.43.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.44.0. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -287,11 +287,11 @@
    <h3 class="pidoc_sectionTitle">7&emsp;Transparency</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Transparency', this );">[hide]</p>
    <div id="Transparency">
-<p>Transparency measures relative stellar throughput by comparing the light received from the same stars in each subframe of a filter group. Higher values indicate more transmitted stellar light. The measurement subtracts each star's local background and accounts for exposure time. RGB images use the green channel.</p>
-<p>The subframe with the strongest comparable stellar signal per second supplies the 100% reference. A value of 80% means that matching stars delivered about 80% of the reference's signal per second. This is a relative comparison, not an absolute atmospheric transmission measurement. Small values above 100% are possible because of measurement scatter or differences in the available stars.</p>
-<p>Use the magnifier or Measure corners button to obtain the measurement. The Review table reports the percentage; its tooltip identifies the reference and the number of matched stars. Transparency is also available in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. The plot information button explains the measurement and identifies the group's reference.</p>
-<p>At least ten reliable matching stars and a valid exposure time are required. Saturated stars and unreliable measurements are excluded. Missing measurements appear as unavailable, not zero transparency.</p>
-<p>The master is measured against the same subframe reference and appears in Review and in the quality plot. It never determines the reference and remains excluded from correlation plots. The comparison uses the master's recorded frame exposure, not its total integration time. Without a valid frame exposure or a reliable subframe reference, the master value is unavailable.</p>
+<p>Transparency uses the RelativeExtinction measurement from ImageAnalysis to compare stellar light within each filter group. Higher percentages indicate more transmitted stellar light. Measurements account for exposure time. For RGB images, ImageAnalysis uses HSI intensity.</p>
+<p>The most transparent measured subframe supplies the 100% reference. Transparency (%) = 100 × 10^(−0.4 × relative extinction in magnitudes). An extinction of about 0.242 magnitudes corresponds to 80% transparency. This is a relative comparison, not an absolute atmospheric transmission measurement.</p>
+<p>Use the magnifier or Measure corners button to obtain the measurement. The Review table reports the percentage; its tooltip identifies the reference and relative extinction in magnitudes. Transparency is also available in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. The plot information button explains the measurement and identifies the group's reference.</p>
+<p>ImageAnalysis requires at least two comparable subframes with valid exposure times and enough usable unsaturated stars in a common brightness range. If these conditions are not met, Transparency is unavailable. A valid zero extinction means 100% transparency; an undefined measurement does not.</p>
+<p>The master is compared separately with the same subframe reference and appears in Review and in the quality plot. It never influences the subframes' transparency measurements or determines their reference, and remains excluded from correlation plots. The comparison uses the master's recorded frame exposure, not its total integration time. Without a valid frame exposure or a reliable subframe comparison, the master value is unavailable. Its percentage can exceed 100%.</p>
 <p>For the master, this is the effective stellar throughput of the integrated image. Brightness normalization during integration can change it, so it does not represent the average atmospheric transparency of the session. The Review tooltip identifies this distinction.</p>
 <p>The reference is independent of Score, the current sort order, rejection flags, and whether corner scoring is enabled. Choose Transparency in the Sky KPI selector to use it in scoring. Higher values are better. Sky brightness and combined Sky quality then remain comparison indicators and do not enter scoring separately.</p>
 <p>Clouds can reduce transparency, but changing target altitude, focus, and image brightness normalization can also change the result. Compare calibrated, aligned subframes before brightness normalization; a low value alone does not establish the cause. The measurement is reused when adding corners or changing scoring settings.</p>
@@ -1215,7 +1215,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-07 09:23:40 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-07 09:58:37 UTC</p>
 </div>
 <br/>
 <br/>

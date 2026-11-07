@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.43.0.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.44.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -126,15 +126,15 @@ The Review table reports Sky brightness with six decimal places. Hover over the 
 }
 
 \section{Transparency}{
-Transparency measures relative stellar throughput by comparing the light received from the same stars in each subframe of a filter group. Higher values indicate more transmitted stellar light. The measurement subtracts each star's local background and accounts for exposure time. RGB images use the green channel.
+Transparency uses the RelativeExtinction measurement from ImageAnalysis to compare stellar light within each filter group. Higher percentages indicate more transmitted stellar light. Measurements account for exposure time. For RGB images, ImageAnalysis uses HSI intensity.
 
-The subframe with the strongest comparable stellar signal per second supplies the 100\% reference. A value of 80\% means that matching stars delivered about 80\% of the reference's signal per second. This is a relative comparison, not an absolute atmospheric transmission measurement. Small values above 100\% are possible because of measurement scatter or differences in the available stars.
+The most transparent measured subframe supplies the 100\% reference. Transparency (\%) = 100 × 10^(−0.4 × relative extinction in magnitudes). An extinction of about 0.242 magnitudes corresponds to 80\% transparency. This is a relative comparison, not an absolute atmospheric transmission measurement.
 
-Use the magnifier or Measure corners button to obtain the measurement. The Review table reports the percentage; its tooltip identifies the reference and the number of matched stars. Transparency is also available in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. The plot information button explains the measurement and identifies the group's reference.
+Use the magnifier or Measure corners button to obtain the measurement. The Review table reports the percentage; its tooltip identifies the reference and relative extinction in magnitudes. Transparency is also available in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. The plot information button explains the measurement and identifies the group's reference.
 
-At least ten reliable matching stars and a valid exposure time are required. Saturated stars and unreliable measurements are excluded. Missing measurements appear as unavailable, not zero transparency.
+ImageAnalysis requires at least two comparable subframes with valid exposure times and enough usable unsaturated stars in a common brightness range. If these conditions are not met, Transparency is unavailable. A valid zero extinction means 100\% transparency; an undefined measurement does not.
 
-The master is measured against the same subframe reference and appears in Review and in the quality plot. It never determines the reference and remains excluded from correlation plots. The comparison uses the master's recorded frame exposure, not its total integration time. Without a valid frame exposure or a reliable subframe reference, the master value is unavailable.
+The master is compared separately with the same subframe reference and appears in Review and in the quality plot. It never influences the subframes' transparency measurements or determines their reference, and remains excluded from correlation plots. The comparison uses the master's recorded frame exposure, not its total integration time. Without a valid frame exposure or a reliable subframe comparison, the master value is unavailable. Its percentage can exceed 100\%.
 
 For the master, this is the effective stellar throughput of the integrated image. Brightness normalization during integration can change it, so it does not represent the average atmospheric transparency of the session. The Review tooltip identifies this distinction.
 

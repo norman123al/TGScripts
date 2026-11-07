@@ -26,7 +26,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.43.0 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.44.0 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -50,7 +50,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.43.0';
+const SQR_VERSION='0.44.0';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 
@@ -1145,7 +1145,7 @@ const SQR_KPIS=[
    {label:'Guide average (arcsec)',key:'guideAvg',guiding:true,direction:'Lower is better',definition:'Arithmetic mean of the combined RA/Dec displacements during the exposure, in arcseconds.'},
    {label:'Guiding quality (arcsec)',key:'guideQuality',guiding:true,direction:'Lower is better',definition:'Guiding quality G = (minimum + 2 × average + maximum) / 4, in arcseconds.'},
    {label:'Sky brightness',key:'skyBackground',direction:'Lower is better',definition:'With corner scoring enabled: the lowest mean of the center and four corner previews. Otherwise: the whole-image mean. Values are in image units; RGB uses green.'},
-   {label:'Transparency',key:'relativeTransparency',percentage:true,unboundedPercentage:true,direction:'Higher is better',definition:'Relative stellar throughput: the median exposure-corrected flux ratio of matching, unsaturated stars after local background subtraction. The group reference is 100%; this is not absolute atmospheric transmission. RGB uses green. Clouds, airmass, changing focus and prior image normalization can affect the result. The master uses its recorded frame exposure, not total integration time; its value describes the normalized integration, not the session atmosphere. Select one sky KPI in Score weights; only that choice can contribute to scoring.'},
+   {label:'Transparency',key:'relativeTransparency',percentage:true,unboundedPercentage:true,direction:'Higher is better',definition:'Relative stellar throughput from ImageAnalysis RelativeExtinction: Transparency (%) = 100 × 10^(−0.4 × extinction in magnitudes). The most transparent measured subframe in the group is 100%. Measurements account for exposure time; RGB uses HSI intensity. This is not absolute atmospheric transmission. Missing native measurements remain unavailable. The master is compared separately with the same subframe reference using its recorded frame exposure; integration normalization affects its value. Select one sky KPI in Score weights; only that choice can contribute to scoring.'},
    {label:'Sky quality',key:'skyQuality',percentage:true,unboundedPercentage:true,direction:'Higher is better',definition:'Combines the existing Transparency and Sky brightness KPIs: Q = (T / Tref) × sqrt(Bref / B), shown as a percentage. B is Sky brightness minus any recorded pedestal, divided by exposure time. Higher transparency and a darker background improve Q. The transparency reference is 100%; values above 100% are allowed. This is an approximate relative quality indicator, not an absolute sky-brightness or transmission measurement. The master uses its recorded frame exposure and is affected by integration normalization; this value does not measure the SNR gain from stacking. No separate noise measurement is used. Select one sky KPI in Score weights; the combined Sky quality is the default.'}
 ];
 // One shared scoring slot prevents counting all three related sky indicators.
@@ -1633,102 +1633,46 @@ function sqrMeasurement(row,minStars,requireSignal=true){
    m.valid=sqrMetricValid(m,minStars,requireSignal);
    if(!m.valid)m.error='Insufficient valid PSF measurements';return m;
 }
-/** Detect a compact, spatially distributed star catalogue ONCE per group. The
- * aligned master supplies positions only, never the transparency zero point.
- * Without a usable master, try up to three deterministic subframes. Native
- * StarDetector avoids another full-image JavaScript PSF fit for every light. */
-function sqrPrepareTransparency(group,notify){
-   let signature=group.measureSignature+'|'+(group.master?sqrMasterRow(group)?.measureSignature:'');
-   if(group.transparencyCatalogue?.signature===signature)return;
-   for(let row of sqrGroupRows(group)){delete row.transparencyPhotometry;row.relativeTransparency=null;row.transparencyInfo=null;row.skyQuality=null;row.skyQualityInfo=null;delete row.skyQualityModes;}
-   let catalogue=group.transparencyCatalogue={signature,stars:[],error:''};
-   const paths=[...(group.master?[group.master]:[]),...group.rows.filter(r=>!r.measureError).slice().sort((a,b)=>a.registered.path.localeCompare(b.registered.path)).slice(0,3).map(r=>r.registered.path)];
-   let best=[],errors=[];
-   for(let path of paths){let image=null,green=null;
-      try{sqrTick(notify,'Selecting transparency stars — '+group.label);image=sqrReadImage(path,path===group.master);
-         if(image.width!==group.width||image.height!==group.height)throw Error('Reference dimensions differ.');
-         if(image.numberOfNominalChannels===3){green=new Image;green.assign(image,image.bounds,1,1);}
-         let detector=new StarDetector;detector.fitPSF=false;detector.upperLimit=.9;detector.allowClusteredSources=false;
-         let stars=detector.stars(green||image).map(s=>({x:s.pos.x,y:s.pos.y,r:Math.max(10,Math.ceil(2*Math.sqrt(s.size))),flux:s.flux}));
-         let [x0,y0,x1,y1]=group.roi,cells=new Map,selected=[];
-         for(let s of stars){sqrPreparationAbort();let outer=2*s.r;
-            if(![s.x,s.y,s.r,s.flux].every(Number.isFinite)||s.r>24||s.x-outer<x0||s.y-outer<y0||s.x+outer>=x1||s.y+outer>=y1)continue;
-            // Exclude neighbours from both the aperture and background annulus.
-            if(stars.some(t=>t!==s&&Math.hypot(t.x-s.x,t.y-s.y)<outer+Math.min(t.r,24)))continue;
-            let cell=Math.floor(4*(s.x-x0)/(x1-x0))+4*Math.floor(4*(s.y-y0)/(y1-y0)),count=cells.get(cell)||0;
-            if(count>=10)continue;cells.set(cell,count+1);selected.push({x:s.x,y:s.y,r:s.r});
-            if(selected.length>=160)break;
-         }
-         if(selected.length>best.length){best=selected;catalogue.source=path;}
-         if(best.length>=20)break;
-      }catch(e){sqrPreparationAbort();errors.push(String(e));}finally{if(green)green.free();if(image)image.free();}
-   }
-   catalogue.stars=best;
-   if(best.length<10)catalogue.error='Fewer than 10 isolated transparency stars.'+(errors.length?' '+errors.join(' '):'');
+/** Undefined native extinction is stored as zero too: bit 0x20 distinguishes
+ * a valid zero (the reference) from an unavailable measurement. The exposure
+ * property on our clean field crops makes native comparisons use flux/second. */
+function sqrNativeExtinction(row){
+   const C=ImageAnalysis;
+   if(!row)return {error:'ImageAnalysis returned no relative extinction measurement.'};
+   let value=row[C.measurements_measurementRelativeExtinction],flags=row[C.measurements_measurementFlags],
+      exposure=row[C.measurements_measurementExposure];
+   if(!Number.isFinite(exposure)||exposure<=0)return {error:'Exposure time is unavailable.'};
+   if(!(flags&0x20)||!Number.isFinite(value))return {error:'Relative extinction is unavailable: ImageAnalysis needs at least two comparable subframes with sufficient usable unsaturated stars.'};
+   return {value,exposure,error:''};
 }
-/** Forced aperture photometry at common registered coordinates. Read small
- * sample blocks in bulk; no additional full-image read or per-frame detection.
- * A large fixed aperture reduces seeing sensitivity. The surrounding annulus
- * supplies a robust local background and noise estimate. Saturated, misplaced,
- * nonfinite and weak detections remain null, never zero throughput. */
-function sqrTransparencyPhotometry(image,catalogue){
-   if(catalogue.error)return {fluxes:[],error:catalogue.error};
-   let channel=image.numberOfNominalChannels===3?1:0,fluxes=[];
-   const median=a=>{a.sort((a,b)=>a-b);let m=a.length>>1;return a.length%2?a[m]:(a[m-1]+a[m])/2;};
-   for(let star of catalogue.stars){sqrPreparationAbort();let {x,y,r}=star,outer=2*r;
-      let x0=Math.floor(x-outer),y0=Math.floor(y-outer),x1=Math.ceil(x+outer)+1,y1=Math.ceil(y+outer)+1;
-      if(x0<0||y0<0||x1>image.width||y1>image.height){fluxes.push(null);continue;}
-      let w=x1-x0,h=y1-y0,pixels=new Float32Array(w*h);image.getSamples(pixels,new Rect(x0,y0,x1,y1),channel);
-      let sky=[],core=[],bad=false,peak=-Infinity;
-      for(let iy=0;iy<h;++iy)for(let ix=0;ix<w;++ix){let dx=x0+ix-x,dy=y0+iy-y,d2=dx*dx+dy*dy;
-         if(d2>outer*outer)continue;let v=pixels[iy*w+ix];if(!Number.isFinite(v)){bad=true;continue;}
-         if(d2<=r*r){core.push([v,dx,dy]);peak=Math.max(peak,v);}else if(d2>=2.25*r*r)sky.push(v);
-      }
-      if(bad||peak>=.95||sky.length<30||!core.length){fluxes.push(null);continue;}
-      let background=median(sky),noise=1.4826*median(sky.map(v=>Math.abs(v-background)));
-      // Clipping protects the background from faint unselected stars.
-      if(noise>0){let clipped=sky.filter(v=>Math.abs(v-background)<=3*noise);if(clipped.length>=30){sky=clipped;background=median(sky);noise=1.4826*median(sky.map(v=>Math.abs(v-background)));}}
-      let flux=0,sx=0,sy=0,positive=0;
-      for(let [v,dx,dy] of core){let signal=v-background;flux+=signal;if(signal>0){positive+=signal;sx+=dx*signal;sy+=dy*signal;}}
-      let uncertainty=Math.max(noise,1e-8)*Math.sqrt(core.length*(1+core.length/sky.length));
-      let centered=positive>0&&Math.hypot(sx,sy)/positive<=Math.max(1.5,.2*r);
-      fluxes.push(centered&&flux>10*uncertainty?flux:null);
-   }
-   return {fluxes,error:fluxes.filter(v=>v>0).length<10?'Fewer than 10 usable unsaturated stars.':''};
-}
-// Clip multiplicative outliers in log space: variable stars, cosmic rays and
-// residual blends must not determine the throughput of the entire exposure.
-function sqrTransparencyRatio(ratios){
-   let values=ratios.filter(v=>Number.isFinite(v)&&v>0).map(Math.log);
-   for(let pass=0;pass<3&&values.length;++pass){let center=sqrMedian(values),sigma=1.4826*sqrMedian(values.map(v=>Math.abs(v-center)));
-      values=values.filter(v=>Math.abs(v-center)<=Math.max(.03,3*sigma));}
-   if(values.length<10)return null;
-   let center=sqrMedian(values);return {ratio:Math.exp(center),count:values.length,scatter:1.4826*sqrMedian(values.map(v=>Math.abs(v-center)))};
-}
-/** Establish one stable subframe reference independently of scores, rejection
- * flags, corner scoring and UI sort order. Ensemble-normalized stellar rates
- * select the strongest frame; final values use direct matched-star ratios to
- * that frame. Measure the master against this SAME subframe reference without
- * letting it influence reference selection. Its recorded frame exposure gives
- * an effective throughput of the normalized integration, not atmospheric
- * transparency or the SNR benefit of stacking many exposures. */
+function sqrClearTransparency(row){delete row.nativeExtinction;row.relativeTransparency=null;row.transparencyInfo=null;
+   row.skyQuality=null;row.skyQualityInfo=null;delete row.skyQualityModes;}
+// Stable tie-breaking makes reference selection independent of Review order.
+function sqrTransparencyReference(group){return group.rows.filter(r=>!r.nativeExtinction?.error&&
+   Number.isFinite(r.nativeExtinction?.value)&&r.nativeExtinction?.exposure>0)
+   .slice().sort((a,b)=>a.nativeExtinction.value-b.nativeExtinction.value||a.registered.path.localeCompare(b.registered.path))[0];}
+/** Keep a ratio internally: the existing percentage formatter multiplies by
+ * 100, and all scoring rules already consume ratios. Masters use a separate
+ * native comparison with this same light reference and cannot affect its set. */
 function sqrFinalizeTransparency(group){
-   let all=sqrGroupRows(group),measured=all.filter(r=>sqrExposure(r)>0&&!r.transparencyPhotometry?.error&&r.transparencyPhotometry?.fluxes?.length),rows=measured.filter(r=>!r.isMaster);
-   for(let r of all){r.relativeTransparency=null;r.transparencyInfo={error:!sqrExposure(r)?(r.isMaster?'Master frame exposure is unavailable; total integration time cannot replace it.':'Exposure time is unavailable.'):r.transparencyPhotometry?.error||'Insufficient matching stars.'};}
-   let count=group.transparencyCatalogue?.stars.length||0;
-   let ensemble=Array.from({length:count},(_,i)=>{let values=rows.map(r=>r.transparencyPhotometry.fluxes[i]/sqrExposure(r)).filter(v=>v>0&&Number.isFinite(v));return values.length?sqrMedian(values):null;});
-   let levels=rows.map(row=>({row,level:sqrTransparencyRatio(row.transparencyPhotometry.fluxes.map((v,i)=>v>0&&ensemble[i]>0?v/sqrExposure(row)/ensemble[i]:null))})).filter(x=>x.level);
-   levels.sort((a,b)=>b.level.ratio-a.level.ratio||a.row.registered.path.localeCompare(b.row.registered.path));
-   let reference=levels[0]?.row;
-   group.transparencySummary=reference?'Reference (100%): '+sqrFileName(reference.registered.path)+'. Selected by the strongest ensemble-normalized stellar flux per second, independently of Score. Values can exceed 100% through measurement scatter or differing matched stars.':group.transparencyCatalogue?.error||'No reliable transparency reference is available.';
-   if(!reference){for(let row of measured)row.transparencyInfo={error:'No reliable subframe transparency reference is available.'};return;}
-   for(let row of measured){let result=sqrTransparencyRatio(row.transparencyPhotometry.fluxes.map((v,i)=>{let ref=reference.transparencyPhotometry.fluxes[i];return v>0&&ref>0?(v/sqrExposure(row))/(ref/sqrExposure(reference)):null;}));
-      if(result){row.relativeTransparency=result.ratio;row.transparencyInfo={reference:reference.registered.path,matched:result.count,scatter:result.scatter,error:''};}}
+   let reference=sqrTransparencyReference(group),path=reference?.registered.path;
+   group.transparencySummary=reference?'Reference (100%): '+sqrFileName(path)+'. Most transparent measured subframe according to ImageAnalysis RelativeExtinction, independently of Score. Transparency (%) = 100 × 10^(−0.4 × extinction in magnitudes).':'No reliable subframe transparency reference is available.';
+   for(let row of sqrGroupRows(group)){
+      let m=row.nativeExtinction;row.relativeTransparency=null;
+      row.transparencyInfo={error:m?.error||'No relative extinction measurement is available.'};
+      if(!m||m.error||!Number.isFinite(m.value)||!(m.exposure>0))continue;
+      if(!reference){row.transparencyInfo={error:group.transparencySummary};continue;}
+      if(row.isMaster&&m.reference!==path){row.transparencyInfo={error:'The master has not been measured against the current subframe reference.'};continue;}
+      let extinction=row.isMaster?m.value:m.value-reference.nativeExtinction.value,value=Math.pow(10,-.4*extinction);
+      if(Number.isFinite(value)&&value>0){row.relativeTransparency=value;
+         row.transparencyInfo={reference:path,extinction,exposure:m.exposure,error:''};}
+      else row.transparencyInfo={error:'Relative extinction could not be converted to a finite positive transparency.'};
+   }
 }
 function sqrMasterQualityNote(row){return row.isMaster?'\nMaster comparison: recorded frame exposure '+sqrFmt(sqrExposure(row),2)+' s, not total integration time. Integration normalization affects these values; they do not measure the session atmosphere or the SNR gain from stacking.':'';}
 function sqrTransparencyDescription(row){
    let info=row.transparencyInfo;
-   return Number.isFinite(row.relativeTransparency)?'Transparency: '+sqrPercent(row.relativeTransparency)+'\nReference (100%): '+sqrFileName(info.reference)+'\nMatched stars: '+info.matched+'; robust log-ratio scatter: '+sqrFmt(info.scatter,4)+'.\nExposure-corrected stellar flux; RGB uses green.'+sqrMasterQualityNote(row):info?.error||'Measure the subframes to estimate relative transparency.';
+   return Number.isFinite(row.relativeTransparency)?'Transparency: '+sqrPercent(row.relativeTransparency)+'\nReference (100%): '+sqrFileName(info.reference)+'\nImageAnalysis relative extinction: '+sqrFmt(info.extinction,4)+' mag.\nExposure-corrected stellar flux; RGB uses HSI intensity.'+sqrMasterQualityNote(row):info?.error||'Measure the subframes to estimate relative transparency.';
 }
 /** Arithmetic pixel means are independent of star detection. Read all nominal
  * channels (green for RGB, no alpha), with no stretch, clipping or star rejection.
@@ -1844,16 +1788,16 @@ function sqrMeasurementPlan(jobs){
       return {batchSize:workers,overload:Math.max(1,Math.min(8,Math.floor(100*workers/processors)/100)),fileThreads:workers>1};
    }catch(e){return unchanged;}
 }
-/** Measure every submitted job with native ImageAnalysis. Each job
- * identifies a temporary path and its destination row/region. Disable the file
- * cache because temporary crop paths must not reuse another image's metrics.
- * Bound corner batches so extra workers cannot multiply memory use without limit. */
-function sqrMeasureBatch(jobs,o){
+/** Measure every submitted job with native ImageAnalysis. Field crops have
+ * unique paths per run; optionally cache them to recompute set-dependent native
+ * extinction without repeating PSF fits. Corners do not need the file cache.
+ * Cached comparison jobs must not overwrite the existing field metrics. */
+function sqrMeasureBatch(jobs,o,useCache=false){
    let plan=sqrMeasurementPlan(jobs);
    for(let first=0;first<jobs.length;first+=plan.batchSize){
       if(console.abortRequested)throw new Error('Operation aborted.');
       let batch=jobs.slice(first,first+plan.batchSize);
-      let p=new ImageAnalysis;p.task=ImageAnalysis.Task_Measure;p.fileCache=false;
+      let p=new ImageAnalysis;p.task=ImageAnalysis.Task_Measure;p.fileCache=useCache;
       // Extended gradients, banding and trails are not part of the current KPIs.
       // Keep the same elliptical Moffat-4 model and fit limit as before.
       p.extendedMeasurements=false;p.maxPSFFits=o.maxFits;p.psfFit=ImageAnalysis.PSF_Moffat4;
@@ -1868,8 +1812,39 @@ function sqrMeasureBatch(jobs,o){
       // Match the returned file path, never the result's row position.
       let results=new Map;for(let m of p.measurements)results.set(sqrKey(m[ImageAnalysis.measurements_measurementPath]),m);
       for(let j of batch){let m=results.get(sqrKey(j.path));
-         j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
-            {valid:false,error:ok?'No measurement returned':'Measurement failed'};}
+         if(j.measureMetrics!==false)j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
+            {valid:false,error:ok?'No measurement returned':'Measurement failed'};
+         if(j.region===0)j.extinction=sqrNativeExtinction(m);}
+   }
+}
+/** Native extinction is relative to the submitted set. Reevaluate cached field
+ * results per filter using lights only. A separate cached master/reference pair
+ * retains the master's comparison KPI without altering any light's estimator.
+ * Never infer validity from a zero value: the process supplies a defined flag. */
+function sqrMeasureTransparency(groups,jobs,o,notify){
+   for(let g of groups){
+      let fields=jobs.filter(j=>j.group===g),lights=fields.filter(j=>!j.row.isMaster&&!j.referenceOnly);
+      for(let j of lights)if(!(sqrExposure(j.row)>0))j.row.nativeExtinction={error:'Exposure time is unavailable.'};
+      let compare=lights.filter(j=>sqrExposure(j.row)>0).map(j=>({...j,measureMetrics:false}));
+      if(compare.length===1)compare[0].row.nativeExtinction={error:'At least two subframes with valid exposure times are required for relative extinction.'};
+      else if(compare.length>1){
+         sqrTick(notify,'Computing relative transparency — '+g.label);
+         sqrMeasureBatch(compare,o,true);
+         for(let j of compare)j.row.nativeExtinction=j.extinction;
+      }
+      let master=fields.find(j=>j.row.isMaster),reference=sqrTransparencyReference(g);
+      if(master){
+         let ref=reference&&fields.find(j=>j.row===reference);
+         if(ref&&sqrExposure(master.row)>0){
+            let pair=[ref,master].map(j=>({...j,measureMetrics:false}));sqrMeasureBatch(pair,o,true);
+            let a=pair[0].extinction,b=pair[1].extinction;
+            master.row.nativeExtinction=a.error||b.error?{error:a.error||b.error}:
+               {value:b.value-a.value,exposure:b.exposure,reference:reference.registered.path,error:''};
+         }
+         else master.row.nativeExtinction={error:!(sqrExposure(master.row)>0)?'Master frame exposure is unavailable; total integration time cannot replace it.':
+            !reference?'No reliable subframe transparency reference is available.':'The reference crop is unavailable for the master comparison.'};
+      }
+      sqrFinalizeTransparency(g);
    }
 }
 /** Prepare one image with independently owned handles. Read failures remain
@@ -1877,59 +1852,72 @@ function sqrMeasureBatch(jobs,o){
  * registers every output path before starting workers, so cleanup also covers
  * partially written files and workers interrupted before returning results. */
 function sqrPrepareCrops(item){
-   let im=null,row={backgroundMeans:item.backgroundMeans},photometry=item.transparencyPhotometry;
+   let im=null,row={backgroundMeans:item.backgroundMeans};
    try{sqrPreparationAbort();im=sqrReadImage(item.path,item.isMaster);
       if(im.width!==item.width||im.height!==item.height||im.numberOfNominalChannels!==item.channels)throw new Error('Image dimensions or channels do not match this group: '+item.path);
       sqrMeasureBackground(row,im,item.regions,item.withCorners);
    }catch(e){if(im)im.free();sqrPreparationAbort();
       let b=row.backgroundMeans??={previews:{}};if(!Object.prototype.hasOwnProperty.call(b,'whole'))b.whole=null;
       if(item.withCorners)for(let i=1;i<=5;++i)if(!Object.prototype.hasOwnProperty.call(b.previews,i))b.previews[i]=null;
-      return {backgroundMeans:row.backgroundMeans,transparencyPhotometry:photometry||{fluxes:[],error:String(e)},error:String(e)};
+      return {backgroundMeans:row.backgroundMeans,error:String(e)};
    }
-   try{if(item.transparencyCatalogue&&!photometry){let start=Date.now();
-      try{photometry=sqrTransparencyPhotometry(im,item.transparencyCatalogue);}
-      catch(e){sqrPreparationAbort();photometry={fluxes:[],error:String(e)};}
-      photometry.milliseconds=Date.now()-start;
-   }
+   try{
    for(let job of item.jobs){sqrPreparationAbort();let crop=new Image,writer=null;
       try{crop.assign(im,new Rect(...item.regions[job.region]),0,im.numberOfNominalChannels-1);
-         // Pixel-only files prevent reuse of calibration-stage signal/noise metadata.
+         // Carry exposure only. Inherited signal/noise metadata must not replace
+         // measurements of these registered pixels or their cropped regions.
          writer=new FileFormatInstance(new FileFormat('.xisf',false,true));
          if(!writer.create(job.path,'compression-codec none'))throw new Error('Cannot create temporary measurement image.');
          let description=new ImageDescription;description.bitsPerSample=im.bitsPerSample;description.ieeefpSampleFormat=true;
          writer.setOptions(description);
+         if(job.region===0&&item.exposure>0)writer.writeImageProperty('Instrument:ExposureTime',item.exposure);
          if(!writer.writeImage(crop))throw new Error('Cannot write temporary measurement image.');
       }finally{if(writer)writer.close();crop.free();}
-   }sqrPreparationAbort();return {backgroundMeans:row.backgroundMeans,transparencyPhotometry:photometry};}
+   }sqrPreparationAbort();return {backgroundMeans:row.backgroundMeans};}
    finally{im.free();}
 }
 /** Stage missing field/regional crops and means with bounded parallelism. Native
  * measurement batches retain the original field/region ordering regardless of
  * worker completion order. The UI/session is updated only on the main thread. */
 function sqrMeasureGroups(groups,o,active,notify){
-   let eligible=groups.flatMap(g=>sqrGroupRows(g).filter(r=>!r.measureError&&(active.some(i=>!r.metrics[i])||!sqrBackgroundComplete(r,o.measureCorners)||!r.transparencyPhotometry)).map(r=>({r,g})));
+   let eligible=[];
+   for(let g of groups){
+      // Recover an interrupted set as a whole, never compare only its remainder.
+      let needLights=g.rows.some(r=>!r.measureError&&(!r.metrics[0]||!r.nativeExtinction));
+      let master=sqrMasterRow(g),needMaster=master&&!master.measureError&&(needLights||!master.metrics[0]||!master.nativeExtinction);
+      let reference=needMaster&&!needLights?sqrTransparencyReference(g):null;
+      for(let r of sqrGroupRows(g)){
+         if(r.measureError)continue;
+         let needed=new Set(active.filter(i=>!r.metrics[i])),referenceOnly=r===reference;
+         if((!r.isMaster&&needLights)||(r.isMaster&&needMaster)||referenceOnly)needed.add(0);
+         if(needed.size||!sqrBackgroundComplete(r,o.measureCorners))eligible.push({r,g,needed:[...needed],referenceOnly});
+         if((!r.isMaster&&needLights)||(r.isMaster&&needMaster))sqrClearTransparency(r);
+      }
+   }
    if(!eligible.length){for(let g of groups)sqrFinalizeTransparency(g);return;}
    let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-work-'+sqrStamp();File.createDirectory(scratch,true);
    let passes=[[],[]],files=new Set,completed=0;
-   let total=eligible.reduce((n,item)=>n+active.filter(i=>!item.r.metrics[i]).length,0);
+   let total=eligible.reduce((n,item)=>n+item.needed.length,0);
    let clean=paths=>{for(let path of paths){if(File.exists(path))File.remove(path);files.delete(path);}};
    let measurePass=jobs=>{if(!jobs.length)return;
       sqrTick(notify,'Measuring '+(jobs[0].region===0?'full fields':'center/corner regions')+' · '+jobs.length+' images · '+completed+' / '+total+' completed');
-      sqrMeasureBatch(jobs,o);completed+=jobs.length;clean(jobs.map(j=>j.path));
+      let field=jobs[0].region===0;sqrMeasureBatch(jobs,o,field);
+      if(field)sqrMeasureTransparency(groups,jobs,o,notify);
+      completed+=jobs.length;clean(jobs.map(j=>j.path));
       sqrTick(notify,'Measured '+completed+' / '+total+' regions');
    };
    try{
-      let items=eligible.map(({r,g},index)=>({path:r.registered.path,isMaster:!!r.isMaster,
+      let items=eligible.map(({r,g,needed,referenceOnly},index)=>({path:r.registered.path,isMaster:!!r.isMaster,exposure:sqrExposure(r),
          width:g.width,height:g.height,channels:g.channels,regions:g.regions,withCorners:o.measureCorners,backgroundMeans:r.backgroundMeans,
-         transparencyCatalogue:g.transparencyCatalogue,transparencyPhotometry:r.transparencyPhotometry,
-         jobs:active.filter(i=>!r.metrics[i]).map(region=>{let path=scratch+'/frame-'+index+'-region-'+region+'.xisf',rect=g.regions[region];files.add(path);
-            return {path,region,pixels:(rect[2]-rect[0])*(rect[3]-rect[1])*g.channels};})}));
-      let results=sqrMapPreparation(items,sqrPrepareCrops,[sqrReadImage,sqrPreparationAbort,sqrMeasureBackground,sqrTransparencyPhotometry],notify,'Preparing images');
-      for(let index=0;index<items.length;++index){let r=eligible[index].r,result=results[index];r.backgroundMeans=result.backgroundMeans;r.transparencyPhotometry=result.transparencyPhotometry;
-         for(let job of items[index].jobs){if(result.error){r.metrics[job.region]={valid:false,error:result.error};++completed;}
-            else passes[job.region===0?0:1].push({...job,row:r});}}
-      for(let g of groups)sqrFinalizeTransparency(g);
+         jobs:needed.map(region=>{let path=scratch+'/frame-'+index+'-region-'+region+'.xisf',rect=g.regions[region];files.add(path);
+            return {path,region,measureMetrics:!r.metrics[region],referenceOnly:region===0&&referenceOnly,pixels:(rect[2]-rect[0])*(rect[3]-rect[1])*g.channels};})}));
+      let results=sqrMapPreparation(items,sqrPrepareCrops,[sqrReadImage,sqrPreparationAbort,sqrMeasureBackground],notify,'Preparing images');
+      for(let index=0;index<items.length;++index){let {r,g}=eligible[index],result=results[index];r.backgroundMeans=result.backgroundMeans;
+         for(let job of items[index].jobs){if(result.error){if(job.measureMetrics)r.metrics[job.region]={valid:false,error:result.error};
+               if(job.region===0&&!job.referenceOnly)r.nativeExtinction={error:result.error};++completed;}
+            else passes[job.region===0?0:1].push({...job,row:r,group:g});}}
       for(let jobs of passes)measurePass(jobs);
+      for(let g of groups)sqrFinalizeTransparency(g);
    }finally{clean(files);if(File.directoryExists(scratch))File.removeDirectory(scratch);}
 }
 // Invalidate a master's measurement cache when the file or shared crop changes.
@@ -1947,8 +1935,8 @@ function sqrPrepareMaster(g,o,active){
       }
       let signature=JSON.stringify({version:SQR_VERSION,file:[g.master,fingerprint],roi:g.roi,
          patch:o.patch,maxFits:o.maxFits});
-      if(master.measureSignature!==signature){master.metrics={};delete master.backgroundMeans;delete master.measureError;master.measureSignature=signature;}
-   }catch(e){if(console.abortRequested)throw e;master.measureSignature='';delete master.backgroundMeans;
+      if(master.measureSignature!==signature){master.metrics={};sqrClearTransparency(master);delete master.backgroundMeans;delete master.measureError;master.measureSignature=signature;}
+   }catch(e){if(console.abortRequested)throw e;master.measureSignature='';delete master.backgroundMeans;sqrClearTransparency(master);master.nativeExtinction={error:String(e)};
       for(let i of active)master.metrics[i]={valid:false,error:String(e)};}
 }
 /** Coordinate border discovery, cache validation, measurement and ranking.
@@ -1965,7 +1953,7 @@ function sqrAnalyze(session,notify){
          continue;}
       if(g.measureSignature!==signature){
        let roi=[0,0,g.width,g.height];
-       for(let r of g.rows){r.metrics={};delete r.backgroundMeans;delete r.measureError;}
+       for(let r of g.rows){r.metrics={};sqrClearTransparency(r);delete r.backgroundMeans;delete r.measureError;}
        let items=g.rows.map(r=>({path:r.registered.path,width:g.width,height:g.height,channels:g.channels,margin:o.margin}));
        let bounds=sqrMapPreparation(items,sqrPrepareBounds,[sqrReadImage,sqrPreparationAbort,sqrBounds],notify,'Checking registered borders — '+g.label);
        for(let i=0;i<g.rows.length;++i){let result=bounds[i];if(result.error)g.rows[i].measureError=result.error;
@@ -1973,10 +1961,9 @@ function sqrAnalyze(session,notify){
        if(roi[2]-roi[0]<g.width*.5||roi[3]-roi[1]<g.height*.5)throw new Error('Insufficient common field: '+g.label);
        g.roi=roi;g.regions=sqrRegions(roi,o.patch);g.measureSignature=signature;
       }
-      for(let r of g.rows)if(r.measureError){r.backgroundMeans={whole:null,previews:Object.fromEntries(active.filter(i=>i>0).map(i=>[i,null]))};for(let i of active)r.metrics[i]={valid:false,error:r.measureError};}
+      for(let r of g.rows)if(r.measureError){r.nativeExtinction={error:r.measureError};r.backgroundMeans={whole:null,previews:Object.fromEntries(active.filter(i=>i>0).map(i=>[i,null]))};for(let i of active)r.metrics[i]={valid:false,error:r.measureError};}
       sqrPrepareMaster(g,o,active);
    }
-   for(let g of session.groups)sqrPrepareTransparency(g,notify);
    sqrMeasureGroups(session.groups,o,active,notify);
    sqrRank(session);return session;
 }
@@ -2891,7 +2878,7 @@ class SQRDialog extends Dialog {
       this.skyScoreKPI=new ComboBox(this.scoreSettings);for(let choice of SQR_SKY_SCORE_CHOICES)this.skyScoreKPI.addItem(choice.label);
       this.skyScoreKPI.setScaledFixedWidth(125);
       this.skyScoreKPI.currentItem=SQR_SKY_SCORE_CHOICES.findIndex(c=>c.key===sqrSkyScoreChoice(o).key);
-      this.skyScoreKPI.toolTip='Choose one sky indicator for Score. Sky quality (default) combines Transparency and Sky brightness. Transparency is relative stellar throughput: exposure-corrected flux of matching stars, with the group reference at 100%; it is not absolute atmospheric transmission. Sky brightness is the measured background in image units, using the whole-image mean or lowest preview mean. R1/R2 and Below-mean Quality use the adjacent weight. R3 may select only this sky KPI if strongly correlated; R4 uses the resulting ranks. Changing this choice reuses measurements.';
+      this.skyScoreKPI.toolTip='Choose one sky indicator for Score. Sky quality (default) combines Transparency and Sky brightness. Transparency uses ImageAnalysis RelativeExtinction, converted to a percentage with the most transparent subframe at 100%; it is not absolute atmospheric transmission. Sky brightness is the measured background in image units, using the whole-image mean or lowest preview mean. R1/R2 and Below-mean Quality use the adjacent weight. R3 may select only this sky KPI if strongly correlated; R4 uses the resulting ranks. Changing this choice reuses measurements.';
       this.skyScoreKPI.onItemSelected=()=>this.rerank();this.weights.backgroundWeight.label.hide();
       // The compact selector occupies the label area of the left column. Its
       // right edge and the weight edit align with the NumericEdits above it.
@@ -3390,7 +3377,7 @@ class SQRDialog extends Dialog {
    invalidateMeasurements(){
       if(this.running)return;
       let hadCorners=sqrHasCornerMeasurements(this.session);this.useCornerMeasurements=false;
-      if(this.session){for(let g of this.session.groups){g.measureSignature='';g.correlationScoring=null;delete g.transparencyCatalogue;g.transparencySummary='';g.skyQualitySummary='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};delete r.transparencyPhotometry;r.relativeTransparency=null;r.transparencyInfo=null;r.skyQuality=null;r.skyQualityInfo=null;delete r.skyQualityModes;delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.scoreRankOfRanks=null;r.rankOfRanks=null;r.rankComponents=[];r.rankOfRanksDetail='';r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.dataReviewReasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}}
+      if(this.session){for(let g of this.session.groups){g.measureSignature='';g.correlationScoring=null;g.transparencySummary='';g.skyQualitySummary='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};delete r.nativeExtinction;r.relativeTransparency=null;r.transparencyInfo=null;r.skyQuality=null;r.skyQualityInfo=null;delete r.skyQualityModes;delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.scoreRankOfRanks=null;r.rankOfRanks=null;r.rankComponents=[];r.rankOfRanksDetail='';r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.dataReviewReasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}}
       this.updateCornerControls();this.syncOptions();this.clearFrames();this.populateRows();
       this.status.text='Measurement settings changed.'+(hadCorners?' Corner measurements were cleared.':'')+' Click Measure corners beside the magnifier to measure the previews, or use the magnifier for field measurements.';
    }
