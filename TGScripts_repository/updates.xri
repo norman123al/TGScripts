@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="23aa6acc632b3326236eb42d724935b8d50ae59c" type="script" releaseDate="20261105">
+      <package fileName="TGScripts_repository.tar.gz" sha1="515a084e4a926fbed52c9d5a81c232dad317d9ee" type="script" releaseDate="20261107">
          <title>
-            TGScripts snapshot - 2026 Nov 05
+            TGScripts snapshot - 2026 Nov 07
          </title>
          <remove>
             src/scripts/TGScripts
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               LRGB Deconvolution Match 1.14.3: Fixed FWHM comparison scrolling when resizing the dialog and updated the documentation.
+               SubframeQualityReview: Improved compact-window layout and control alignment. Corrected timestamp aliases and split date/time handling for reliable airmass and Cloud Extinction measurements. Updated documentation.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-05T22:43:10.090Z" encoding="Base64">A6tKvso0jXz9w/5U1K3yVM86otZI4ukQRHel7W17IwhYPn37XPiv0NzB8yXE1au3PiIkLAg09ejhzMKQRu3aBQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-07T18:51:53.013Z" encoding="Base64">Ewc+daBz5yNztcVLmsXIEzAHHHgIrycn3Ry1tzMZWdOyFoxbLJlq/ERlq4Bo3Lx2TFibZbneaLQpSIlNxPkdBA==</Signature>

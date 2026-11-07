@@ -37,7 +37,7 @@ To try a newly added script before the next updater release, download or clone t
 
 ### Requirements
 
-- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**.
+- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**; **Subframe Quality Review requires 1.9.6 or later with ImageAnalysis installed**.
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
@@ -49,7 +49,7 @@ The packaged updater release may lag behind the repository source. For manual ex
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.2.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;10&#8209;30 |
 | Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.2.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;10&#8209;30 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.34.1 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;01 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.34.1 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;02 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [ColorMaskTG](#colormasktg) | 2.2.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;10&#8209;30 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -58,10 +58,10 @@ The packaged updater release may lag behind the repository source. For manual ex
 | Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.2.1 | Adds continuum-subtracted narrowband emission to RGB channels. | 2026&#8209;10&#8209;30 |
 | Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.1 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;19 |
 | Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.2.0 | Generates a local support mask for deconvolution deringing. | 2026&#8209;10&#8209;30 |
-| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.13.2 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;10&#8209;30 |
+| Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.42.3 | Reviews registered lights with four rankings, sky quality and transparency indicators, blink, plots, and journal-based rejection and undo. | 2026&#8209;10&#8209;30 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.45.14 | Reviews registered lights with quality rankings, transparency and cloud-extinction indicators, blink comparisons, and reversible rejection moves. | 2026&#8209;11&#8209;07 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -255,14 +255,16 @@ Generates **stellar support masks for deconvolution deringing** from linear gray
 
 ### LRGB Deconvolution Match
 
-**Version:** 1.13.2 · **Last update:** 2026-10-30
+**Version:** 1.14.3 · **Last update:** 2026-11-05
 
-Matches **stellar sharpness and halos in registered linear L and RGB images** using BlurXTerminator. Provides automatic sharpening estimates, halo optimization, blink comparisons, FWHM plots, and a match-quality report.
+Matches **stellar sharpness and halos in registered linear L and RGB images** using BlurXTerminator. Provides automatic sharpening estimates, halo optimization, blink comparisons, FWHM plots, and a match-quality report in a resizable dialog with collapsible settings.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/LRGBDeconvolutionMatch.js) · [Guide](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/LRGBDeconvolutionMatch.html)
 
 <details>
 <summary>View LRGB Deconvolution Match interface</summary>
+
+Screenshots show **1.13.0**, before the current dialog layout.
 
 **Reference before/after**
 
@@ -284,7 +286,7 @@ Matches **stellar sharpness and halos in registered linear L and RGB images** us
 
 Matches a target’s **intensity scale to a reference** using a selected region of interest, then applies the fit to the full image. Supports RGB channels, preview-based region selection, scatter plots, and Undo.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/ROILinearFit.js)
+[Source](TGScripts_repository/src/scripts/TGScripts/ROILinearFit.js) · [Guide](TGScripts_repository/doc/scripts/ROILinearFit/ROILinearFit.html)
 
 <details>
 <summary>View ROI Linear Fit interface</summary>
@@ -299,7 +301,7 @@ Matches a target’s **intensity scale to a reference** using a selected region 
 
 Creates **soft protection masks for bright stars and diffraction spikes** from stretched stars-only images. Includes star and spike detection controls, adjustable mask growth and blur, previews, and XISF export.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/StarSpikeProtectionMask.js)
+[Source](TGScripts_repository/src/scripts/TGScripts/StarSpikeProtectionMask.js) · [Guide](TGScripts_repository/doc/scripts/StarSpikeProtectionMask/StarSpikeProtectionMask.html)
 
 <details>
 <summary>View Star Spike Protection Mask interface</summary>
@@ -310,54 +312,52 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.42.3 · **Last update:** 2026-10-30
+**Version:** 0.45.14 · **Last update:** 2026-11-07
 
-Helps select **WBPP subframes to keep or reject** using four quality rankings, field and corner measurements, sky-quality indicators, and optional guiding logs. Includes blink comparisons, quality and correlation plots, FWHM grading, and SQM/Gaia sky calibration. Manually rejected originals can be moved with a confirmation step and restored through a move journal.
+Helps select **WBPP subframes to keep or reject** using ImageAnalysis measurements, four quality rankings, and field, corner, sky-quality, and guiding indicators. Includes relative transparency and cloud-extinction estimates, blink comparisons, quality plots, FWHM grading, and SQM/Gaia sky calibration. Confirmed moves of manually rejected originals can be undone through a move journal.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
 <details>
 <summary>View Subframe Quality Review interface</summary>
 
-**Current setup — 0.42.3**
+Captured from **0.45.14** on **2026-11-07**, reviewing 40 blue-filter, 180-second subframes of **NGC 7814**.
 
-![Subframe Quality Review 0.42.3 setup with observing conditions, R1–R4 scoring, sky indicator selection, guiding, and review tabs](TGScripts_repository/images/SubframeQualityReview_main_screen.jpg)
+**Review and measurements**
 
-**Earlier populated examples — 0.39.14**
-
-These earlier examples show an Abell 74 session; their layout and scoring differ from the current version.
+![Subframe Quality Review 0.45.14 with R1–R4 rankings, review candidates, and field and corner measurements](TGScripts_repository/images/SubframeQualityReview_main_screen.jpg)
 
 **Blink frame / reference**
 
-![Subframe Quality Review 0.39.14 Abell 74 blink preview with best-subframe reference, region controls, adjustable playback interval, and display stretching](TGScripts_repository/images/SubframeQualityReview_blink_preview.jpg)
+![Subframe Quality Review 0.45.14 NGC 7814 blink preview with a best-subframe reference, region controls, and display stretching](TGScripts_repository/images/SubframeQualityReview_blink_preview.jpg)
 
-**Earlier Score plot — 0.39.14**
+**Score plot**
 
-![Subframe Quality Review 0.39.14 Score plot in ascending value order, with review candidates, selected frame, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
+![Subframe Quality Review 0.45.14 Score plot with 40 subframes in value order, review candidates, selected frame, and mean](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
 
-**Earlier Sky background plot — now named Sky brightness**
+**Sky brightness**
 
-![Subframe Quality Review 0.39.14 sky-background plot with the session SQM 19.44 reference line, Bortle 6 quality shading, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_sky_background.jpg)
+![Subframe Quality Review 0.45.14 sky-brightness plot with SQM 19.10 reference, Bortle 6 quality bands, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_sky_background.jpg)
 
 **Field FWHM — quality bands**
 
-![Subframe Quality Review 0.39.14 field-FWHM plot with Good, Medium, and Bad bands derived from the telescope and observing conditions](TGScripts_repository/images/SubframeQualityReview_fwhm_indicators.jpg)
+![Subframe Quality Review 0.45.14 field-FWHM plot with quality bands, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_fwhm_indicators.jpg)
 
 **FWHM grading settings**
 
-![Subframe Quality Review FWHM grading dialog showing aperture, zenith seeing, image scale, target altitude, wavelength, relative limits, and calculated limits in pixels](TGScripts_repository/images/SubframeQualityReview_fwhm_grading.jpg)
+![Subframe Quality Review 0.45.14 FWHM grading with telescope and observing conditions, relative thresholds, and calculated pixel limits](TGScripts_repository/images/SubframeQualityReview_fwhm_grading.jpg)
 
 **Field eccentricity**
 
-![Subframe Quality Review 0.39.14 field-eccentricity plot with an adaptive vertical axis and Good, Medium, and Bad bands at 0.42 and 0.60](TGScripts_repository/images/SubframeQualityReview_eccentricity.jpg)
+![Subframe Quality Review 0.45.14 field-eccentricity plot with quality bands, review candidates, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_eccentricity.jpg)
 
 **Guiding indicators — average error**
 
-![Subframe Quality Review 0.39.14 guide-average plot in arcseconds with quality bands and guiding data available for 29 of 53 frames](TGScripts_repository/images/SubframeQualityReview_guiding_indicators.jpg)
+![Subframe Quality Review 0.45.14 guide-average error in arcseconds for 40 subframes, with quality bands and mean](TGScripts_repository/images/SubframeQualityReview_guiding_indicators.jpg)
 
 **Correlation plot**
 
-![Subframe Quality Review 0.39.14 scatter plot comparing field FWHM with PSF signal weight, showing Pearson correlation and selectable subframes](TGScripts_repository/images/SubframeQualityReview_correlation_plot.jpg)
+![Subframe Quality Review 0.45.14 field FWHM versus PSF signal weight, with Pearson correlation and highlighted review candidates](TGScripts_repository/images/SubframeQualityReview_correlation_plot.jpg)
 
 </details>
 
@@ -367,7 +367,7 @@ These earlier examples show an Abell 74 session; their layout and scoring differ
 
 Provides a **starting point for PixInsight script development** with image selection, zoomable previews, display stretching, image statistics, reusable process icons, and standard dialog controls.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/TGScriptSkeleton.js)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGScriptSkeleton.js) · [Guide](TGScripts_repository/doc/scripts/TGScriptSkeleton/TGScriptSkeleton.html)
 
 <details>
 <summary>View TGScriptSkeleton interface</summary>
