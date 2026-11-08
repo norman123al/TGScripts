@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.14.}
+\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.48.1.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -45,6 +45,8 @@ Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcsecond
 Session SQM and SQM time (local) are beside Aperture and Zenith seeing. Enter the reading in mag/arcsec². Loading the log folder presets the date and local time from the earliest light-frame sequence in its Autorun logs. Flat frames, focusing and plate-solving exposures, and Chinese translations are ignored. Adjust the preset to the actual SQM reading time. A time you enter manually is retained when the logs are reloaded or changed; an untouched automatic preset follows the selected log folder. This distinction is retained in saved settings. If the new folder has no recognized light-frame start, an automatic preset is cleared.
 
 Click Choose beside SQM time to select the year, month, day, hour, minute and second, then Apply. Cancel retains the existing time. If the time is empty, the selector starts at the logged imaging start, then falls back to the selected exposure midpoint when its local time is known, or the computer clock if neither is available. You can also type or paste YYYY-MM-DD HH:MM or YYYY-MM-DD HH:MM:SS directly. The date avoids ambiguity when a session crosses midnight. Log presets keep their local wall time; the existing inferred or custom UTC offset converts the reading to image UTC timestamps. The reading automatically determines the approximate Bortle class.
+
+Manual entries are checked for a valid calendar date and clock time. On Enter or leaving the field, valid entries are formatted as YYYY-MM-DD HH:MM:SS; omitted seconds become 00. A T between date and time or slashes in the date are accepted and standardized. Do not append a timezone: the UTC offset controls supply it. Invalid entries remain visible with a highlighted field and an explanation in Messages. They cannot be used for calibration. Correct the entry or use Choose; the script does not silently replace it with another time.
 
 Zero means that no SQM reading is supplied. In that case, select Sky brightness on the Quality indicators tab to choose a Bortle class from the compact selector to the left of Calibrate sky. Choose a class from 1 to 9, or — when unspecified. The starting selection is class 6. Your manual selection is retained while SQM determines the class automatically.
 
@@ -255,6 +257,8 @@ Above the table, Sort and filter places the sort criterion and order on one row,
 
 The bottom message area includes the visible and total subframe counts, the number of REVIEW candidates, and whether the master is included or hidden by the filter. These messages update when the selected group or REVIEW filter changes.
 
+Click the Messages bar to collapse or expand the bottom message area on any tab. Status, review counts, score information and pixel scale continue updating while hidden. The window keeps its size, and the preference is saved with process-instance settings. Messages opens expanded by default. An invalid manually entered SQM time expands it to show the correction needed.
+
 Click the Review information bar to collapse or expand Reading the table and Selected image together. Sort and filter remains available. Collapsing the information panels reduces scrolling or gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.
 
 Hover over the selected-image assessment for the full explanation, or over its measurements for unavailable-region details. The filename is shown separately; hover over it for the full original or moved-file path and the registered-image path. Selecting another image updates these details without changing the window size.
@@ -308,7 +312,11 @@ Blink mode defaults to Best scoring subframe. This chooses the highest-scoring e
 
 The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.
 
-The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value is the displayed preview pixel normalized to 0–1, including any display stretch and brightness alignment, with separate R/G/B values for color images. It has 8-bit display precision. Coordinates are relative to the selected region. The readout follows the displayed image during blinking and updates after zooming, panning, and changing regions; it clears outside the image.
+Choose Corner mosaic / master or Corner mosaic / best subframe to blink all four corners together against the corresponding reference mosaic. Top left and Top right form the upper row; Bottom left and Bottom right form the lower row. Each corner retains its original orientation and pixel scale. The corners use the group's common usable field, Edge guard, and Corner size. Field measurements must be available; numerical corner measurements are not required.
+
+Press Play to alternate the complete mosaics, Stop to pause, or Step to switch once. Previous and Next select another image while preserving playback and zoom. Display STF and Align preview brightness apply consistently across all four corners, preserving differences within each image. The single-region selector and Rotate regions are inactive in mosaic mode. Choose a regular blink mode to use them again. The mosaic choice is saved with process instances.
+
+The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value is the displayed preview pixel normalized to 0–1, including any display stretch and brightness alignment, with separate R/G/B values for color images. It has 8-bit display precision. Coordinates are relative to the selected region or the complete corner mosaic. The readout follows the displayed image during blinking and updates after zooming, panning, and changing regions; it clears outside the image.
 
 Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.
 
@@ -331,11 +339,11 @@ Region rotation and subframe rotation are alternatives. Enabling region rotation
 
 Interval (s) sets how long each displayed view remains visible, for reference blinking, subframe rotation, and region rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. Regional blinking displays the image for one interval and the reference for another before advancing. You can change the interval while playing without losing your zoom or pan position. In subframe rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.
 
-Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.
+Blink mode, Rotate regions, the region selector, Interval and playback buttons, Previous/Next arrows, and the Keep/Reject toggle stay on one row. Interval and Play/Step are centered between the region selector and the navigation controls on the right, with the toggle immediately to the right of Next. Display STF and Align preview brightness are on the row below. The arrows select Previous and Next images in the current visible review list, preserving zoom, pan position, and whether blinking is active. Hover over either button for help. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.
 
 Switching to another tab and returning to Blink frame / reference retains the zoom and pan position. Selecting another image in Review or through either plot also preserves this view when its preview loads. The position is limited to the new image or region's bounds. The first preview is fitted automatically; use Zoom to Fit whenever you want to refit it. Switching tabs pauses playback; press Play to resume.
 
-Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.
+The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. It stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.
 
 Reference comparisons require matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration, the best scoring subframe, or Image only region rotation to inspect a subframe without a reference.
 }
