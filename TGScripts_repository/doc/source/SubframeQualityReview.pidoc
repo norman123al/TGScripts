@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.51.1.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -21,6 +21,7 @@ With TGScripts installed through the standard PixInsight script installation, ch
    {Set Review worst (\%) and the quality weights as needed.}
    {Click the magnifier button at the bottom for a field measurement. To include the center and four corners, click the adjacent Measure corners grid button. It reuses existing field results; if these are missing, it measures the field first. Both actions cover all discovered groups and their matched masters.}
    {Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.}
+   {Optionally click Recommend rejection to compare retained Score and SNR for the selected group. Choose a minimum retained count and, if desired, an object ROI. Analyze does not mark frames; inspect its results before applying the recommendation.}
    {Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.}
    {Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.}
    {Rerun WBPP with the remaining originals. Refresh its light-frame input list so it no longer includes the moved files. Keep the rejection destination out of the new input selection.}
@@ -43,6 +44,20 @@ Import replaces the current review, measurements and rejection selections after 
 Scan files is disabled while an imported WBPP list is selected. Import WBPP remains available: choose Saved WBPP setup to recheck that list, or select a loaded icon or .xpsm file to import an updated setup. New Instance retains the imported list with the folder settings; Saved WBPP setup is also available after reopening those settings. Editing WBPP output or Original-light root, or choosing either folder with its folder button, clears the imported list and selects folder scanning. Choosing the same folder also switches to scanning; leaving an unchanged text field does not. When a WBPP output folder has been entered manually, Import WBPP is disabled; clear WBPP output to make Import WBPP available again.
 
 WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.
+}
+
+\section{Create a reviewed WBPP instance}{
+After importing a WBPP setup and making rejection decisions, click the document-export symbol immediately left of the green move checkmark. It creates a separate WBPP process icon with the rejected originals removed from all imported light groups. Already moved originals are excluded too. REVIEW flags alone do not exclude a light.
+
+Check the retained and rejected counts, then save the setup as a new .xpsm file. Calibration frames, disabled lights, processing settings and output folder are preserved. Imported lights that are not present in the current review remain in the setup; their count is reported. If a registration or local-normalization reference points to a rejected image, that reference selection is cleared so WBPP can choose again. The imported icon and source .xpsm are not changed.
+
+Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons > Load. Existing process icons are preserved.
+
+Also move rejected originals is optional and initially off. With a Rejected originals folder selected and pending moves available, enable it to combine creation with the existing move workflow. A separate move confirmation lists the files and destination. The setup is saved before moving; canceling the move leaves it available. Failed moves retain the existing journal and undo protections. Creating the instance alone does not move any image files.
+
+The button requires a successful WBPP import with complete settings and at least one rejected or moved original. If its tooltip asks for another import, select the original loaded WBPP icon or .xpsm again. All rejected originals must have verified associations, at least one enabled light must remain, and retained light files must exist. Manually selected folders do not provide the complete WBPP setup needed for this action.
+
+The new instance is a snapshot of the decisions when it was created. If you later keep a rejected frame again or undo a move, create another instance to reflect that change. Choose an appropriate output folder in WBPP before starting the new run.
 }
 
 \section{Input files and observing conditions}{
@@ -131,6 +146,44 @@ After you click the magnifier, the script checks the common usable field, measur
 With corner scoring enabled, each of the four corners is evaluated for FWHM, FWHM relative to the center, and eccentricity. These measurements use the registered image orientation. After rotation or a meridian flip, a displayed corner does not necessarily correspond to the same physical camera corner.
 
 Measurements describe the processed, registered images. Their PSF signal weights need not equal the values originally recorded by WBPP at an earlier processing stage. Very sparse regions, unusual star profiles, or registration artifacts merit visual inspection even when a numerical score is available.
+}
+
+\section{Rejection recommendation}{
+After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. This compares trial stacks to suggest how many of the remaining frames to retain. Existing rejected or moved frames and the integrated master are excluded. Each filter and exposure group is evaluated separately. It uses the current Review Score without changing Score, R1–R4 or their weights.
+
+Preserve SNR (\%) defaults to 95. The recommendation must retain at least this percentage of the highest SNR measured among the tested stacks. Increase it to favour depth, or decrease it to allow more loss of depth in exchange for a higher mean retained Score. Minimum retained defaults to 20 frames; choose a larger value when you want more statistical support. Seven is the lowest permitted value for the trial's pixel rejection, not a guarantee of reliable rejection under every condition. If too few frames remain, the script does not make a recommendation.
+
+Without Use object ROI, the script evaluates the common usable field. SNR is a stellar proxy and may not represent the faint structures of your target. With Use object ROI, enter X, Y, Width and Height in registered-image pixels, or select an existing PixInsight preview on an aligned image of the same dimensions. The ROI must lie within the common usable field and have enough surrounding sky. It must be at least 32 × 32 pixels.
+
+Include the target structures whose signal you want to preserve. A galaxy's faint outskirts may favour a different selection from its bright core. Avoid unrelated bright stars inside the rectangle: all aperture content contributes to its signal. Leave clean sky outside it for background estimation. A guard band separates the sky samples from the target, and bright stars in the surrounding sky are masked. The same object aperture and sky mask are used throughout the comparison. If surrounding sky is insufficient, make the ROI smaller or reposition it. PSF measurements require enough stars in the common usable field, independently of the object ROI. A saved ROI is reset when the selected group has different image dimensions.
+
+Click Analyze to prepare and test the candidate stacks. The current Review Score orders the remaining frames from best to worst, independently of the table sort. Each trial removes frames from the lowest-scoring end. The chosen R1, R2, R3 or R4 score mode applies; select R3 in Review if you want its strongly correlated KPI score. Every remaining frame needs a valid field measurement and Score. Scores and their ordering stay fixed throughout the comparison. Equal scores are ordered by filename.
+
+The plot shows retained frame count on the horizontal axis and preserved SNR in blue. Use Plot KPI to choose the orange curve: Score (retained mean) is the default. Other choices are FWHM, PSF signal weight, PSF SNR, Stars, Eccentricity, Noise (sigma), Retained exposure, and Effective frame count. A previously saved plot selection is restored. The selected KPI also appears in the table. Changing this selection redraws the existing measurements immediately; it does not run new integrations or change the recommended cutoff. The recommendation always uses mean retained Score, regardless of the plotted KPI.
+
+Score (retained mean) is the arithmetic mean of the retained subframes' Review scores at analysis time. It does not assign a Score to the integrated image. Changing scores, weights or the scoring mode requires new analysis because it can change the candidate ordering and recommended cutoff. PSF signal weight, PSF SNR, Stars, Eccentricity and Noise are measured on each trial stack. PSF SNR is shown as an amplitude ratio. Exposure and effective frame count describe the retained set. Hover over the selector for the selected indicator's definition.
+
+The object ROI affects only Object SNR. Its background is estimated from nearby sky outside the aperture. FWHM, PSF signal weight, PSF SNR, Stars, Eccentricity and Noise always use the common usable field. Trial-stack normalization also uses this field, independently of the ROI. For the same retained frames, changing the ROI therefore leaves those image KPIs unchanged. It can change which counts meet the SNR limit and which additional counts are tested. The area is identified beside Plot KPI. Score, exposure and effective count describe the retained frames, independently of the ROI.
+
+Stars counts detections made independently in each trial stack; it does not track a fixed list of matched stars. Changes in noise, star profiles and pixel rejection can move marginal detections across the detector's acceptance criteria. Counts can therefore rise or fall between neighbouring trial counts, especially in a small field. This does not mean that the measurement area changed, and a larger count alone does not establish a better stack.
+
+The dashed blue line is your SNR preservation limit; the green line is the recommended count. Hover over a plotted point for its values, including the unrounded selected KPI. The table reports tested counts, proposed rejects, SNR retention, the selected KPI and exposure time. Hover over a row for its effective weighted frame count, measured star count, or failure reason. Missing KPI measurements remain unavailable rather than appearing as zero.
+
+The recommended count gives the highest mean retained Score among tested stacks that satisfy the SNR and minimum-count limits. Equal mean scores favour more retained frames. FWHM does not determine the rejection decision. The all-frame baseline is tested too. The search tests several cutoffs and neighbouring counts around the best result; it does not guarantee a global optimum over every possible subset. Failed trials remain visible. If the all-frame baseline fails, no recommendation is issued.
+
+Object SNR is a background-limited aperture estimate above the surrounding sky, with allowance for nearby correlated pixels and uncertainty in the background estimate. It does not include source shot noise, shared calibration errors or long-range correlations. Nebulosity filling the surrounding sky, gradients not represented by a plane, and foreground stars inside the aperture can bias it. For bright targets or very faint outskirts, inspect the images and treat small differences cautiously. Without an ROI, the native PSF power ratio is converted to an amplitude ratio so the percentage limit has the same interpretation.
+
+Trial stacks use fixed PSF signal weights, global photometric normalization, and Winsorized pixel rejection. The test rejection limits are 4 sigma low and 3 sigma high. RGB comparisons use green. Local normalization and drizzle are not reproduced; different integration settings can change the eventual outcome. Temporary crops are reused across tests and removed afterwards. All tests integrate the common usable field, including when Object ROI is enabled. Analyze can take time for large images; Stop cancels it without marking frames.
+
+Mark recommended rejects adds rejection marks for the proposed frames and completes REVIEW for the analyzed group. Its retained frames no longer remain on the REVIEW shortlist. Marking all proposed rejects manually has the same effect. When the recommendation retains every frame, Complete review accepts that decision without rejecting any. Existing rejection decisions, measurements and scores are preserved; no files are moved. Inspect the marked frames in Review or Blink; the usual green checkmark opens the separate move plan. Closing without applying leaves decisions unchanged.
+
+Review completion remains valid for the analyzed settings and measurements. Changing them or changing other keep/reject decisions reopens review; keeping a proposed rejected frame again also reopens it. Moving an already rejected original does not reopen review. The REVIEW-only filter is empty when review is complete.
+
+Closing the recommendation window retains its results and settings for each group while the main review window remains open. Click Recommend rejection again to display them without reading image pixels or repeating the integrations. An applied recommendation can also be reopened; it is identified as already applied. An interrupted refresh with unchanged inputs retains the previous completed results.
+
+Results are cleared when their analysis settings or inputs change: for example, the SNR limit, minimum retained count, active ROI, relevant measurement settings, scores, scoring weights or mode, corner/guiding participation, selected sky indicator, measurements, source files, or manual rejection decisions. Plot selection, Review sorting and display settings retain the native results. Coordinates of a disabled ROI do not affect them. Each group keeps its own recommendation settings, so visiting another group does not discard its results.
+
+Closing the main review window or scanning a new session discards the measured session and its cached recommendations. Saved script settings retain the last SNR limit, minimum count, optional ROI and plot selection; they do not save trial results or rejection marks.
 }
 
 \section{Sky brightness}{
@@ -357,7 +410,7 @@ Blink mode, Rotate regions, the region selector, Interval and playback buttons, 
 
 Switching to another tab and returning to Blink frame / reference retains the zoom and pan position. Selecting another image in Review or through either plot also preserves this view when its preview loads. The position is limited to the new image or region's bounds. The first preview is fitted automatically; use Zoom to Fit whenever you want to refit it. Switching tabs pauses playback; press Play to resume.
 
-The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. It stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.
+The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. The frame caption does not repeat the Keep/Reject decision; it retains the image name and any master or already-moved notice. The toggle stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.
 
 Reference comparisons require matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration, the best scoring subframe, or Image only region rotation to inspect a subframe without a reference.
 }
@@ -597,7 +650,7 @@ Undo also works after rescanning or reopening the script. Scan files or import W
 
 Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.
 
-After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.
+After moving, rerun WBPP from the remaining originals. With an imported setup, use Create a reviewed WBPP instance to update its light list. Otherwise refresh the inputs manually and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.
 }
 
 \section{Common questions}{
