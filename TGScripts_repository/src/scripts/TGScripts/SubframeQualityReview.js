@@ -27,7 +27,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.55.0 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.55.1 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -51,7 +51,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.55.0';
+const SQR_VERSION='0.55.1';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -1651,6 +1651,13 @@ function sqrWBPPDecodeRecord(record){
  * Remove rejected originals from every light group (including repeated PRE/POST
  * entries). Calibration groups and unrelated parameters remain byte-for-byte
  * equivalent as values. Never execute the imported script. */
+function sqrWBPPInstalledScript(){
+   // Imported PRODUCT/VERSION metadata identifies settings, never executable
+   // code. Resolve only the standard WBPP shipped with this running core.
+   let path=sqrPath(CoreApplication.srcDirPath+'/scripts/BatchPreprocessing/WBPP.js');
+   if(!File.exists(path))throw Error('The installed WBPP script was not found: '+path+'. Repair the PixInsight installation before exporting.');
+   return path;
+}
 function sqrWBPPExportPlan(session){
    let data=session?.options.wbppImport,template=data?.template;
    if(!template?.parameters)throw Error('Import WBPP again to retain the complete setup for creating a reviewed instance.');
@@ -1690,7 +1697,7 @@ function sqrWBPPExportPlan(session){
       else if(pair[0]==='referenceImage'&&value&&excludedPaths.has(sqrKey(value))){value='';++resetReferences;}
       return [String(pair[0]),value];
    });
-   return {filePath:template.filePath,sourceFile:template.sourceFile||'',parameters,source:data.source,removed:rejected.size,
+   return {filePath:sqrWBPPInstalledScript(),sourceFile:template.sourceFile||'',parameters,source:data.source,removed:rejected.size,
       retained:[...originals].filter(([key])=>!rejected.has(key)).map(([,path])=>path),unreviewed:[...originals.keys()].filter(key=>!reviewed.has(key)).length,
       changedGroups,resetReferences};
 }
@@ -1704,7 +1711,7 @@ function sqrWBPPExportXML(plan,id){
    if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(id))throw Error('Invalid process-icon identifier.');
    let info='SubframeQualityReview '+SQR_VERSION+': '+plan.retained.length+' retained lights; '+plan.removed+' rejected originals removed. Source: '+plan.source;
    return '<?xml version="1.0" encoding="UTF-8"?>\n<xpsm version="1.0" xmlns="http://www.pixinsight.com/xpsm">\n'+
-      '<instance class="Script" version="256" id="'+id+'_instance">\n<parameter id="filePath">'+sqrHTML(plan.filePath)+'</parameter>\n'+
+      '<instance class="Script" version="256" id="'+id+'_instance">\n<parameter id="filePath">'+sqrHTML(sqrWBPPInstalledScript())+'</parameter>\n'+
       '<table id="parameters" rows="'+plan.parameters.length+'">\n'+plan.parameters.map(([key,value])=>'<tr><td id="id">'+sqrHTML(key)+'</td><td id="value">'+sqrHTML(value)+'</td></tr>').join('\n')+
       '\n</table>\n<parameter id="information">'+sqrHTML(info)+'</parameter>\n</instance>\n'+
       '<icon id="'+id+'" instance="'+id+'_instance" xpos="100" ypos="100"/>\n</xpsm>\n';
@@ -2828,7 +2835,8 @@ function sqrRecommendationKey(group,o,config,guideAvailable,fingerprint=sqrFinge
    let rows=group.rows.filter(r=>!r.isMaster).map(r=>{
       let file;try{file=fingerprint(r.registered.path);}catch(e){file='unavailable';}
       let field=r.metrics[0]||{},regions=o.measureCorners?[2,3,4,5].map(i=>r.metrics[i]||null):null;
-      return [r.registered.path,file,!!r.reject,!!r.moved,r.score,field.valid,field.fwhm,field.eccentricity,field.signal,field.stars,field.psfCount,
+      // A move preserves the excluded set and does not change registered pixels.
+      return [r.registered.path,file,!!(r.reject||r.moved),r.score,field.valid,field.fwhm,field.eccentricity,field.signal,field.stars,field.psfCount,
          regions,r.relativeTransparency,sqrExposure(r),r[sky],guides?[r.guiding?.scorable,r.guideQuality]:null];
    }).sort((a,b)=>a[0].localeCompare(b[0]));
    return JSON.stringify([SQR_VERSION,group.width,group.height,group.channels,group.roi,
@@ -2872,13 +2880,13 @@ function sqrRecommendationGeometry(group,options){
 /** Measure only Object SNR on a temporary local crop. Do not change the field
  * image or its selection: the same pixels must reach integration/ImageAnalysis
  * with and without an ROI. Freeze the sky-star mask on the first input frame. */
-function sqrRecommendationPhotometry(image,geometry,maskRadius){
+function sqrRecommendationPhotometry(image,geometry,maskRadius,requirePositive=true){
    if(!geometry.aperture)return null;
    let local=new Image;
    try{
       local.assign(image,new Rect(...geometry.photometryCrop));
       if(!geometry.skyMask)geometry.skyMask=sqrRecommendationSkyMask(local,maskRadius);
-      return sqrRecommendationAperture(local,geometry.aperture,geometry.skyMask);
+      return sqrRecommendationAperture(local,geometry.aperture,geometry.skyMask,requirePositive);
    }finally{local.free();}
 }
 function sqrRecommendationMedian(values){let a=values.slice().sort((a,b)=>a-b),n=a.length;return n?(a[(n-1)>>1]+a[n>>1])/2:NaN;}
@@ -2899,7 +2907,7 @@ function sqrRecommendationSkyMask(image,radius){
    }
    return mask;
 }
-function sqrRecommendationAperture(image,rect,skyMask=null){
+function sqrRecommendationAperture(image,rect,skyMask=null,requirePositive=true){
    let w=image.width,h=image.height,pixels=new Float32Array(w*h);image.getSamples(pixels);
    // A sky guard band reduces contamination by the target's faint outskirts.
    // It changes only the background samples, never the fixed object aperture.
@@ -2943,7 +2951,8 @@ function sqrRecommendationAperture(image,rect,skyMask=null){
       let xx=(x-w/2)/w,yy=(y-h/2)/h;signal+=v-plane[0]-plane[1]*xx-plane[2]*yy;vector[0]++;vector[1]+=xx;vector[2]+=yy;++area;}
    let backgroundVariance=0;for(let i=0;i<3;++i)for(let j=0;j<3;++j)backgroundVariance+=vector[i]*inverse[i][j]*vector[j];
    let variance=sigma*sigma*covariance*(area+Math.max(0,backgroundVariance));
-   if(!(signal>0)||!Number.isFinite(variance)||!(variance>0))throw Error('No positive background-subtracted object signal was measured. Adjust the ROI and its surrounding sky.');
+   if(!Number.isFinite(signal)||!Number.isFinite(variance)||!(variance>0))throw Error('Invalid object-aperture signal or noise variance. Check the ROI and its surrounding sky.');
+   if(requirePositive&&!(signal>0))throw Error('No positive background-subtracted object signal was measured in the integrated image. Adjust the ROI and its surrounding sky.');
    return {signal,variance,snr:signal/Math.sqrt(variance),background:plane[0],sigma,covariance,skySamples:used.length};
 }
 function sqrRecommendationNoise(image){
@@ -2977,7 +2986,9 @@ function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
          for(let y=0;y<crop.height;y+=step)for(let x=0;x<crop.width;x+=step){let v=crop.sample(x,y,0);
             if(!Number.isFinite(v))throw Error('Invalid pixels in '+sqrFileName(row.registered.path));if(v===0)++zeros;++samples;}
          if(zeros>.01*samples)throw Error('Registration padding or clipped black pixels in the test area: '+sqrFileName(row.registered.path));
-         let stats=sqrRecommendationPhotometry(crop,geometry,maskRadius);
+         // Faint objects can have signed, noisy single-frame flux. Keep every
+         // valid noise measurement; only integrated object SNR must be positive.
+         let stats=sqrRecommendationPhotometry(crop,geometry,maskRadius,false);
          // Normalization must also be ROI-independent; a local sky estimate
          // would change the integrated field and all of its quality metrics.
          let scale=row.relativeTransparency*sqrExposure(row)/reference,background=crop.median();
@@ -3010,6 +3021,9 @@ function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
  * rewarding positive noise fluctuations in individual aperture measurements. */
 function sqrRecommendationCurve(frames,minFrames){
    let signal=sqrRecommendationMedian(frames.map(f=>f.signal)),sumW=0,sumW2=0,sumV=0,sumScore=0,exposure=0,curve=[];
+   // The shared flux cancels in modeled SNR retention ratios. If its noisy
+   // estimate is nonpositive, use unit flux to propose counts for native tests.
+   if(!(signal>0))signal=1;
    for(let i=0;i<frames.length;++i){let f=frames[i];sumW+=f.weight;sumW2+=f.weight*f.weight;sumV+=f.weight*f.weight*f.variance;sumScore+=f.score;exposure+=f.exposure;
       if(i+1>=minFrames)curve.push({keep:i+1,snr:signal*sumW/Math.sqrt(sumV),score:sumScore/(i+1),exposure,effective:sumW*sumW/sumW2});}
    return curve;
@@ -3099,18 +3113,24 @@ function sqrRecommendationReviewKey(group,o,config,guideAvailable,rejected){
    let proposed=new Set(rejected),rows=group.rows.map(r=>({...r,reject:proposed.has(r)||r.reject||r.moved,moved:false}));
    return sqrRecommendationKey({...group,rows},o,config,guideAvailable,()=>null);
 }
-function sqrRecommendationPlanReview(group,o,result,guideAvailable){
-   group.recommendationReview={options:result.options,rejected:result.rejected,confirmed:false,
+function sqrRecommendationPlanReview(group,o,result,guideAvailable,accept=false){
+   let plan={options:result.options,rejected:result.rejected,confirmed:false,
       key:sqrRecommendationReviewKey(group,o,result.options,guideAvailable,result.rejected)};
+   // A fresh calculation is a proposal, not a reversal of an accepted review.
+   // Keep a pending plan as well so manually accepting its rejects still works.
+   if(!accept&&sqrRecommendationReviewComplete(group,o,guideAvailable)){group.recommendationPendingReview=plan;return;}
+   group.recommendationReview=plan;delete group.recommendationPendingReview;
    group.reviewComplete=false;
 }
 function sqrRecommendationReviewComplete(group,o,guideAvailable){
-   group.reviewComplete=false;let plan=group.recommendationReview;if(!plan)return false;
-   let config=group.recommendationSettings||plan.options;
-   if(plan.key!==sqrRecommendationReviewKey(group,o,config,guideAvailable,plan.rejected)){
-      delete group.recommendationReview;return false;
-   }
-   group.reviewComplete=(plan.confirmed||plan.rejected.length>0)&&plan.rejected.every(r=>r.reject||r.moved);
+   group.reviewComplete=false;let plan=group.recommendationReview,pending=group.recommendationPendingReview;
+   const valid=p=>p&&p.key===sqrRecommendationReviewKey(group,o,group.recommendationSettings||p.options,guideAvailable,p.rejected);
+   const complete=p=>(p.confirmed||p.rejected.length>0)&&p.rejected.every(r=>r.reject||r.moved);
+   if(!valid(plan)){delete group.recommendationReview;plan=null;}
+   if(!valid(pending)){delete group.recommendationPendingReview;pending=null;}
+   if(pending&&(!plan||complete(pending))){group.recommendationReview=plan=pending;delete group.recommendationPendingReview;}
+   if(!plan)return false;
+   group.reviewComplete=complete(plan);
    return group.reviewComplete;
 }
 function sqrRecommendationHTML(result,kpi=SQR_RECOMMENDATION_KPIS.find(k=>k.key==='score')){
@@ -3165,12 +3185,7 @@ class SQRRecommendationDialog extends Dialog {
       this.table=new TreeBox(this);this.table.numberOfColumns=6;this.table.headerVisible=true;this.table.rootDecoration=false;this.table.alternateRowColor=true;this.table.setScaledMinHeight(150);
       ['Keep','Reject','SNR retained','FWHM (px)','Exposure (h)','Result'].forEach((s,i)=>this.table.setHeaderText(i,s));
       this.status=new Label(this);this.status.wordWrapping=true;this.status.setScaledMinHeight(54);this.status.text=(geometryMatches?'':'The saved ROI used a different image size and has been reset. ')+ 'Choose optional ROI coordinates or an existing preview, then Analyze. Without an ROI, SNR is a stellar proxy.';
-      this.analyzeButton=sqrButton(this,'Analyze',()=>this.analyze());this.applyButton=sqrButton(this,'Mark recommended rejects',()=>{if(this.recommendation){
-         this.applied=sqrRecommendationApply(this.recommendation);this.reviewApplied=true;this.recommendation.applied=true;
-         if(!this.group.recommendationReview)sqrRecommendationPlanReview(this.group,this.o,this.recommendation,this.guideAvailable);
-         this.group.recommendationReview.confirmed=true;
-         if(sqrRecommendationReviewComplete(this.group,this.o,this.guideAvailable))for(let row of this.group.rows)row.candidate=false;
-         this.storeResult();this.ok();}});this.applyButton.enabled=false;
+      this.analyzeButton=sqrButton(this,'Analyze',()=>this.analyze());this.applyButton=sqrButton(this,'Mark recommended rejects',()=>this.applyRecommendation());this.applyButton.enabled=false;
       this.cancelButton=sqrButton(this,'Close',()=>{if(this.running){this.abortRequested=true;this.status.text='Stopping after the current operation…';}else this.cancel();});this.cancelButton.escapeButton=true;
       this.cancelButton.toolTip='During analysis, request cancellation after the current native operation. The PixInsight console can also abort a running process.';
       this.infoButton=sqrTool(this,':/process-interface/browse-documentation.png','How the recommendation is measured',()=>new SQRPlotInfoDialog({title:'Rejection recommendation',html:"<p>Frames are ordered by the current Review Score, highest first. The selected R1, R2, R3 or R4 mode and its weights apply. Select R3 in Review to use its strongly correlated KPI score. Scores and their order stay fixed during analysis; table sorting has no effect.</p><p>Test integrations verify several retained counts and the adjacent counts around the best one. The highest mean retained Score meeting your SNR limit and minimum count is recommended. Equal means prefer more frames. FWHM and the other plotted image KPIs are comparisons, not separate decision criteria. This is the best tested cutoff, not a guaranteed global optimum.</p><p>With an object ROI, only Object SNR uses the selected aperture and a surrounding-sky margin. Its background-limited estimate includes short-range pixel covariance and background-fit uncertainty. It does not model source shot noise, shared calibration errors or longer-range correlated noise. Avoid unrelated bright stars in the aperture and leave clean surrounding sky. Without an ROI, native PSF SNR is a stellar proxy.</p><p>Every trial stack and all other image KPIs use the same common usable field, independent of the ROI. Tests use fixed PSF signal integration weights, field-based global normalization and Winsorized rejection (low 4, high 3); RGB uses green. They do not reproduce local normalization or drizzle. The default minimum is 20; seven is a statistical floor, not a guarantee.</p><p>Plot KPI changes only the graph and table. Score is the arithmetic mean of retained subframes’ Review scores at analysis time, not a score for the integrated image. Closing this dialog keeps results per group while the main review stays open. Changes to scores, scoring settings, calculation settings, measurements or inputs require new analysis; display changes reuse results.</p><p>Analyze never marks frames. Mark recommended rejects accepts the proposal and completes REVIEW for this group. If no rejection is recommended, use Complete review. Manually marking all proposed rejects also completes REVIEW. Changing relevant settings, measurements or decisions reopens it. File movement remains a separate action.</p>"}).execute());
@@ -3183,10 +3198,27 @@ class SQRRecommendationDialog extends Dialog {
    }
    options(){let [x,y,w,h]=this.coords.map(c=>Math.round(c.value));return {snrPercent:this.snr.value,minFrames:Math.round(this.minimum.value),useROI:this.useROI.checked,roi:[x,y,x+w,y+h],geometry:[this.group.width,this.group.height],plotKPI:this.selectedKPI().key};}
    selectedKPI(){return SQR_RECOMMENDATION_KPIS[this.plotKPI.currentItem]||SQR_RECOMMENDATION_KPIS.find(k=>k.key==='score');}
-   key(){return sqrRecommendationKey(this.group,this.o,this.options(),this.guideAvailable);}
-   storeResult(){
+   key(fingerprint=sqrFingerprint){return sqrRecommendationKey(this.group,this.o,this.options(),this.guideAvailable,fingerprint);}
+   storeResult(key=this.key()){
       this.group.recommendationSettings=this.options();
-      if(this.recommendation){this.analysisKey=this.key();this.group.recommendationCache={key:this.analysisKey,result:this.recommendation};}
+      if(this.recommendation){this.analysisKey=key;this.group.recommendationCache={key:this.analysisKey,result:this.recommendation};}
+   }
+   applyRecommendation(){
+      if(this.running||!this.recommendation||this.recommendation.applied)return;
+      // Recheck immediately before changing any decision. Reuse this exact
+      // fingerprint snapshot when caching the accepted result so a later file
+      // change cannot silently bless old measurements with a new fingerprint.
+      let fingerprints=new Map,current=this.key(path=>{let value=sqrFingerprint(path);fingerprints.set(path,value);return value;});
+      if(current!==this.analysisKey){
+         this.recommendation=null;this.analysisKey=current;delete this.group.recommendationCache;
+         delete this.group.recommendationReview;delete this.group.recommendationPendingReview;this.group.reviewComplete=false;
+         this.refreshResult();this.status.text='Inputs or settings changed since Analyze. No rejection decisions were changed. Check the measurements and Analyze again.';return;
+      }
+      this.applied=sqrRecommendationApply(this.recommendation);this.reviewApplied=true;this.recommendation.applied=true;
+      sqrRecommendationPlanReview(this.group,this.o,this.recommendation,this.guideAvailable,true);
+      this.group.recommendationReview.confirmed=true;
+      if(sqrRecommendationReviewComplete(this.group,this.o,this.guideAvailable))for(let row of this.group.rows)row.candidate=false;
+      this.storeResult(this.key(path=>fingerprints.get(path)));this.ok();
    }
    restoreResult(){
       this.analysisKey=this.key();let cache=this.group.recommendationCache;
@@ -4385,7 +4417,7 @@ class SQRDialog extends Dialog {
    invalidateMeasurements(){
       if(this.running)return;
       let hadCorners=sqrHasCornerMeasurements(this.session);this.useCornerMeasurements=false;
-      if(this.session){for(let g of this.session.groups){delete g.recommendationReview;delete g.recommendationCache;g.reviewComplete=false;g.measureSignature='';g.correlationScoring=null;g.transparencySummary='';g.cloudExtinctionSummary='';g.skyQualitySummary='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};sqrClearTransparency(r);delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.scoreRankOfRanks=null;r.rankOfRanks=null;r.rankComponents=[];r.rankOfRanksDetail='';r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.dataReviewReasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}}
+      if(this.session){for(let g of this.session.groups){delete g.recommendationReview;delete g.recommendationPendingReview;delete g.recommendationCache;g.reviewComplete=false;g.measureSignature='';g.correlationScoring=null;g.transparencySummary='';g.cloudExtinctionSummary='';g.skyQualitySummary='';for(let r of sqrGroupRows(g)){r.measureSignature='';r.metrics={};sqrClearTransparency(r);delete r.backgroundMeans;r.skyBackground=null;r.score=null;r.scoreWithoutCorners=null;r.scoreWithCorners=null;r.scoreCorrelated=null;r.rankCorrelated=null;r.scoreRankOfRanks=null;r.rankOfRanks=null;r.rankComponents=[];r.rankOfRanksDetail='';r.rankWithoutCorners=null;r.rankWithCorners=null;r.candidate=false;r.reasons=[];r.dataReviewReasons=[];r.mainIssue='';r.mainIssueDetail='';r.scoreContributions=[];r.cornerSeverity=null;r.measuredCornerSeverity=null;r.worstCorner='';r.belowMeanCount=null;r.belowMeanFraction=null;r.belowMeanFieldFraction=null;r.belowMeanCornerFraction=null;r.belowMeanAvailable=0;r.belowMeanTotal=0;r.belowMeanComplete=false;r.belowMeanDetail='';}}}
       this.updateCornerControls();this.syncOptions();this.clearFrames();this.populateRows();
       this.status.text='Measurement settings changed.'+(hadCorners?' Corner measurements were cleared.':'')+' Click Measure corners beside the magnifier to measure the previews, or use the magnifier for field measurements.';
    }
