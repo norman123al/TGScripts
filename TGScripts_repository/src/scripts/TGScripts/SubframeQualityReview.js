@@ -26,7 +26,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.51.0 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.51.1 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -50,7 +50,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.51.0';
+const SQR_VERSION='0.51.1';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -1658,7 +1658,10 @@ function sqrWBPPScanInputs(o){let data=o.wbppImport;if(!data)return null;
          if(File.exists(output)){let key=sqrKey(output);if(links.has(key)&&sqrKey(links.get(key))!==sqrKey(path))throw new Error('Several WBPP inputs claim the same registered image.');links.set(key,path);outputPaths.set(key,output);++valid;}}
       if(!valid||valid!==(light.registered||[]).length)complete=false;
    }
-   let registered=complete?[...outputPaths.values()]:sqrWalk(wbpp+'/registered');
+   // Verify saved links before considering discovered copies. Preserve them
+   // even when the directory walker cannot enumerate their parent folder.
+   let registered=[...outputPaths.values()];
+   if(!complete)registered=registered.concat(sqrWalk(wbpp+'/registered').filter(p=>!outputPaths.has(sqrKey(p))));
    return {originals:[...new Set(originals)],registered:registered.filter(p=>!p.toLowerCase().includes('/ln_reference_frame_data/')),links,complete};
 }
 function sqrScan(o,notify){
@@ -1669,23 +1672,29 @@ function sqrScan(o,notify){
    let imported=sqrWBPPScanInputs(o);
    let registered=imported?imported.registered:sqrWalk(wbpp+'/registered').filter(p=>!p.toLowerCase().includes('/ln_reference_frame_data/'));
    let discoverMasters=()=>File.directoryExists(wbpp+'/master')?sqrWalk(wbpp+'/master').filter(p=>/^masterLight_/i.test(sqrBase(p))):[];
-   let masterFiles=imported?o.wbppImport.masters.filter(p=>sqrUnder(p,wbpp+'/master')&&File.exists(p)):discoverMasters(),mastersDiscovered=!imported;
+   let savedMasters=imported?o.wbppImport.masters.filter(p=>sqrUnder(p,wbpp+'/master')&&File.exists(p)):[];
+   let masterFiles=imported?null:discoverMasters();
    let rawFiles=imported?imported.originals:sqrWalk(rawRoot,[wbpp,o.destination? sqrPath(o.destination):'']).filter(p=>!/^master/i.test(sqrBase(p)));
    let raws=[],warnings=[];
    for(let i=0;i<rawFiles.length;++i){
       sqrTick(notify,'Reading original headers '+(i+1)+' / '+rawFiles.length);
       try{let m=sqrMetadata(rawFiles[i]);if(sqrIsLight(m))raws.push(m);}catch(e){warnings.push(rawFiles[i]+': '+String(e));}
    }
-   let groups=[],byGroup={},originalIndex=sqrIndexOriginals(raws),originalByPath=new Map(raws.map(r=>[sqrKey(r.path),r])),importNames=new Set(rawFiles.map(p=>sqrBase(p).toLowerCase())),skipped=0;
+   let groups=[],byGroup={},originalIndex=sqrIndexOriginals(raws),originalByPath=new Map(raws.map(r=>[sqrKey(r.path),r])),verifiedLinks=new Set,fallbackNames=null,skipped=0;
    for(let i=0;i<registered.length;++i){
       sqrTick(notify,'Matching registered lights '+(i+1)+' / '+registered.length);
       let linked=imported?.links.get(sqrKey(registered[i]));
       let m=sqrMetadata(registered[i]);if(!sqrIsLight(m))continue;
       let found=linked?sqrFindOriginal(m,[originalByPath.get(sqrKey(linked))].filter(Boolean)):sqrFindOriginal(m,raws,originalIndex);
+      if(linked&&found.raw)verifiedLinks.add(sqrKey(found.raw.path));
       // Renamed or channel-separated outputs can still have a unique header
-      // match. Unrelated outputs never enter the imported review. A named but
-      // unverified match stays visible, with moving disabled as in a normal scan.
-      if(imported&&!linked&&!found.raw&&!importNames.has(sqrSourceStem(registered[i]))){++skipped;continue;}
+      // match. Fallback must not add stale copies of an already verified link.
+      // Keep the full original index for matching so exclusion cannot turn an
+      // ambiguous header match into a falsely unique association.
+      if(imported&&!linked){
+         fallbackNames??=new Set(rawFiles.filter(p=>!verifiedLinks.has(sqrKey(p))).map(p=>sqrBase(p).toLowerCase()));
+         if((found.raw&&verifiedLinks.has(sqrKey(found.raw.path)))||(!found.raw&&!fallbackNames.has(sqrSourceStem(registered[i])))){++skipped;continue;}
+      }
       let dir=sqrDir(m.path),directoryName=dir.split('/').pop(),key=dir+'|'+m.exposure+'|'+m.width+'x'+m.height+'|'+m.channels;
       let g=byGroup[key];if(!g){g={id:key,directory:dir,directoryName:directoryName,
          label:directoryName,width:m.width,height:m.height,channels:m.channels,exposure:m.exposure,
@@ -1694,8 +1703,10 @@ function sqrScan(o,notify){
       g.rows.push({registered:m,original:found.raw,match:found.state,reject:false,moved:false,candidate:false,metrics:{}});
    }
    if(!groups.length)throw new Error('No registered light images found. Supported formats: XISF and FITS.');
-   for(let g of groups){g.master=sqrMasterFor(g,masterFiles);
-      if(!g.master&&!mastersDiscovered){masterFiles=discoverMasters();mastersDiscovered=true;g.master=sqrMasterFor(g,masterFiles);}
+   for(let g of groups){g.master=sqrMasterFor(g,savedMasters);
+      // Each group gets its own saved-path preference. Discover at most once,
+      // without replacing the preferred list for groups processed later.
+      if(!g.master){masterFiles??=discoverMasters();g.master=sqrMasterFor(g,masterFiles);}
       sqrMasterRow(g);
       sqrMasterScale(g);
       if(!g.master)warnings.push('No unique integrated master for filter '+(g.filter||'(unknown)')+' in master/: '+g.directoryName);}
@@ -1705,7 +1716,7 @@ function sqrScan(o,notify){
    if(imported){let matched=new Set(groups.flatMap(g=>g.rows).filter(r=>r.original).map(r=>sqrKey(r.original.path)));
       let missing=imported.originals.filter(p=>!matched.has(sqrKey(p)));
       if(missing.length)warnings.push(missing.length+' imported light(s) have no verified registered match: '+missing.join('\n'));
-      if(skipped)warnings.push(skipped+' registered file(s) outside the imported light list were excluded.');}
+      if(skipped)warnings.push(skipped+' registered file(s) outside the imported selection were excluded.');}
    let session={schema:1,version:SQR_VERSION,created:new Date().toISOString(),options:{...o},groups:groups,warnings:warnings};
    if(imported)session.importSummary='WBPP '+o.wbppImport.version+' · '+imported.originals.length+' imported lights · '+o.wbppImport.disabled+' disabled lights omitted · '+(imported.complete?'saved registered paths used':'registered outputs located in WBPP folder');
    let setup=sqrSessionPixelScale(session);
@@ -3555,9 +3566,11 @@ class SQRDialog extends Dialog {
       if(this.sqmTimeError&&this.calibrateSkyButton)this.calibrateSkyButton.enabled=false;
       return !this.sqmTimeError;
    }
-   sqmTimeChanged(){let previousError=this.sqmTimeError,valid=this.validateSQMTime(true);if(this.sqmTime.text.trim()!==this.sqmTimePreset)this.sqmTimePreset='';this.bortleChanged();
-      if(!valid){this.setMessagesCollapsed(false);this.setStatus(this.sqmTimeError);}
-      else if(previousError&&this.status.text===previousError)this.setStatus('SQM reading time updated.');}
+   sqmTimeChanged(){let valid=this.validateSQMTime(true);if(this.sqmTime.text.trim()!==this.sqmTimePreset)this.sqmTimePreset='';this.bortleChanged();
+      // Live validation clears the field error while typing. Retain ownership
+      // of the published message until commit, without replacing newer results.
+      if(!valid){this.sqmTimeReportedError=this.sqmTimeError;this.setMessagesCollapsed(false);this.setStatus(this.sqmTimeError);}
+      else{if(this.sqmTimeReportedError&&this.status.text===this.sqmTimeReportedError)this.setStatus('SQM reading time updated.');this.sqmTimeReportedError='';}}
    // Replace an empty value or our untouched preset; never overwrite a manual
    // reading time. Remember ownership in saved settings so a new log folder
    // can update an inherited preset after reopening the script as well.
@@ -4044,11 +4057,14 @@ class SQRDialog extends Dialog {
       this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+(this.isCornerMosaic()?' · Corner mosaic (TL / TR above BL / BR)':this.isRegionRotating()?' · '+(this.region.currentItem?SQR_REGIONS[this.region.currentItem]:'Usable field'):'')+'\n'+(r.isMaster?'INTEGRATED MASTER · cannot be rejected':r.reject?'REJECT ORIGINAL':'KEEP ORIGINAL')+(r.moved?' · already moved':'');
    }
    chooseWBPPImport(){if(this.running||this.inputMode()==='manual')return;this.stopBlink();try{let dialog=new SQRWBPPImportDialog(this.wbppImport);if(dialog.execute()&&dialog.data)this.importWBPP(dialog.data);}catch(e){this.error(e);}}
-   importWBPP(data){if(this.running)return;this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
+   importWBPP(data){if(this.running)return;this.stopBlink();this.busy(true);let abort=console.abortEnabled,imported=false;console.abortEnabled=true;
       try{let options={...this.options(),wbpp:data.wbpp,originals:data.originals,wbppImport:data,measureCorners:false};
          // Build first: invalid files or an abort preserve the current review.
-         let session=sqrScan(options,s=>this.setStatus(s));this.setSession(session);this.scanSummary();
-      }catch(e){this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}}
+         let session=sqrScan(options,s=>this.setStatus(s));this.setSession(session);imported=true;
+      }catch(e){this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
+      // setSession cannot load logs while busy. Rebind the selected logs only
+      // after a successful replacement, using the new image timestamps/scale.
+      if(imported)try{this.loadAutorun(false);this.populateRows(false);this.scanSummary();}catch(e){this.error(e);}}
    scanSummary(){let rows=this.session.groups.flatMap(g=>g.rows),masters=this.session.groups.filter(g=>g.master).length;
       this.status.text=(this.session.importSummary?this.session.importSummary+'\n':'')+rows.length+' registered lights · '+rows.filter(r=>r.original).length+' verified originals · '+this.session.groups.length+' groups · '+masters+' masters matched by filter. Use the magnifier to measure.'+(this.session.warnings.length?'\n'+this.session.warnings.join('\n'):'');}
    scan(){if(this.running||this.inputMode()!=='manual'||!this.folders.originals.edit.text.trim())return;this.stopBlink();this.scanRequired=true;this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
