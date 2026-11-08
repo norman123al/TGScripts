@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="c3152b8195835d2c200b81278f7cfb6d9fb00706" type="script" releaseDate="20261108">
+      <package fileName="TGScripts_repository.tar.gz" sha1="f01e8a187d9f71b472f41cddbe17fa2819d6e209" type="script" releaseDate="20261108">
          <title>
             TGScripts snapshot - 2026 Nov 08
          </title>
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Import WBPP setups from loaded icons or .xpsm files to populate folders and the review list automatically. Combine sources in one selector, make Scan/Import alternative workflows, and compact the autofocus controls.
+               SubframeQualityReview 0.55.1: Prevent stale recommendations from being applied, preserve completed reviews during reanalysis and cached results after moving rejected originals. Improve faint-object ROI handling and ensure exported instances use the installed WBPP script.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-08T16:56:31.251Z" encoding="Base64">K3RhjpM1dB6r1Y86F2KKA29cVCeyKpyNAp2m5ea8m6fm+kbWSn593yndrxhJdUpDGMSyFJKcb+xx1ACylvf/Dw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-08T22:54:39.896Z" encoding="Base64">D8zsh8/UnrOkrhp75eJDGIh3nwfQ7grNkzv82zfPBHLiwasgobPk85SBQxzLYixAja9xxAi+ZTvdip3Tk9Y9Cw==</Signature>
