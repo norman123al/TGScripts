@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="515a084e4a926fbed52c9d5a81c232dad317d9ee" type="script" releaseDate="20261107">
+      <package fileName="TGScripts_repository.tar.gz" sha1="c3152b8195835d2c200b81278f7cfb6d9fb00706" type="script" releaseDate="20261108">
          <title>
-            TGScripts snapshot - 2026 Nov 07
+            TGScripts snapshot - 2026 Nov 08
          </title>
          <remove>
             src/scripts/TGScripts
@@ -35,7 +35,7 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview: Improved compact-window layout and control alignment. Corrected timestamp aliases and split date/time handling for reliable airmass and Cloud Extinction measurements. Updated documentation.
+               SubframeQualityReview: Import WBPP setups from loaded icons or .xpsm files to populate folders and the review list automatically. Combine sources in one selector, make Scan/Import alternative workflows, and compact the autofocus controls.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +44,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-07T18:51:53.013Z" encoding="Base64">Ewc+daBz5yNztcVLmsXIEzAHHHgIrycn3Ry1tzMZWdOyFoxbLJlq/ERlq4Bo3Lx2TFibZbneaLQpSIlNxPkdBA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-08T16:56:31.251Z" encoding="Base64">K3RhjpM1dB6r1Y86F2KKA29cVCeyKpyNAp2m5ea8m6fm+kbWSn593yndrxhJdUpDGMSyFJKcb+xx1ACylvf/Dw==</Signature>

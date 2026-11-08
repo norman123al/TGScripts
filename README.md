@@ -61,7 +61,7 @@ The packaged updater release may lag behind the repository source. For manual ex
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.45.14 | Reviews registered lights with quality rankings, transparency and cloud-extinction indicators, blink comparisons, and reversible rejection moves. | 2026&#8209;11&#8209;07 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.51.0 | Reviews WBPP subframes with setup import, quality rankings, corner mosaic blink comparisons, and reversible rejection moves. | 2026&#8209;11&#8209;08 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -312,16 +312,16 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.45.14 · **Last update:** 2026-11-07
+**Version:** 0.51.0 · **Last update:** 2026-11-08
 
-Helps select **WBPP subframes to keep or reject** using ImageAnalysis measurements, four quality rankings, and field, corner, sky-quality, and guiding indicators. Includes relative transparency and cloud-extinction estimates, blink comparisons, quality plots, FWHM grading, and SQM/Gaia sky calibration. Confirmed moves of manually rejected originals can be undone through a move journal.
+Helps select **WBPP subframes to keep or reject** using four quality rankings and field, corner, sky, and guiding measurements. Imports WBPP setups from process icons or `.xpsm` files, or scans folders. Offers single-region and four-corner mosaic blinking, quality plots, FWHM grading, transparency/cloud-extinction estimates, and SQM/Gaia sky calibration. Confirmed moves of manually rejected originals can be undone through a move journal.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
 <details>
 <summary>View Subframe Quality Review interface</summary>
 
-Captured from **0.45.14** on **2026-11-07**, reviewing 40 blue-filter, 180-second subframes of **NGC 7814**.
+Captured from **0.45.14** on **2026-11-07**, reviewing 40 blue-filter, 180-second subframes of **NGC 7814**. These examples predate WBPP setup import, corner mosaic blinking, and the updated input and message controls.
 
 **Review and measurements**
 

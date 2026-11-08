@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.14." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.51.1." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.45.14. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move manually rejected original lights. User guide for version 0.51.1. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -37,25 +37,26 @@
 <ul>
 <li class="pidoc_tocItem"><a href="#__Description__">1&emsp;Description</a></li>
 <li class="pidoc_tocItem"><a href="#__Start_and_complete_a_review__">2&emsp;Start and complete a review</a></li>
-<li class="pidoc_tocItem"><a href="#__Input_files_and_observing_conditions__">3&emsp;Input files and observing conditions</a></li>
-<li class="pidoc_tocItem"><a href="#__Quality_evaluation_controls__">4&emsp;Quality evaluation controls</a></li>
-<li class="pidoc_tocItem"><a href="#__What_is_measured__">5&emsp;What is measured</a></li>
-<li class="pidoc_tocItem"><a href="#__Sky_brightness__">6&emsp;Sky brightness</a></li>
-<li class="pidoc_tocItem"><a href="#__Transparency__">7&emsp;Transparency</a></li>
-<li class="pidoc_tocItem"><a href="#__Cloud_extinction__">8&emsp;Cloud extinction</a></li>
-<li class="pidoc_tocItem"><a href="#__Sky_quality__">9&emsp;Sky quality</a></li>
-<li class="pidoc_tocItem"><a href="#__Score_and_Belowmean_Quality__">10&emsp;Score and Below-mean Quality</a></li>
-<li class="pidoc_tocItem"><a href="#__R4_Rank_of_ranks__">11&emsp;R4: Rank of ranks</a></li>
-<li class="pidoc_tocItem"><a href="#__Review_and_measurements__">12&emsp;Review and measurements</a></li>
-<li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">13&emsp;Blink frame and reference</a></li>
-<li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">14&emsp;Quality indicators and acquisition order</a></li>
-<li class="pidoc_tocItem"><a href="#__Skybackground_comparison__">15&emsp;Sky-background comparison</a></li>
-<li class="pidoc_tocItem"><a href="#__FWHM_grading__">16&emsp;FWHM grading</a></li>
-<li class="pidoc_tocItem"><a href="#__Correlation_plot__">17&emsp;Correlation plot</a></li>
-<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">18&emsp;Log folder, timing, and autofocus markers</a></li>
-<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">19&emsp;Guiding measurements and quality</a></li>
-<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">20&emsp;Move rejected originals and rerun WBPP</a></li>
-<li class="pidoc_tocItem"><a href="#__Common_questions__">21&emsp;Common questions</a></li>
+<li class="pidoc_tocItem"><a href="#__Import_a_WBPP_setup__">3&emsp;Import a WBPP setup</a></li>
+<li class="pidoc_tocItem"><a href="#__Input_files_and_observing_conditions__">4&emsp;Input files and observing conditions</a></li>
+<li class="pidoc_tocItem"><a href="#__Quality_evaluation_controls__">5&emsp;Quality evaluation controls</a></li>
+<li class="pidoc_tocItem"><a href="#__What_is_measured__">6&emsp;What is measured</a></li>
+<li class="pidoc_tocItem"><a href="#__Sky_brightness__">7&emsp;Sky brightness</a></li>
+<li class="pidoc_tocItem"><a href="#__Transparency__">8&emsp;Transparency</a></li>
+<li class="pidoc_tocItem"><a href="#__Cloud_extinction__">9&emsp;Cloud extinction</a></li>
+<li class="pidoc_tocItem"><a href="#__Sky_quality__">10&emsp;Sky quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Score_and_Belowmean_Quality__">11&emsp;Score and Below-mean Quality</a></li>
+<li class="pidoc_tocItem"><a href="#__R4_Rank_of_ranks__">12&emsp;R4: Rank of ranks</a></li>
+<li class="pidoc_tocItem"><a href="#__Review_and_measurements__">13&emsp;Review and measurements</a></li>
+<li class="pidoc_tocItem"><a href="#__Blink_frame_and_reference__">14&emsp;Blink frame and reference</a></li>
+<li class="pidoc_tocItem"><a href="#__Quality_indicators_and_acquisition_order__">15&emsp;Quality indicators and acquisition order</a></li>
+<li class="pidoc_tocItem"><a href="#__Skybackground_comparison__">16&emsp;Sky-background comparison</a></li>
+<li class="pidoc_tocItem"><a href="#__FWHM_grading__">17&emsp;FWHM grading</a></li>
+<li class="pidoc_tocItem"><a href="#__Correlation_plot__">18&emsp;Correlation plot</a></li>
+<li class="pidoc_tocItem"><a href="#__Log_folder_timing_and_autofocus_markers__">19&emsp;Log folder, timing, and autofocus markers</a></li>
+<li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">20&emsp;Guiding measurements and quality</a></li>
+<li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">21&emsp;Move rejected originals and rerun WBPP</a></li>
+<li class="pidoc_tocItem"><a href="#__Common_questions__">22&emsp;Common questions</a></li>
 </ul>
 </div>
 
@@ -79,8 +80,8 @@
 
 <ol class="pidoc_list">
 <li>Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.</li>
-<li class="pidoc_spaced_list_item">Enter the telescope aperture for FWHM grading, then select the WBPP output directory, the original-light root, and a destination for rejected originals. Optionally select a log folder containing the acquisition and guiding logs.</li>
-<li class="pidoc_spaced_list_item">Click Scan files. Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
+<li class="pidoc_spaced_list_item">Choose one input method: leave WBPP output empty and click Import WBPP, or select the WBPP output and original-light folders manually and click Scan files. Both buttons are in Input files and observing conditions, immediately left of the Autofocus times clock symbol. Enter the telescope aperture for FWHM grading, a destination for rejected originals if needed, and an optional acquisition-log folder.</li>
+<li class="pidoc_spaced_list_item">Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.</li>
 <li class="pidoc_spaced_list_item">Set Review worst (%) and the quality weights as needed.</li>
 <li class="pidoc_spaced_list_item">Click the magnifier button at the bottom for a field measurement. To include the center and four corners, click the adjacent Measure corners grid button. It reuses existing field results; if these are missing, it measures the field first. Both actions cover all discovered groups and their matched masters.</li>
 <li class="pidoc_spaced_list_item">Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.</li>
@@ -94,17 +95,31 @@
    </div>
 </div>
 
+<div class="pidoc_section" id="__Import_a_WBPP_setup__">
+   <h3 class="pidoc_sectionTitle">3&emsp;Import a WBPP setup</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Import_a_WBPP_setup', this );">[hide]</p>
+   <div id="Import_a_WBPP_setup">
+<p>With WBPP output empty, click Import WBPP beside Scan files in Input files and observing conditions. Loaded WBPP process icons appear automatically in the WBPP instance selector. Click Open .xpsm to add setups from a saved process-icon file to the same selector. You can open more than one file; loaded icons and entries from other files remain available. Entries identify their source, and hovering over the selector shows the full source path. Opening the same file again refreshes its entries without adding duplicates. Choose the setup for the completed run, check the output folder and number of enabled lights, then click Import.</p>
+<p>Import fills WBPP output and Original-light root and populates the review list automatically. It includes only enabled original light frames from the saved setup. Duplicate entries in WBPP groups are counted once. Calibration frames and disabled lights are excluded. The original-light root is the common parent folder of the imported lights.</p>
+<p>An instance saved after processing can provide exact registered-image and master paths. Otherwise the script locates the outputs in the WBPP output folder. Verified saved registered-image links remain preferred when other lights need discovery, so older copies in a reused output folder do not replace them. Each filter group also keeps its saved master preference when another group needs a master to be located. Original-light folders are not searched recursively during an import. Files and image headers still have to be checked: saving a WBPP instance does not establish that processing completed successfully. Missing outputs and unverified originals are reported in Messages. Review remains available for verified outputs; an unverified original cannot be moved.</p>
+<p>Import replaces the current review, measurements and rejection selections after the files have been checked successfully. Canceling the selector, an invalid setup, or an aborted file check leaves the existing review intact. Aperture, seeing, SQM, log folder, rejection destination and scoring settings are retained. Selected guiding and autofocus logs are refreshed against the imported images, including their inferred UTC offsets. Image measurements are still made with the magnifier and Measure corners buttons.</p>
+<p>Scan files is disabled while an imported WBPP list is selected. Import WBPP remains available: choose Saved WBPP setup to recheck that list, or select a loaded icon or .xpsm file to import an updated setup. New Instance retains the imported list with the folder settings; Saved WBPP setup is also available after reopening those settings. Editing WBPP output or Original-light root, or choosing either folder with its folder button, clears the imported list and selects folder scanning. Choosing the same folder also switches to scanning; leaving an unchanged text field does not. When a WBPP output folder has been entered manually, Import WBPP is disabled; clear WBPP output to make Import WBPP available again.</p>
+<p>WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.</p>
+   </div>
+</div>
+
 <div class="pidoc_section" id="__Input_files_and_observing_conditions__">
-   <h3 class="pidoc_sectionTitle">3&emsp;Input files and observing conditions</h3>
+   <h3 class="pidoc_sectionTitle">4&emsp;Input files and observing conditions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Input_files_and_observing_conditions', this );">[hide]</p>
    <div id="Input_files_and_observing_conditions">
-<p>Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. Autofocus times remains aligned with the right edge of the path text fields. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. A prompt beside Scan files appears when scanning is needed. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.</p>
+<p>Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. The Autofocus times clock symbol remains aligned with the right edge of the path text fields, with Scan files and Import WBPP immediately to its left. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. The available input action is highlighted when the review list needs to be populated. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.</p>
 <p>The Filter / group label aligns with the folder labels, with its selector immediately beside it. The SQM time Choose button shares the right edge of Autofocus times and the path text fields. In Guiding, the threshold message sits directly below Weight, aligned with the text of Guiding in Score.</p>
 <p>Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size; collapsing a section reduces scrolling or gives the active tab more room. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.</p>
 <p>Telescope aperture is at the bottom of this section, aligned with the folder controls. The aperture, seeing, Session SQM, and reading time have evenly spaced control groups; the reading time moves to a second row only when the controls no longer fit together. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.</p>
 <p>Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcseconds at the zenith and a reference wavelength of 550 nm. A positive value enables grading relative to the expected FWHM for those conditions. Leave it at zero to use the fixed Good and Medium seeing limits. A forecast is an estimate, not a measurement of the actual conditions; check its reference conditions before entering it. If it already includes the target altitude correction, convert it to zenith seeing first.</p>
 <p>Session SQM and SQM time (local) are beside Aperture and Zenith seeing. Enter the reading in mag/arcsec². Loading the log folder presets the date and local time from the earliest light-frame sequence in its Autorun logs. Flat frames, focusing and plate-solving exposures, and Chinese translations are ignored. Adjust the preset to the actual SQM reading time. A time you enter manually is retained when the logs are reloaded or changed; an untouched automatic preset follows the selected log folder. This distinction is retained in saved settings. If the new folder has no recognized light-frame start, an automatic preset is cleared.</p>
 <p>Click Choose beside SQM time to select the year, month, day, hour, minute and second, then Apply. Cancel retains the existing time. If the time is empty, the selector starts at the logged imaging start, then falls back to the selected exposure midpoint when its local time is known, or the computer clock if neither is available. You can also type or paste YYYY-MM-DD HH:MM or YYYY-MM-DD HH:MM:SS directly. The date avoids ambiguity when a session crosses midnight. Log presets keep their local wall time; the existing inferred or custom UTC offset converts the reading to image UTC timestamps. The reading automatically determines the approximate Bortle class.</p>
+<p>Manual entries are checked for a valid calendar date and clock time. On Enter or leaving the field, valid entries are formatted as YYYY-MM-DD HH:MM:SS; omitted seconds become 00. A T between date and time or slashes in the date are accepted and standardized. Do not append a timezone: the UTC offset controls supply it. Invalid entries remain visible with a highlighted field and an explanation in Messages. They cannot be used for calibration. Correct the entry or use Choose; the script does not silently replace it with another time. Committing a valid correction also clears its validation message in Messages, while preserving newer messages from other operations.</p>
 <p>Zero means that no SQM reading is supplied. In that case, select Sky brightness on the Quality indicators tab to choose a Bortle class from the compact selector to the left of Calibrate sky. Choose a class from 1 to 9, or — when unspecified. The starting selection is class 6. Your manual selection is retained while SQM determines the class automatically.</p>
 
 <table class="pidoc_table">
@@ -148,13 +163,13 @@
 <p>The registered images, their associated originals, and matched masters must identify the same camera. A scan stops if different cameras are found. Missing camera names are reported as not fully verified. The same camera can still have a different pixel scale with different focal lengths or binning. Conflicting master scales or different master and registered-image dimensions are reported instead of assuming one shared scale. If no usable master scale metadata is available, the scale is shown as unavailable.</p>
 <p>Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.</p>
 <p>Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.</p>
-<p>Scan files is highlighted in slate gray, retaining the standard pushbutton appearance, when a scan is needed: on startup, after changing either image folder, or after an unsuccessful scan. The highlight clears after a successful scan. The magnifier, Measure corners and Undo moved originals buttons are enabled only after a successful scan. Changing measurement or display settings does not require another file scan.</p>
+<p>Scan files and Import WBPP are alternative input methods. Scan files becomes available when both manual image folders are specified; Import WBPP is available when WBPP output is empty or an imported setup is selected. The available action is highlighted in slate gray, retaining the standard pushbutton appearance, when the review list needs to be populated. The highlight clears after a successful scan or import. Hover over either button for guidance on switching methods. The clock symbol opens Autofocus times; it is available when a log folder is selected. The magnifier, Measure corners and Undo moved originals buttons are enabled only after a successful scan or import. Changing measurement or display settings does not require another file scan.</p>
 <p>The green Move checkmark and blue Undo arrow also require a Rejected originals folder. Both remain disabled while this field is blank. Their tooltips explain what is required. Entering or clearing the folder updates the buttons immediately; no rescan is needed. Move additionally requires at least one manually rejected original. Scanning and measuring remain available with the rejection folder blank.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Quality_evaluation_controls__">
-   <h3 class="pidoc_sectionTitle">4&emsp;Quality evaluation controls</h3>
+   <h3 class="pidoc_sectionTitle">5&emsp;Quality evaluation controls</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_evaluation_controls', this );">[hide]</p>
    <div id="Quality_evaluation_controls">
 <p>Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.</p>
@@ -262,7 +277,7 @@
 </div>
 
 <div class="pidoc_section" id="__What_is_measured__">
-   <h3 class="pidoc_sectionTitle">5&emsp;What is measured</h3>
+   <h3 class="pidoc_sectionTitle">6&emsp;What is measured</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'What_is_measured', this );">[hide]</p>
    <div id="What_is_measured">
 <p>The script calls PixInsight's ImageAnalysis process to measure the registered lights and the matching masters. It uses a shared valid field inside the registered images, excluding registration borders as far as the sampled border checks can determine. FWHM is reported in pixels with one decimal place.</p>
@@ -275,7 +290,7 @@
 </div>
 
 <div class="pidoc_section" id="__Sky_brightness__">
-   <h3 class="pidoc_sectionTitle">6&emsp;Sky brightness</h3>
+   <h3 class="pidoc_sectionTitle">7&emsp;Sky brightness</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Sky_brightness', this );">[hide]</p>
    <div id="Sky_brightness">
 <p>With Include corner measurements (R2) enabled, Sky brightness is the minimum of the arithmetic means of the five previews: Center, Top left, Top right, Bottom left, and Bottom right. With the option off, it is the arithmetic mean of the whole registered image, including any registration borders.</p>
@@ -286,7 +301,7 @@
 </div>
 
 <div class="pidoc_section" id="__Transparency__">
-   <h3 class="pidoc_sectionTitle">7&emsp;Transparency</h3>
+   <h3 class="pidoc_sectionTitle">8&emsp;Transparency</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Transparency', this );">[hide]</p>
    <div id="Transparency">
 <p>Transparency uses the RelativeExtinction measurement from ImageAnalysis to compare stellar light within each filter group. Higher percentages indicate more transmitted stellar light. Measurements account for exposure time. For RGB images, ImageAnalysis uses HSI intensity.</p>
@@ -301,7 +316,7 @@
 </div>
 
 <div class="pidoc_section" id="__Cloud_extinction__">
-   <h3 class="pidoc_sectionTitle">8&emsp;Cloud extinction</h3>
+   <h3 class="pidoc_sectionTitle">9&emsp;Cloud extinction</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Cloud_extinction', this );">[hide]</p>
    <div id="Cloud_extinction">
 <p>Cloud extinction uses ImageAnalysis to estimate stellar dimming beyond the normal change with airmass. It is reported in magnitudes in the Review table, in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. Lower values indicate less additional dimming. It is a comparison indicator and does not enter Score or R1–R4.</p>
@@ -314,7 +329,7 @@
 </div>
 
 <div class="pidoc_section" id="__Sky_quality__">
-   <h3 class="pidoc_sectionTitle">9&emsp;Sky quality</h3>
+   <h3 class="pidoc_sectionTitle">10&emsp;Sky quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Sky_quality', this );">[hide]</p>
    <div id="Sky_quality">
 <p>Sky quality combines the existing Transparency and Sky brightness indicators. Higher values favour frames with more transmitted stellar light and a darker background. It is available as an additional column in Review, in Sort by, on the Quality indicators tab, and on either axis of Correlation plot.</p>
@@ -328,7 +343,7 @@
 </div>
 
 <div class="pidoc_section" id="__Score_and_Belowmean_Quality__">
-   <h3 class="pidoc_sectionTitle">10&emsp;Score and Below-mean Quality</h3>
+   <h3 class="pidoc_sectionTitle">11&emsp;Score and Below-mean Quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Score_and_Belowmean_Quality', this );">[hide]</p>
    <div id="Score_and_Belowmean_Quality">
 <p>Higher Score means better relative quality. Scores range from 0 to 1 and are displayed with three decimal places. The default Score sort puts the lowest, worst scores first. The score combines penalties for weak signal, few detected stars, large or elongated stars, poor results in the selected sky indicator, optional corner problems, guiding errors when logs are available, and the breadth of below-mean quality across indicators.</p>
@@ -430,7 +445,7 @@
 </div>
 
 <div class="pidoc_section" id="__R4_Rank_of_ranks__">
-   <h3 class="pidoc_sectionTitle">11&emsp;R4: Rank of ranks</h3>
+   <h3 class="pidoc_sectionTitle">12&emsp;R4: Rank of ranks</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'R4_Rank_of_ranks', this );">[hide]</p>
    <div id="R4_Rank_of_ranks">
 <p>R4 combines three views of image quality into one ranking. Each available ranking has equal influence after normalization. It averages the rank positions, rather than the underlying quality scores.</p>
@@ -476,11 +491,12 @@
 </div>
 
 <div class="pidoc_section" id="__Review_and_measurements__">
-   <h3 class="pidoc_sectionTitle">12&emsp;Review and measurements</h3>
+   <h3 class="pidoc_sectionTitle">13&emsp;Review and measurements</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Review_and_measurements', this );">[hide]</p>
    <div id="Review_and_measurements">
 <p>Above the table, Sort and filter places the sort criterion and order on one row, with the REVIEW filter below. Beside it, Reading the table shows the rank descriptions on the left and the score direction, Below-mean Quality, and missing-data symbols on the right. Both halves use matching rows with aligned labels and descriptions. Both groups keep fixed widths fitted to the minimum window width, and the guide's explanations remain on single lines as the window is resized. Below the table, Selected image shows a subframe's keep or reject decision, REVIEW status, Score, and main issue. For the master, it identifies its exclusion from scoring and ranking. Its compact measurement table aligns FWHM, eccentricity, and star count across the field, center, and four corners.</p>
 <p>The bottom message area includes the visible and total subframe counts, the number of REVIEW candidates, and whether the master is included or hidden by the filter. These messages update when the selected group or REVIEW filter changes.</p>
+<p>Click the Messages bar to collapse or expand the bottom message area on any tab. Status, review counts, score information and pixel scale continue updating while hidden. The window keeps its size, and the preference is saved with process-instance settings. Messages opens expanded by default. An invalid manually entered SQM time expands it to show the correction needed.</p>
 <p>Click the Review information bar to collapse or expand Reading the table and Selected image together. Sort and filter remains available. Collapsing the information panels reduces scrolling or gives the review table more room without resizing the window or changing the selected image. This preference is saved with process-instance settings.</p>
 <p>Hover over the selected-image assessment for the full explanation, or over its measurements for unavailable-region details. The filename is shown separately; hover over it for the full original or moved-file path and the registered-image path. Selecting another image updates these details without changing the window size.</p>
 
@@ -623,12 +639,14 @@
 </div>
 
 <div class="pidoc_section" id="__Blink_frame_and_reference__">
-   <h3 class="pidoc_sectionTitle">13&emsp;Blink frame and reference</h3>
+   <h3 class="pidoc_sectionTitle">14&emsp;Blink frame and reference</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Blink_frame_and_reference', this );">[hide]</p>
    <div id="Blink_frame_and_reference">
 <p>Blink mode defaults to Best scoring subframe. This chooses the highest-scoring eligible measured subframe in the group that has not been rejected or moved. Filter master uses the automatically matched linear integration. The master association is retained for each filter group.</p>
 <p>The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.</p>
-<p>The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value is the displayed preview pixel normalized to 0–1, including any display stretch and brightness alignment, with separate R/G/B values for color images. It has 8-bit display precision. Coordinates are relative to the selected region. The readout follows the displayed image during blinking and updates after zooming, panning, and changing regions; it clears outside the image.</p>
+<p>Choose Corner mosaic / master or Corner mosaic / best subframe to blink all four corners together against the corresponding reference mosaic. Top left and Top right form the upper row; Bottom left and Bottom right form the lower row. Each corner retains its original orientation and pixel scale. The corners use the group's common usable field, Edge guard, and Corner size. Field measurements must be available; numerical corner measurements are not required.</p>
+<p>Press Play to alternate the complete mosaics, Stop to pause, or Step to switch once. Previous and Next select another image while preserving playback and zoom. Display STF and Align preview brightness apply consistently across all four corners, preserving differences within each image. The single-region selector and Rotate regions are inactive in mosaic mode. Choose a regular blink mode to use them again. The mosaic choice is saved with process instances.</p>
+<p>The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value is the displayed preview pixel normalized to 0–1, including any display stretch and brightness alignment, with separate R/G/B values for color images. It has 8-bit display precision. Coordinates are relative to the selected region or the complete corner mosaic. The readout follows the displayed image during blinking and updates after zooming, panning, and changing regions; it clears outside the image.</p>
 <p>Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.</p>
 <p>In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.</p>
 <p>With Rotate regions set to Off and Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While playing, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.</p>
@@ -666,15 +684,15 @@
 <p>Region rotation starts at the currently selected region, keeps the same image selected, and preserves zoom. Image only starts at Center when Usable field is selected. Press Play to start or Stop to pause. Step pauses playback and advances one displayed view: the next preview region for Image only, or the reference followed by the next region for Blink with reference. Choosing a preview region manually continues from that region. Previous and Next select another image while keeping the rotation mode. An integrated master can be inspected with Image only, but cannot be rejected.</p>
 <p>Region rotation and subframe rotation are alternatives. Enabling region rotation while Rotate subframes is selected changes Blink mode to Best scoring subframe. Choosing Rotate subframes switches region rotation off. Region rotation is off by default, and its choice is saved in process instances.</p>
 <p>Interval (s) sets how long each displayed view remains visible, for reference blinking, subframe rotation, and region rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. Regional blinking displays the image for one interval and the reference for another before advancing. You can change the interval while playing without losing your zoom or pan position. In subframe rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.</p>
-<p>Previous and Next move through the current visible review list while preserving zoom, pan position, and whether blinking is active. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.</p>
+<p>Blink mode, Rotate regions, the region selector, Interval and playback buttons, Previous/Next arrows, and the Keep/Reject toggle stay on one row. Interval and Play/Step are centered between the region selector and the navigation controls on the right, with the toggle immediately to the right of Next. Display STF and Align preview brightness are on the row below. The arrows select Previous and Next images in the current visible review list, preserving zoom, pan position, and whether blinking is active. Hover over either button for help. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.</p>
 <p>Switching to another tab and returning to Blink frame / reference retains the zoom and pan position. Selecting another image in Review or through either plot also preserves this view when its preview loads. The position is limited to the new image or region's bounds. The first preview is fitted automatically; use Zoom to Fit whenever you want to refit it. Switching tabs pauses playback; press Play to resume.</p>
-<p>Use Reject original or Keep original to change the selected subframe's decision. The master cannot be rejected. Nothing is moved until you use the green checkmark and confirm the move plan.</p>
+<p>The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. It stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.</p>
 <p>Reference comparisons require matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration, the best scoring subframe, or Image only region rotation to inspect a subframe without a reference.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Quality_indicators_and_acquisition_order__">
-   <h3 class="pidoc_sectionTitle">14&emsp;Quality indicators and acquisition order</h3>
+   <h3 class="pidoc_sectionTitle">15&emsp;Quality indicators and acquisition order</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Quality_indicators_and_acquisition_order', this );">[hide]</p>
    <div id="Quality_indicators_and_acquisition_order">
 <p>The Quality indicators tab shows one selected indicator at a time, with Score selected initially. The plots follow WBPP's per-frame style: each image occupies one bar position. They do not aggregate images into frequency bins.</p>
@@ -749,7 +767,7 @@
 </div>
 
 <div class="pidoc_section" id="__Skybackground_comparison__">
-   <h3 class="pidoc_sectionTitle">15&emsp;Sky-background comparison</h3>
+   <h3 class="pidoc_sectionTitle">16&emsp;Sky-background comparison</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Skybackground_comparison', this );">[hide]</p>
    <div id="Skybackground_comparison">
 <p>With Session SQM supplied, enter the reading's local date and time beside it. The script automatically estimates the Bortle class and selects the eligible subframe whose exposure midpoint is nearest to that time in each directly calibrated group. Masters, rejected or moved frames, and frames without usable exposure times or backgrounds are excluded. Equal time differences prefer the earlier exposure. Click the information symbol button on the Quality indicators tab to open the reference frame, reading time, exposure midpoint in UTC, time difference and reference background. With Gaia calibration, this information window shows the reference, accepted-star count and calibration scatter. It also lists the SQM-to-Bortle ranges used by the script, including exact boundary handling and the shared range for classes 8–9. The table adds the calibrated sky-background range in the plot's image units and the shading color for each class. The shading legend identifies the Bortle classes covered by each color. Before calibration, the SQM ranges remain available; calibrated values and shading show a dash.</p>
@@ -801,7 +819,7 @@
 </div>
 
 <div class="pidoc_section" id="__FWHM_grading__">
-   <h3 class="pidoc_sectionTitle">16&emsp;FWHM grading</h3>
+   <h3 class="pidoc_sectionTitle">17&emsp;FWHM grading</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'FWHM_grading', this );">[hide]</p>
    <div id="FWHM_grading">
 <p>Use FWHM grading on the Quality indicators tab to set personalized Good, Medium, and Bad limits. Enter the telescope aperture in Input files and observing conditions; the FWHM dialog shows this value for reference. The script uses its validated image pixel scale to convert the calculated angular limits to pixels, matching the FWHM measurements. Bands are unavailable until both aperture and pixel scale are available. The X and Y pixel scales must agree within 0.1%. Clear Show FWHM quality bands to hide the shading. The dialog uses a single column of aligned controls: Telescope and image summarizes the current setup, Observing conditions holds altitude, wavelength and optional optical blur, and the next section sets the Good and Medium boundaries. The result shows three distinct Good, Medium and Bad rows in pixels. The information icon opens the model details, organized into labeled tables for current grading limits, reference conditions, blur contributions and filter defaults.</p>
@@ -993,7 +1011,7 @@
 </div>
 
 <div class="pidoc_section" id="__Correlation_plot__">
-   <h3 class="pidoc_sectionTitle">17&emsp;Correlation plot</h3>
+   <h3 class="pidoc_sectionTitle">18&emsp;Correlation plot</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Correlation_plot', this );">[hide]</p>
    <div id="Correlation_plot">
 <p>Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.</p>
@@ -1049,7 +1067,7 @@
 </div>
 
 <div class="pidoc_section" id="__Log_folder_timing_and_autofocus_markers__">
-   <h3 class="pidoc_sectionTitle">18&emsp;Log folder, timing, and autofocus markers</h3>
+   <h3 class="pidoc_sectionTitle">19&emsp;Log folder, timing, and autofocus markers</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Log_folder_timing_and_autofocus_markers', this );">[hide]</p>
    <div id="Log_folder_timing_and_autofocus_markers">
 <p>Select Log folder in the directory section. All Autorun_log and PHD2_GuideLog files are read directly from this folder, regardless of letter case. Include continuation logs if acquisition was restarted. Files marked _CHN are ignored because they are translated copies. Subfolders and unrelated logs are not processed. Select the folder again to refresh its contents.</p>
@@ -1064,7 +1082,7 @@
 </div>
 
 <div class="pidoc_section" id="__Guiding_measurements_and_quality__">
-   <h3 class="pidoc_sectionTitle">19&emsp;Guiding measurements and quality</h3>
+   <h3 class="pidoc_sectionTitle">20&emsp;Guiding measurements and quality</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Guiding_measurements_and_quality', this );">[hide]</p>
    <div id="Guiding_measurements_and_quality">
 <p>The script matches PHD2 samples to each subframe's UTC exposure start and duration. Guide min, Guide max, and Guide avg report the combined RA/Dec displacement in arcseconds. The guider's recorded pixel scale converts its measurements to arcseconds; the imaging camera's pixel scale sets the quality thresholds.</p>
@@ -1142,21 +1160,21 @@
 </div>
 
 <div class="pidoc_section" id="__Move_rejected_originals_and_rerun_WBPP__">
-   <h3 class="pidoc_sectionTitle">20&emsp;Move rejected originals and rerun WBPP</h3>
+   <h3 class="pidoc_sectionTitle">21&emsp;Move rejected originals and rerun WBPP</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Move_rejected_originals_and_rerun_WBPP', this );">[hide]</p>
    <div id="Move_rejected_originals_and_rerun_WBPP">
 <p>The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.</p>
 <p>The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.</p>
 <p>A move journal named SQR-moves followed by a timestamp and a .json extension is saved in the rejection destination. Keep it with the moved files so that you can undo the move later.</p>
 <p>To restore a moved original, select its row and click the Undo arrow beside the green checkmark. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.</p>
-<p>Undo also works after rescanning or reopening the script. Scan files and specify the Rejected originals folder to enable the Undo arrow, then choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.</p>
+<p>Undo also works after rescanning or reopening the script. Scan files or import WBPP, and specify the Rejected originals folder to enable the Undo arrow, then choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.</p>
 <p>Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.</p>
 <p>After moving, rerun WBPP from the remaining originals. Refresh its inputs and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.</p>
    </div>
 </div>
 
 <div class="pidoc_section" id="__Common_questions__">
-   <h3 class="pidoc_sectionTitle">21&emsp;Common questions</h3>
+   <h3 class="pidoc_sectionTitle">22&emsp;Common questions</h3>
    <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'Common_questions', this );">[hide]</p>
    <div id="Common_questions">
 
@@ -1231,7 +1249,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-07 18:26:57 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-08 16:43:25 UTC</p>
 </div>
 <br/>
 <br/>
