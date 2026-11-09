@@ -670,10 +670,10 @@ var ABL = (function () {
       for(let list of Object.values(doc.observingLists))list.objects=list.objects.map(o=>canonical.get(o));
    }
    function newDocument() {let d={defaultListOlud:'',observingLists:{},shortName:'Observing list for Stellarium',version:'2.1'};config(d);return d;}
-   // Validate an independent copy, retain unknown Stellarium fields and rebuild
-   // object identities. This checks document structure; file I/O also applies
-   // the serialized-text size limit through ablParseCollectionText().
-   function normalizeDocument(raw) {
+   // Validate an independent copy without reconciling object metadata. Single-
+   // list imports must choose their scope before copies from other lists can
+   // contribute values. File I/O also enforces the serialized-text size limit.
+   function validateDocument(raw) {
       if(!plain(raw)||!plain(raw.observingLists))throw Error('This file does not contain Stellarium observingLists.');
       let doc=copy(raw),ids=Object.keys(doc.observingLists);
       if(ids.length>1001)throw Error('This file contains too many lists (limit 1,000 logical lists).');
@@ -698,9 +698,15 @@ var ABL = (function () {
       if(Object.keys(doc.observingLists).length>1000)throw Error('This file contains too many lists (limit 1,000).');
       if(typeof doc.shortName!=='string')doc.shortName='Observing list for Stellarium';
       if(typeof doc.version!=='string')doc.version='2.1';
+      return doc;
+   }
+   // Opening or merging a full collection still restores its shared inventory.
+   function normalizeDocument(raw) {
+      let doc=validateDocument(raw);
       linkObjects(doc);if(config(doc).objects.length>100000)throw Error('The collection exceeds the 100,000-object limit.');return doc;
    }
    function parseDocument(s) {return normalizeDocument(JSON.parse(text(s).replace(/^\uFEFF/,'')));}
+   function parseListImport(s) {return validateDocument(JSON.parse(text(s).replace(/^\uFEFF/,'')));}
    function addList(doc,name) {
       name=text(name).trim();if(!name)throw Error('Enter a list name.');
       let id=uuid();doc.observingLists[id]={name,description:'','creation date':stamp(),'last edit':stamp(),objects:[],sorting:''};return id;
@@ -888,12 +894,25 @@ var ABL = (function () {
          mergedObjects:new Set(Array.from(merged).map(root)).size,duplicatesRemoved,idMap};
    }
 
-   // Source choices are logical lists, plus ungrouped inventory objects when
-   // present. Keep their identity separate from the display name: source files
-   // may contain different lists with identical names.
+   // Reconcile only entries within one selected source scope. Inline list data
+   // must not inherit fields from another list or the source inventory. For an
+   // ungrouped import, compare identities to exclude listed inventory objects
+   // without first merging those objects' metadata with the other lists.
+   function importListObjects(doc,listId) {
+      let objects;
+      if(listId!==undefined)objects=doc.observingLists[listId].objects;
+      else{
+         let listed=Object.values(doc.observingLists).flatMap(l=>l.objects);
+         objects=config(doc).objects.filter(o=>!listed.some(other=>same(o,other)));
+      }
+      let isolated=newDocument();config(isolated).objects=objects;
+      return config(normalizeDocument(isolated)).objects;
+   }
+   // Count each list independently: preparing the selector must not merge data
+   // across lists. Keep IDs distinct even when two lists share a display name.
    function importListChoices(doc) {
-      let choices=Object.keys(doc.observingLists).map(id=>({sourceListId:id,name:doc.observingLists[id].name,count:records(doc,id).length}));
-      let unlisted=refs(doc).filter(r=>!r.listId);
+      let choices=Object.keys(doc.observingLists).map(id=>({sourceListId:id,name:doc.observingLists[id].name,count:importListObjects(doc,id).length}));
+      let unlisted=importListObjects(doc);
       if(unlisted.length)choices.push({sourceUnlisted:true,name:'Objects without a list',count:unlisted.length});
       return choices;
    }
@@ -918,7 +937,7 @@ var ABL = (function () {
    // source collection settings cannot enter the current collection. Delegate
    // object reconciliation to the same merge used by ordinary list imports.
    function importObjectsAsList(doc,raw,options={}) {
-      let source=typeof raw==='string'?parseDocument(raw):normalizeDocument(raw),choices=importListChoices(source),choice;
+      let source=typeof raw==='string'?parseListImport(raw):validateDocument(raw),choices=importListChoices(source),choice;
       if(options.sourceUnlisted===true&&own(options,'sourceListId'))throw Error('Choose one list from the import file.');
       if(options.sourceUnlisted===true)choice=choices.find(c=>c.sourceUnlisted);
       else if(own(options,'sourceListId'))choice=choices.find(c=>own(c,'sourceListId')&&c.sourceListId===options.sourceListId);
@@ -926,7 +945,7 @@ var ABL = (function () {
       if(!choice)throw Error(choices.length?'Choose a list from the import file.':'This file contains no lists or objects to import.');
       let destination=importListDestination(doc,options),id=destination.id;
       if(destination.created)do{id=uuid();}while(own(doc.observingLists,id));
-      let objects=choice.sourceUnlisted?refs(source).filter(r=>!r.listId).map(r=>r.object):source.observingLists[choice.sourceListId].objects;
+      let objects=importListObjects(source,choice.sourceUnlisted?undefined:choice.sourceListId);
       let prepared=newDocument();config(prepared).constellationMonths={};config(prepared).objects=objects.slice();
       Object.defineProperty(prepared.observingLists,id,{enumerable:true,writable:true,configurable:true,value:{name:destination.name,description:'','creation date':stamp(),'last edit':stamp(),objects:objects.slice(),sorting:''}});
       let result=importDocuments(doc,[prepared]),ids=Array.from(new Set(objects.map(o=>result.idMap[meta(o).objectId]||meta(o).objectId)));
@@ -1395,7 +1414,7 @@ var ABL = (function () {
       return 'https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r='+p.ra.toFixed(8)+'&d='+p.dec.toFixed(8)+'&e=J2000&h='+arcmin+'&w='+arcmin+'&f=gif&c=none';
    }
    return {VERSION,EXT,MONTHS,own,plain,copy,text,uuid,today,stamp,norm,html,coordinate,formatRA,formatDec,position,constellation,normalizeConstellation,
-      monthKey,meta,config,refs,same,newDocument,normalizeDocument,parseDocument,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
+      monthKey,meta,config,refs,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
       objectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
 })();
 // END ABL_PORTABLE
@@ -1941,12 +1960,14 @@ function ablRow(parent,label,control){let l=new Label(parent);l.text=label;l.tex
 // code units: the limit is 33,554,432 decoded text units, not UTF-8 file bytes
 // or a memory budget. Validate the serialized text because shared inventory
 // and list objects occur repeatedly in JSON. Return a normalized copy; this
-// function does not modify the caller's live collection or any files.
-function ablParseCollectionText(s){
+// function does not modify the caller's live collection or any files. Single-
+// list imports supply a structural parser that defers object reconciliation.
+function ablParseCollectionText(s,parse=ABL.parseDocument){
    if(s.length>32*1024*1024)throw Error('This collection exceeds the 32 MB text-size limit for opening and saving. Export fewer objects or smaller lists.');
-   return ABL.parseDocument(s);
+   return parse(s);
 }
 function ablRead(path){return ablParseCollectionText(File.readTextFile(path));}
+function ablReadListImport(path){return ablParseCollectionText(File.readTextFile(path),ABL.parseListImport);}
 // Save with stable filenames: iCloud can reverse a primary/backup rename chain.
 // Validate before I/O, stage locally, retain recovery copies, then write and
 // verify the backup and primary in place. These writes are not atomic; failures
@@ -2730,7 +2751,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
    this.contourState=ablContourFileState(this.contourPath);
    this.chartFiles=[];this.chartCache=new Map;
-   this.io={read:ablRead,write:ablWrite,lookup:ablLookup,finder:(o,fov)=>{
+   this.io={read:ablRead,readListImport:ablReadListImport,write:ablWrite,lookup:ablLookup,finder:(o,fov)=>{
       let url=ABL.finderURL(o,fov);if(this.chartCache.has(url)&&File.exists(this.chartCache.get(url)))return this.chartCache.get(url);
       // A full 120-arcminute DSS2 field can exceed 24 MiB. Keep a bounded
       // allowance large enough for the full-resolution GIF and a longer,
@@ -3156,7 +3177,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.chooseImportListPath=()=>{let d=new OpenFileDialog;d.caption='Import objects from a saved list';d.multipleSelections=false;d.filters=[['Stellarium lists','*.sol','*.ol','*.json']];return this.executeDialog(d)?d.filePath:'';};
    this.importListFile=()=>{
       let path=this.chooseImportListPath();if(!path)return;
-      let source=this.io.read(path),dialog=new ABLListImportDialog(this,source,path);if(!this.executeDialog(dialog))return;
+      let source=this.io.readListImport(path),dialog=new ABLListImportDialog(this,source,path);if(!this.executeDialog(dialog))return;
       let r=this.importListDocument(source,dialog.importOptions);
       this.notice('Imported '+r.importedCount+' objects into “'+r.destinationName+'”.\n'+r.addedObjects+' new objects · '+r.mergedObjects+' existing objects matched · '+r.destinationCount+' objects in the destination list.\nDuplicates share one collection entry. Current values won conflicts; missing information and distinct notes, filters and aliases were merged. Choose Save to persist the result.');
    };
