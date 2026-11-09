@@ -1,4 +1,4 @@
-Astro Bucket List 0.34.1
+Astro Bucket List 0.35.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -213,6 +213,21 @@ Edit object, Delete object, Remove from list and previews use the current row.
 Check shown checks all filtered rows;
 Uncheck all clears the selection. Export > Checked objects writes each target
 once into a new Stellarium list. Use Edit object to record imaging status.
+Import list lets you choose one source list from a .sol, .ol or .json file and
+merge its objects into a new named list or an existing destination. If the file
+contains multiple lists, choose which one to import. A single source list is
+selected automatically. Its saved name supplies the editable new-list name.
+Changing source updates an untouched suggested name, preserving custom names.
+For ungrouped objects the filename supplies the initial name. New list names
+must be nonempty and distinct; choose an existing destination to reuse its name.
+Duplicates are merged across the selected source and the whole collection.
+Existing targets are reused, with one membership each in the destination.
+Current values win conflicts; missing data and distinct text are merged. Other
+source lists and collection settings are excluded. Repeating an import into
+the same destination does not duplicate memberships or text. Cancel and failed
+validation leave the collection unchanged. After import, Table displays the
+destination with filters cleared, retaining sort choices and checked objects.
+Save persists the result; the source file and current collection path stay intact.
 Merge lists imports one or more saved .sol files into the current collection.
 It deduplicates matching objects across all lists, retaining their memberships.
 Distinct comments, catalog information, filters and aliases are combined. Current

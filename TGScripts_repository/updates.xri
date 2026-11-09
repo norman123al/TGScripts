@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="f01e8a187d9f71b472f41cddbe17fa2819d6e209" type="script" releaseDate="20261108">
+      <package fileName="TGScripts_repository.tar.gz" sha1="29c53d135da7d7aa461bbc2a000a8866b03fdf99" type="script" releaseDate="20261110">
          <title>
-            TGScripts snapshot - 2026 Nov 08
+            TGScripts snapshot - 2026 Nov 10
          </title>
          <remove>
             src/scripts/TGScripts
@@ -35,7 +35,10 @@
             <p>
                Updates:
                <br/>
-               SubframeQualityReview 0.55.1: Prevent stale recommendations from being applied, preserve completed reviews during reanalysis and cached results after moving rejected originals. Improve faint-object ROI handling and ensure exported instances use the installed WBPP script.
+               Packaging correction. Deploy TGScripts code and compiled script documentation in their designated directories, with screenshots stored alongside their script guides.
+               <br/>
+               <br/>
+               Astro Bucket List 0.35.0: Import a chosen SOL list into a new or existing list, using the saved list name as the editable default. Merge matching objects with the collection while preserving current values. Fix single-list imports to exclude imaging history, comments and other metadata from unselected source lists.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -44,4 +47,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-08T22:54:39.896Z" encoding="Base64">D8zsh8/UnrOkrhp75eJDGIh3nwfQ7grNkzv82zfPBHLiwasgobPk85SBQxzLYixAja9xxAi+ZTvdip3Tk9Y9Cw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-09T23:03:17.679Z" encoding="Base64">09gMiIT6BBHKHd+YygRlbvCI3DaCHicOl2KKX4pVFKMmJQFcJyXSMffkjL7OJ1DCdtyqmDSr6c0K67K34trICQ==</Signature>

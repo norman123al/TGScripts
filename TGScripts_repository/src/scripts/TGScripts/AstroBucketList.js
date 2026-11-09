@@ -4,7 +4,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.34.1 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.35.0 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Collection files are written only by explicit Save / Export actions.
  */
@@ -12,7 +12,7 @@
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.34.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.35.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.34.1 — portable data model and astronomy functions.
+/* Astro Bucket List 0.35.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.34.1', EXT = '_astroBucketList';
+   const VERSION = '0.35.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -670,10 +670,10 @@ var ABL = (function () {
       for(let list of Object.values(doc.observingLists))list.objects=list.objects.map(o=>canonical.get(o));
    }
    function newDocument() {let d={defaultListOlud:'',observingLists:{},shortName:'Observing list for Stellarium',version:'2.1'};config(d);return d;}
-   // Validate an independent copy, retain unknown Stellarium fields and rebuild
-   // object identities. This checks document structure; file I/O also applies
-   // the serialized-text size limit through ablParseCollectionText().
-   function normalizeDocument(raw) {
+   // Validate an independent copy without reconciling object metadata. Single-
+   // list imports must choose their scope before copies from other lists can
+   // contribute values. File I/O also enforces the serialized-text size limit.
+   function validateDocument(raw) {
       if(!plain(raw)||!plain(raw.observingLists))throw Error('This file does not contain Stellarium observingLists.');
       let doc=copy(raw),ids=Object.keys(doc.observingLists);
       if(ids.length>1001)throw Error('This file contains too many lists (limit 1,000 logical lists).');
@@ -698,9 +698,15 @@ var ABL = (function () {
       if(Object.keys(doc.observingLists).length>1000)throw Error('This file contains too many lists (limit 1,000).');
       if(typeof doc.shortName!=='string')doc.shortName='Observing list for Stellarium';
       if(typeof doc.version!=='string')doc.version='2.1';
+      return doc;
+   }
+   // Opening or merging a full collection still restores its shared inventory.
+   function normalizeDocument(raw) {
+      let doc=validateDocument(raw);
       linkObjects(doc);if(config(doc).objects.length>100000)throw Error('The collection exceeds the 100,000-object limit.');return doc;
    }
    function parseDocument(s) {return normalizeDocument(JSON.parse(text(s).replace(/^\uFEFF/,'')));}
+   function parseListImport(s) {return validateDocument(JSON.parse(text(s).replace(/^\uFEFF/,'')));}
    function addList(doc,name) {
       name=text(name).trim();if(!name)throw Error('Enter a list name.');
       let id=uuid();doc.observingLists[id]={name,description:'','creation date':stamp(),'last edit':stamp(),objects:[],sorting:''};return id;
@@ -886,6 +892,64 @@ var ABL = (function () {
       cleanDocumentNotes(next);
       return {doc:next,addedLists,addedObjects:roots.filter(entry=>!entry.existing).length,addedMemberships,
          mergedObjects:new Set(Array.from(merged).map(root)).size,duplicatesRemoved,idMap};
+   }
+
+   // Reconcile only entries within one selected source scope. Inline list data
+   // must not inherit fields from another list or the source inventory. For an
+   // ungrouped import, compare identities to exclude listed inventory objects
+   // without first merging those objects' metadata with the other lists.
+   function importListObjects(doc,listId) {
+      let objects;
+      if(listId!==undefined)objects=doc.observingLists[listId].objects;
+      else{
+         let listed=Object.values(doc.observingLists).flatMap(l=>l.objects);
+         objects=config(doc).objects.filter(o=>!listed.some(other=>same(o,other)));
+      }
+      let isolated=newDocument();config(isolated).objects=objects;
+      return config(normalizeDocument(isolated)).objects;
+   }
+   // Count each list independently: preparing the selector must not merge data
+   // across lists. Keep IDs distinct even when two lists share a display name.
+   function importListChoices(doc) {
+      let choices=Object.keys(doc.observingLists).map(id=>({sourceListId:id,name:doc.observingLists[id].name,count:importListObjects(doc,id).length}));
+      let unlisted=importListObjects(doc);
+      if(unlisted.length)choices.push({sourceUnlisted:true,name:'Objects without a list',count:unlisted.length});
+      return choices;
+   }
+   // Validate the destination without creating a list or changing collection
+   // data. The dialog and model share this validation so rejected names remain
+   // editable and programmatic imports enforce the same requirements.
+   function importListDestination(doc,options={}) {
+      let created=own(options,'newListName'),id=options.destinationId||'',name='';
+      if(created){
+         if(id)throw Error('Choose an existing destination or create a new list.');
+         name=text(options.newListName).trim();if(!name)throw Error('Enter a new list name.');
+         if(Object.values(doc.observingLists).some(l=>text(l.name).trim().toLowerCase()===name.toLowerCase()))throw Error('A list with this name already exists. Select it as the destination or enter a different name.');
+         if(Object.keys(doc.observingLists).length>=1000)throw Error('The collection already contains the maximum of 1,000 lists.');
+      }else{
+         if(!id||!own(doc.observingLists,id))throw Error('Choose a destination list.');
+         name=doc.observingLists[id].name;
+      }
+      return {id,name,created};
+   }
+   // Import only the chosen source membership into one destination. Build a
+   // minimal import document so other source lists, unselected inventory and
+   // source collection settings cannot enter the current collection. Delegate
+   // object reconciliation to the same merge used by ordinary list imports.
+   function importObjectsAsList(doc,raw,options={}) {
+      let source=typeof raw==='string'?parseListImport(raw):validateDocument(raw),choices=importListChoices(source),choice;
+      if(options.sourceUnlisted===true&&own(options,'sourceListId'))throw Error('Choose one list from the import file.');
+      if(options.sourceUnlisted===true)choice=choices.find(c=>c.sourceUnlisted);
+      else if(own(options,'sourceListId'))choice=choices.find(c=>own(c,'sourceListId')&&c.sourceListId===options.sourceListId);
+      else if(choices.length===1)choice=choices[0];
+      if(!choice)throw Error(choices.length?'Choose a list from the import file.':'This file contains no lists or objects to import.');
+      let destination=importListDestination(doc,options),id=destination.id;
+      if(destination.created)do{id=uuid();}while(own(doc.observingLists,id));
+      let objects=importListObjects(source,choice.sourceUnlisted?undefined:choice.sourceListId);
+      let prepared=newDocument();config(prepared).constellationMonths={};config(prepared).objects=objects.slice();
+      Object.defineProperty(prepared.observingLists,id,{enumerable:true,writable:true,configurable:true,value:{name:destination.name,description:'','creation date':stamp(),'last edit':stamp(),objects:objects.slice(),sorting:''}});
+      let result=importDocuments(doc,[prepared]),ids=Array.from(new Set(objects.map(o=>result.idMap[meta(o).objectId]||meta(o).objectId)));
+      return Object.assign(result,{destinationId:id,destinationName:destination.name,sourceName:choice.name,objectIds:ids,importedCount:ids.length,destinationCount:records(result.doc,id).length});
    }
 
    // Build a separate SOL document. Omitted/null ids exports the collection;
@@ -1350,13 +1414,13 @@ var ABL = (function () {
       return 'https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r='+p.ra.toFixed(8)+'&d='+p.dec.toFixed(8)+'&e=J2000&h='+arcmin+'&w='+arcmin+'&f=gif&c=none';
    }
    return {VERSION,EXT,MONTHS,own,plain,copy,text,uuid,today,stamp,norm,html,coordinate,formatRA,formatDec,position,constellation,normalizeConstellation,
-      monthKey,meta,config,refs,same,newDocument,normalizeDocument,parseDocument,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
+      monthKey,meta,config,refs,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
       objectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
 })();
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.34.1 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.35.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1365,7 +1429,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.34.1"
+#define VERSION "0.35.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1839,7 +1903,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.34.1';
+const ABL_VERSION='0.35.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -1896,12 +1960,14 @@ function ablRow(parent,label,control){let l=new Label(parent);l.text=label;l.tex
 // code units: the limit is 33,554,432 decoded text units, not UTF-8 file bytes
 // or a memory budget. Validate the serialized text because shared inventory
 // and list objects occur repeatedly in JSON. Return a normalized copy; this
-// function does not modify the caller's live collection or any files.
-function ablParseCollectionText(s){
+// function does not modify the caller's live collection or any files. Single-
+// list imports supply a structural parser that defers object reconciliation.
+function ablParseCollectionText(s,parse=ABL.parseDocument){
    if(s.length>32*1024*1024)throw Error('This collection exceeds the 32 MB text-size limit for opening and saving. Export fewer objects or smaller lists.');
-   return ABL.parseDocument(s);
+   return parse(s);
 }
 function ablRead(path){return ablParseCollectionText(File.readTextFile(path));}
+function ablReadListImport(path){return ablParseCollectionText(File.readTextFile(path),ABL.parseListImport);}
 // Save with stable filenames: iCloud can reverse a primary/backup rename chain.
 // Validate before I/O, stage locally, retain recovery copies, then write and
 // verify the backup and primary in place. These writes are not atomic; failures
@@ -2615,6 +2681,38 @@ class ABLListTransferDialog extends Dialog { constructor(parent,mode,ids){
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;this.sizer.add(this.info);if(mode==='move')this.sizer.add(ablRow(this,'Source list:',this.source));else this.source.hide();this.sizer.add(ablRow(this,'Destination:',this.destination));this.sizer.add(ablRow(this,'New list name:',this.nameEdit));this.sizer.add(this.note);this.sizer.add(buttons);this.updateSource();this.adjustToContents();
 }}
 
+// Select one source list and propose a destination before merging any objects.
+// A multiple-list file requires an explicit source choice. Source selection
+// suggests its saved name without overwriting a name the user has customized.
+class ABLListImportDialog extends Dialog { constructor(parent,source,path){
+   super(parent);this.windowTitle='Import objects as a list';this.autoDefaultButton=false;this.importOptions=null;
+   this.sourceChoices=ABL.importListChoices(source);this.suggestedName='';
+   let basename=String(path).replace(/\\/g,'/').split('/').pop(),fallback=basename.replace(/\.(sol|ol|json)$/i,'');
+   this.info=new Label(this);this.info.wordWrapping=true;this.info.setFixedWidth(this.logicalPixelsToPhysical(560));this.info.text=ABL.html('File: '+basename);this.info.toolTip=ABL.html(path);
+   this.sourceSelect=new ComboBox(this);this.sourceIndexes=[];
+   if(this.sourceChoices.length!==1){this.sourceSelect.addItem('Choose list to import');this.sourceIndexes.push(-1);}
+   for(let i=0;i<this.sourceChoices.length;++i){let c=this.sourceChoices[i];this.sourceSelect.addItem(c.name+' ('+c.count+' objects)');this.sourceIndexes.push(i);}
+   this.sourceSelect.enabled=this.sourceChoices.length>1;this.sourceSelect.toolTip='Only objects belonging to this source list are imported. Other lists in the file remain excluded.';
+   this.destination=new ComboBox(this);this.destinationIds=[''];this.destination.addItem('Create new list…');
+   for(let id of Object.keys(parent.doc.observingLists).sort((a,b)=>parent.doc.observingLists[a].name.localeCompare(parent.doc.observingLists[b].name))){this.destinationIds.push(id);this.destination.addItem(parent.doc.observingLists[id].name);}
+   this.nameEdit=new Edit(this);this.nameEdit.setMinWidth(320);this.nameEdit.toolTip='Defaults to the selected source list name. Enter a different name here or choose an existing destination list.';
+   this.hint=new Label(this);this.hint.wordWrapping=true;this.hint.setFixedWidth(this.logicalPixelsToPhysical(560));
+   this.hint.text='Objects are matched against the whole collection. Duplicates share one entry; current values take priority, missing information is filled, and distinct notes, filters and aliases are combined.';
+   this.sourceChoice=()=>this.sourceChoices[this.sourceIndexes[this.sourceSelect.currentItem]];
+   this.updateControls=()=>{this.nameEdit.enabled=!this.destinationIds[this.destination.currentItem];this.applyButton.enabled=!!this.sourceChoice();};
+   this.sourceSelect.onItemSelected=()=>{let c=this.sourceChoice(),name=c?(c.sourceUnlisted?fallback:c.name):'';if(!this.nameEdit.text.trim()||this.nameEdit.text===this.suggestedName)this.nameEdit.text=name;this.suggestedName=name;this.updateControls();};
+   this.destination.onItemSelected=()=>this.updateControls();
+   this.applyButton=ablButton(this,'Import',()=>{try{
+      let c=this.sourceChoice();if(!c)throw Error('Choose a list from the import file.');
+      let o=c.sourceUnlisted?{sourceUnlisted:true}:{sourceListId:c.sourceListId},id=this.destinationIds[this.destination.currentItem];
+      if(id)o.destinationId=id;else o.newListName=this.nameEdit.text.trim();
+      ABL.importListDestination(parent.doc,o);this.importOptions=o;this.ok();
+   }catch(e){parent.error(e);}});this.applyButton.defaultButton=true;
+   this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
+   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;this.sizer.add(this.info);this.sizer.add(ablRow(this,'Source list:',this.sourceSelect));this.sizer.add(ablRow(this,'Destination:',this.destination));this.sizer.add(ablRow(this,'New list name:',this.nameEdit));this.sizer.add(this.hint);this.sizer.add(buttons);
+   this.sourceSelect.onItemSelected();
+}}
+
 class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    super();
    // The manager has no implicit action for Return. Otherwise PixInsight
@@ -2653,7 +2751,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
    this.contourState=ablContourFileState(this.contourPath);
    this.chartFiles=[];this.chartCache=new Map;
-   this.io={read:ablRead,write:ablWrite,lookup:ablLookup,finder:(o,fov)=>{
+   this.io={read:ablRead,readListImport:ablReadListImport,write:ablWrite,lookup:ablLookup,finder:(o,fov)=>{
       let url=ABL.finderURL(o,fov);if(this.chartCache.has(url)&&File.exists(this.chartCache.get(url)))return this.chartCache.get(url);
       // A full 120-arcminute DSS2 field can exceed 24 MiB. Keep a bounded
       // allowance large enough for the full-resolution GIF and a longer,
@@ -2692,10 +2790,11 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.openButton=ablButton(this,'Open…',()=>this.safe(()=>this.openFile()));
    this.importButton=ablButton(this,'Merge lists…',()=>this.safe(()=>this.importFiles()));
    this.importButton.toolTip='Merge one or more saved lists into this collection. Matching objects share combined comments, catalog information, filters and aliases; current values win other conflicts. Save to persist the result.';
+   this.importListButton=ablButton(this,'Import list…',()=>this.safe(()=>this.importListFile()),'Choose one list from a saved file, merge its objects into the collection, and add them to a new named list or an existing list.');
    this.saveButton=ablButton(this,'Save',()=>this.safe(()=>this.save()),'Save changes to the current collection. After confirmation, keep its previous contents in a single .bak file beside it.');
    this.saveAsButton=ablButton(this,'Save as…',()=>this.safe(()=>this.save(true)));
    this.exportButton=ablButton(this,'Export…',()=>this.safe(()=>this.exportFiles()));
-   let files=new HorizontalSizer;files.spacing=6;for(let b of [this.openButton,this.importButton,this.saveButton,this.saveAsButton,this.exportButton])files.add(b);files.addStretch();
+   let files=new HorizontalSizer;files.spacing=6;for(let b of [this.openButton,this.importListButton,this.importButton,this.saveButton,this.saveAsButton,this.exportButton])files.add(b);files.addStretch();
    this.tabs=new TabBox(this);this.tablePage=new Control(this.tabs);
    // Search, filters and sorting share a collapsible section. Separate group
    // titles distinguish row visibility from row order; none of these controls
@@ -3070,6 +3169,18 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       this.openPath(d.filePath);};
    this.openPath=path=>{let next=this.io.read(path);this.doc=ABL.normalizeDocument(next);this.path=path;this.listId='';this.exportIds.clear();ABL.cleanDocumentNotes(this.doc);ABL.consolidateDocumentInformation(this.doc);this.savedSignature=ablCollectionSignature(this.doc);this.dirty=false;this.refreshLists();this.rememberCurrentCollection();};
    this.importPaths=paths=>{let raws=paths.map(p=>this.io.read(p)),merged=ABL.importDocuments(this.doc,raws),selected=this.selected();this.doc=merged.doc;this.exportIds=new Set(Array.from(this.exportIds,id=>merged.idMap[id]||id));this.changed();this.refreshLists(selected?(merged.idMap[selected.id]||selected.id):undefined);return merged;};
+   this.importListDocument=(source,options)=>{
+      let merged=ABL.importObjectsAsList(this.doc,source,options);
+      this.doc=merged.doc;this.exportIds=new Set(Array.from(this.exportIds,id=>merged.idMap[id]||id));this.listId=merged.destinationId;
+      this.tabs.currentPageIndex=0;this.tabs.onPageSelected();this.clearFilters();this.changed();this.refreshLists(merged.objectIds[0]);return merged;
+   };
+   this.chooseImportListPath=()=>{let d=new OpenFileDialog;d.caption='Import objects from a saved list';d.multipleSelections=false;d.filters=[['Stellarium lists','*.sol','*.ol','*.json']];return this.executeDialog(d)?d.filePath:'';};
+   this.importListFile=()=>{
+      let path=this.chooseImportListPath();if(!path)return;
+      let source=this.io.readListImport(path),dialog=new ABLListImportDialog(this,source,path);if(!this.executeDialog(dialog))return;
+      let r=this.importListDocument(source,dialog.importOptions);
+      this.notice('Imported '+r.importedCount+' objects into “'+r.destinationName+'”.\n'+r.addedObjects+' new objects · '+r.mergedObjects+' existing objects matched · '+r.destinationCount+' objects in the destination list.\nDuplicates share one collection entry. Current values won conflicts; missing information and distinct notes, filters and aliases were merged. Choose Save to persist the result.');
+   };
    this.importFiles=()=>{let d=new OpenFileDialog;d.caption='Merge saved lists into the current collection';d.multipleSelections=true;d.filters=[['Stellarium lists','*.sol','*.ol','*.json']];if(!this.executeDialog(d))return;let r=this.importPaths(d.filePaths);this.notice('Merged saved lists into the collection.\n'+r.addedLists+' new lists · '+r.addedObjects+' new objects · '+r.mergedObjects+' matching objects reconciled · '+r.duplicatesRemoved+' duplicate entries skipped.\nCurrent values won conflicts; distinct comments, catalog information, filters and aliases were combined. Choose Save to persist the merged collection.');};
    this.exportToPath=(target,mode,selectionIds=null)=>{
       if(!['selected','checked','list','all'].includes(mode))throw Error('Select an export scope.');
