@@ -27,11 +27,11 @@ To try a newly added script before the next updater release, download or clone t
 
 **Manage repositories**
 
-![PixInsight Resources menu with Manage Repositories selected](TGScripts_repository/images/PI_resources_repo.png)
+![PixInsight Resources menu with Manage Repositories selected](TGScripts_docu/images/PI_resources_repo.png)
 
 **Check for updates**
 
-![PixInsight Resources menu with Check for Updates selected](TGScripts_repository/images/PI_resources_update.png)
+![PixInsight Resources menu with Check for Updates selected](TGScripts_docu/images/PI_resources_update.png)
 
 </details>
 
@@ -83,7 +83,7 @@ Builds a **grid of image crops** to compare star shapes across the field and rev
 <details>
 <summary>View AberrationInspectorTG interface</summary>
 
-![AberrationInspectorTG 2.2.0 dialog with image selection, mosaic layout, appearance, and output dimensions](TGScripts_repository/images/AberrationInspectorTG_main_screen.jpg)
+![AberrationInspectorTG 2.2.0 dialog with image selection, mosaic layout, appearance, and output dimensions](TGScripts_repository/doc/scripts/AberrationInspectorTG/images/AberrationInspectorTG_main_screen.jpg)
 
 </details>
 
@@ -98,7 +98,7 @@ Combines the **four image corners and an optional center crop** into one inspect
 <details>
 <summary>View AberrationSpotterTG interface</summary>
 
-![AberrationSpotterTG 2.2.0 dialog with image selection, corner and center panels, spacing, and output dimensions](TGScripts_repository/images/AberrationSpotterTG_main_screen.jpg)
+![AberrationSpotterTG 2.2.0 dialog with image selection, corner and center panels, spacing, and output dimensions](TGScripts_repository/doc/scripts/AberrationSpotterTG/images/AberrationSpotterTG_main_screen.jpg)
 
 </details>
 
@@ -108,22 +108,22 @@ Combines the **four image corners and an optional center crop** into one inspect
 
 Plans imaging targets with **Stellarium-compatible observing lists**, constellation and month filters, flexible sorting, and broadband/narrowband classification. Imports a chosen source list into a named destination with collection-wide duplicate matching. Keeps collection objects independently of logical lists, tracks imaging status and notes, merges collections, and exports selected targets. Deleting a list retains its objects; the separate Delete object action requires confirmation. Includes SIMBAD lookups, customizable finder charts for individual or filtered targets, and DSS survey previews.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_repository/doc/source/AstroBucketList.pidoc)
+[Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_docu/pidoc/AstroBucketList.pidoc)
 
 <details>
 <summary>View Astro Bucket List interface</summary>
 
 **Target table**
 
-![Astro Bucket List with Andromeda targets, search and filters, multi-level sorting, and imaging notes](TGScripts_repository/images/AstroBucketList_main_screen.jpg)
+![Astro Bucket List with Andromeda targets, search and filters, multi-level sorting, and imaging notes](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_main_screen.jpg)
 
 **Finder chart — filtered targets in Andromeda**
 
-![Astro Bucket List finder chart with numbered targets, constellation outlines, and a target key](TGScripts_repository/images/AstroBucketList_finder_chart.jpg)
+![Astro Bucket List finder chart with numbered targets, constellation outlines, and a target key](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_finder_chart.jpg)
 
 **DSS survey — NGC 7640**
 
-![Astro Bucket List DSS2 Red survey preview of NGC 7640](TGScripts_repository/images/AstroBucketList_dss_survey.jpg)
+![Astro Bucket List DSS2 Red survey preview of NGC 7640](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
 
 </details>
 
@@ -138,7 +138,7 @@ Reduces stars in **stretched images** using Bill Blanshan’s Transfer, Halo, an
 <details>
 <summary>View BBStarReduction interface</summary>
 
-![BBStarReduction 1.3.0 dialog with existing starless image option, reduction methods, comparison preview, and output controls](TGScripts_repository/images/BBStarReduction_main_screen.jpg)
+![BBStarReduction 1.3.0 dialog with existing starless image option, reduction methods, comparison preview, and output controls](TGScripts_repository/doc/scripts/BBStarReduction/images/BBStarReduction_main_screen.jpg)
 
 </details>
 
@@ -153,7 +153,7 @@ Creates **color-selective grayscale masks** from RGB images. Combines hue preset
 <details>
 <summary>View ColorMaskTG interface</summary>
 
-![ColorMaskTG 2.2.0 dialog with RGB selection, hue presets, intensity and saturation limits, and mask output controls](TGScripts_repository/images/ColorMaskTG_main_screen.jpg)
+![ColorMaskTG 2.2.0 dialog with RGB selection, hue presets, intensity and saturation limits, and mask output controls](TGScripts_repository/doc/scripts/ColorMaskTG/images/ColorMaskTG_main_screen.jpg)
 
 </details>
 
@@ -168,7 +168,7 @@ Isolates **narrowband emission through continuum subtraction** using a matching 
 <details>
 <summary>View CSTG interface</summary>
 
-![CSTG 2.2.0 dialog with narrowband, broadband and mask inputs, continuum estimate, noise reduction, and diagnostic plot](TGScripts_repository/images/CSTG_main_screen.jpg)
+![CSTG 2.2.0 dialog with narrowband, broadband and mask inputs, continuum estimate, noise reduction, and diagnostic plot](TGScripts_repository/doc/scripts/CSTG/images/CSTG_main_screen.jpg)
 
 </details>
 
@@ -183,7 +183,7 @@ Enhances **dust lanes and other dark structures in stretched images** using a ge
 <details>
 <summary>View DarkStructureEnhanceTG interface</summary>
 
-![DarkStructureEnhanceTG 2.4.0 dialog with stretched-image selection, structure mask, enhancement, comparison preview, and output controls](TGScripts_repository/images/DarkStructureEnhanceTG_main_screen.jpg)
+![DarkStructureEnhanceTG 2.4.0 dialog with stretched-image selection, structure mask, enhancement, comparison preview, and output controls](TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/images/DarkStructureEnhanceTG_main_screen.jpg)
 
 </details>
 
@@ -198,7 +198,7 @@ Helps tune **deconvolution for linear images** by comparing synthetic PSF settin
 <details>
 <summary>View DeconvolutionPreviewTG interface</summary>
 
-![DeconvolutionPreviewTG 2.3.0 dialog with target and preview selection, PSF ranges, deringing, support mask, and full-image output](TGScripts_repository/images/DeconvolutionPreviewTG_main_screen.jpg)
+![DeconvolutionPreviewTG 2.3.0 dialog with target and preview selection, PSF ranges, deringing, support mask, and full-image output](TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.jpg)
 
 </details>
 
@@ -213,7 +213,7 @@ Adds **continuum-subtracted narrowband emission to RGB images**, with independen
 <details>
 <summary>View EmissionLineIntegrationTG interface</summary>
 
-![EmissionLineIntegrationTG 2.2.1 dialog with RGB and narrowband inputs, amplification, optional mask, and output controls](TGScripts_repository/images/EmissionLineIntegrationTG_main_screen.jpg)
+![EmissionLineIntegrationTG 2.2.1 dialog with RGB and narrowband inputs, amplification, optional mask, and output controls](TGScripts_repository/doc/scripts/EmissionLineIntegrationTG/images/EmissionLineIntegrationTG_main_screen.jpg)
 
 </details>
 
@@ -230,11 +230,11 @@ Combines **two aligned linear masters** using automatic brightness and backgroun
 
 **Output preview**
 
-![Linear Master Blend 1.20.0 with L_clone and RGB_registered_L selected, Sharpness preference, output preview, zoom, and blink controls](TGScripts_repository/images/LinearMasterBlend_main_screen.jpg)
+![Linear Master Blend 1.20.0 with L_clone and RGB_registered_L selected, Sharpness preference, output preview, zoom, and blink controls](TGScripts_repository/doc/scripts/LinearMasterBlend/images/LinearMasterBlend_main_screen.jpg)
 
 **Measurements**
 
-![Linear Master Blend 1.20.0 Measurements tab with stellar-flux fit and a table comparing the masters and output](TGScripts_repository/images/LinearMasterBlend_measurements.jpg)
+![Linear Master Blend 1.20.0 Measurements tab with stellar-flux fit and a table comparing the masters and output](TGScripts_repository/doc/scripts/LinearMasterBlend/images/LinearMasterBlend_measurements.jpg)
 
 </details>
 
@@ -249,7 +249,7 @@ Generates **stellar support masks for deconvolution deringing** from linear gray
 <details>
 <summary>View LocalSupportMask interface</summary>
 
-![LocalSupportMask 2.2.0 dialog with target selection, mask parameters, and separate preview-image controls](TGScripts_repository/images/LocalSupportMask_main_screen.jpg)
+![LocalSupportMask 2.2.0 dialog with target selection, mask parameters, and separate preview-image controls](TGScripts_repository/doc/scripts/LocalSupportMask/images/LocalSupportMask_main_screen.jpg)
 
 </details>
 
@@ -268,15 +268,15 @@ Screenshots show **1.13.0**, before the current dialog layout.
 
 **Reference before/after**
 
-![LRGB Deconvolution Match 1.13.0 with L_clone and RGB_registered_clone selected, reference preview, halo optimization controls, and BlurXTerminator report](TGScripts_repository/images/LRGBDeconvolutionMatch_main_screen.jpg)
+![LRGB Deconvolution Match 1.13.0 with L_clone and RGB_registered_clone selected, reference preview, halo optimization controls, and BlurXTerminator report](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/images/LRGBDeconvolutionMatch_main_screen.jpg)
 
 **Matched L / RGB**
 
-![LRGB Deconvolution Match 1.13.0 matched luminance and RGB luminance blink preview with the final settings and halo report](TGScripts_repository/images/LRGBDeconvolutionMatch_matched_preview.jpg)
+![LRGB Deconvolution Match 1.13.0 matched luminance and RGB luminance blink preview with the final settings and halo report](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/images/LRGBDeconvolutionMatch_matched_preview.jpg)
 
 **FWHM comparison**
 
-![LRGB Deconvolution Match 1.13.0 FWHM comparison with before-and-after and final-image measurements, fitted lines, and match assessment](TGScripts_repository/images/LRGBDeconvolutionMatch_fwhm_comparison.jpg)
+![LRGB Deconvolution Match 1.13.0 FWHM comparison with before-and-after and final-image measurements, fitted lines, and match assessment](TGScripts_repository/doc/scripts/LRGBDeconvolutionMatch/images/LRGBDeconvolutionMatch_fwhm_comparison.jpg)
 
 </details>
 
@@ -291,7 +291,7 @@ Matches a target’s **intensity scale to a reference** using a selected region 
 <details>
 <summary>View ROI Linear Fit interface</summary>
 
-![ROI Linear Fit dialog with source and target selection, ROI coordinates, rejection limits, and plot settings](TGScripts_repository/images/ROILinearFit_main_screen.jpg)
+![ROI Linear Fit dialog with source and target selection, ROI coordinates, rejection limits, and plot settings](TGScripts_repository/doc/scripts/ROILinearFit/images/ROILinearFit_main_screen.jpg)
 
 </details>
 
@@ -306,7 +306,7 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 <details>
 <summary>View Star Spike Protection Mask interface</summary>
 
-![Star Spike Protection Mask 1.7.2 settings with star selection, spike detection, growth, and blur controls](TGScripts_repository/images/StarSpikeProtectionMask_main_screen.jpg)
+![Star Spike Protection Mask 1.7.2 settings with star selection, spike detection, growth, and blur controls](TGScripts_repository/doc/scripts/StarSpikeProtectionMask/images/StarSpikeProtectionMask_main_screen.jpg)
 
 </details>
 
@@ -325,39 +325,39 @@ Captured from **0.45.14** on **2026-11-07**, reviewing 40 blue-filter, 180-secon
 
 **Review and measurements**
 
-![Subframe Quality Review 0.45.14 with R1–R4 rankings, review candidates, and field and corner measurements](TGScripts_repository/images/SubframeQualityReview_main_screen.jpg)
+![Subframe Quality Review 0.45.14 with R1–R4 rankings, review candidates, and field and corner measurements](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_main_screen.jpg)
 
 **Blink frame / reference**
 
-![Subframe Quality Review 0.45.14 NGC 7814 blink preview with a best-subframe reference, region controls, and display stretching](TGScripts_repository/images/SubframeQualityReview_blink_preview.jpg)
+![Subframe Quality Review 0.45.14 NGC 7814 blink preview with a best-subframe reference, region controls, and display stretching](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_blink_preview.jpg)
 
 **Score plot**
 
-![Subframe Quality Review 0.45.14 Score plot with 40 subframes in value order, review candidates, selected frame, and mean](TGScripts_repository/images/SubframeQualityReview_quality_indicators.jpg)
+![Subframe Quality Review 0.45.14 Score plot with 40 subframes in value order, review candidates, selected frame, and mean](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_quality_indicators.jpg)
 
 **Sky brightness**
 
-![Subframe Quality Review 0.45.14 sky-brightness plot with SQM 19.10 reference, Bortle 6 quality bands, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_sky_background.jpg)
+![Subframe Quality Review 0.45.14 sky-brightness plot with SQM 19.10 reference, Bortle 6 quality bands, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_sky_background.jpg)
 
 **Field FWHM — quality bands**
 
-![Subframe Quality Review 0.45.14 field-FWHM plot with quality bands, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_fwhm_indicators.jpg)
+![Subframe Quality Review 0.45.14 field-FWHM plot with quality bands, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_indicators.jpg)
 
 **FWHM grading settings**
 
-![Subframe Quality Review 0.45.14 FWHM grading with telescope and observing conditions, relative thresholds, and calculated pixel limits](TGScripts_repository/images/SubframeQualityReview_fwhm_grading.jpg)
+![Subframe Quality Review 0.45.14 FWHM grading with telescope and observing conditions, relative thresholds, and calculated pixel limits](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_grading.jpg)
 
 **Field eccentricity**
 
-![Subframe Quality Review 0.45.14 field-eccentricity plot with quality bands, review candidates, mean, and master comparison](TGScripts_repository/images/SubframeQualityReview_eccentricity.jpg)
+![Subframe Quality Review 0.45.14 field-eccentricity plot with quality bands, review candidates, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_eccentricity.jpg)
 
 **Guiding indicators — average error**
 
-![Subframe Quality Review 0.45.14 guide-average error in arcseconds for 40 subframes, with quality bands and mean](TGScripts_repository/images/SubframeQualityReview_guiding_indicators.jpg)
+![Subframe Quality Review 0.45.14 guide-average error in arcseconds for 40 subframes, with quality bands and mean](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_guiding_indicators.jpg)
 
 **Correlation plot**
 
-![Subframe Quality Review 0.45.14 field FWHM versus PSF signal weight, with Pearson correlation and highlighted review candidates](TGScripts_repository/images/SubframeQualityReview_correlation_plot.jpg)
+![Subframe Quality Review 0.45.14 field FWHM versus PSF signal weight, with Pearson correlation and highlighted review candidates](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_correlation_plot.jpg)
 
 </details>
 
@@ -398,11 +398,13 @@ Please [open an issue](https://github.com/norman123al/TGScripts/issues) with the
 | --- | --- |
 | [TGScripts_repository/src/scripts/TGScripts](TGScripts_repository/src/scripts/TGScripts) | The 16 menu scripts, with script-specific helpers and data. |
 | [TGScripts_repository/src/scripts/TGScripts/lib](TGScripts_repository/src/scripts/TGScripts/lib) | Shared helpers and libraries used by the scripts. |
-| [TGScripts_repository/doc/source](TGScripts_repository/doc/source) | PiDoc sources for the script guides. |
-| [TGScripts_repository/doc/scripts](TGScripts_repository/doc/scripts) | Compiled PixInsight documentation and guide images. |
-| [TGScripts_repository/images](TGScripts_repository/images) | Installation images and additional README screenshots. |
+| [TGScripts_docu/pidoc](TGScripts_docu/pidoc) | PiDoc sources and their input images for the script guides. |
+| [TGScripts_repository/doc/scripts](TGScripts_repository/doc/scripts) | Compiled PixInsight documentation, with guide and gallery images in each script's images folder. |
+| [TGScripts_docu/images](TGScripts_docu/images) | Installation screenshots for the README. |
 | [TGScripts_repository/updates.xri](TGScripts_repository/updates.xri) | PixInsight update manifest. |
 | [TGScripts_docu](TGScripts_docu) | Documentation sources and generated documentation assets. |
+
+Build update packages from the src/scripts and doc/scripts subtrees of TGScripts_repository. TGScripts_docu contains documentation authoring and website assets. The installed guides use the PiDoc styles and utilities supplied by PixInsight.
 
 The files in `lib/` support the menu scripts and are not standalone tools.
 
