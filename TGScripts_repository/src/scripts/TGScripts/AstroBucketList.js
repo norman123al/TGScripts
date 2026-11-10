@@ -4,7 +4,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.35.0 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.35.1 — PixInsight 1.9.5+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Collection files are written only by explicit Save / Export actions.
  */
@@ -12,7 +12,7 @@
 // Constellation tables and the portable list model live here so the
 // installed tool needs only this JavaScript file. Tests read this
 // section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.35.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.35.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +524,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.35.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.35.1 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.35.0', EXT = '_astroBucketList';
+   const VERSION = '0.35.1', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1420,7 +1420,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.35.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.35.1 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1429,10 +1429,13 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.35.0"
+#define VERSION "0.35.1"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
+// These src/scripts engines are internal components covered by this script's
+// signature. Revalidate compatibility after PixInsight updates and re-sign
+// AstroBucketList whenever any of these included components changes.
 #include <../src/scripts/CatalogStarGenerator/CatalogStarGeneratorEngine.js>
 #include <../src/scripts/AnnotateImage/Entity.js>
 #include <../src/scripts/AnnotateImage/GraphicProperties.js>
@@ -1903,7 +1906,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.35.0';
+const ABL_VERSION='0.35.1';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2032,7 +2035,7 @@ function ablWrite(path,doc){
 function ablTransfer(url,maxBytes,timeoutSeconds=30){
    let data=new ByteArray,transfer=new NetworkTransfer,start=Date.now(),stopped='';
    transfer.setURL(url);transfer.setConnectionTimeout(10);
-   transfer.setCustomHTTPHeaders(['User-Agent: AstroBucketList/'+ABL_VERSION+' (PixInsight)','Accept: */*']);
+   transfer.setCustomHTTPHeaders(['User-Agent: '+CoreApplication.agentName+' AstroBucketList/'+ABL_VERSION,'Accept: */*']);
    transfer.onDownloadDataAvailable=function(chunk){
       if(data.length+chunk.length>maxBytes){stopped='The server response is too large.';return false;}
       data.add(chunk);return true;

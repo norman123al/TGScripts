@@ -15,6 +15,9 @@
 #include <pjsr/ImageOp.jsh>
 #include <pjsr/controls/DateTimeEditor.js>
 #ifndef SQR_NO_PHOTOMETRY
+// These src/scripts engines are internal components covered by this script's
+// signature. Revalidate compatibility after PixInsight updates and re-sign
+// SubframeQualityReview whenever any of these included components changes.
 #include <../src/scripts/AperturePhotometry/AperturePhotometryConfig.js>
 #include <../src/scripts/AperturePhotometry/AperturePhotometryEngine.js>
 #undef VERSION
@@ -27,7 +30,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.55.1 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.55.2 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -51,7 +54,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.55.1';
+const SQR_VERSION='0.55.2';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];

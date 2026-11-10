@@ -1,4 +1,4 @@
-Astro Bucket List 0.35.0
+Astro Bucket List 0.35.1
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -342,3 +342,7 @@ These preferences do not modify the collection or its process-instance path.
 The bottom Open as image symbol beside the gear creates an independent image
 from the active preview for saving in PixInsight. It is enabled only on Finder
 or DSS with a loaded image and is disabled on Table.
+
+Network and temporary storage
+SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.35.1.
+Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.

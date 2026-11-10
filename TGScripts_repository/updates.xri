@@ -2,13 +2,13 @@
 <xri version="1.0">
    <description>
       <p>
-        TGScripts Updates ? Repository for Pixinsight scripts provided by Thorsten Glebe.
+        TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="29c53d135da7d7aa461bbc2a000a8866b03fdf99" type="script" releaseDate="20261110">
+   <platform os="all" arch="noarch" version="1.9.6:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="0a35a1cc9bcc8d650069382f5d260c70239b9612" type="script" releaseDate="20261110">
          <title>
-            TGScripts snapshot - 2026 Nov 10
+            TGScripts - renamed tools and maintenance fixes
          </title>
          <remove>
             src/scripts/TGScripts
@@ -27,18 +27,29 @@
             doc/scripts/StarSpikeProtectionMask
             doc/scripts/SubframeQualityReview
             doc/scripts/TGScriptSkeleton
+            doc/scripts/EmissionLineIntegrationTG
+            doc/scripts/TGFieldMosaic
+            doc/scripts/TGCornerMosaic
+            doc/scripts/TGHueRangeMask
+            doc/scripts/TGDustContrast
+            doc/scripts/TGPSFComparison
          </remove>
          <description>
             <p>
-                The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
+               Image processing, imaging-target planning and subframe review tools for PixInsight. This package requires PixInsight 1.9.6 or later.
             </p>
             <p>
-               Updates:
-               <br/>
-               Packaging correction. Deploy TGScripts code and compiled script documentation in their designated directories, with screenshots stored alongside their script guides.
-               <br/>
-               <br/>
-               Astro Bucket List 0.35.0: Import a chosen SOL list into a new or existing list, using the saved list name as the editable default. Merge matching objects with the collection while preserving current values. Fix single-list imports to exclude imaging history, comments and other metadata from unselected source lists.
+               New script names: AberrationInspectorTG is now TG Field Mosaic 2.3.0; AberrationSpotterTG is now TG Corner Mosaic 2.3.0; ColorMaskTG is now TG Hue Range Mask 2.3.0; DarkStructureEnhanceTG is now TG Dust Contrast 2.5.0; DeconvolutionPreviewTG is now TG PSF Comparison 2.4.0.
+               Menu entries, filenames and help guides use the new names. Recreate saved process icons that reference the former script filenames.
+            </p>
+            <p>
+               Astro Bucket List 0.35.1: Network requests to SIMBAD and DSS now identify PixInsight followed by the script name and version. Documented network connections, temporary files and recovery storage. Retains the recent SOL import fix that excludes metadata from unselected source lists.
+            </p>
+            <p>
+               Subframe Quality Review 0.55.2: Documented the launch of the installed PixInsight executable with --yield to load a reviewed WBPP process icon into the current instance. Added details about temporary files and move/undo journals. WBPP processing still requires the user&apos;s explicit action.
+            </p>
+            <p>
+               Regenerated the updated user guides and removed an unused continuum-subtraction helper containing obsolete temporary-executable handling. The package deploys only TGScripts code, signatures and compiled script documentation in their designated directories.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -47,4 +58,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-09T23:03:17.679Z" encoding="Base64">09gMiIT6BBHKHd+YygRlbvCI3DaCHicOl2KKX4pVFKMmJQFcJyXSMffkjL7OJ1DCdtyqmDSr6c0K67K34trICQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-10T22:12:46.602Z" encoding="Base64">IhHhaahZbZ9lsL5Z0NsFk9ZXpeiqTAVXEc65zbn6a1NkLiBxtBW8PMFnxvb6004bawv2a9SHmlPMqB6BThY1Aw==</Signature>

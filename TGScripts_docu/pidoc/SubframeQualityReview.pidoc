@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.1.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.2.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -51,7 +51,7 @@ After importing a WBPP setup and making rejection decisions, click the document-
 
 Check the retained and rejected counts, then save the setup as a new .xpsm file. Calibration frames, disabled lights, processing settings and output folder are preserved. Imported lights that are not present in the current review remain in the setup; their count is reported. If a registration or local-normalization reference points to a rejected image, that reference selection is cleared so WBPP can choose again. The imported icon and source .xpsm are not changed.
 
-Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The new icon uses WBPP from the current PixInsight installation. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons > Load. Existing process icons are preserved.
+After writing the .xpsm file to the location you choose, the script launches the installed PixInsight executable, identified by CoreApplication.filePath. It passes the documented \c{--yield} option with the current PixInsight instance number and the saved file path. This asks the running instance to load the exported process icon. Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The new icon uses WBPP from the current PixInsight installation. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons > Load. Existing process icons are preserved.
 
 Also move rejected originals is optional and initially off. With a Rejected originals folder selected and pending moves available, enable it to combine creation with the existing move workflow. A separate move confirmation lists the files and destination. The setup is saved before moving; canceling the move leaves it available. Failed moves retain the existing journal and undo protections. Creating the instance alone does not move any image files.
 
@@ -668,7 +668,17 @@ After moving, rerun WBPP from the remaining originals. With an imported setup, u
 }
 }
 
+
+
+
+
+
+\section{File locations and network access}{
+Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.
+
+Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.
+
+Analysis uses local images, acquisition logs, and configured local Gaia data. The script makes no network connections. The external executable launch used to load an exported WBPP icon is described in Create a reviewed WBPP instance.
+}
+
 \make
-
-
-

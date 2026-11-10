@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{AstroBucketList}
 \keywords{astronomy, imaging, bucket list, Stellarium, observing lists, constellation, SIMBAD, finder chart, DSS}
-\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.35.0.}
+\brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status and optional local-catalog sky charts. User guide for version 0.35.1.}
 
 \description{
 Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.5 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
@@ -256,6 +256,14 @@ A preview error appears in the information block without changing the collection
 Constellation boundaries are from Roman (1987), CDS catalog VI/42, distributed in Astropy's constellation data. Online object data are supplied by the SIMBAD astronomical database at CDS, Strasbourg; survey finder images are supplied by the Digitized Sky Survey at STScI.
 
 Sky-chart rendering uses PixInsight's bundled CatalogStarGenerator and AnnotateImage engines by Andres del Pozo and Juan Conejero, their annotation catalogs, and configured local Gaia data. The WISE catalog is described at \xref{https://astro.phys.wvu.edu/wise/}{WISE Catalog of Galactic HII Regions}. These libraries and catalogs remain part of the PixInsight installation under their existing licenses. The map includes a center crosshair, magnitude-scaled star symbols and a descriptive footer.
+}
+
+
+
+\section{Network connections and storage}{
+SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send the requested object identifier. DSS previews use an HTTPS connection to archive.stsci.edu and send the target coordinates and requested field dimensions. These requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.35.1.
+
+Save validation and recovery files use uniquely named AstroBucketList-save directories under the operating system temporary directory. Preview GIF and PNG files use uniquely named AstroBucketList filenames there. Successful saves remove their temporary copies. A failed save can retain recovery files at the path reported in its error message. Closing the manager removes its preview files. Collection files and their .bak backups use the destinations chosen in the file dialogs. Preferences use PixInsight's per-user settings database.
 }
 
 \make

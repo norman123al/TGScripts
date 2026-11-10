@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.1." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.2." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.1. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.2. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -59,6 +59,7 @@
 <li class="pidoc_tocItem"><a href="#__Guiding_measurements_and_quality__">22&emsp;Guiding measurements and quality</a></li>
 <li class="pidoc_tocItem"><a href="#__Move_rejected_originals_and_rerun_WBPP__">23&emsp;Move rejected originals and rerun WBPP</a></li>
 <li class="pidoc_tocItem"><a href="#__Common_questions__">24&emsp;Common questions</a></li>
+<li class="pidoc_tocItem"><a href="#__File_locations_and_network_access__">25&emsp;File locations and network access</a></li>
 </ul>
 </div>
 
@@ -117,7 +118,7 @@
    <div id="Create_a_reviewed_WBPP_instance">
 <p>After importing a WBPP setup and making rejection decisions, click the document-export symbol immediately left of the green move checkmark. It creates a separate WBPP process icon with the rejected originals removed from all imported light groups. Already moved originals are excluded too. REVIEW flags alone do not exclude a light.</p>
 <p>Check the retained and rejected counts, then save the setup as a new .xpsm file. Calibration frames, disabled lights, processing settings and output folder are preserved. Imported lights that are not present in the current review remain in the setup; their count is reported. If a registration or local-normalization reference points to a rejected image, that reference selection is cleared so WBPP can choose again. The imported icon and source .xpsm are not changed.</p>
-<p>Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The new icon uses WBPP from the current PixInsight installation. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons &gt; Load. Existing process icons are preserved.</p>
+<p>After writing the .xpsm file to the location you choose, the script launches the installed PixInsight executable, identified by CoreApplication.filePath. It passes the documented <span class="pidoc_code">--yield</span> option with the current PixInsight instance number and the saved file path. This asks the running instance to load the exported process icon. Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The new icon uses WBPP from the current PixInsight installation. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons &gt; Load. Existing process icons are preserved.</p>
 <p>Also move rejected originals is optional and initially off. With a Rejected originals folder selected and pending moves available, enable it to combine creation with the existing move workflow. A separate move confirmation lists the files and destination. The setup is saved before moving; canceling the move leaves it available. Failed moves retain the existing journal and undo protections. Creating the instance alone does not move any image files.</p>
 <p>The button requires a successful WBPP import with complete settings and at least one rejected or moved original. If its tooltip asks for another import, select the original loaded WBPP icon or .xpsm again. All rejected originals must have verified associations, at least one enabled light must remain, and retained light files must exist. Manually selected folders do not provide the complete WBPP setup needed for this action.</p>
 <p>The new instance is a snapshot of the decisions when it was created. If you later keep a rejected frame again or undo a move, create another instance to reflect that change. Choose an appropriate output folder in WBPP before starting the new run.</p>
@@ -1287,10 +1288,20 @@
    </div>
 </div>
 
+<div class="pidoc_section" id="__File_locations_and_network_access__">
+   <h3 class="pidoc_sectionTitle">25&emsp;File locations and network access</h3>
+   <p class="pidoc_sectionToggleButton" onclick="pidoc_toggleSection( 'File_locations_and_network_access', this );">[hide]</p>
+   <div id="File_locations_and_network_access">
+<p>Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.</p>
+<p>Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.</p>
+<p>Analysis uses local images, acquisition logs, and configured local Gaia data. The script makes no network connections. The external executable launch used to load an exported WBPP icon is described in Create a reviewed WBPP instance.</p>
+   </div>
+</div>
+
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-08 22:48:43 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-10 17:02:21 UTC</p>
 </div>
 <br/>
 <br/>

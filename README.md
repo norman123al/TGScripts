@@ -41,27 +41,39 @@ To try a newly added script before the next updater release, download or clone t
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
-The packaged updater release may lag behind the repository source. For manual execution, keep each script with its bundled helpers and the `lib` folder. The update manifest may accept older PixInsight versions; the current scripts require the version listed above.
+The packaged updater release may lag behind the repository source. For manual execution, keep each script with its bundled helpers and the `lib` folder. The updater package requires PixInsight 1.9.6 or later because it includes Subframe Quality Review.
+
+### Renamed scripts
+
+| Previous name | Current menu name |
+| --- | --- |
+| AberrationInspectorTG | TG Field Mosaic |
+| AberrationSpotterTG | TG Corner Mosaic |
+| ColorMaskTG | TG Hue Range Mask |
+| DarkStructureEnhanceTG | TG Dust Contrast |
+| DeconvolutionPreviewTG | TG PSF Comparison |
+
+Recreate saved process icons that reference an old script filename from the corresponding renamed script. Some screenshots show the previous script names.
 
 ## Script overview
 
 | Task | Script | Version | What it does | Last&nbsp;update |
 | --- | --- | --- | --- | --- |
-| Inspect image quality | [AberrationInspectorTG](#aberrationinspectortg) | 2.2.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;10&#8209;30 |
-| Compare corners | [AberrationSpotterTG](#aberrationspottertg) | 2.2.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;10&#8209;30 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.35.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;02 |
+| Inspect image quality | [TG Field Mosaic](#tg-field-mosaic) | 2.3.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;11&#8209;10 |
+| Compare corners | [TG Corner Mosaic](#tg-corner-mosaic) | 2.3.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;11&#8209;10 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.35.1 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;10 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
-| Select colors | [ColorMaskTG](#colormasktg) | 2.2.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;10&#8209;30 |
+| Select colors | [TG Hue Range Mask](#tg-hue-range-mask) | 2.3.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;11&#8209;10 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
-| Enhance dark detail | [DarkStructureEnhanceTG](#darkstructureenhancetg) | 2.4.0 | Enhances dark structures in stretched images, with a parameter comparison grid. | 2026&#8209;10&#8209;30 |
-| Tune deconvolution | [DeconvolutionPreviewTG](#deconvolutionpreviewtg) | 2.3.0 | Compares synthetic PSF settings on a preview and applies deconvolution to the full image. | 2026&#8209;10&#8209;30 |
+| Enhance dark detail | [TG Dust Contrast](#tg-dust-contrast) | 2.5.0 | Enhances dark structures in stretched images, with a parameter comparison grid. | 2026&#8209;11&#8209;10 |
+| Tune deconvolution | [TG PSF Comparison](#tg-psf-comparison) | 2.4.0 | Compares synthetic PSF settings on a preview and applies deconvolution to the full image. | 2026&#8209;11&#8209;10 |
 | Combine narrowband and RGB | [EmissionLineIntegrationTG](#emissionlineintegrationtg) | 2.2.1 | Adds continuum-subtracted narrowband emission to RGB channels. | 2026&#8209;10&#8209;30 |
 | Blend linear masters | [Linear Master Blend](#linear-master-blend) | 1.20.1 | Normalizes and integrates two linear masters using measured quality and adjustable sharpness preference. | 2026&#8209;10&#8209;19 |
 | Support deconvolution | [LocalSupportMask](#localsupportmask) | 2.2.0 | Generates a local support mask for deconvolution deringing. | 2026&#8209;10&#8209;30 |
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.55.1 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;08 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.55.2 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;10 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -72,39 +84,39 @@ Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script�
 
 Short descriptions below cover each script’s purpose and main features; follow the guide links for usage and parameter details. Expand an entry to view its interface. Astro Bucket List screenshots show **0.33.2**, captured on **2026-11-01**; some other examples show earlier releases.
 
-### AberrationInspectorTG
+### TG Field Mosaic
 
-**Version:** 2.2.0 · **Last update:** 2026-10-30
+**Version:** 2.3.0 · **Last update:** 2026-11-10
 
 Builds a **grid of image crops** to compare star shapes across the field and reveal optical aberrations. Offers adjustable panel size, spacing, and background brightness.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/AberrationInspectorTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationInspectorTG/AberrationInspectorTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGFieldMosaic.js) · [Guide](TGScripts_repository/doc/scripts/TGFieldMosaic/TGFieldMosaic.html)
 
 <details>
-<summary>View AberrationInspectorTG interface</summary>
+<summary>View TG Field Mosaic interface</summary>
 
-![AberrationInspectorTG 2.2.0 dialog with image selection, mosaic layout, appearance, and output dimensions](TGScripts_repository/doc/scripts/AberrationInspectorTG/images/AberrationInspectorTG_main_screen.jpg)
+![TGFieldMosaic 2.2.0 dialog with image selection, mosaic layout, appearance, and output dimensions](TGScripts_repository/doc/scripts/TGFieldMosaic/images/TGFieldMosaic_main_screen.jpg)
 
 </details>
 
-### AberrationSpotterTG
+### TG Corner Mosaic
 
-**Version:** 2.2.0 · **Last update:** 2026-10-30
+**Version:** 2.3.0 · **Last update:** 2026-11-10
 
 Combines the **four image corners and an optional center crop** into one inspection image. Adjustable crop sizes, spacing, and background brightness make field comparisons easier.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/AberrationSpotterTG.js) · [Guide](TGScripts_repository/doc/scripts/AberrationSpotterTG/AberrationSpotterTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGCornerMosaic.js) · [Guide](TGScripts_repository/doc/scripts/TGCornerMosaic/TGCornerMosaic.html)
 
 <details>
-<summary>View AberrationSpotterTG interface</summary>
+<summary>View TG Corner Mosaic interface</summary>
 
-![AberrationSpotterTG 2.2.0 dialog with image selection, corner and center panels, spacing, and output dimensions](TGScripts_repository/doc/scripts/AberrationSpotterTG/images/AberrationSpotterTG_main_screen.jpg)
+![TGCornerMosaic 2.2.0 dialog with image selection, corner and center panels, spacing, and output dimensions](TGScripts_repository/doc/scripts/TGCornerMosaic/images/TGCornerMosaic_main_screen.jpg)
 
 </details>
 
 ### Astro Bucket List
 
-**Version:** 0.35.0 · **Last update:** 2026-11-02
+**Version:** 0.35.1 · **Last update:** 2026-11-10
 
 Plans imaging targets with **Stellarium-compatible observing lists**, constellation and month filters, flexible sorting, and broadband/narrowband classification. Imports a chosen source list into a named destination with collection-wide duplicate matching. Keeps collection objects independently of logical lists, tracks imaging status and notes, merges collections, and exports selected targets. Deleting a list retains its objects; the separate Delete object action requires confirmation. Includes SIMBAD lookups, customizable finder charts for individual or filtered targets, and DSS survey previews.
 
@@ -142,18 +154,18 @@ Reduces stars in **stretched images** using Bill Blanshan’s Transfer, Halo, an
 
 </details>
 
-### ColorMaskTG
+### TG Hue Range Mask
 
-**Version:** 2.2.0 · **Last update:** 2026-10-30
+**Version:** 2.3.0 · **Last update:** 2026-11-10
 
 Creates **color-selective grayscale masks** from RGB images. Combines hue presets or custom ranges with intensity and saturation limits, adjustable weighting, strength, and smoothing.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/ColorMaskTG.js) · [Guide](TGScripts_repository/doc/scripts/ColorMaskTG/ColorMaskTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGHueRangeMask.js) · [Guide](TGScripts_repository/doc/scripts/TGHueRangeMask/TGHueRangeMask.html)
 
 <details>
-<summary>View ColorMaskTG interface</summary>
+<summary>View TG Hue Range Mask interface</summary>
 
-![ColorMaskTG 2.2.0 dialog with RGB selection, hue presets, intensity and saturation limits, and mask output controls](TGScripts_repository/doc/scripts/ColorMaskTG/images/ColorMaskTG_main_screen.jpg)
+![TGHueRangeMask 2.2.0 dialog with RGB selection, hue presets, intensity and saturation limits, and mask output controls](TGScripts_repository/doc/scripts/TGHueRangeMask/images/TGHueRangeMask_main_screen.jpg)
 
 </details>
 
@@ -172,33 +184,33 @@ Isolates **narrowband emission through continuum subtraction** using a matching 
 
 </details>
 
-### DarkStructureEnhanceTG
+### TG Dust Contrast
 
-**Version:** 2.4.0 · **Last update:** 2026-10-30
+**Version:** 2.5.0 · **Last update:** 2026-11-10
 
 Enhances **dust lanes and other dark structures in stretched images** using a generated mask. Provides adjustable strength and scale, comparison grids, and optional mask output.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/DarkStructureEnhanceTG.js) · [Guide](TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/DarkStructureEnhanceTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGDustContrast.js) · [Guide](TGScripts_repository/doc/scripts/TGDustContrast/TGDustContrast.html)
 
 <details>
-<summary>View DarkStructureEnhanceTG interface</summary>
+<summary>View TG Dust Contrast interface</summary>
 
-![DarkStructureEnhanceTG 2.4.0 dialog with stretched-image selection, structure mask, enhancement, comparison preview, and output controls](TGScripts_repository/doc/scripts/DarkStructureEnhanceTG/images/DarkStructureEnhanceTG_main_screen.jpg)
+![TGDustContrast 2.4.0 dialog with stretched-image selection, structure mask, enhancement, comparison preview, and output controls](TGScripts_repository/doc/scripts/TGDustContrast/images/TGDustContrast_main_screen.jpg)
 
 </details>
 
-### DeconvolutionPreviewTG
+### TG PSF Comparison
 
-**Version:** 2.3.0 · **Last update:** 2026-10-30
+**Version:** 2.4.0 · **Last update:** 2026-11-10
 
 Helps tune **deconvolution for linear images** by comparing synthetic PSF settings in a preview grid. Includes deringing and local support-mask controls, then applies the chosen settings to the full image.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/DeconvolutionPreviewTG.js) · [Guide](TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/DeconvolutionPreviewTG.html)
+[Source](TGScripts_repository/src/scripts/TGScripts/TGPSFComparison.js) · [Guide](TGScripts_repository/doc/scripts/TGPSFComparison/TGPSFComparison.html)
 
 <details>
-<summary>View DeconvolutionPreviewTG interface</summary>
+<summary>View TG PSF Comparison interface</summary>
 
-![DeconvolutionPreviewTG 2.3.0 dialog with target and preview selection, PSF ranges, deringing, support mask, and full-image output](TGScripts_repository/doc/scripts/DeconvolutionPreviewTG/images/DeconvolutionPreviewTG_main_screen.jpg)
+![TGPSFComparison 2.3.0 dialog with target and preview selection, PSF ranges, deringing, support mask, and full-image output](TGScripts_repository/doc/scripts/TGPSFComparison/images/TGPSFComparison_main_screen.jpg)
 
 </details>
 
@@ -312,7 +324,7 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.55.1 · **Last update:** 2026-11-08
+**Version:** 0.55.2 · **Last update:** 2026-11-10
 
 Helps select **WBPP subframes to keep or reject** with four quality rankings, field/corner measurements, sky and guiding indicators, quality plots, and mosaic blink comparisons. Recommends rejections by testing trial stacks against a chosen SNR preservation limit, with optional object ROI measurements. Imports WBPP setups, exports reviewed setups excluding rejected lights, and supports confirmed, reversible moves of rejected originals.
 
