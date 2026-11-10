@@ -1,4 +1,5 @@
 #engine v8
+#include "lib/TGFileProtection.js"
 // ImageView imports AstrometricMetadata, whose constructor needs this module
 // name. Define library constants before the FIRST include, including ImageView.
 // A test that includes this script can hide an incorrect standalone load order.
@@ -30,7 +31,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.55.2 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.55.3 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -54,7 +55,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.55.2';
+const SQR_VERSION='0.55.3';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -1720,13 +1721,14 @@ function sqrWBPPExportXML(plan,id){
       '<icon id="'+id+'" instance="'+id+'_instance" xpos="100" ypos="100"/>\n</xpsm>\n';
 }
 function sqrWBPPWriteReviewed(path,plan,id){
+   TGFileProtection.assertOutsideInstallation(path,"Reviewed WBPP setup");
    if(plan.sourceFile&&sqrKey(path)===sqrKey(plan.sourceFile))throw Error('Choose a new file name to preserve the imported WBPP setup.');
    let missing=plan.retained.filter(p=>!File.exists(p));
    if(missing.length)throw Error('Retained WBPP lights are missing: '+missing.slice(0,5).join('\n')+(missing.length>5?'\n…':''));
    let xml=sqrWBPPExportXML(plan,id),parsed=sqrWBPPFromXML(xml);
    let checked=sqrWBPPDecodeRecord(parsed[0]);
    if(parsed.length!==1||checked.lights.length!==plan.retained.length)throw Error('The reviewed WBPP instance failed validation.');
-   File.writeTextFile(path,xml);
+   TGFileProtection.writeTextFile(path,xml,"Reviewed WBPP setup");
 }
 function sqrWBPPQueueIcon(path){
    // The core defers opening icon files while a modal script is active. Target
@@ -2225,10 +2227,13 @@ function sqrMeasureGroups(groups,o,active,notify){
       }
    }
    if(!eligible.length){for(let g of groups)sqrFinalizeTransparency(g);return;}
-   let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-work-'+sqrStamp();File.createDirectory(scratch,true);
+   let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-work-'+sqrStamp();
+   TGFileProtection.assertOutsideInstallation(scratch,'Temporary measurements');
+   if(File.exists(scratch)||File.directoryExists(scratch))throw Error('Temporary measurement directory is occupied.');
+   File.createDirectory(scratch,true);
    let passes=[[],[]],files=new Set,completed=0;
    let total=eligible.reduce((n,item)=>n+item.needed.length,0);
-   let clean=paths=>{for(let path of paths){if(File.exists(path))File.remove(path);files.delete(path);}};
+   let clean=paths=>{for(let path of paths){if(File.exists(path))TGFileProtection.removeFile(path,"Temporary image");files.delete(path);}};
    let measurePass=jobs=>{if(!jobs.length)return;
       sqrTick(notify,'Measuring '+(jobs[0].region===0?'full fields':'center/corner regions')+' · '+jobs.length+' images · '+completed+' / '+total+' completed');
       let field=jobs[0].region===0;sqrMeasureBatch(jobs,o,field);
@@ -2240,7 +2245,10 @@ function sqrMeasureGroups(groups,o,active,notify){
       let items=eligible.map(({r,g,needed,referenceOnly},index)=>({path:r.registered.path,isMaster:!!r.isMaster,exposure:sqrExposure(r),
          observation:r.isMaster?null:sqrObservationMetadata(r.registered),
          width:g.width,height:g.height,channels:g.channels,regions:g.regions,withCorners:o.measureCorners,backgroundMeans:r.backgroundMeans,
-         jobs:needed.map(region=>{let path=scratch+'/frame-'+index+'-region-'+region+'.xisf',rect=g.regions[region];files.add(path);
+         jobs:needed.map(region=>{let path=scratch+'/frame-'+index+'-region-'+region+'.xisf',rect=g.regions[region];
+            TGFileProtection.assertOutsideInstallation(path,'Temporary measurement image');
+            if(File.exists(path)||File.directoryExists(path))throw Error('Temporary measurement image is occupied.');
+            files.add(path);
             return {path,region,measureMetrics:!r.metrics[region],referenceOnly:region===0&&referenceOnly,pixels:(rect[2]-rect[0])*(rect[3]-rect[1])*g.channels};})}));
       let results=sqrMapPreparation(items,sqrPrepareCrops,[sqrReadImage,sqrPreparationAbort,sqrMeasureBackground],notify,'Preparing images');
       for(let index=0;index<items.length;++index){let {r,g}=eligible[index],result=results[index];r.backgroundMeans=result.backgroundMeans;
@@ -2249,7 +2257,7 @@ function sqrMeasureGroups(groups,o,active,notify){
             else passes[job.region===0?0:1].push({...job,row:r,group:g});}}
       for(let jobs of passes)measurePass(jobs);
       for(let g of groups)sqrFinalizeTransparency(g);
-   }finally{clean(files);if(File.directoryExists(scratch))File.removeDirectory(scratch);}
+   }finally{clean(files);if(File.directoryExists(scratch))TGFileProtection.removeDirectory(scratch,"Temporary image directory");}
 }
 // Invalidate a master's measurement cache when the file or shared crop changes.
 // Master failures are retained as invalid comparison data, not rejection flags.
@@ -2663,7 +2671,7 @@ function sqrRank(session){
       g.shortlistCount=count;g.shortlistPopulation=sorted.length;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
    }
 }
-function sqrWriteJSON(path,value){File.writeTextFile(path,JSON.stringify(value,null,2));}
+function sqrWriteJSON(path,value){TGFileProtection.writeTextFile(path,JSON.stringify(value,null,2),"Move/undo journal");}
 // Choose the highest-scoring kept subframe. Signal strength and filename provide
 // deterministic tie-breaks; the master can never become a "best subframe".
 function sqrBestRow(group){return group.rows.filter(r=>!r.isMaster&&r.metrics[0]?.valid&&Number.isFinite(r.score)&&!r.reject&&!r.moved)
@@ -2679,6 +2687,8 @@ function sqrReference(group,choice){
 function sqrMovePlan(session){
    let o=session.options;if(!o.destination.trim())throw new Error('Choose a rejected-originals folder.');
    let root=sqrPath(o.originals),dest=sqrPath(o.destination);
+   TGFileProtection.assertOutsideInstallation(root,"Original-light folder");
+   TGFileProtection.assertOutsideInstallation(dest,"Rejected-originals folder");
    if(sqrKey(dest)===sqrKey(root))throw new Error('The destination must differ from the originals folder.');
    if(sqrUnder(dest,sqrPath(o.wbpp)))throw new Error('Choose a destination outside the WBPP output folder.');
    let plan=[],sources={},targets={};
@@ -2689,6 +2699,8 @@ function sqrMovePlan(session){
       if(sqrFingerprint(source)!==r.original.fingerprint)throw new Error('Original changed since scanning: '+source);
       let meta=sqrMetadata(source);if(!sqrIsLight(meta)||!sqrCompatible(r.registered,meta))throw new Error('Original metadata no longer matches: '+source);
       let relative=source.slice(root.length+1),target=dest+'/'+relative;
+      TGFileProtection.assertOutsideInstallation(source,"Original light to move");
+      TGFileProtection.assertOutsideInstallation(target,"Rejected original destination");
       if(!sqrUnder(target,dest)||sources[sqrKey(source)]||targets[sqrKey(target)]||File.exists(target))throw new Error('Duplicate source or occupied destination: '+target);
       sources[sqrKey(source)]=true;targets[sqrKey(target)]=true;plan.push({source:source,target:target,fingerprint:r.original.fingerprint,registered:r.registered.path,status:'planned',row:r});
    }
@@ -2699,9 +2711,12 @@ function sqrMovePlan(session){
  * planned, in-progress and completed files; failures do not imply a rollback.
  * Only verified original paths are moved; processed frames remain available. */
 function sqrMove(session,notify){
-   let plan=sqrMovePlan(session),dest=sqrPath(session.options.destination);if(!File.directoryExists(dest))File.createDirectory(dest,true);
+   let plan=sqrMovePlan(session),dest=sqrPath(session.options.destination);
+   TGFileProtection.assertOutsideInstallation(dest,"Rejected-originals folder");
    let journalPath=dest+'/SQR-moves-'+sqrStamp()+'.json';
-   if(File.exists(journalPath))throw new Error('Move journal already exists: '+journalPath);
+   TGFileProtection.assertOutsideInstallation(journalPath,"Move journal");
+   if(File.exists(journalPath)||File.directoryExists(journalPath))throw new Error('Move journal already exists: '+journalPath);
+   if(!File.directoryExists(dest))File.createDirectory(dest,true);
    let journal={schema:1,created:new Date().toISOString(),originals:sqrPath(session.options.originals),destination:dest,wbpp:sqrPath(session.options.wbpp),
       moves:plan.map(p=>({source:p.source,target:p.target,fingerprint:p.fingerprint,registered:p.registered,status:'planned'}))};
    sqrWriteJSON(journalPath,journal);
@@ -2709,8 +2724,12 @@ function sqrMove(session,notify){
    try{for(let i=0;i<plan.length;++i){
       let p=plan[i];sqrTick(notify,'Moving original '+(i+1)+' / '+plan.length);
       if(sqrFingerprint(p.source)!==p.fingerprint||File.exists(p.target))throw new Error('Files changed after move-plan validation.');
+      TGFileProtection.assertOutsideInstallation(p.source,'Original light to move');
+      TGFileProtection.assertOutsideInstallation(p.target,'Rejected original destination');
       let dir=sqrDir(p.target);if(!File.directoryExists(dir))File.createDirectory(dir,true);
       journal.moves[i].status='moving';sqrWriteJSON(journalPath,journal);
+      TGFileProtection.assertOutsideInstallation(p.source,"Original light to move");
+      TGFileProtection.assertOutsideInstallation(p.target,"Rejected original destination");
       File.moveFile(p.target,p.source);
       // Update memory before writing the completed entry, so reporting errors do not re-enable a moved source.
       p.row.moved=true;p.row.movedTo=p.target;p.row.moveJournal=journalPath;journal.moves[i].status='moved';
@@ -2726,7 +2745,8 @@ function sqrRestorePath(value){
    return sqrPath(value);
 }
 function sqrNoLinkedPath(path){
-   for(let p=path;p;){let info=new FileInfo(p);if(info.isSymbolicLink)throw new Error('Linked restore paths are not supported: '+p);
+   TGFileProtection.assertOutsideInstallation(path,"Move/undo location");
+   for(let p=path;p;){let info=new FileInfo(p);if(info.isSymbolicLink||info.isRedirectionPoint)throw new Error('Linked restore paths are not supported: '+p);
       let parent=sqrDir(p).replace(/\/$/,'');if(!parent||sqrKey(parent)===sqrKey(p)||/^[a-z]:$/i.test(parent))break;p=parent;}
 }
 function sqrRestoreAvailability(entry){
@@ -2748,6 +2768,8 @@ function sqrReadMoveJournal(path){
    path=sqrPath(path);let journal=JSON.parse(File.readTextFile(path));
    if(journal.schema!==1||!Array.isArray(journal.moves)||!journal.moves.length)throw new Error('Choose an SQR-moves journal containing original-light moves.');
    let root=sqrRestorePath(journal.originals),dest=sqrRestorePath(journal.destination),wbpp=journal.wbpp?sqrRestorePath(journal.wbpp):'',seen=new Set;
+   TGFileProtection.assertOutsideInstallation(root,'Restore destination folder');
+   TGFileProtection.assertOutsideInstallation(dest,'Rejected-originals folder');
    if(sqrKey(root)===sqrKey(dest)||sqrKey(sqrPath(sqrDir(path)))!==sqrKey(dest))throw new Error('The move journal must be in its recorded rejection folder.');
    let entries=journal.moves.map((move,index)=>{
       let source=sqrRestorePath(move.source),target=sqrRestorePath(move.target);
@@ -2797,8 +2819,12 @@ function sqrRestore(journalPath,indices,session,notify,expectedPlan){
    try{for(let i=0;i<plan.length;++i){
       let entry=plan[i];sqrTick(notify,'Restoring original '+(i+1)+' / '+plan.length);
       let problem=sqrRestoreAvailability(entry);if(problem)throw new Error(problem+': '+entry.source);
+      TGFileProtection.assertOutsideInstallation(entry.source,"Restored original destination");
+      TGFileProtection.assertOutsideInstallation(entry.target,"Rejected original to restore");
       let dir=sqrDir(entry.source);if(!File.directoryExists(dir))File.createDirectory(dir,true);
       journal.restores[i].status='restoring';sqrWriteJSON(path,journal);
+      TGFileProtection.assertOutsideInstallation(entry.source,"Restored original destination");
+      TGFileProtection.assertOutsideInstallation(entry.target,"Rejected original to restore");
       File.moveFile(entry.source,entry.target);
       // Reflect a successful move before journal/reporting failures can occur.
       journal.restores[i].status='restored';sqrMarkRestored(session,entry);
@@ -2963,6 +2989,8 @@ function sqrRecommendationNoise(image){
    let a=image.noiseKSigma();if(!(a[0]>0))throw Error('No usable noise estimate.');return a[0];
 }
 function sqrRecommendationWrite(path,image,weight){
+   TGFileProtection.assertOutsideInstallation(path,"Temporary recommendation image");
+   if(File.exists(path)||File.directoryExists(path))throw Error("Temporary recommendation image is occupied.");
    let writer=new FileFormatInstance(new FileFormat('.xisf',false,true));
    try{if(!writer.create(path,'compression-codec none'))throw Error('Cannot create recommendation test image.');
       let description=new ImageDescription;description.bitsPerSample=32;description.ieeefpSampleFormat=true;writer.setOptions(description);
@@ -3071,12 +3099,15 @@ function sqrRecommendationTrial(frames,keep,geometry,scratch,o){
       if(!(snr>0))throw Error('No positive SNR in the test stack. Check the object ROI or field signal.');
       return {keep,snr,fwhm:metric.fwhm,stars:metric.stars,signal:metric.signal,eccentricity:metric.eccentricity,
          psfSNR:Math.sqrt(m[ImageAnalysis.measurements_measurementPSFSNR]),noise:m[ImageAnalysis.measurements_measurementNoise],aperture};
-   }finally{if(window&&!window.isNull)window.forceClose();if(File.exists(path))File.remove(path);}
+   }finally{if(window&&!window.isNull)window.forceClose();if(File.exists(path))TGFileProtection.removeFile(path,"Temporary image");}
 }
 function sqrRecommendationAnalyze(group,o,options,guideAvailable,notify){
    let ranking=sqrRecommendationRanking(group,o),geometry=sqrRecommendationGeometry(group,options);
    if(ranking.rows.length<options.minFrames)throw Error('Only '+ranking.rows.length+' eligible frames remain; the minimum is '+options.minFrames+'.');
-   let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-recommendation-'+sqrStamp();File.createDirectory(scratch,true);
+   let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-recommendation-'+sqrStamp();
+   TGFileProtection.assertOutsideInstallation(scratch,'Temporary recommendations');
+   if(File.exists(scratch)||File.directoryExists(scratch))throw Error('Temporary recommendation directory is occupied.');
+   File.createDirectory(scratch,true);
    try{
       let frames=sqrRecommendationPrepare(ranking,geometry,scratch,notify),curve=sqrRecommendationCurve(frames,options.minFrames),trials=[];
       const test=keep=>{sqrTick(notify,'Testing stack: keep '+keep+' / '+frames.length);
@@ -3098,8 +3129,8 @@ function sqrRecommendationAnalyze(group,o,options,guideAvailable,notify){
          rejected:ranking.rows.slice(best.keep),created:new Date().toISOString(),incomplete:trials.some(p=>p.error)};
    }finally{
       // Only files in this unique, script-owned directory are removed.
-      let find=new FileFind;if(find.begin(scratch+'/*'))do{if(find.isFile)File.remove(scratch+'/'+find.name);}while(find.next());
-      File.removeDirectory(scratch);
+      let find=new FileFind;if(find.begin(scratch+'/*'))do{if(find.isFile)TGFileProtection.removeFile(scratch+'/'+find.name,'Temporary recommendation image');}while(find.next());
+      TGFileProtection.removeDirectory(scratch,"Temporary image directory");
    }
 }
 function sqrRecommendationApply(result){

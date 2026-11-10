@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.2.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.3.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -674,6 +674,12 @@ After moving, rerun WBPP from the remaining originals. With an imported setup, u
 
 
 \section{File locations and network access}{
+File saves, temporary writes, and image move/undo operations reject locations inside the PixInsight installation. On Windows, choose direct local drive paths; network shares, substituted drive letters, symbolic links, junctions, and ambiguous device names are refused. Ordinary cloud placeholders are supported. On Linux and macOS, resolved links and directory identities are checked against the installation.
+
+On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
+
+Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
+
 Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.
 
 Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.

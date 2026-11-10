@@ -61,7 +61,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [TG Field Mosaic](#tg-field-mosaic) | 2.3.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;11&#8209;10 |
 | Compare corners | [TG Corner Mosaic](#tg-corner-mosaic) | 2.3.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;11&#8209;10 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.35.1 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;10 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.35.2 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;11 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [TG Hue Range Mask](#tg-hue-range-mask) | 2.3.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;11&#8209;10 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -73,7 +73,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.55.2 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;10 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.55.3 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;11 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -116,7 +116,7 @@ Combines the **four image corners and an optional center crop** into one inspect
 
 ### Astro Bucket List
 
-**Version:** 0.35.1 · **Last update:** 2026-11-10
+**Version:** 0.35.2 · **Last update:** 2026-11-11
 
 Plans imaging targets with **Stellarium-compatible observing lists**, constellation and month filters, flexible sorting, and broadband/narrowband classification. Imports a chosen source list into a named destination with collection-wide duplicate matching. Keeps collection objects independently of logical lists, tracks imaging status and notes, merges collections, and exports selected targets. Deleting a list retains its objects; the separate Delete object action requires confirmation. Includes SIMBAD lookups, customizable finder charts for individual or filtered targets, and DSS survey previews.
 
@@ -324,7 +324,7 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.55.2 · **Last update:** 2026-11-10
+**Version:** 0.55.3 · **Last update:** 2026-11-11
 
 Helps select **WBPP subframes to keep or reject** with four quality rankings, field/corner measurements, sky and guiding indicators, quality plots, and mosaic blink comparisons. Recommends rejections by testing trial stacks against a chosen SNR preservation limit, with optional object ROI measurements. Imports WBPP setups, exports reviewed setups excluding rejected lights, and supports confirmed, reversible moves of rejected originals.
 

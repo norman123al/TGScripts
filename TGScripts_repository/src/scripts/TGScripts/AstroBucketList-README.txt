@@ -1,4 +1,4 @@
-Astro Bucket List 0.35.1
+Astro Bucket List 0.35.2
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -114,11 +114,12 @@ Normal launches start with an empty list by default. Add objects, create additio
 or use Open and Merge lists to load your own Stellarium .sol, .ol or .json files.
 Saves keep stable collection and backup filenames. New contents are validated
 in local temporary storage, the previous bytes are copied to .bak, and the
-collection is overwritten and verified at its original path. No temporary
-files are placed beside the collection. Failed saves retain local recovery
+collection is replaced and verified at its original path. Verified temporary
+replacement and recovery files are briefly created beside the collection and
+backup, then removed after success. Failed saves retain recovery
 files at the location reported in the error message.
 No predefined bucket list is included or loaded. Save your collection outside
-the script installation directory. Configuration > Startup offers Remember
+the entire PixInsight installation; locations inside it are rejected. Configuration > Startup offers Remember
 last opened or saved collection, off by default. Apply stores this independent
 toggle in PixInsight settings beside the filename. It applies across collections
 and launches, and is not stored in the .sol file or in process instances.
@@ -344,5 +345,8 @@ from the active preview for saving in PixInsight. It is enabled only on Finder
 or DSS with a loaded image and is disabled on Table.
 
 Network and temporary storage
-SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.35.1.
+On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
+Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
+Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
+SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.35.2.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.

@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="0a35a1cc9bcc8d650069382f5d260c70239b9612" type="script" releaseDate="20261110">
+      <package fileName="TGScripts_repository.tar.gz" sha1="6206c1de3d0a9feb2cbee7a6e100417b2cd3b3f8" type="script" releaseDate="20261111">
          <title>
-            TGScripts - renamed tools and maintenance fixes
+            TGScripts - protected file saves and image moves
          </title>
          <remove>
             src/scripts/TGScripts
@@ -43,13 +43,13 @@
                Menu entries, filenames and help guides use the new names. Recreate saved process icons that reference the former script filenames.
             </p>
             <p>
-               Astro Bucket List 0.35.1: Network requests to SIMBAD and DSS now identify PixInsight followed by the script name and version. Documented network connections, temporary files and recovery storage. Retains the recent SOL import fix that excludes metadata from unselected source lists.
+               Astro Bucket List 0.35.2: Collection saves, backups and temporary preview writes now reject PixInsight installation paths and unsafe filesystem aliases. Verified file replacement preserves linked original contents and retains recovery data if a save cannot be restored. SIMBAD lookups and DSS survey previews remain available.
             </p>
             <p>
-               Subframe Quality Review 0.55.2: Documented the launch of the installed PixInsight executable with --yield to load a reviewed WBPP process icon into the current instance. Added details about temporary files and move/undo journals. WBPP processing still requires the user&apos;s explicit action.
+               Subframe Quality Review 0.55.3: Reviewed WBPP exports, move/undo journals, rejected-original moves and restores now check source and destination locations before changing files. Temporary measurement and recommendation locations are checked as well. Original-image moves continue to require explicit confirmation.
             </p>
             <p>
-               Regenerated the updated user guides and removed an unused continuum-subtraction helper containing obsolete temporary-executable handling. The package deploys only TGScripts code, signatures and compiled script documentation in their designated directories.
+               Updated help pages describe permitted file locations, temporary replacement and recovery files, and the read-only Windows volume query used to detect alternate drive mappings. Use direct local paths on Windows; network shares, substituted drives and redirected paths are refused. The package deploys only TGScripts code, signatures and compiled script documentation in their designated directories.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -58,4 +58,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-10T22:12:46.602Z" encoding="Base64">IhHhaahZbZ9lsL5Z0NsFk9ZXpeiqTAVXEc65zbn6a1NkLiBxtBW8PMFnxvb6004bawv2a9SHmlPMqB6BThY1Aw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-10T23:48:13.874Z" encoding="Base64">DYv73KqzkjQlhLm9VQg99jBBr3TCyXfrfJi82cUbMhvLQrgAGAwHBHboR7k2gMuB+9Lxq9oAaH/ktGbgn8dDBg==</Signature>

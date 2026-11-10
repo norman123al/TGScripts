@@ -1,18 +1,19 @@
 #engine v8
+#include "lib/TGFileProtection.js"
 #ifndef ABL_LIBRARY
 #feature-id AstroBucketList : TG Scripts > Astro Bucket List
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.35.1 — PixInsight 1.9.5+, PJSR V8.
+/* Astro Bucket List 0.35.2 — PixInsight 1.9.6+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Collection files are written only by explicit Save / Export actions.
  */
 // BEGIN ABL_PORTABLE
 // Constellation tables and the portable list model live here so the
-// installed tool needs only this JavaScript file. Tests read this
-// section directly; there is no generated or separate runtime copy.
-// Astro Bucket List 0.35.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// portable model has no generated or separate runtime copy. Tests read this
+// section directly; native filesystem operations use the shared guard above.
+// Astro Bucket List 0.35.2. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -524,13 +525,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.35.1 — portable data model and astronomy functions.
+/* Astro Bucket List 0.35.2 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.35.1', EXT = '_astroBucketList';
+   const VERSION = '0.35.2', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1420,7 +1421,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.35.1 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.35.2 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1429,7 +1430,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.35.1"
+#define VERSION "0.35.2"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1725,6 +1726,8 @@ function ablTableChartKey(targets,font,details){
    return {cells,rowHeights,height:60+rowHeights.reduce((a,b)=>a+b,0),columnWidth};
 }
 function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
+   TGFileProtection.assertOutsideInstallation(path,"Finder chart image");
+   if(File.exists(path)||File.directoryExists(path))throw Error("The temporary chart path is already occupied.");
    const position=ABL.position(object),mapOnly=options._mapOnly===true,width=mapOnly?600:1440,height=mapOnly?600:780,header=80,footer=100;
    const targets=Array.isArray(options.tableTargets)?options.tableTargets:null;
    const details=ABL.chartDetails(targets?Object.assign({},options,{inset:false}):options);
@@ -1895,6 +1898,8 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
             if(details.contours)g.drawText(x,header+771,inset.contourCount+' local nebula contours');
          }
       }finally{g.end();map.clear();}
+      TGFileProtection.assertOutsideInstallation(path,"Finder chart image");
+      if(File.exists(path)||File.directoryExists(path))throw Error("The temporary chart path is already occupied.");
       bitmap.save(path);return Object.assign(result,{path,inset:inset?{coverage:details.insetDegrees,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
    }finally{
       if(bitmap)bitmap.clear();if(insetMap)insetMap.clear();
@@ -1906,7 +1911,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.35.1';
+const ABL_VERSION='0.35.2';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -1973,9 +1978,11 @@ function ablRead(path){return ablParseCollectionText(File.readTextFile(path));}
 function ablReadListImport(path){return ablParseCollectionText(File.readTextFile(path),ABL.parseListImport);}
 // Save with stable filenames: iCloud can reverse a primary/backup rename chain.
 // Validate before I/O, stage locally, retain recovery copies, then write and
-// verify the backup and primary in place. These writes are not atomic; failures
+// replace the backup and primary at their stable paths. Failures
 // trigger best-effort restoration and retain available local recovery files.
 function ablWrite(path,doc){
+   TGFileProtection.assertOutsideInstallation(path,"Collection file");
+   TGFileProtection.assertOutsideInstallation(path+".bak","Collection backup");
    // Include JSON escapes, indentation and the final newline in the same
    // validation used by ablRead(). Rejection occurs before any filesystem
    // change, so a size error cannot replace a readable collection or backup.
@@ -1984,11 +1991,12 @@ function ablWrite(path,doc){
    const staged=directory+'/new.sol',previous=directory+'/previous.sol',olderBackup=directory+'/older-backup.bak',backup=path+'.bak';
    const equal=(a,b)=>a.length===b.length&&a.toBase64()===b.toBase64();
    const verify=(p,bytes)=>{if(!equal(File.readFile(p),bytes))throw Error('File verification failed: '+p);};
-   const write=(p,bytes)=>{File.writeFile(p,bytes);verify(p,bytes);};
+   const write=(p,bytes)=>{TGFileProtection.writeFile(p,bytes,'Collection save');verify(p,bytes);};
    let original=null,oldBackup=null,primaryTouched=false,backupTouched=false,complete=false;
+   TGFileProtection.assertOutsideInstallation(directory,"Collection recovery directory");
    File.createDirectory(directory);
    try{
-      File.writeTextFile(staged,output);
+      TGFileProtection.writeTextFile(staged,output,"Staged collection");
       // Check the text-to-file round trip before using the staged bytes for
       // the primary. Byte comparisons below also preserve the original BOM
       // and line endings in backups without decoding and re-encoding them.
@@ -2012,14 +2020,14 @@ function ablWrite(path,doc){
       }catch(e){
          let failures=[],primaryRestored=true;
          if(primaryTouched)try{
-            if(original!==null)write(path,original);else if(File.exists(path))File.remove(path);
+            if(original!==null)write(path,original);else if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");
          }catch(restoreError){
             primaryRestored=false;failures.push('The primary could not be restored: '+String(restoreError));
          }
          // If primary rollback fails, leave the immediate predecessor in .bak.
          // Never replace that recovery copy with the older backup in this case.
          if(backupTouched&&primaryRestored)try{
-            if(oldBackup!==null)write(backup,oldBackup);else if(File.exists(backup))File.remove(backup);
+            if(oldBackup!==null)write(backup,oldBackup);else if(File.exists(backup))TGFileProtection.removeFile(backup,"Collection backup");
          }catch(restoreError){failures.push('The older backup could not be restored: '+String(restoreError));}
          throw Error(String(e)+(failures.length?'\n'+failures.join('\n'):''));
       }
@@ -2027,7 +2035,7 @@ function ablWrite(path,doc){
       throw Error('Could not save the collection: '+path+'\n'+String(e)+'\nLocal recovery files are retained in:\n'+directory);
    }finally{
       // Cleanup cannot turn a verified completed save into a reported failure.
-      if(complete)try{for(let p of [staged,previous,olderBackup])if(File.exists(p))File.remove(p);File.removeDirectory(directory);}
+      if(complete)try{for(let p of [staged,previous,olderBackup])if(File.exists(p))TGFileProtection.removeFile(p,"Collection recovery file");TGFileProtection.assertOutsideInstallation(directory,"Collection recovery directory");File.removeDirectory(directory);}
       catch(e){console.warningln('Collection saved. Local temporary files remain in '+directory+'. '+String(e));}
    }
 }
@@ -2760,7 +2768,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // allowance large enough for the full-resolution GIF and a longer,
       // cancellable transfer deadline for these survey images.
       let data=ablTransfer(url,128*1024*1024,90),file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.gif';
-      File.writeFile(file,data);this.chartFiles.push(file);
+      TGFileProtection.writeFile(file,data,"DSS preview image");this.chartFiles.push(file);
       let check=new Bitmap(file);if(check.isNull)throw Error('No survey image was returned. Try a smaller field.');check.clear();this.chartCache.set(url,file);return file;
    }};
    // Cache each chart variant only for this manager session. A chart never
@@ -3206,7 +3214,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       this.exportToPath(target,mode);
    };
    this.onClose=()=>this.canClose();
-   this.cleanup=()=>{this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))File.remove(path);}catch(e){}this.chartFiles=[];this.chartCache.clear();};
+   this.cleanup=()=>{this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");}catch(e){}this.chartFiles=[];this.chartCache.clear();};
    let initialLists=Object.keys(this.doc.observingLists);this.listId=initialLists.length===1&&!ABL.refs(this.doc).some(r=>!r.listId)?initialLists[0]:'';
    // Explicit minimums override PJSR's computed ones. Measure without that
    // override, then enforce the complete native layout instead of allowing
