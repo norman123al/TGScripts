@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+PixInsight XML Code Signature Format - XSGN version 1.0
+Created with PixInsight software - https://pixinsight.com/
+-->
+<xsgn version="1.0" xmlns="http://www.pixinsight.com/xsgn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.pixinsight.com/xsgn http://pixinsight.com/xsgn/xsgn-1.0.xsd">
+   <CreationTime>2026-11-10T21:53:48.943Z</CreationTime>
+   <Signature version="1.0" scriptId="TGCornerMosaic" developerId="tglebe">
+      <Timestamp>2026-11-10T21:53:48.943Z</Timestamp>
+      <CodeSignature encoding="Base64">hXMKFmVsSJK35fbCqj2z+8T+WSkx9leCUh7zRRV6vz/JSylITpqQ5kPji3CUYMO1rxwbOFDba+VP4q2oJzA9Ag==</CodeSignature>
+   </Signature>
+</xsgn>

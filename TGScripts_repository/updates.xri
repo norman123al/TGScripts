@@ -2,13 +2,13 @@
 <xri version="1.0">
    <description>
       <p>
-        TGScripts Updates ? Repository for Pixinsight scripts provided by Thorsten Glebe.
+        TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.8.9:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="29c53d135da7d7aa461bbc2a000a8866b03fdf99" type="script" releaseDate="20261110">
+   <platform os="all" arch="noarch" version="1.9.6:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="6206c1de3d0a9feb2cbee7a6e100417b2cd3b3f8" type="script" releaseDate="20261111">
          <title>
-            TGScripts snapshot - 2026 Nov 10
+            TGScripts - protected file saves and image moves
          </title>
          <remove>
             src/scripts/TGScripts
@@ -27,18 +27,29 @@
             doc/scripts/StarSpikeProtectionMask
             doc/scripts/SubframeQualityReview
             doc/scripts/TGScriptSkeleton
+            doc/scripts/EmissionLineIntegrationTG
+            doc/scripts/TGFieldMosaic
+            doc/scripts/TGCornerMosaic
+            doc/scripts/TGHueRangeMask
+            doc/scripts/TGDustContrast
+            doc/scripts/TGPSFComparison
          </remove>
          <description>
             <p>
-                The repository provides a set of improved Pixinsight scripts from various authors as well as some newly written scripts.
+               Image processing, imaging-target planning and subframe review tools for PixInsight. This package requires PixInsight 1.9.6 or later.
             </p>
             <p>
-               Updates:
-               <br/>
-               Packaging correction. Deploy TGScripts code and compiled script documentation in their designated directories, with screenshots stored alongside their script guides.
-               <br/>
-               <br/>
-               Astro Bucket List 0.35.0: Import a chosen SOL list into a new or existing list, using the saved list name as the editable default. Merge matching objects with the collection while preserving current values. Fix single-list imports to exclude imaging history, comments and other metadata from unselected source lists.
+               New script names: AberrationInspectorTG is now TG Field Mosaic 2.3.0; AberrationSpotterTG is now TG Corner Mosaic 2.3.0; ColorMaskTG is now TG Hue Range Mask 2.3.0; DarkStructureEnhanceTG is now TG Dust Contrast 2.5.0; DeconvolutionPreviewTG is now TG PSF Comparison 2.4.0.
+               Menu entries, filenames and help guides use the new names. Recreate saved process icons that reference the former script filenames.
+            </p>
+            <p>
+               Astro Bucket List 0.35.2: Collection saves, backups and temporary preview writes now reject PixInsight installation paths and unsafe filesystem aliases. Verified file replacement preserves linked original contents and retains recovery data if a save cannot be restored. SIMBAD lookups and DSS survey previews remain available.
+            </p>
+            <p>
+               Subframe Quality Review 0.55.3: Reviewed WBPP exports, move/undo journals, rejected-original moves and restores now check source and destination locations before changing files. Temporary measurement and recommendation locations are checked as well. Original-image moves continue to require explicit confirmation.
+            </p>
+            <p>
+               Updated help pages describe permitted file locations, temporary replacement and recovery files, and the read-only Windows volume query used to detect alternate drive mappings. Use direct local paths on Windows; network shares, substituted drives and redirected paths are refused. The package deploys only TGScripts code, signatures and compiled script documentation in their designated directories.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -47,4 +58,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-09T23:03:17.679Z" encoding="Base64">09gMiIT6BBHKHd+YygRlbvCI3DaCHicOl2KKX4pVFKMmJQFcJyXSMffkjL7OJ1DCdtyqmDSr6c0K67K34trICQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-10T23:48:13.874Z" encoding="Base64">DYv73KqzkjQlhLm9VQg99jBBr3TCyXfrfJi82cUbMhvLQrgAGAwHBHboR7k2gMuB+9Lxq9oAaH/ktGbgn8dDBg==</Signature>
