@@ -4,9 +4,9 @@ PixInsight XML Code Signature Format - XSGN version 1.0
 Created with PixInsight software - https://pixinsight.com/
 -->
 <xsgn version="1.0" xmlns="http://www.pixinsight.com/xsgn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.pixinsight.com/xsgn http://pixinsight.com/xsgn/xsgn-1.0.xsd">
-   <CreationTime>2026-11-10T23:44:46.218Z</CreationTime>
+   <CreationTime>2026-11-13T21:58:11.871Z</CreationTime>
    <Signature version="1.0" scriptId="AstroBucketList" developerId="tglebe">
-      <Timestamp>2026-11-10T23:44:46.218Z</Timestamp>
-      <CodeSignature encoding="Base64">TA3rfEd0fePgMTLzmyqnntU1qcGxNp15+aGW7T6+sZJwYdsH4SOKmyWZBw0GPMtOBVhIhfGE80RvzBs/LcheAw==</CodeSignature>
+      <Timestamp>2026-11-13T21:58:11.870Z</Timestamp>
+      <CodeSignature encoding="Base64">uQRAoJLdBEM8c5l29qxFCM9dFXGQ9THf725NNAw/w9nHf6EMNd1XBwHq85eSUpXMY78nT52msTie68GOwF+nDQ==</CodeSignature>
    </Signature>
 </xsgn>

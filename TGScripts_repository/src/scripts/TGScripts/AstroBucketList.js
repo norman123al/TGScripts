@@ -5,7 +5,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.35.2 — PixInsight 1.9.6+, PJSR V8.
+/* Astro Bucket List 0.38.0 — PixInsight 1.9.6+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Collection files are written only by explicit Save / Export actions.
  */
@@ -13,7 +13,7 @@
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.35.2. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.38.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -525,13 +525,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.35.2 — portable data model and astronomy functions.
+/* Astro Bucket List 0.38.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.35.2', EXT = '_astroBucketList';
+   const VERSION = '0.38.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -626,15 +626,28 @@ var ABL = (function () {
       for(let object of doc[EXT]?.objects||[])if(!listed.has(meta(object).objectId))result.push({listId:'',object});
       return result;
    }
+   // Stellarium uses designation as both a label and a lookup key. Preserve
+   // our catalog identity separately when the user chooses a different label.
+   function catalogIdentifier(o) {
+      return text(meta(o).catalogIdentifier||o.designation).trim().replace(/\s+marker$/i,'');
+   }
+   function setStellariumLabel(o,identifier,label) {
+      let m=meta(o);identifier=text(identifier).trim().replace(/\s+marker$/i,'');label=text(label).trim()||identifier;
+      o.designation=label;
+      if(identifier&&norm(identifier)!==norm(label))m.catalogIdentifier=identifier;else delete m.catalogIdentifier;
+      let marker=/marker/i.test(label);
+      o.type=marker?'CustomObject':m.catalogClass||(o.type&&o.type!=='CustomObject'?o.type:'Nebula');o.isVisibleMarker=marker;
+      return o;
+   }
    function identifiers(o) {
-      let m=meta(o),ids=[o.designation,m.catalogMainId].concat(Array.isArray(m.aliases)?m.aliases:[]);
+      let m=meta(o),ids=[catalogIdentifier(o),m.catalogMainId].concat(Array.isArray(m.aliases)?m.aliases:[]);
       return ids.filter(x=>typeof x==='string'&&x.trim()).map(norm);
    }
    function same(a,b) {
       let am=meta(a),bm=meta(b);
       if(am.objectId&&bm.objectId&&am.objectId===bm.objectId)return true;
       let aa=identifiers(a),bb=identifiers(b);
-      const primaryA=norm(a.designation),primaryB=norm(b.designation);
+      const primaryA=norm(catalogIdentifier(a)),primaryB=norm(catalogIdentifier(b));
       if(primaryA&&primaryA===primaryB)return true;
       // Arp, HCG and other group identifiers can be shared by distinct members.
       // Require one primary identifier, not just two intersecting alias lists.
@@ -803,6 +816,7 @@ var ABL = (function () {
    function mergeObjectData(current,incoming) {
       let a=copy(current),b=copy(incoming);consolidateObjectInformation(a);consolidateObjectInformation(b);
       let am=meta(a),bm=meta(b),result=mergeMissing(a,b),m=meta(result);
+      if(text(a.designation).trim()&&(own(am,'catalogIdentifier')||own(bm,'catalogIdentifier')))m.catalogIdentifier=catalogIdentifier(a);
       m.objectId=am.objectId||bm.objectId||uuid();
       for(let [field,isRA] of [['ra',true],['dec',false]])if(coordinate(a[field],isRA)===null&&coordinate(b[field],isRA)!==null)result[field]=copy(b[field]);
       const unspecified=v=>!text(v).trim()||/^(?:unknown|unspecified|custom\s*object|catalog object\s*\(\?\))$/i.test(text(v).trim());
@@ -813,8 +827,8 @@ var ABL = (function () {
       if(own(am,'filters')||own(bm,'filters'))m.filters=mergeText(am.filters,bm.filters,true);
       setCatalogInformation(result,mergeObjectInformation(a,b));
       let aliases=[],seen=new Set;
-      for(let id of [].concat(am.aliases||[],bm.aliases||[],a.designation||[],b.designation||[],am.catalogMainId||[],bm.catalogMainId||[])){
-         if(typeof id==='string'&&norm(id)&&norm(id)!==norm(result.designation)&&!seen.has(norm(id))){seen.add(norm(id));aliases.push(id.trim());}
+      for(let id of [].concat(am.aliases||[],bm.aliases||[],catalogIdentifier(a),catalogIdentifier(b),am.catalogMainId||[],bm.catalogMainId||[])){
+         if(typeof id==='string'&&norm(id)&&norm(id)!==norm(catalogIdentifier(result))&&!seen.has(norm(id))){seen.add(norm(id));aliases.push(id.trim());}
       }
       if(aliases.length||own(am,'aliases')||own(bm,'aliases'))m.aliases=aliases;
       m.imaged=am.imaged===true||bm.imaged===true;
@@ -1019,7 +1033,7 @@ var ABL = (function () {
       let matches=duplicateMatches(doc,object);
       if(matches.length){
          let names=Array.from(new Set(matches.reduce((a,m)=>a.concat(m.listNames),[])));
-         let entries=matches.map(m=>objectHeading(m.object.designation,meta(m.object).displayName||m.object.name));
+         let entries=matches.map(m=>objectHeading(catalogIdentifier(m.object),meta(m.object).displayName||m.object.name));
          let error=Error('This object is already in the collection'+(names.length?', in '+names.join(', '):', without a list membership')+'. Existing entry: '+entries.join('; ')+'.');
          error.code='ABL_DUPLICATE_OBJECT';error.matches=matches;throw error;
       }
@@ -1032,20 +1046,41 @@ var ABL = (function () {
       if(config(doc).objects.length>=100000)throw Error('The collection already contains 100,000 objects.');
       config(doc).objects.push(o);if(l){l.objects.push(o);l['last edit']=stamp();}return o;
    }
-   function replaceObject(doc,id,replacement) {
+   function replaceObject(doc,id,replacement,listIds) {
       let others=refs(doc).filter(r=>meta(r.object).objectId!==id);
       if(others.some(r=>same(r.object,replacement)))throw Error('That identifier belongs to another object. Edit the existing object instead.');
+      // Validate the complete membership change before replacing metadata.
+      // Omitted listIds retains memberships for callers that edit data only.
+      let memberships=listIds===undefined?null:new Set(listIds),target;
+      if(memberships){
+         target=refs(doc).find(r=>meta(r.object).objectId===id)?.object;
+         if(!target)throw Error('The object is no longer in the collection.');
+         for(let listId of memberships){let list=doc.observingLists[listId];
+            if(!list)throw Error('A selected list is no longer available.');
+            if(list.objects.length>=100000&&!list.objects.some(o=>meta(o).objectId===id))throw Error('A selected list exceeds the 100,000-object limit.');}
+      }
       replacement=copy(replacement);consolidateObjectInformation(replacement);
       for(let r of refs(doc))if(meta(r.object).objectId===id){let old=r.object;
          delete old.description;delete meta(old).description;
          for(let k of Object.keys(replacement))old[k]=copy(replacement[k]);
          if(own(meta(old),'notes'))meta(old).notes=cleanNotes(meta(old).notes);
          meta(old).objectId=id;if(r.listId)doc.observingLists[r.listId]['last edit']=stamp();}
+      if(memberships){
+         // Keep the inventory reference even when the final membership is
+         // unchecked. Newly selected lists share that same edited object.
+         let inventory=config(doc).objects;if(!inventory.some(o=>meta(o).objectId===id))inventory.push(target);
+         for(let listId of Object.keys(doc.observingLists)){let list=doc.observingLists[listId],present=list.objects.some(o=>meta(o).objectId===id);
+            if(memberships.has(listId)&&!present){list.objects.push(target);list['last edit']=stamp();}
+            else if(!memberships.has(listId)&&present){list.objects=list.objects.filter(o=>meta(o).objectId!==id);list['last edit']=stamp();}
+         }
+      }
    }
    // objtype is the astronomical classification. Stellarium's type field is
    // a selection category: "Nebula" also covers galaxies and star clusters,
    // and "CustomObject" says only that the entry is a coordinate marker.
    function objectType(o) {
+      let manual=plain(o[EXT])?text(o[EXT].manualObjectType).trim():'';
+      if(manual)return manual;
       let label=text(o.objtype).trim();
       // Decode cached SIMBAD fallback labels as well as raw catalog codes.
       // This lets saved entries benefit from newly recognized types offline.
@@ -1057,6 +1092,12 @@ var ABL = (function () {
       if(category==='Nebula')return 'Deep-sky object';
       if(!category||category==='CustomObject')return 'Unspecified';
       return category.replace(/([a-z])([A-Z])/g,'$1 $2');
+   }
+   // Suggestions are a convenience, not a closed classification scheme.
+   // Include saved custom labels so they can be reused for another target.
+   function objectTypeChoices(doc) {
+      let values=['Unspecified','Deep-sky object','Emission nebula','Integrated flux nebula (IFN)','Asterism'].concat(Object.values(TYPES),records(doc).map(r=>r.objectType)),seen=new Set;
+      return values.filter(value=>{let key=value.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>a.localeCompare(b));
    }
    // Remove hollow-circle glyphs and generated month/constellation source
    // headings. Whole-line removal matches only that heading format; other
@@ -1229,7 +1270,7 @@ var ABL = (function () {
       return fields.join(' · ');
    }
    // Refresh only catalog-owned fields. Preserve identifier, list membership,
-   // imaging state, filters, personal prose, and any manual size override.
+   // imaging state, filters, personal prose, and manual size/type overrides.
    function refreshCatalog(object,found) {
       let o=copy(object);consolidateObjectInformation(o);let m=meta(o),fresh=meta(found);
       for(let k of ['ra','dec','constellation','objtype'])if(own(found,k))o[k]=copy(found[k]);
@@ -1286,7 +1327,7 @@ var ABL = (function () {
       // narrowband wins when both filter families are mentioned.
       if(narrow)return automatic('narrowband','Narrowband filter mention: '+narrow);
       if(broad)return automatic('broadband','Broadband filter mention: '+broad);
-      let metadata=[objectType(o),o.objtype,o.name,o.nameI18n,m.displayName,prose].map(text).join('\n');
+      let metadata=[type,o.name,o.nameI18n,m.displayName,prose].map(text).join('\n');
       let match=metadata.match(/\b(?:emission[\s-]*nebula(?:e)?|h[\s-]*ii(?:\s+regions?)?|planetary[\s-]*nebula(?:e)?|supernova[\s-]*remnants?|SNR|PNc?|emissionsnebel|planetarisch\w*\s+nebel|supernova[\s-]*(?:überrest\w*|ueberrest\w*))\b/i);
       if(match)return automatic('narrowband','Object metadata: '+match[0]);
       match=metadata.match(/\b(?:galax(?:y|ies)|galaxi\w*|(?:active\s+)?galactic\s+nucleus|AGN|LINER|Seyfert|reflection[\s-]*nebula(?:e)?|dark[\s-]*nebula(?:e)?|(?:open|globular|star|stellar)(?:\s+star)?[\s-]*clusters?|cluster\s+of\s+stars|integrated[\s-]*flux[\s-]*nebula(?:e)?|IFN|reflexionsnebel|reflektionsnebel|dunkelnebel|sternhaufen|kugelsternhaufen)\b/i);
@@ -1305,7 +1346,7 @@ var ABL = (function () {
    function record(o,doc) {
       let m=meta(o),p=position(o),code=p.ra!==null&&p.dec!==null?constellation(p.ra,p.dec):normalizeConstellation(o.constellation);
       let key=monthKey(code,p.ra),month=Number(config(doc).constellationMonths[key])||0,filters=filterInfo(o),band=targetBand(o);
-      return {object:o,id:m.objectId,designation:text(o.designation||o.name||'Unnamed position'),name:text(m.displayName||o.name||o.nameI18n),
+      return {object:o,id:m.objectId,designation:text(m.catalogIdentifier||o.designation||o.name||'Unnamed position'),name:text(m.displayName||o.name||o.nameI18n),
          objectType:objectType(o),size:angularSize(o),sizeText:sizeText(angularSize(o)),notes:cleanNotes(m.notes),comments:commentText(m.notes),filters:filters.text,filtersFromNotes:filters.fromNotes,catalogSummary:catalogInformation(o),
          band:band.value,bandLabel:band.label,bandMode:band.mode,bandReason:band.reason,
          ra:p.ra,dec:p.dec,code,key,constellation:code?(key==='SerCap'?'Serpens Caput':key==='SerCau'?'Serpens Cauda':ABL_CONSTELLATIONS[code]):'Unassigned constellation',
@@ -1323,11 +1364,14 @@ var ABL = (function () {
    }
    function filter(records,options,date=new Date()) {
       let q=text(options.search).trim().toLowerCase(),months=options.month==='near-current'?adjacentMonths(date):null;
+      // Match the displayed identifier. The hidden Stellarium marker suffix
+      // is transport metadata; real mentions in names or notes remain searchable.
       return records.filter(r=>(options.month===undefined||options.month===-1||(months?months.includes(r.month):r.month===options.month))&&
+         (!options.selectedIds||options.selectedIds.has(r.id))&&
          (options.constellation===undefined||options.constellation===null||r.key===options.constellation)&&(!options.objectType||r.objectType===options.objectType)&&
          (!options.band||r.band===options.band)&&
          (!options.status||options.status==='all'||options.status==='imaged'&&r.imaged||options.status==='not-imaged'&&!r.imaged)&&
-         (!q||[r.designation,r.name,r.objectType,r.bandLabel,r.filters,r.catalogSummary,r.notes,r.constellation,r.code].join(' ').toLowerCase().indexOf(q)>=0||identifiers(r.object).some(id=>id.indexOf(norm(q))>=0)));
+         (!q||[r.designation.replace(/\s+marker$/i,''),r.name,r.objectType,r.bandLabel,r.filters,r.catalogSummary,r.notes,r.constellation,r.code].join(' ').toLowerCase().indexOf(q)>=0||identifiers(r.object).some(id=>id.indexOf(norm(q))>=0)));
    }
    // Calendar sorting compares numeric planning months, not localized labels.
    // Unassigned months remain last in either direction.
@@ -1374,7 +1418,7 @@ var ABL = (function () {
       RNe:'Reflection nebula',DNe:'Dark nebula',MoC:'Molecular cloud',ISM:'Interstellar matter',Neb:'Nebula',GlC:'Globular cluster',OpC:'Open cluster','Cl*':'Star cluster',
       '*':'Star','**':'Double or multiple star','C*':'Carbon star','WR*':'Wolf-Rayet star','V*':'Variable star','Em*':'Emission-line star','Be*':'Be star','s*r':'Red supergiant'};
    // Parse explicit catalog fields; never infer coordinates from a display
-   // name. New remote objects use coordinate markers for Stellarium portability.
+   // name. New objects retain clean catalog labels; coordinate markers are opt-in.
    function parseSimbad(s,query,source) {
       s=text(s);let header=s.match(/^Object\s+(.+?)\s+---\s+(.+?)\s+---/m);
       if(!header)throw Error('SIMBAD did not identify '+query+'. Try a full identifier such as M 31, NGC 7000 or PN G075.5+01.7.');
@@ -1388,10 +1432,10 @@ var ABL = (function () {
       let aliases=[],block=s.match(/Identifiers\s*\(\d+\):\s*\n([\s\S]*?)(?:\n\s*\n|$)/);
       if(block)aliases=block[1].split(/\n| {2,}/).map(x=>x.trim()).filter(Boolean);
       let star=/\*|\*r/.test(type)&&!['Cl*'].includes(type),main=header[1].trim();
-      // Use the entered designation for catalog selection. An explicit marker is
-      // portable even when this SIMBAD identifier is absent from Stellarium.
-      let o={designation:query.replace(/\s+marker$/i,'').trim()+' marker',name:main,nameI18n:main,type:'CustomObject',objtype:label,
-         ra:formatRA(ra),dec:formatDec(dec),constellation:constellation(ra,dec),isVisibleMarker:true,fov:2};
+      // Stellarium highlights stored coordinates using this exact label.
+      // Named coordinate-marker selection is available as an explicit opt-in.
+      let o={designation:query.replace(/\s+marker$/i,'').trim(),name:main,nameI18n:main,type:star?'Star':'Nebula',objtype:label,
+         ra:formatRA(ra),dec:formatDec(dec),constellation:constellation(ra,dec),isVisibleMarker:false,fov:2};
       o[EXT]={objectId:uuid(),imaged:false,imagedOn:'',catalogMainId:main,aliases:aliases.concat([query]),
          catalogSummary:parts.join('\n'),catalogSource:source,catalogRetrieved:stamp(),catalogClass:star?'Star':'Nebula',positionFrame:'ICRS/J2000'};
       let dimensions=s.match(/^Angular size:[ \t]*(.*)$/m);
@@ -1400,7 +1444,7 @@ var ABL = (function () {
    }
    function lookupLocal(doc,query) {
       let n=norm(query);if(!n)return null;let matches=refs(doc).filter(r=>identifiers(r.object).indexOf(n)>=0);
-      let exact=matches.find(r=>norm(r.object.designation)===n||norm(meta(r.object).catalogMainId)===n);
+      let exact=matches.find(r=>norm(catalogIdentifier(r.object))===n||norm(meta(r.object).catalogMainId)===n);
       if(exact)return copy(exact.object);
       let unique=new Set(matches.map(r=>meta(r.object).objectId));
       return unique.size===1?copy(matches[0].object):null;
@@ -1415,13 +1459,13 @@ var ABL = (function () {
       return 'https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r='+p.ra.toFixed(8)+'&d='+p.dec.toFixed(8)+'&e=J2000&h='+arcmin+'&w='+arcmin+'&f=gif&c=none';
    }
    return {VERSION,EXT,MONTHS,own,plain,copy,text,uuid,today,stamp,norm,html,coordinate,formatRA,formatDec,position,constellation,normalizeConstellation,
-      monthKey,meta,config,refs,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
-      objectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
+      monthKey,meta,config,refs,catalogIdentifier,setStellariumLabel,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
+      objectType,objectTypeChoices,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
 })();
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.35.2 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.38.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1430,7 +1474,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.35.2"
+#define VERSION "0.38.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1742,7 +1786,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
       if(!details.contourPath||!File.exists(details.contourPath))throw Error('Choose an available local nebula contour file.');
       outlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));
    }
-   const title=String(object.designation||object.name||'Target').replace(/\s+marker$/i,'');
+   const title=ABL.catalogIdentifier(object)||'Target';
    let id;do{id='ABL_Sky_'+ABL.uuid().slice(1,9);}while(View.viewById(id));
    let stars=null,bitmap=null,insetMap=null;
    try{
@@ -1911,7 +1955,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.35.2';
+const ABL_VERSION='0.38.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2091,12 +2135,12 @@ class ABLDuplicateDialog extends Dialog { constructor(parent,object,matches){
    super(parent);this.windowTitle='Object already in collection';this.matches=matches;
    this.info=new Label(this);this.info.wordWrapping=true;this.info.setFixedWidth(this.logicalPixelsToPhysical(570));
    this.info.text='The entered object matches an existing entry. It may be listed under another catalog identifier or hidden by the selected list or filters.';
-   this.entries=new ComboBox(this);for(let match of matches)this.entries.addItem(ABL.objectHeading(match.object.designation,ABL.meta(match.object).displayName||match.object.name));
+   this.entries=new ComboBox(this);for(let match of matches)this.entries.addItem(ABL.objectHeading(ABL.catalogIdentifier(match.object),ABL.meta(match.object).displayName||match.object.name));
    this.entries.toolTip='Select the existing entry to inspect. Each object is shown once, even if it belongs to several lists.';
    this.details=new TextBox(this);this.details.readOnly=true;this.details.setMinHeight(this.logicalPixelsToPhysical(155));
    this.updateMatch=()=>{let match=matches[this.entries.currentItem],o=match.object,m=ABL.meta(o);
-      this.details.text=ABL.html(['Entered: '+String(object.designation).replace(/\s+marker$/i,''),
-         'Existing entry: '+ABL.objectHeading(o.designation,m.displayName||o.name),
+      this.details.text=ABL.html(['Entered: '+ABL.catalogIdentifier(object),
+         'Existing entry: '+ABL.objectHeading(ABL.catalogIdentifier(o),m.displayName||o.name),
          m.catalogMainId?'Catalog identifier: '+m.catalogMainId:'',
          match.identifier?'Matching identifier / alias: '+match.identifier:'Matching saved object identifier.',
          'List'+(match.listNames.length===1?'':'s')+': '+(match.listNames.join('; ')||'None — collection only'),
@@ -2114,25 +2158,42 @@ class ABLDuplicateDialog extends Dialog { constructor(parent,object,matches){
 class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifier=''){
    super(parent);
    this.windowTitle=(object?'Edit object':'Add object')+' — '+ABL_TITLE;
-   this.source=object?ABL.copy(object):{designation:'',name:'',type:'CustomObject',isVisibleMarker:true,ra:'',dec:''};
+   this.source=object?ABL.copy(object):{designation:'',name:'',type:'Nebula',isVisibleMarker:false,ra:'',dec:''};
    ABL.consolidateObjectInformation(this.source);
    this.editedObject=null;this.lookupPerformed=false;this.setMinWidth(660);
    let m=ABL.meta(this.source);
-   this.idEdit=new Edit(this);this.idEdit.text=object?String(object.designation||object.name||'').replace(/\s+marker$/i,''):String(initialIdentifier).trim();
-   // Membership is optional. Add to the active list when one is selected;
-   // All objects starts with collection-only storage, even with no lists.
+   this.idEdit=new Edit(this);this.idEdit.text=object?(ABL.catalogIdentifier(object)||String(object.name||'')):String(initialIdentifier).trim();
+   this.stellariumLabelEdit=new Edit(this);this.labelAutomatic=true;
+   this.stellariumLabelEdit.toolTip='Exact label exported to Stellarium. It also serves as Stellarium\'s catalog lookup key. Use a recognized catalog identifier for reliable object selection. Labels containing marker opt into Stellarium\'s named coordinate-marker fallback and display that word. Editing this label retains the catalog identifier used by Astro Bucket List.';
+   this.catalogLabelButton=ablButton(this,'Use catalog identifier',()=>{this.stellariumLabelEdit.text=this.idEdit.text.trim().replace(/\s+marker$/i,'');this.labelAutomatic=true;this.marker.checked=/marker/i.test(this.stellariumLabelEdit.text);},'Set the Stellarium label to the clean catalog identifier, removing an added marker suffix. Apply and Save to keep this repair.');
+   let stellariumLabelRow=new HorizontalSizer;stellariumLabelRow.spacing=6;stellariumLabelRow.add(this.stellariumLabelEdit,100);stellariumLabelRow.add(this.catalogLabelButton);
+   // All objects has no destination membership. Require an explicit choice;
+   // null is the unanswered prompt, while '' deliberately means collection only.
    this.destinationListId='';
    if(!object){
-      this.listSelect=new ComboBox(this);this.listIds=[''].concat(Object.keys(parent.doc.observingLists));this.listSelect.addItem('No list — collection only');
-      for(let id of this.listIds.slice(1))this.listSelect.addItem(parent.doc.observingLists[id].name);
-      this.listSelect.currentItem=parent.listId?this.listIds.indexOf(parent.listId):0;
-      this.listSelect.toolTip='Optionally add this object to a logical list. No list stores it in the collection and makes it available in All objects.';
+      this.listSelect=new ComboBox(this);this.listIds=[null,''].concat(Object.keys(parent.doc.observingLists));
+      this.listSelect.addItem('Choose a list…');this.listSelect.addItem('No list — collection only');
+      for(let id of this.listIds.slice(2))this.listSelect.addItem(parent.doc.observingLists[id].name);
+      this.listSelect.currentItem=parent.listId&&this.listIds.includes(parent.listId)?this.listIds.indexOf(parent.listId):0;
+      this.listSelect.toolTip='Choose which list this object should belong to before applying. The active named list is preselected. Choose No list explicitly to store the object only in the collection. If no lists exist, create one in the main window or choose No list.';
+   }else{
+      this.membershipTree=new TreeBox(this);this.membershipTree.numberOfColumns=1;this.membershipTree.headerVisible=false;this.membershipTree.rootDecoration=false;
+      this.membershipTree.setFixedHeight(this.logicalPixelsToPhysical(90));this.membershipNodes=[];
+      let id=ABL.meta(object).objectId,lists=Object.keys(parent.doc.observingLists);
+      lists.sort((a,b)=>parent.doc.observingLists[a].name.localeCompare(parent.doc.observingLists[b].name));
+      for(let listId of lists){let list=parent.doc.observingLists[listId],node=new TreeBoxNode(this.membershipTree);
+         node.listId=listId;node.checkable=true;node.checked=list.objects.some(o=>ABL.meta(o).objectId===id);node.setText(0,list.name);node.setToolTip(0,ABL.html(list.name));this.membershipNodes.push(node);}
+      if(!lists.length){let node=new TreeBoxNode(this.membershipTree);node.setText(0,'No lists defined — object stays in the collection');}
+      this.membershipTree.adjustColumnWidthToContents(0);
+      this.membershipTree.toolTip='Checked lists contain this object. Check or uncheck memberships, then Apply. The object can belong to several lists; unchecking every list keeps it in the collection. Cancel discards membership changes. Create new lists in the main window.';
    }
    this.idEdit.toolTip='Examples: M 31, NGC 7000, LDN 1228, PK 164+31.1. Look up refreshes catalog information from SIMBAD, including available apparent dimensions.';
    this.server=new ComboBox(this);this.server.addItem('SIMBAD — Harvard');this.server.addItem('SIMBAD — Strasbourg');this.server.currentItem=parent.serverIndex||0;
    this.lookupButton=ablButton(this,'Look up',()=>{
-      try{let previousObject=ABL.copy(this.source);ABL.setCatalogInformation(previousObject,this.catalogText.text);
+      try{let previousObject=ABL.copy(this.source);ABL.setCatalogInformation(previousObject,this.catalogText.text);this.applyObjectType(previousObject);
          let previous=ABL.meta(previousObject);previous.notes=ABL.cleanNotes(this.notesEdit.text);previous.displayName=this.nameEdit.text;
+         let enteredId=this.idEdit.text.trim().replace(/\s+marker$/i,''),enteredLabel=this.stellariumLabelEdit.text.trim(),useMarker=this.marker.checked;
+         if(!enteredLabel||this.labelAutomatic&&ABL.norm(enteredLabel)!==ABL.norm(enteredId))enteredLabel=enteredId+(useMarker?' marker':'');
          previous.imagedOn=this.imagedDate.text.trim();previous.imaged=this.imaged.checked||!!previous.imagedOn;previous.filters=this.filtersEdit.text;
          ABL.setTargetBand(previousObject,this.bandSelect.values[this.bandSelect.currentItem]);
          if(this.useCatalogSize.checked)delete previous.angularSize;else previous.angularSize=ABL.manualSize(this.majorEdit.text,this.minorEdit.text);
@@ -2144,11 +2205,29 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
          fresh.targetBand=ABL.copy(previous.targetBand);
          if(ABL.own(previous,'angularSize'))fresh.angularSize=previous.angularSize;
          if(ABL.own(previous,'catalogInformation'))fresh.catalogInformation=previous.catalogInformation;
-         this.source[ABL.EXT]=fresh;this.idEdit.text=String(found.designation||this.idEdit.text).replace(/\s+marker$/i,'');this.fill();parent.serverIndex=this.server.currentItem;
+         if(ABL.own(previous,'manualObjectType'))fresh.manualObjectType=previous.manualObjectType;
+         this.source[ABL.EXT]=fresh;ABL.setStellariumLabel(this.source,enteredId,enteredLabel);this.idEdit.text=enteredId;this.fill();parent.serverIndex=this.server.currentItem;
       }catch(e){parent.error(e);}
    },'Resolve this identifier and fill J2000 coordinates and catalog information.');
    let idRow=new HorizontalSizer;idRow.spacing=6;idRow.add(this.idEdit,100);idRow.add(this.lookupButton);
    this.nameEdit=new Edit(this);this.raEdit=new Edit(this);this.decEdit=new Edit(this);
+   this.typeSelect=new ComboBox(this);this.typeSelect.editEnabled=true;this.typeSelect.autoCompletion=false;
+   for(let label of ABL.objectTypeChoices(parent.doc))this.typeSelect.addItem(label);
+   this.typeSelect.toolTip='Choose a common object type or type your own label. Manual types are retained by Look up and Update catalogs. Clear the field or choose Use catalog type to follow the catalog again.';
+   this.typeReset=false;this.typeBaseline='';this.fillingType=false;
+   this.applyObjectType=o=>{let value=this.typeSelect.editText.trim(),m=ABL.meta(o);
+      if(this.typeReset||!value)delete m.manualObjectType;
+      else if(value!==this.typeBaseline)m.manualObjectType=value;
+   };
+   this.catalogTypeButton=ablButton(this,'Use catalog type',()=>{
+      let o=ABL.copy(this.source);delete ABL.meta(o).manualObjectType;
+      this.fillingType=true;this.typeSelect.editText=ABL.objectType(o);this.fillingType=false;
+      this.typeReset=true;this.catalogTypeButton.enabled=false;this.updateBand();
+   },'Restore the latest catalog classification for this object. Apply retains the reset.');
+   this.typeChanged=()=>{if(this.fillingType)return;this.typeReset=false;this.catalogTypeButton.enabled=true;this.updateBand();};
+   this.typeSelect.onEditTextUpdated=()=>this.typeChanged();
+   this.typeSelect.onItemSelected=index=>{this.typeSelect.editText=this.typeSelect.itemText(index);this.typeChanged();};
+   let typeRow=new HorizontalSizer;typeRow.spacing=6;typeRow.add(this.typeSelect,100);typeRow.add(this.catalogTypeButton);
    this.majorEdit=new Edit(this);this.minorEdit=new Edit(this);this.majorEdit.setFixedWidth(100);this.minorEdit.setFixedWidth(100);
    this.majorEdit.toolTip='Major diameter in arcminutes. Leave both dimensions blank when unknown.';
    this.minorEdit.toolTip='Optional minor diameter in arcminutes; no larger than the major diameter.';
@@ -2178,12 +2257,22 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
    this.imagedDate=new Edit(this);this.imagedDate.setFixedWidth(120);this.imagedDate.toolTip='Editable imaging date, YYYY-MM-DD. Entering a date marks this object as imaged. Clear the date to keep an imaged object without a known date.';
    this.imaged.onCheck=checked=>{if(!checked)this.imagedDate.text='';else if(!this.imagedDate.text)this.imagedDate.text=ABL.today();};
    this.imagedDate.onTextUpdated=value=>{if(value.trim()&&ABL.validDate(value.trim()))this.imaged.checked=true;};
-   this.marker=new CheckBox(this);this.marker.text='Export as a named coordinate marker';
-   this.marker.toolTip='A marker works in Stellarium even if this catalog identifier is absent from its local database. Native catalog entries can keep their original object type.';
+   this.marker=new CheckBox(this);this.marker.text='Use coordinate marker (adds “marker” to label)';
+   this.marker.toolTip='<p><b>Normally leave this off</b> for recognized catalog objects such as NGC 936 or NGC 1232.</p>'+
+      '<p>Use it when Stellarium cannot find a target by name, for example an obscure catalog object or a manually entered position without a recognized name. Double-clicking the imported entry then creates a named marker at its saved RA/Dec instead of potentially selecting a nearby star.</p>'+
+      '<p>Stellarium requires the word <b>marker</b> in the label for this fallback and displays it. This option is unnecessary for <b>Highlight all</b>, which marks saved coordinates with clean labels. It is off by default.</p>';
+   this.marker.onCheck=checked=>{let label=this.stellariumLabelEdit.text.trim()||this.idEdit.text.trim();
+      this.stellariumLabelEdit.text=checked?(/marker/i.test(label)?label:label+' marker'):label.replace(/\s+marker$/i,'');
+      this.marker.checked=/marker/i.test(this.stellariumLabelEdit.text);};
+   this.stellariumLabelEdit.onTextUpdated=value=>{this.marker.checked=/marker/i.test(value);this.labelAutomatic=ABL.norm(value)===ABL.norm(this.idEdit.text);};
+   this.idEdit.onTextUpdated=()=>{if(this.labelAutomatic)this.stellariumLabelEdit.text=this.idEdit.text.trim()+(this.marker.checked?' marker':'');};
    let status=new HorizontalSizer;status.spacing=8;status.add(this.imaged);status.addStretch();let dl=new Label(this);dl.text='Imaged on:';status.add(dl);status.add(this.imagedDate);
    this.applyButton=ablButton(this,'Apply',()=>{try{
+      if(!object&&typeof this.listIds[this.listSelect.currentItem]!=='string')
+         throw Error('Choose a destination in Add to list, or explicitly select No list — collection only.');
       let value=this.value();
       if(!object){this.destinationListId=this.listIds[this.listSelect.currentItem];ABL.validateNewObject(parent.doc,this.destinationListId,value);}
+      else this.editedListIds=this.membershipNodes.filter(n=>n.checked).map(n=>n.listId);
       this.editedObject=value;this.ok();
    }catch(e){
       if(!object&&e.code==='ABL_DUPLICATE_OBJECT'){
@@ -2195,13 +2284,15 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
    let buttons=new HorizontalSizer;buttons.spacing=6;buttons.add(this.marker);buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=7;
    if(this.listSelect)this.sizer.add(ablRow(this,'Add to list:',this.listSelect));
+   if(this.membershipTree)this.sizer.add(ablRow(this,'List memberships:',this.membershipTree));
    this.sizer.add(ablRow(this,'Catalog identifier:',idRow));this.sizer.add(ablRow(this,'Lookup service:',this.server));
-   this.sizer.add(ablRow(this,'Display name:',this.nameEdit));this.sizer.add(ablRow(this,'RA (J2000):',this.raEdit));this.sizer.add(ablRow(this,'Dec (J2000):',this.decEdit));
+   this.sizer.add(ablRow(this,'Display name:',this.nameEdit));this.sizer.add(ablRow(this,'Stellarium label:',stellariumLabelRow));this.sizer.add(ablRow(this,'Object type:',typeRow));this.sizer.add(ablRow(this,'RA (J2000):',this.raEdit));this.sizer.add(ablRow(this,'Dec (J2000):',this.decEdit));
    this.sizer.add(ablRow(this,'Constellation / month:',this.constellationLabel));
    this.sizer.add(ablRow(this,'Apparent size (arcmin):',sizeRow));this.sizer.add(ablRow(this,'',this.sizeSource));
    this.sizer.add(ablRow(this,'Filters:',this.filtersEdit));this.sizer.add(ablRow(this,'Target band:',bandRow));this.sizer.add(ablRow(this,'Comments:',this.notesEdit));this.sizer.add(ablRow(this,'Catalog information:',catalogRow));this.sizer.add(status);this.sizer.add(buttons);
    this.updateBand=()=>{
       let o=ABL.copy(this.source),m=ABL.meta(o);m.filters=this.filtersEdit.text;m.notes=this.notesEdit.text;o.name=o.nameI18n=m.displayName=this.nameEdit.text;
+      this.applyObjectType(o);
       ABL.setCatalogInformation(o,this.catalogText.text);ABL.setTargetBand(o,this.bandSelect.values[this.bandSelect.currentItem]);
       let c=ABL.targetBand(o);this.bandHint.text=c.mode==='auto'?'Automatic: '+c.label:'Manual classification';this.bandHint.toolTip=c.reason;
    };
@@ -2211,6 +2302,9 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       this.constellationLabel.text=code?((key==='SerCap'?'Serpens Caput':key==='SerCau'?'Serpens Cauda':ABL_CONSTELLATIONS[code])+' — '+ABL.MONTHS[month]):'Enter coordinates or use Look up';};
    this.raEdit.onTextUpdated=this.decEdit.onTextUpdated=()=>this.updatePosition();
    this.fill=()=>{let o=this.source,m=ABL.meta(o);this.nameEdit.text=m.displayName||o.name||o.nameI18n||'';this.raEdit.text=o.ra===undefined||o.ra===null?'':String(o.ra);this.decEdit.text=o.dec===undefined||o.dec===null?'':String(o.dec);
+      this.stellariumLabelEdit.text=o.designation||this.idEdit.text;this.labelAutomatic=!o.designation||ABL.norm(o.designation)===ABL.norm(this.idEdit.text);
+      this.fillingType=true;this.typeBaseline=ABL.objectType(o);this.typeSelect.editText=this.typeBaseline;this.typeReset=false;this.fillingType=false;
+      this.catalogTypeButton.enabled=!!ABL.text(m.manualObjectType).trim();
       // TextBox setters interpret console markup; escape literal prose so
       // ampersands and angle brackets survive a fill/edit/save cycle.
       this.notesEdit.text=ABL.html(ABL.cleanNotes(m.notes));this.filtersEdit.text=ABL.filterInfo(o).text;
@@ -2218,16 +2312,18 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       this.catalogText.text=ABL.html(ABL.catalogInformation(o));this.catalogText.toolTip='Object description and catalog facts in one editable field. Repeated lines are removed when applied. Your edits survive catalog updates.'+(m.catalogSource?'\nCatalog source: '+m.catalogSource:'');
       this.imaged.checked=m.imaged===true;this.imagedDate.text=m.imagedOn||'';
       let band=ABL.targetBand(o);this.bandSelect.currentItem=band.mode==='manual'?this.bandSelect.values.indexOf(band.value):0;
-      this.marker.checked=o.type==='CustomObject'||!o.type;this.updatePosition();this.updateBand();};
-   this.formSignature=()=>JSON.stringify([this.idEdit.text,this.nameEdit.text,this.raEdit.text,this.decEdit.text,this.useCatalogSize.checked,this.majorEdit.text,this.minorEdit.text,this.filtersEdit.text,this.notesEdit.text,this.catalogText.text,this.bandSelect.currentItem,this.imaged.checked,this.imagedDate.text,this.marker.checked]);
+      this.marker.checked=/marker/i.test(this.stellariumLabelEdit.text);this.updatePosition();this.updateBand();};
+   this.formSignature=()=>JSON.stringify([this.idEdit.text,this.nameEdit.text,this.raEdit.text,this.decEdit.text,this.useCatalogSize.checked,this.majorEdit.text,this.minorEdit.text,this.filtersEdit.text,this.notesEdit.text,this.catalogText.text,this.bandSelect.currentItem,this.imaged.checked,this.imagedDate.text,this.marker.checked,this.typeSelect.editText,this.typeReset,this.stellariumLabelEdit.text]);
    this.value=()=>{if(object&&!this.lookupPerformed&&!this.catalogReset&&this.formSignature()===this.initialForm)return ABL.copy(this.initialObject);let o=ABL.copy(this.source),m=ABL.meta(o);o.designation=this.idEdit.text.trim().replace(/\s+marker$/i,'');
       o.name=this.nameEdit.text.trim();o.nameI18n=o.name;o.ra=this.raEdit.text.trim();o.dec=this.decEdit.text.trim();
       m.displayName=o.name;m.notes=ABL.cleanNotes(this.notesEdit.text);m.filters=this.filtersEdit.text.trim();m.imagedOn=this.imagedDate.text.trim();m.imaged=this.imaged.checked||!!m.imagedOn;
       ABL.setCatalogInformation(o,this.catalogText.text);
+      this.applyObjectType(o);
       ABL.setTargetBand(o,this.bandSelect.values[this.bandSelect.currentItem]);
       if(this.useCatalogSize.checked)delete m.angularSize;else m.angularSize=ABL.manualSize(this.majorEdit.text,this.minorEdit.text);
-      if(this.marker.checked){o.type='CustomObject';o.designation+=' marker';o.isVisibleMarker=true;}
-      else{o.type=m.catalogClass||((o.type&&o.type!=='CustomObject')?o.type:'Nebula');o.isVisibleMarker=false;}
+      let label=this.stellariumLabelEdit.text.trim();
+      if(!label||this.labelAutomatic&&ABL.norm(label)!==ABL.norm(o.designation))label=o.designation+(this.marker.checked?' marker':'');
+      ABL.setStellariumLabel(o,this.idEdit.text,label);
       if(!o.fov)o.fov=2;ABL.validateObject(o);
       // Applying one edit must not rewrite unrelated defaults or round the
       // original coordinate representation. This also lets a later edit
@@ -2236,7 +2332,7 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
          let initial=JSON.parse(this.initialForm),current=JSON.parse(this.formSignature()),original=this.initialObject,old=ABL.meta(original);
          const unchanged=indices=>indices.every(i=>initial[i]===current[i]);
          const restore=(dest,source,keys)=>{for(let key of keys){if(ABL.own(source,key))dest[key]=ABL.copy(source[key]);else delete dest[key];}};
-         if(unchanged([0,13]))restore(o,original,['designation','type','isVisibleMarker']);
+         if(unchanged([0,13,16])){restore(o,original,['designation','type','isVisibleMarker']);restore(m,old,['catalogIdentifier']);}
          if(unchanged([1])){restore(o,original,['name','nameI18n']);restore(m,old,['displayName']);}
          if(unchanged([2,3]))restore(o,original,['ra','dec','constellation']);
          if(unchanged([4,5,6]))restore(m,old,['angularSize']);
@@ -2245,6 +2341,7 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
          if(unchanged([9])&&!this.catalogReset)restore(m,old,['catalogInformation']);
          if(unchanged([10]))restore(m,old,['targetBand']);
          if(unchanged([11,12]))restore(m,old,['imaged','imagedOn']);
+         if(unchanged([14,15]))restore(m,old,['manualObjectType']);
          restore(o,original,['fov']);
       }
       return o;};
@@ -2824,16 +2921,18 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.constellationFilter=new ComboBox(this.filterGroup);this.constellationFilter.values=[null];this.constellationFilter.addItem('All constellations');this.constellationFilter.setMinWidth(190);
    this.constellationFilter.toolTip='Constellations present in the selected list and planning month, including separate Serpens Caput and Cauda regions. Previous / current / next includes all three months. An unavailable selection resets to All constellations.';
    this.typeFilter=new ComboBox(this.filterGroup);this.typeFilter.values=[null];this.typeFilter.addItem('All object types');this.typeFilter.setMinWidth(190);
-   this.typeFilter.toolTip='Object types available after the selected list, Find, Month, Constellation, Target band and Imaging status filters. The current Object type choice does not hide alternative types. An unavailable selection resets to All object types.';
+   this.typeFilter.toolTip='Object types available after the selected list, Find, Month, Constellation, Target band, Imaging status and Selected only filters. The current Object type choice does not hide alternative types. An unavailable selection resets to All object types.';
    this.bandFilter=new ComboBox(this.filterGroup);this.bandFilter.values=[null,'broadband','narrowband','unclassified'];
    for(let label of ['All target bands','Broadband','Narrowband','Unclassified'])this.bandFilter.addItem(label);
    this.bandFilter.toolTip='Filter by imaging target band. Unclassified finds objects that need a manual choice in Edit object.';
-   this.clearFilters=()=>{this.searchEdit.text='';this.monthFilter.currentItem=0;this.statusFilter.currentItem=0;this.constellationFilter.currentItem=0;this.typeFilter.currentItem=0;this.bandFilter.currentItem=0;};
+   this.selectedOnlyFilter=new CheckBox(this.filterGroup);this.selectedOnlyFilter.text='Selected only';
+   this.selectedOnlyFilter.toolTip='Show only objects whose row checkboxes are checked for list actions or export, within the current list and other filters. Highlighting a row alone does not count. Unchecking an object hides it from this view. Turn this off to choose more objects.';
+   this.clearFilters=()=>{this.searchEdit.text='';this.monthFilter.currentItem=0;this.statusFilter.currentItem=0;this.constellationFilter.currentItem=0;this.typeFilter.currentItem=0;this.bandFilter.currentItem=0;this.selectedOnlyFilter.checked=false;};
    this.resetFiltersButton=ablButton(this.filterGroup,'Reset filters',()=>{
       // Reset view filters only. Keep list choice, row order, export checks
       // and saved object metadata, including imaging/filter information.
       this.clearFilters();this.refreshTree();
-   },'Clear Find, Month, imaging state, Constellation, Object type and Target band. Keep the sort order and checked objects.');
+   },'Clear Find, Month, imaging state, Constellation, Object type, Target band and Selected only. Keep the sort order and checked objects.');
    this.sortModes=['constellation','month','month-desc','size','size-desc','ra','ra-desc','dec','dec-desc'];
    this.sortSelect=new ComboBox(this.sortGroup);this.secondarySortSelect=new ComboBox(this.sortGroup);this.tertiarySortSelect=new ComboBox(this.sortGroup);
    for(let control of [this.secondarySortSelect,this.tertiarySortSelect])control.addItem('None');
@@ -2849,7 +2948,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    const filterRow=(caption,control,width)=>{let row=new HorizontalSizer;row.spacing=6;let label=new Label(this.filterGroup);label.text=caption;label.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;label.setFixedWidth(width);row.add(label);row.add(control,100);this.filterLabels.push({label,control});return row;};
    let leftLabelWidth=Math.max(...['Month:','Constellation:','Target band:'].map(t=>this.font.width(t))),rightLabelWidth=Math.max(...['Imaging status:','Object type:'].map(t=>this.font.width(t)));
    let filterLeft=new VerticalSizer;filterLeft.spacing=6;filterLeft.add(filterRow('Month:',this.monthFilter,leftLabelWidth));filterLeft.add(filterRow('Constellation:',this.constellationFilter,leftLabelWidth));filterLeft.add(filterRow('Target band:',this.bandFilter,leftLabelWidth));
-   let filterRight=new VerticalSizer;filterRight.spacing=6;filterRight.add(filterRow('Imaging status:',this.statusFilter,rightLabelWidth));filterRight.add(filterRow('Object type:',this.typeFilter,rightLabelWidth));let resetRow=new HorizontalSizer;resetRow.addStretch();resetRow.add(this.resetFiltersButton);filterRight.add(resetRow);
+   let filterRight=new VerticalSizer;filterRight.spacing=6;filterRight.add(filterRow('Imaging status:',this.statusFilter,rightLabelWidth));filterRight.add(filterRow('Object type:',this.typeFilter,rightLabelWidth));let resetRow=new HorizontalSizer;resetRow.spacing=8;resetRow.add(this.selectedOnlyFilter);resetRow.addStretch();resetRow.add(this.resetFiltersButton);filterRight.add(resetRow);
    let filterColumns=new HorizontalSizer;filterColumns.spacing=16;filterColumns.add(filterLeft);filterColumns.add(filterRight);this.filterGroup.sizer.add(filterColumns);
    let sortRow=new HorizontalSizer;sortRow.spacing=8;let sortLabel=new Label(this.sortGroup);sortLabel.text='Sort by:';sortRow.add(sortLabel);sortRow.add(this.sortSelect,100);
    let secondaryRow=new HorizontalSizer;secondaryRow.spacing=8;let secondaryLabel=new Label(this.sortGroup);secondaryLabel.text='Then by:';secondaryRow.add(secondaryLabel);secondaryRow.add(this.secondarySortSelect,100);
@@ -3009,7 +3108,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.refreshLists=(selectId='')=>{let ids=Object.keys(this.doc.observingLists);if(this.listId&&!ABL.own(this.doc.observingLists,this.listId))this.listId='';
       this.listIds=[''].concat(ids);this.listSelect.clear();this.listSelect.addItem('All objects');for(let id of ids)this.listSelect.addItem(this.doc.observingLists[id].name);
       this.listSelect.currentItem=Math.max(0,this.listIds.indexOf(this.listId||''));this.refreshTree(selectId);};
-   this.filterOptions=()=>({search:this.searchEdit.text,month:this.monthFilter.values[this.monthFilter.currentItem],status:['all','not-imaged','imaged'][this.statusFilter.currentItem],constellation:this.constellationFilter.values[this.constellationFilter.currentItem],objectType:this.typeFilter.values[this.typeFilter.currentItem],band:this.bandFilter.values[this.bandFilter.currentItem]});
+   this.filterOptions=()=>({search:this.searchEdit.text,month:this.monthFilter.values[this.monthFilter.currentItem],status:['all','not-imaged','imaged'][this.statusFilter.currentItem],constellation:this.constellationFilter.values[this.constellationFilter.currentItem],objectType:this.typeFilter.values[this.typeFilter.currentItem],band:this.bandFilter.values[this.bandFilter.currentItem],selectedIds:this.selectedOnlyFilter.checked?this.exportIds:null});
    // Apply dependencies in one direction: Month -> Constellation -> Object
    // type. Rebuild types with all other filters, but exclude their own current
    // value so users can still switch between the available alternatives.
@@ -3072,11 +3171,12 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
          let noMatch=!!this.searchEdit.text.trim()&&!this.nodes.length;
          this.addButton.enabled=true;this.addButton.text=noMatch?'Add searched object…':'Add object…';
          this.addButton.toolTip=noMatch?'Create an entry using the search text as its catalog identifier. Choose Look up or enter coordinates, then Apply.':'Add an object to the collection, with an optional list membership.';
-         this.searchNotice.text='No matches in this view. Use Add searched object to create an entry, or Reset filters to widen the search.';
-         this.searchNotice.visible=noMatch;
+         let noCheckedMatch=this.selectedOnlyFilter.checked&&!this.nodes.length;
+         this.searchNotice.text=noCheckedMatch?'No checked objects match this view. Turn off Selected only to choose more objects, or Reset filters to widen the search.':'No matches in this view. Use Add searched object to create an entry, or Reset filters to widen the search.';
+         this.searchNotice.visible=noMatch||noCheckedMatch;
       }finally{this.building=false;this.updateSelection();this.updateHeader();}
    };
-   this.updateSummary=(all=ABL.records(this.doc,this.listId))=>{let highlighted=this.tree.selectedNodes.length;this.summary.text=this.nodes.length+' shown / '+all.length+' objects · '+all.filter(r=>r.imaged).length+' imaged · '+highlighted+' selected · '+this.exportIds.size+' checked';this.uncheckButton.enabled=this.exportIds.size>0;this.checkSelectedButton.enabled=highlighted>0;this.addToListButton.enabled=this.moveToListButton.enabled=this.exportSelectedButton.enabled=this.actionSelectionIds().length>0;this.checkShownButton.enabled=this.nodes.length>0;this.resetFiltersButton.enabled=!!this.searchEdit.text||this.monthFilter.currentItem!==0||this.statusFilter.currentItem!==0||this.constellationFilter.currentItem!==0||this.typeFilter.currentItem!==0||this.bandFilter.currentItem!==0;};
+   this.updateSummary=(all=ABL.records(this.doc,this.listId))=>{let highlighted=this.tree.selectedNodes.length;this.summary.text=this.nodes.length+' shown / '+all.length+' objects · '+all.filter(r=>r.imaged).length+' imaged · '+highlighted+' selected · '+this.exportIds.size+' checked';this.uncheckButton.enabled=this.exportIds.size>0;this.checkSelectedButton.enabled=highlighted>0;this.addToListButton.enabled=this.moveToListButton.enabled=this.exportSelectedButton.enabled=this.actionSelectionIds().length>0;this.checkShownButton.enabled=this.nodes.length>0;this.resetFiltersButton.enabled=!!this.searchEdit.text||this.monthFilter.currentItem!==0||this.statusFilter.currentItem!==0||this.constellationFilter.currentItem!==0||this.typeFilter.currentItem!==0||this.bandFilter.currentItem!==0||this.selectedOnlyFilter.checked;};
    this.updateSelection=()=>{let r=this.selected();this.editButton.enabled=this.deleteObjectButton.enabled=!!r;this.catalogButton.enabled=(this.listId?this.doc.observingLists[this.listId].objects:ABL.refs(this.doc)).length>0;this.removeButton.enabled=!!r&&!!this.listId;
       this.rowSelectionState={id:r?r.id:'',highlights:this.tree.selectedNodes.filter(n=>n.record).map(n=>n.record.id)};if(r)this.clearedSelectionId='';
       let p=this.finderPage,code=this.constellationFilter.values[this.constellationFilter.currentItem];p.scopeSelect.enabled=!!code;
@@ -3105,7 +3205,12 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       for(let n of this.nodes)n.selected=false;
       this.refreshLists(id);this.editSelected();
    };
-   this.editSelected=()=>{let r=this.selected();if(!r)return;let d=new ABLObjectDialog(this,r.object);if(this.executeDialog(d)){ABL.replaceObject(this.doc,r.id,d.editedObject);this.changed();this.refreshTree(r.id);}};
+   this.editSelected=()=>{let r=this.selected();if(!r)return;let d=new ABLObjectDialog(this,r.object);if(this.executeDialog(d)){
+      ABL.replaceObject(this.doc,r.id,d.editedObject,d.editedListIds);
+      // Keep the edited target visible if it was removed from the active list.
+      if(this.listId&&!d.editedListIds.includes(this.listId))this.listId='';
+      this.changed();this.refreshLists(r.id);
+   }};
    this.updateCatalogs=targets=>{
       // Each object is committed only after a successful lookup/validation.
       // Console cancellation keeps completed updates, which still require Save.
@@ -3141,13 +3246,14 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    };
    // Selection is transient UI state. Keep the native row alive inside its
    // checkbox callback, and never alter saved imaging information here.
-   this.tree.onNodeUpdated=(n,column)=>{if(!this.building&&n.record&&column===0){if(this.rowClick)this.rowClick.checkbox=true;if(n.checked)this.exportIds.add(n.record.id);else this.exportIds.delete(n.record.id);this.updateSummary();}};
+   this.tree.onNodeUpdated=(n,column)=>{if(!this.building&&n.record&&column===0){if(this.rowClick)this.rowClick.checkbox=true;if(n.checked)this.exportIds.add(n.record.id);else this.exportIds.delete(n.record.id);this.updateSummary();if(this.selectedOnlyFilter.checked){this.stateRefreshTimer.stop();this.stateRefreshTimer.start();}}};
    // Batch checks update existing native rows in place, just like a single
-   // checkbox click. They never rebuild the table or change imaging flags.
+   // checkbox click. Selected only may hide unchecked rows, so defer that
+   // rebuild until after the native event; imaging flags remain unchanged.
    this.checkForExport=(checked,selectedOnly=false)=>{this.building=true;try{
       if(checked)for(let n of selectedOnly?this.tree.selectedNodes:this.nodes)this.exportIds.add(n.record.id);else this.exportIds.clear();
       for(let n of this.nodes)n.checked=this.exportIds.has(n.record.id);
-   }finally{this.building=false;this.updateSummary();}};
+   }finally{this.building=false;this.updateSummary();if(this.selectedOnlyFilter.checked){this.stateRefreshTimer.stop();this.stateRefreshTimer.start();}}};
    this.tree.onCurrentNodeUpdated=()=>{if(!this.building){this.selectionUpdateTimer.stop();this.selectionUpdateTimer.start();}};
    this.tree.onNodeSelectionUpdated=()=>{if(!this.building){this.updateSummary();this.selectionUpdateTimer.stop();this.selectionUpdateTimer.start();}};
    this.tree.onMousePress=(x,y,button,buttons,modifiers)=>{
@@ -3164,6 +3270,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.tree.onNodeActivated=n=>{if(n&&n.record){this.selectionUpdateTimer.stop();this.rowClick=null;this.clearedSelectionId='';this.tree.currentNode=n;n.selected=true;this.updateSelection();this.updateSummary();this.tabs.currentPageIndex=1;this.tabs.onPageSelected();}};
    this.listSelect.onItemSelected=i=>{this.listId=this.listIds[i]||'';this.refreshTree();};
    this.searchEdit.onTextUpdated=()=>this.refreshTree();
+   this.selectedOnlyFilter.onCheck=()=>this.refreshTree();
    this.searchEdit.onKeyPress=key=>{if(key!==KeyCode.Return)return false;this.refreshTree();return true;};
    this.monthFilter.onItemSelected=this.statusFilter.onItemSelected=this.constellationFilter.onItemSelected=this.typeFilter.onItemSelected=this.bandFilter.onItemSelected=this.sortSelect.onItemSelected=this.secondarySortSelect.onItemSelected=this.tertiarySortSelect.onItemSelected=()=>this.refreshTree();
    this.chooseSavePath=(name)=>{let d=new SaveFileDialog;d.caption='Save observing lists';d.filters=[['Stellarium observing lists','*.sol'],['Stellarium observing-list collection','*.ol']];d.defaultExtension='sol';d.initialPath=name||'Astro_Bucket_List.sol';d.overwritePrompt=true;return this.executeDialog(d)?d.filePath:'';};
@@ -3178,7 +3285,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(answer===StdButton.Cancel)return false;if(answer===StdButton.No)return true;return this.safe(()=>this.save());};
    this.openFile=()=>{if(!this.canClose())return;let d=new OpenFileDialog;d.caption='Open observing lists';d.filters=[['Stellarium lists','*.sol','*.ol','*.json']];if(!this.executeDialog(d))return;
       this.openPath(d.filePath);};
-   this.openPath=path=>{let next=this.io.read(path);this.doc=ABL.normalizeDocument(next);this.path=path;this.listId='';this.exportIds.clear();ABL.cleanDocumentNotes(this.doc);ABL.consolidateDocumentInformation(this.doc);this.savedSignature=ablCollectionSignature(this.doc);this.dirty=false;this.refreshLists();this.rememberCurrentCollection();};
+   this.openPath=path=>{let next=this.io.read(path);this.doc=ABL.normalizeDocument(next);this.path=path;this.listId='';this.exportIds.clear();this.selectedOnlyFilter.checked=false;ABL.cleanDocumentNotes(this.doc);ABL.consolidateDocumentInformation(this.doc);this.savedSignature=ablCollectionSignature(this.doc);this.dirty=false;this.refreshLists();this.rememberCurrentCollection();};
    this.importPaths=paths=>{let raws=paths.map(p=>this.io.read(p)),merged=ABL.importDocuments(this.doc,raws),selected=this.selected();this.doc=merged.doc;this.exportIds=new Set(Array.from(this.exportIds,id=>merged.idMap[id]||id));this.changed();this.refreshLists(selected?(merged.idMap[selected.id]||selected.id):undefined);return merged;};
    this.importListDocument=(source,options)=>{
       let merged=ABL.importObjectsAsList(this.doc,source,options);

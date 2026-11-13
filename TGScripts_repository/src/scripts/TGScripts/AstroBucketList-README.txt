@@ -1,4 +1,4 @@
-Astro Bucket List 0.35.2
+Astro Bucket List 0.38.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -102,7 +102,7 @@ The Month menu includes Previous / current / next: the three planning months
 around your computer's current local month, with December-January wraparound.
 It uses the configured constellation months and excludes unassigned months.
 The tooltip names the included months; the choice updates on table refresh.
-Reset filters clears all six filters, retaining the selected list, sort order
+Reset filters clears Find and all filter options, retaining the selected list, sort order
 and checked objects. Sort rows offers Sort by, Then by and Finally by for up
 to three criteria. Each has its own direction; None skips an optional criterion.
 Each later criterion breaks ties in the preceding selected criteria. For
@@ -196,15 +196,43 @@ lists. Open existing object reveals it in All objects, clears Find and filters,
 and opens its editor without copying or adding the new entry. Sorting and
 checked objects are retained. Back to new object keeps the entered form and
 table view intact. Find includes stored catalog aliases with flexible spacing.
+Find ignores the hidden trailing marker suffix in identifiers; real mentions of
+marker in names, comments and other searchable text remain searchable.
 Add object rejects duplicates anywhere in the collection, including known
 catalog aliases, and identifies the lists containing the existing object.
 When Find has no matching rows, Add searched object opens the editor with the
-search text as its catalog identifier. Choose an optional Add to list destination
-or No list — collection only, then Look up or
-enter coordinates manually. Apply checks for duplicates before closing.
+search text as its catalog identifier. From All objects, Add to list starts with
+Choose a list and requires an explicit destination before Apply. An active named
+list is preselected. No list — collection only remains an explicit choice,
+including when no lists exist. Choose Look up or enter coordinates manually.
+Apply checks for duplicates before closing.
 Cancel leaves the collection unchanged. A successful search-based addition
 clears view filters and highlights the new entry, retaining sort order and
 export checks. Save persists the entry. Search alone performs no lookup.
+New objects use clean Stellarium labels without an added marker suffix.
+Add/Edit object includes an editable Stellarium label and Use catalog identifier
+for repairing existing labels. Apply, Save and reimport the collection into
+Stellarium to see the repair. The catalog identity, duplicates, memberships and
+imaging data are retained independently of custom label text.
+Normally leave Use coordinate marker off for recognized objects such as NGC 936
+and NGC 1232: their clean identifiers select the native catalog objects directly.
+Enable it only when Stellarium cannot resolve a name, for example an obscure
+catalog object or a manually entered position without a recognized name.
+Double-clicking the imported entry then creates and selects a named marker at
+the saved RA/Dec instead of potentially selecting a nearby star. Stellarium
+requires and displays the word marker for this fallback. It is off by default.
+Highlight all can mark saved coordinates with clean labels, even for unknown
+names; the coordinate-marker option is unnecessary just to highlight a list.
+
+Selected only in Filter objects limits the view to checked objects, together
+with the current list and other filters. Highlighting alone does not count.
+Unchecking an object removes its row after the click finishes. Turn the option
+off to choose more objects; Reset filters turns it off without clearing checks.
+The option and checks are temporary and clear when another collection opens.
+Edit object includes a List memberships checklist. Apply saves all checked
+memberships with the edited fields; Cancel discards the changes. Unchecking
+every list keeps the object in the collection. Removing it from the active
+list switches to All objects. Create new lists in the main window.
 Checkboxes select objects for list actions and export. Ctrl-click individual rows or Shift-click
 a range, then choose Check selected to check those highlighted rows. Existing
 checks are retained, including hidden objects. Highlighting alone does not check
@@ -255,6 +283,14 @@ Save and import again to transfer later changes. If Stellarium asks to replace
 a list with the same internal identifier, accept to update it or decline to
 keep its current contents. Keep the Astro Bucket List collection as your master
 for imaging notes and flags. Full instructions and source links are in PiDoc.
+
+OBJECT TYPE
+Add object and Edit object provide an editable Object type dropdown. Select a
+common astronomical classification or enter your own label. Existing custom
+types in the collection are also offered. Apply updates the table, type filter,
+Find and automatic target-band classification. Manual types survive catalog
+updates and saving/reopening. Use catalog type or clear the field to restore
+the latest catalog classification. Cancel keeps the stored type unchanged.
 
 CATALOGS AND CHARTS
 Look up and Update catalogs refresh SIMBAD coordinates, types and available
@@ -348,5 +384,5 @@ Network and temporary storage
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.35.2.
+SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.38.0.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
