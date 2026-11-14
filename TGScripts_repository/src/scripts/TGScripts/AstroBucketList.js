@@ -5,7 +5,7 @@
 #feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up catalog objects, view DSS finder charts, and retain imaging status.
 #endif
 
-/* Astro Bucket List 0.38.0 — PixInsight 1.9.6+, PJSR V8.
+/* Astro Bucket List 0.39.0 — PixInsight 1.9.6+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * Collection files are written only by explicit Save / Export actions.
  */
@@ -13,7 +13,7 @@
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.38.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.39.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -525,13 +525,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.38.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.39.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.38.0', EXT = '_astroBucketList';
+   const VERSION = '0.39.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -567,16 +567,16 @@ var ABL = (function () {
       let n=(a+b/60+c/3600)*(m[1]==='-'?-1:1)*(hours?15:1);
       return coordinate(n,ra);
    }
-   function formatRA(n) {
+   function formatRA(n,precision=2) {
       if(!Number.isFinite(n))return '';
-      let t=Math.round(((n%360+360)%360)*240*100)%8640000;
-      let h=Math.floor(t/360000),m=Math.floor(t%360000/6000),s=t%6000/100;
-      return String(h).padStart(2,'0')+'h'+String(m).padStart(2,'0')+'m'+s.toFixed(2).padStart(5,'0')+'s';
+      let scale=Math.pow(10,precision),t=Math.round(((n%360+360)%360)*240*scale)%(86400*scale);
+      let h=Math.floor(t/(3600*scale)),m=Math.floor(t%(3600*scale)/(60*scale)),s=t%(60*scale)/scale;
+      return String(h).padStart(2,'0')+'h'+String(m).padStart(2,'0')+'m'+s.toFixed(precision).padStart(precision?precision+3:2,'0')+'s';
    }
-   function formatDec(n) {
+   function formatDec(n,precision=1) {
       if(!Number.isFinite(n)||Math.abs(n)>90)return '';
-      let t=Math.round(Math.abs(n)*36000),d=Math.floor(t/36000),m=Math.floor(t%36000/600),s=t%600/10;
-      return (n<0?'-':'+')+String(d).padStart(2,'0')+'d'+String(m).padStart(2,'0')+'m'+s.toFixed(1).padStart(4,'0')+'s';
+      let scale=Math.pow(10,precision),t=Math.round(Math.abs(n)*3600*scale),d=Math.floor(t/(3600*scale)),m=Math.floor(t%(3600*scale)/(60*scale)),s=t%(60*scale)/scale;
+      return (n<0?'-':'+')+String(d).padStart(2,'0')+'d'+String(m).padStart(2,'0')+'m'+s.toFixed(precision).padStart(precision?precision+3:2,'0')+'s';
    }
    function position(o) {return {ra:coordinate(o.ra,true),dec:coordinate(o.dec,false)};}
    function precess1875(ra,dec) {
@@ -1084,8 +1084,8 @@ var ABL = (function () {
       let label=text(o.objtype).trim();
       // Decode cached SIMBAD fallback labels as well as raw catalog codes.
       // This lets saved entries benefit from newly recognized types offline.
-      let cached=label.match(/^Catalog object\s*\(([^()]+)\)$/i);
-      if(cached&&own(TYPES,cached[1].trim()))label=cached[1].trim();
+      let info=catalogTypeInfo(label);if(info)return info.label;
+      label=label.replace(/^Catalog object\s*\(([^()]+)\)$/i,'$1').trim();
       if(label&&!/^(?:custom\s*object|coordinate marker|unknown|unspecified)$/i.test(label))
          return own(TYPES,label)?TYPES[label]:label.charAt(0).toUpperCase()+label.slice(1);
       let category=text((plain(o[EXT])?o[EXT].catalogClass:'')||o.type).trim();
@@ -1098,6 +1098,78 @@ var ABL = (function () {
    function objectTypeChoices(doc) {
       let values=['Unspecified','Deep-sky object','Emission nebula','Integrated flux nebula (IFN)','Asterism'].concat(Object.values(TYPES),records(doc).map(r=>r.objectType)),seen=new Set;
       return values.filter(value=>{let key=value.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>a.localeCompare(b));
+   }
+   // Re-evaluation is explicit: viewing an object never replaces a manual type.
+   // Match physical classifications, not filter names or catalog-number prefixes.
+   // Paths express compatible refinements; unrelated/sibling types need review.
+   function reevaluateObjectType(o) {
+      const definitions=[
+         ['Deep-sky object','',/deep[ -]sky object/i],['Nebula','nebula',/\bnebula(?:e)?\b|\bnebel\b/i],
+         ['Planetary nebula','nebula/planetary',/\bplanetary nebula(?:e)?\b|\bplanetarisch\w* nebel\b/i],
+         ['Emission nebula','nebula/emission',/\bemission[ -]nebula(?:e)?\b|\bemissionsnebel\b/i],
+         ['H II region','nebula/emission/hii',/\bH\s*II[ -]regions?\b|\bionized hydrogen region\b/i],
+         ['Reflection nebula','nebula/reflection',/\breflection[ -]nebula(?:e)?\b|\breflexionsnebel\b/i],
+         ['Dark nebula','nebula/dark',/\bdark[ -]nebula(?:e)?\b|\bdunkelnebel\b/i],
+         ['Integrated flux nebula (IFN)','nebula/ifn',/\bintegrated[ -]flux[ -]nebula(?:e)?\b|\bIFN\b/i],
+         ['Molecular cloud','nebula/molecular',/\bmolecular[ -]cloud\b|\bmolek[üu]lwolke\b/i],
+         ['Supernova remnant','nebula/snr',/\bsupernova[ -]remnants?\b|\bSNR\b|\bsupernova[üu]berrest\b/i],
+         ['Star cluster','cluster',/\b(?:star|stellar)[ -]cluster\b|\bsternhaufen\b/i],
+         ['Open cluster','cluster/open',/\bopen(?: star)?[ -]cluster\b|\boffen\w* sternhaufen\b/i],
+         ['Globular cluster','cluster/globular',/\bglobular(?: star)?[ -]cluster\b|\bkugelsternhaufen\b/i],
+         ['Galaxy','galaxy',/\bgalax(?:y|ies)\b|\bgalaxie\b/i],
+         ['Spiral galaxy','galaxy/spiral',/\bspiral[ -]galaxy\b|\bspiralgalaxie\b/i],
+         ['Barred spiral galaxy','galaxy/spiral/barred',/\bbarred[ -]spiral[ -]galaxy\b|\bbalkenspiralgalaxie\b/i],
+         ['Elliptical galaxy','galaxy/elliptical',/\belliptical[ -]galaxy\b/i],
+         ['Lenticular galaxy','galaxy/lenticular',/\blenticular[ -]galaxy\b/i],
+         ['Irregular galaxy','galaxy/irregular',/\birregular[ -]galaxy\b/i],
+         ['Galaxy group','galaxy-system/group',/\b(?:galaxy group|group of galaxies)\b/i],
+         ['Galaxy cluster','galaxy-system/cluster',/\b(?:galaxy cluster|cluster of galaxies)\b/i],
+         ['Star','star',/\bstar\b|\bstern\b/i]
+      ];
+      const escape=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+      for(let label of Object.values(TYPES))if(!definitions.some(d=>d[0]===label)){
+         let base=definitions.find(d=>d[0].toLowerCase()===label.replace(/ candidate$/i,'').toLowerCase());
+         let path=base?base[1]:/galaxy|galactic|blazar|quasar|BL Lac/i.test(label)?'galaxy/'+label.toLowerCase():/star/i.test(label)?'star/'+label.toLowerCase():label.toLowerCase();
+         definitions.push([label,path,new RegExp('\\b'+escape(label)+'\\b','i')]);
+      }
+      let candidates=[];
+      const add=(value,source,structured=false)=>{
+         for(let line of text(value).split(/\r?\n|;|[.!](?:\s+|$)/)){
+            line=line.trim();if(!line)continue;
+            if(!structured&&/^(?:SIMBAD identifier|Morphology|Spectral type|Angular size|V magnitude)\s*:/i.test(line))continue;
+            // A sentence about a neighbour, a rejected type, or equipment is
+            // not evidence for the target's own physical classification.
+            if(!structured&&/\b(?:not|without|no|nicht|kein\w*|nearby|next to|background|foreground|companion|field of view|guide star|rather than|instead of)\b/i.test(line))continue;
+            let code=line.replace(/^(?:object type|type|classification)\s*:\s*/i,'').replace(/^Catalog object\s*\(([^)]+)\)$/i,'$1');
+            let info=catalogTypeInfo(code),recognized=info?info.label:line,exact=!!info,found=[];
+            for(let definition of definitions){
+               // A complete catalog label is unambiguous. Do not interpret
+               // "star" inside a named class as competing classification.
+               if(exact&&definition[0]!==recognized)continue;
+               let match=exact?[recognized]:recognized.match(definition[2]);if(match)found.push({type:definition[0],path:definition[1],start:match.index||0,end:(match.index||0)+match[0].length});
+            }
+            // Do not also interpret "star" inside "star cluster" or "galaxy"
+            // inside "galaxy cluster" as independent competing evidence.
+            found=found.filter(a=>!found.some(b=>a!==b&&b.start<=a.start&&b.end>=a.end&&(b.end-b.start>a.end-a.start)));
+            for(let candidate of found){
+               let uncertain=/\b(?:candidate|possible|possibly|suspected|probable|perhaps)\b|\?/i.test(recognized)||(code.endsWith('?')&&code!=='?');
+               if(uncertain&&!/candidate/i.test(candidate.type))candidate.type+=' candidate';
+               candidates.push(Object.assign(candidate,{source,evidence:line,structured,uncertain,exact}));
+            }
+         }
+      };
+      add(o.objtype,'Catalog type',true);
+      add(catalogInformation(o),'Catalog information');
+      let m=plain(o[EXT])?o[EXT]:{};if(m.catalogSummary&&m.catalogSummary!==catalogInformation(o))add(m.catalogSummary,'Retrieved catalog information');
+      add(m.notes,'Comments');
+      // Generic classifications may be refined, but candidate status is not
+      // upgraded to confirmed merely because a broader label also matches.
+      let specific=candidates.filter(a=>!candidates.some(b=>a.path!==b.path&&(!a.path||b.path.startsWith(a.path+'/'))));
+      let paths=Array.from(new Set(specific.map(c=>c.path)));
+      if(!paths.length)return {type:'',reason:'No recognizable object type in the available information.',evidence:[]};
+      if(paths.length>1)return {type:'',reason:'Conflicting types: '+Array.from(new Set(specific.map(c=>c.type))).join(', ')+'. Choose the type manually.',evidence:specific};
+      specific.sort((a,b)=>Number(b.structured)-Number(a.structured)||Number(b.uncertain)-Number(a.uncertain));
+      let chosen=specific[0];return {type:chosen.type,reason:chosen.source+': '+chosen.evidence,evidence:specific};
    }
    // Remove hollow-circle glyphs and generated month/constellation source
    // headings. Whole-line removal matches only that heading format; other
@@ -1122,13 +1194,18 @@ var ABL = (function () {
    // Type labels and their prefixed forms share one key ("Galaxy"/"Type: Galaxy").
    function informationKey(line) {
       let value=text(line).trim().replace(/^(?:object type|type|classification)\s*:\s*/i,'');
-      if(own(TYPES,value))value=TYPES[value];
+      let info=catalogTypeInfo(value);if(info)value=info.label;
       return value.replace(/\s+/g,' ').replace(/\.$/,'').toLowerCase();
    }
    function informationText(...parts) {
       let lines=[],seen=new Set;
       for(let part of parts)for(let line of text(part).replace(/\r\n|\r/g,'\n').split('\n')){
-         line=line.trim();if(!line)continue;let key=informationKey(line);
+         line=line.trim();if(!line)continue;
+         // Replace only a whole generated type line, never a code embedded in
+         // personal prose. The normalized key also deduplicates its long name.
+         let generated=line.match(/^((?:object type|type|classification)\s*:\s*)?(Catalog object\s*\([^()]+\))$/i);
+         if(generated){let info=catalogTypeInfo(generated[2]);if(info)line=(generated[1]||'')+info.label;}
+         let key=informationKey(line);
          if(!seen.has(key)){seen.add(key);lines.push(line);}
       }
       return lines.join('\n');
@@ -1317,7 +1394,7 @@ var ABL = (function () {
       // Continuum targets remain broadband: emission-line filters are optional
       // additions. Use the object's type, not incidental mentions of nearby
       // galaxies in a nebula's notes. Explicit manual choices still win above.
-      let type=objectType(o),galaxy=type.match(/\b(?:galax(?:y|ies)|galaxi\w*|(?:active\s+)?galactic\s+nucleus|AGN|LINER|Seyfert)\b/i);
+      let type=objectType(o),galaxy=type.match(/\b(?:galax(?:y|ies)|galaxi\w*|(?:active\s+)?galactic\s+nucleus|AGN|LINER|Seyfert|blazar|quasar|BL Lac)\b/i);
       if(galaxy)return automatic('broadband','Galaxy type: '+galaxy[0]+'; narrowband filters are optional.');
       let cluster=type.match(/\b(?:(?:open|globular|star|stellar)(?:\s+star)?[\s-]*clusters?|cluster\s+of\s+stars|sternhaufen|kugelsternhaufen)\b/i);
       if(cluster)return automatic('broadband','Star cluster type: '+cluster[0]+'; narrowband filters are optional.');
@@ -1406,17 +1483,264 @@ var ABL = (function () {
       if(!s)return true;if(!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;
       let d=new Date(s+'T12:00:00Z');return Number.isFinite(d.getTime())&&d.toISOString().slice(0,10)===s;
    }
-   function validateObject(o) {
+   function validateObject(o,coordinatePrecision) {
       if(!text(o.designation).trim())throw Error('Enter a catalog identifier or a name for this position.');
       let p=position(o);if(p.ra===null||p.dec===null)throw Error('Enter valid J2000 RA and Dec, or use Look up.');
       if(!validDate(text(meta(o).imagedOn)))throw Error('Use a valid imaging date in YYYY-MM-DD format.');
       if(meta(o).angularSize!==undefined&&meta(o).angularSize!==null&&!validSize(meta(o).angularSize))throw Error('Invalid apparent object size.');
-      o.ra=formatRA(p.ra);o.dec=formatDec(p.dec);o.constellation=constellation(p.ra,p.dec);return o;
+      o.ra=formatRA(p.ra,coordinatePrecision);o.dec=formatDec(p.dec,coordinatePrecision);o.constellation=constellation(p.ra,p.dec);return o;
    }
-   const TYPES={G:'Galaxy',SBG:'Starburst galaxy',AGN:'Active galactic nucleus',LIN:'LINER galaxy nucleus',SyG:'Seyfert galaxy',GiG:'Galaxy in a group',GiP:'Galaxy in a pair',GiC:'Galaxy in a cluster',
+   const TYPES={G:'Galaxy','G?':'Galaxy candidate',rG:'Radio galaxy',SBG:'Starburst galaxy',EmG:'Emission-line galaxy',H2G:'H II galaxy',LSB:'Low surface brightness galaxy',bCG:'Blue compact galaxy',AGN:'Active galactic nucleus','AG?':'Active galactic nucleus candidate',Bla:'Blazar',BLL:'BL Lac object',QSO:'Quasar',Sy1:'Seyfert 1 galaxy',Sy2:'Seyfert 2 galaxy',LIN:'LINER galaxy nucleus',SyG:'Seyfert galaxy',GiG:'Galaxy in a group',GiP:'Galaxy in a pair',GiC:'Galaxy in a cluster',
       ClG:'Galaxy cluster',GrG:'Galaxy group',IG:'Interacting galaxies',PN:'Planetary nebula',PNc:'Planetary nebula candidate',HII:'H II region',SNR:'Supernova remnant',
       RNe:'Reflection nebula',DNe:'Dark nebula',MoC:'Molecular cloud',ISM:'Interstellar matter',Neb:'Nebula',GlC:'Globular cluster',OpC:'Open cluster','Cl*':'Star cluster',
       '*':'Star','**':'Double or multiple star','C*':'Carbon star','WR*':'Wolf-Rayet star','V*':'Variable star','Em*':'Emission-line star','Be*':'Be star','s*r':'Red supergiant'};
+   // Public SIMBAD otypedef data, retrieved 2026-11-14 from the CDS Harvard
+   // mirror: https://simbad.cfa.harvard.edu/simbad/sim-tap/ (SELECT * FROM otypedef).
+   // Each row is [code, compact label, full description, classification path].
+   // Keep a local snapshot so saved abbreviations also resolve without a lookup.
+   // New lookups request verbose descriptions and can display future types too.
+   const SIMBAD_TYPE_DEFINITIONS=[
+      ["*","Star","Star","*"],
+      ["**","**","Double or Multiple Star","* > **"],
+      ["**?","**_Candidate","Double or Multiple Star Candidate","* > **"],
+      ["?","Unknown","Object of Unknown Nature",""],
+      ["AB*","AGB*","Asymptotic Giant Branch Star","* > Ev* > AB*"],
+      ["AB?","AGB*_Candidate","Asymptotic Giant Branch Star Candidate","* > Ev* > AB*"],
+      ["AG?","AGN_Candidate","Active Galaxy Nucleus Candidate","G > AGN"],
+      ["AGN","AGN","Active Galaxy Nucleus","G > AGN"],
+      ["Ae*","Ae*","Herbig Ae/Be Star","* > Y*O > Ae*"],
+      ["Ae?","Ae*_Candidate","Herbig Ae/Be Star Candidate","* > Y*O > Ae*"],
+      ["As*","Association","Association of Stars","As*"],
+      ["As?","Association_Candidate","Association of Stars Candidate","As*"],
+      ["BD*","BrownD*","Brown Dwarf","* > LM* > BD*"],
+      ["BD?","BrownD*_Candidate","Brown Dwarf Candidate","* > LM* > BD*"],
+      ["BH","BlackHole","Black Hole","grv > BH"],
+      ["BH?","BlackHole_Candidate","Black Hole Candidate","grv > BH"],
+      ["BL?","BLLac_Candidate","BL Lac Candidate","G > AGN > QSO > Bla > BLL"],
+      ["BLL","BLLac","BL Lac","G > AGN > QSO > Bla > BLL"],
+      ["BS*","BlueStraggler","Blue Straggler","* > MS* > BS*"],
+      ["BS?","BlueStraggler_Candidate","Blue Straggler Candidate","* > MS* > BS*"],
+      ["BY*","BYDraV*","BY Dra Variable","* > ** > BY*"],
+      ["BY?","BYDraV*_Candidate","BY Dra Variable Candidate","* > ** > BY*"],
+      ["Be*","Be*","Be Star","* > MS* > Be*"],
+      ["Be?","Be*_Candidate","Be Star Candidate","* > MS* > Be*"],
+      ["BiC","BrightestCG","Brightest Galaxy in a Cluster (BCG)","G > GiC > BiC"],
+      ["Bla","Blazar","Blazar","G > AGN > QSO > Bla"],
+      ["Bz?","Blazar_Candidate","Blazar Candidate","G > AGN > QSO > Bla"],
+      ["C*","C*","Carbon Star","* > Ev* > C*"],
+      ["C*?","C*_Candidate","Carbon Star Candidate","* > Ev* > C*"],
+      ["C?G","ClG_Candidate","Cluster of Galaxies Candidate","ClG"],
+      ["CGG","Compact_Gr_G","Compact Group of Galaxies","GrG > CGG"],
+      ["CGb","ComGlob","Cometary Globule / Pillar","ISM > Cld > CGb"],
+      ["CV*","CataclyV*","Cataclysmic Binary","* > ** > CV*"],
+      ["CV?","CataclyV*_Candidate","Cataclysmic Binary Candidate","* > ** > CV*"],
+      ["Ce*","Cepheid","Cepheid Variable","* > Ev* > Ce*"],
+      ["Ce?","Cepheid_Candidate","Cepheid Variable Candidate","* > Ev* > Ce*"],
+      ["Cl*","Cluster*","Cluster of Stars","Cl*"],
+      ["Cl?","Cluster*_Candidate","Cluster of Stars Candidate","Cl*"],
+      ["ClG","ClG","Cluster of Galaxies","ClG"],
+      ["Cld","Cloud","Cloud","ISM > Cld"],
+      ["DNe","DarkNeb","Dark Cloud (nebula)","ISM > Cld > DNe"],
+      ["EB*","EclBin","Eclipsing Binary","* > ** > EB*"],
+      ["EB?","EclBin_Candidate","Eclipsing Binary Candidate","* > ** > EB*"],
+      ["El*","EllipVar","Ellipsoidal Variable","* > ** > El*"],
+      ["El?","EllipVar_Candidate","Ellipsoidal Variable Candidate","* > ** > El*"],
+      ["Em*","EmLine*","Emission-line Star","* > Em*"],
+      ["EmG","EmissionG","Emission-line galaxy","G > EmG"],
+      ["EmO","EmObj","Emission Object","Opt > EmO"],
+      ["Er*","Eruptive*","Eruptive Variable","* > V* > Er*"],
+      ["Er?","Eruptive*_Candidate","Eruptive Variable Candidate","* > V* > Er*"],
+      ["Ev*","Evolved*","Evolved Star","* > Ev*"],
+      ["Ev?","Evolved*_Candidate","Evolved Star Candidate","* > Ev*"],
+      ["FIR","FarIR","Far-IR source (λ >= 30 µm)","IR > FIR"],
+      ["G","Galaxy","Galaxy","G"],
+      ["G?","Galaxy_Candidate","Galaxy Candidate","G"],
+      ["GNe","GalNeb","Nebula","ISM > Cld > GNe"],
+      ["GWE","GravWaveEvent","Gravitational Wave Event","grv > GWE"],
+      ["GiC","GtowardsCl","Galaxy towards a Cluster of Galaxies","G > GiC"],
+      ["GiG","GtowardsGroup","Galaxy towards a Group of Galaxies","G > GiG"],
+      ["GiP","GinPair","Galaxy in Pair of Galaxies","G > GiP"],
+      ["Gl?","GlobCluster_Candidate","Globular Cluster Candidate","Cl* > GlC"],
+      ["GlC","GlobCluster","Globular Cluster","Cl* > GlC"],
+      ["Gr?","GroupG_Candidate","Group of Galaxies Candidate","GrG"],
+      ["GrG","GroupG","Group of Galaxies","GrG"],
+      ["H2G","HIIG","HII Galaxy","G > H2G"],
+      ["HB*","HorBranch*","Horizontal Branch Star","* > Ev* > HB*"],
+      ["HB?","HorBranch*_Candidate","Horizontal Branch Star Candidate","* > Ev* > HB*"],
+      ["HH","HerbigHaroObj","Herbig-Haro Object","* > Y*O > out > HH"],
+      ["HI","HI","HI (21cm) Source","Rad > HI"],
+      ["HII","HIIReg","HII Region","ISM > HII"],
+      ["HS*","HotSubdwarf","Hot Subdwarf","* > Ev* > HS*"],
+      ["HS?","HotSubdwarf_Candidate","Hot Subdwarf Candidate","* > Ev* > HS*"],
+      ["HV*","HighVel*","High Velocity Star","* > HV*"],
+      ["HVC","HVCld","High-velocity Cloud","ISM > Cld > HVC"],
+      ["HX?","HighMassXBin_Candidate","High Mass X-ray Binary Candidate","* > ** > XB* > HXB"],
+      ["HXB","HighMassXBin","High Mass X-ray Binary","* > ** > XB* > HXB"],
+      ["IG","InteractingG","Interacting Galaxies","IG"],
+      ["IR","Infrared","Infra-Red Source","IR"],
+      ["ISM","ISM","Interstellar Medium Object","ISM"],
+      ["Ir*","IrregularV*","Irregular Variable","* > V* > Ir*"],
+      ["LI?","LensedImage_Candidate","Gravitationally Lensed Image Candidate","grv > gLS > LeI"],
+      ["LIN","LINER","LINER-type Active Galaxy Nucleus","G > AGN > LIN"],
+      ["LM*","Low-Mass*","Low-mass Star","* > LM*"],
+      ["LM?","Low-Mass*_Candidate","Low-mass Star Candidate","* > LM*"],
+      ["LP*","LongPeriodV*","Long-Period Variable","* > Ev* > LP*"],
+      ["LP?","LongPeriodV*_Candidate","Long-Period Variable Candidate","* > Ev* > LP*"],
+      ["LS?","GravLensSystem_Candidate","Gravitational Lens System (lens+images) Candidate","grv > gLS"],
+      ["LSB","LowSurfBrghtG","Low Surface Brightness Galaxy","G > LSB"],
+      ["LX?","LowMassXBin_Candidate","Low Mass X-ray Binary Candidate","* > ** > XB* > LXB"],
+      ["LXB","LowMassXBin","Low Mass X-ray Binary","* > ** > XB* > LXB"],
+      ["Le?","GravLens_Candidate","Gravitational Lens Candidate","grv > gLS > gLe"],
+      ["LeG","LensedG","Gravitationally Lensed Image of a Galaxy","grv > gLS > LeI > LeG"],
+      ["LeI","LensedImage","Gravitationally Lensed Image","grv > gLS > LeI"],
+      ["LeQ","LensedQ","Gravitationally Lensed Image of a Quasar","grv > gLS > LeI > LeQ"],
+      ["Lev","LensingEv","(Micro)Lensing Event","grv > Lev"],
+      ["MGr","MouvGroup","Moving Group","As* > MGr"],
+      ["MIR","MidIR","Mid-IR Source (3 to 30 µm)","IR > MIR"],
+      ["MS*","MainSequence*","Main Sequence Star","* > MS*"],
+      ["MS?","MainSequence*_Candidate","Main Sequence Star Candidate","* > MS*"],
+      ["Ma*","Massiv*","Massive Star","* > Ma*"],
+      ["Ma?","Massiv*_Candidate","Massive Star Candidate","* > Ma*"],
+      ["Mas","Maser","Maser","Rad > Mas"],
+      ["Mi*","Mira","Mira Variable","* > Ev* > AB* > Mi*"],
+      ["Mi?","Mira_Candidate","Mira Variable Candidate","* > Ev* > AB* > Mi*"],
+      ["MoC","MolCld","Molecular Cloud","ISM > Cld > MoC"],
+      ["N*","Neutron*","Neutron Star","* > Ma* > N*"],
+      ["N*?","Neutron*_Candidate","Neutron Star Candidate","* > Ma* > N*"],
+      ["NIR","NearIR","Near-IR Source (λ < 3 µm)","IR > NIR"],
+      ["No*","Nova","Classical Nova","* > ** > CV* > No*"],
+      ["No?","Nova_Candidate","Classical Nova Candidate","* > ** > CV* > No*"],
+      ["OH*","OH/IR*","OH/IR Star","* > Ev* > OH*"],
+      ["OH?","OH/IR*_Candidate","OH/IR Star Candidate","* > Ev* > OH*"],
+      ["OpC","OpenCluster","Open Cluster","Cl* > OpC"],
+      ["Opt","Optical","Optical Source","Opt"],
+      ["Or*","OrionV*","Orion Variable","* > Y*O > Or*"],
+      ["PCG","protoClG","Proto Cluster of Galaxies","PCG"],
+      ["PCG?","protoClG_Candidate","Proto Cluster of Galaxies Candidate","PCG"],
+      ["PM*","HighPM*","High Proper Motion Star","* > PM*"],
+      ["PN","PlanetaryNeb","Planetary Nebula","* > Ev* > PN"],
+      ["PN?","PlanetaryNeb_Candidate","Planetary Nebula Candidate","* > Ev* > PN"],
+      ["PaG","PairG","Pair of Galaxies","PaG"],
+      ["Pe*","ChemPec*","Chemically Peculiar Star","* > Pe*"],
+      ["Pe?","ChemPec*_Candidate","Chemically Peculiar Star Candidate","* > Pe*"],
+      ["Pl","Planet","Extra-solar Planet","* > Pl"],
+      ["Pl?","Planet_Candidate","Extra-solar Planet Candidate","* > Pl"],
+      ["PoC","PartofCloud","Part of Cloud","PoC"],
+      ["PoG","PartofG","Part of a Galaxy","PoG"],
+      ["Psr","Pulsar","Pulsar","* > Ma* > N* > Psr"],
+      ["Pu*","PulsV*","Pulsating Variable","* > V* > Pu*"],
+      ["Pu?","PulsV*_Candidate","Pulsating Variable Candidate","* > V* > Pu*"],
+      ["Q?","QSO_Candidate","Quasar Candidate","G > AGN > QSO"],
+      ["QSO","QSO","Quasar","G > AGN > QSO"],
+      ["RB?","RGB*_Candidate","Red Giant Branch star Candidate","* > Ev* > RG*"],
+      ["RC*","RCrBV*","R CrB Variable","* > Pe* > RC*"],
+      ["RC?","RCrBV*_Candidate","R CrB Variable Candidate","* > Pe* > RC*"],
+      ["RG*","RGB*","Red Giant Branch star","* > Ev* > RG*"],
+      ["RNe","RefNeb","Reflection Nebula","ISM > Cld > GNe > RNe"],
+      ["RR*","RRLyrae","RR Lyrae Variable","* > Ev* > HB* > RR*"],
+      ["RR?","RRLyrae_Candidate","RR Lyrae Variable Candidate","* > Ev* > HB* > RR*"],
+      ["RS*","RSCVnV*","RS CVn Variable","* > ** > RS*"],
+      ["RS?","RSCVnV*_Candidate","RS CVn Variable Candidate","* > ** > RS*"],
+      ["RV*","RVTauV*","RV Tauri Variable","* > Ev* > RV*"],
+      ["RV?","RVTauV*_Candidate","RV Tauri Variable Candidate","* > Ev* > RV*"],
+      ["Rad","Radio","Radio Source","Rad"],
+      ["Ro*","RotV*","Rotating Variable","* > V* > Ro*"],
+      ["Ro?","RotV*_Candidate","Rotating Variable Candidate","* > V* > Ro*"],
+      ["S*","S*","S Star","* > Ev* > S*"],
+      ["S*?","S*_Candidate","S Star Candidate","* > Ev* > S*"],
+      ["SB*","SB*","Spectroscopic Binary","* > ** > SB*"],
+      ["SB?","SB*_Candidate","Spectroscopic Binary Candidate","* > ** > SB*"],
+      ["SBG","StarburstG","Starburst Galaxy","G > SBG"],
+      ["SC?","SuperClG_Candidate","Supercluster of Galaxies Candidate","SCG"],
+      ["SCG","SuperClG","Supercluster of Galaxies","SCG"],
+      ["SFR","StarFormingReg","Star Forming Region","ISM > SFR"],
+      ["SN*","Supernova","SuperNova","* > SN*"],
+      ["SN?","Supernova_Candidate","SuperNova Candidate","* > SN*"],
+      ["SNR","SNRemnant","SuperNova Remnant","ISM > SNR"],
+      ["SR?","SNRemnant_Candidate","SuperNova Remnant Candidate","ISM > SNR"],
+      ["SX*","SXPheV*","SX Phe Variable","* > MS* > BS* > SX*"],
+      ["St*","Stream","Stellar Stream","As* > St*"],
+      ["Sy*","Symbiotic*","Symbiotic Star","* > ** > Sy*"],
+      ["Sy1","Seyfert1","Seyfert 1 Galaxy","G > AGN > SyG > Sy1"],
+      ["Sy2","Seyfert2","Seyfert 2 Galaxy","G > AGN > SyG > Sy2"],
+      ["Sy?","Symbiotic*_Candidate","Symbiotic Star Candidate","* > ** > Sy*"],
+      ["SyG","Seyfert","Seyfert Galaxy","G > AGN > SyG"],
+      ["TT*","TTauri*","T Tauri Star","* > Y*O > TT*"],
+      ["TT?","TTauri*_Candidate","T Tauri Star Candidate","* > Y*O > TT*"],
+      ["ULX","ULX","Ultra-luminous X-ray Source","X > ULX"],
+      ["UV","UV","UV-emission Source","UV"],
+      ["UX?","ULX_Candidate","Ultra-luminous X-ray Source Candidate","X > ULX"],
+      ["V*","Variable*","Variable Star","* > V*"],
+      ["V*?","Variable*_Candidate","Variable Star Candidate","* > V*"],
+      ["WD*","WhiteDwarf","White Dwarf","* > Ev* > WD*"],
+      ["WD?","WhiteDwarf_Candidate","White Dwarf Candidate","* > Ev* > WD*"],
+      ["WR*","WolfRayet*","Wolf-Rayet","* > Ma* > sg* > s*b > WR*"],
+      ["WR?","WolfRayet*_Candidate","Wolf-Rayet Candidate","* > Ma* > sg* > s*b > WR*"],
+      ["WV*","Type2Cep","Type II Cepheid Variable","* > Ev* > WV*"],
+      ["WV?","Type2Cep_Candidate","Type II Cepheid Variable Candidate","* > Ev* > WV*"],
+      ["X","X","X-ray Source","X"],
+      ["XB*","XrayBin","X-ray Binary","* > ** > XB*"],
+      ["XB?","XrayBin_Candidate","X-ray Binary Candidate","* > ** > XB*"],
+      ["Y*?","YSO_Candidate","Young Stellar Object Candidate","* > Y*O"],
+      ["Y*O","YSO","Young Stellar Object","* > Y*O"],
+      ["a2*","alf2CVnV*","alpha2 CVn Variable","* > Pe* > a2*"],
+      ["a2?","alf2CVnV*_Candidate","alpha2 CVn Variable Candidate","* > Pe* > a2*"],
+      ["bC*","bCepV*","beta Cep Variable","* > Ma* > bC*"],
+      ["bC?","bCepV*_Candidate","beta Cep Variable Candidate","* > Ma* > bC*"],
+      ["bCG","BlueCompactG","Blue Compact Galaxy","G > bCG"],
+      ["blu","blue","Blue Object","Opt > blu"],
+      ["bub","Bubble","Bubble","ISM > bub"],
+      ["cC*","ClassicalCep","Classical Cepheid Variable","* > Ev* > Ce* > cC*"],
+      ["cm","cmRad","Centimetric Radio Source","Rad > cm"],
+      ["cor","denseCore","Dense Core","ISM > cor"],
+      ["dS*","delSctV*","delta Sct Variable","* > MS* > dS*"],
+      ["err","Inexistent","Not an Object (Error, Artefact, ...)","err"],
+      ["ev","Transient","Transient Event","ev"],
+      ["flt","Filament","Interstellar Filament","ISM > flt"],
+      ["gB","gammaBurst","Gamma-ray Burst","gam > gB"],
+      ["gD*","gammaDorV*","gamma Dor Variable","* > MS* > gD*"],
+      ["gLS","GravLensSystem","Gravitational Lens System (lens+images)","grv > gLS"],
+      ["gLe","GravLens","Gravitational Lens","grv > gLS > gLe"],
+      ["gam","gamma","Gamma-ray Source","gam"],
+      ["glb","Globule","Globule (low-mass dark cloud)","ISM > Cld > glb"],
+      ["grv","Gravitation","Gravitational Source","grv"],
+      ["mR","metricRad","Metric Radio Source","Rad > mR"],
+      ["mm","mmRad","Millimetric Radio Source","Rad > mm"],
+      ["mul","Blend","Composite Object, Blend","mul"],
+      ["of?","Outflow_Candidate","Outflow Candidate","* > Y*O > out"],
+      ["out","Outflow","Outflow","* > Y*O > out"],
+      ["pA*","post-AGB*","Post-AGB Star","* > Ev* > pA*"],
+      ["pA?","post-AGB*_Candidate","Post-AGB Star Candidate","* > Ev* > pA*"],
+      ["rB","radioBurst","Radio Burst","Rad > rB"],
+      ["rG","RadioG","Radio Galaxy","G > AGN > rG"],
+      ["reg","Region","Region defined in the Sky","reg"],
+      ["s*b","BlueSG","Blue Supergiant","* > Ma* > sg* > s*b"],
+      ["s*r","RedSG","Red Supergiant","* > Ma* > sg* > s*r"],
+      ["s*y","YellowSG","Yellow Supergiant","* > Ma* > sg* > s*y"],
+      ["s?b","BlueSG_Candidate","Blue Supergiant Candidate","* > Ma* > sg* > s*b"],
+      ["s?r","RedSG_Candidate","Red Supergiant Candidate","* > Ma* > sg* > s*r"],
+      ["s?y","YellowSG_Candidate","Yellow Supergiant Candidate","* > Ma* > sg* > s*y"],
+      ["sg*","Supergiant","Evolved Supergiant","* > Ma* > sg*"],
+      ["sg?","Supergiant_Candidate","Evolved Supergiant Candidate","* > Ma* > sg*"],
+      ["sh","HIshell","Interstellar Shell","ISM > sh"],
+      ["smm","smmRad","Sub-Millimetric Source","Rad > smm"],
+      ["var","Variable","Variable source",null],
+      ["vid","Void","Underdense Region of the Universe","vid"]
+   ];
+   const TYPE_CODES=Object.create(null),TYPE_LABELS=Object.create(null);
+   // Existing display labels remain stable when the catalog uses synonymous
+   // wording. Codes are case-sensitive (rG is not the stellar type RG*).
+   for(let [code,label] of Object.entries(TYPES))TYPE_CODES[code]={code,label,path:''};
+   for(let [code,compact,description,path] of SIMBAD_TYPE_DEFINITIONS){
+      if(!own(TYPES,code))TYPES[code]=Object.values(TYPES).find(label=>label.toLowerCase()===description.toLowerCase())||description;
+      let info=TYPE_CODES[code]={code,label:TYPES[code],path};
+      TYPE_LABELS[compact.toLowerCase()]=TYPE_LABELS[description.toLowerCase()]=info;
+   }
+   for(let info of Object.values(TYPE_CODES))TYPE_LABELS[info.label.toLowerCase()]=info;
+   function catalogTypeInfo(value) {
+      value=text(value).trim().replace(/^Catalog object\s*\(([^()]+)\)$/i,'$1').trim();
+      return TYPE_CODES[value]||TYPE_LABELS[value.toLowerCase()]||null;
+   }
    // Parse explicit catalog fields; never infer coordinates from a display
    // name. New objects retain clean catalog labels; coordinate markers are opt-in.
    function parseSimbad(s,query,source) {
@@ -1426,12 +1750,16 @@ var ABL = (function () {
       if(!coord)throw Error('SIMBAD identifies this object but has no usable J2000 coordinates. Enter coordinates manually.');
       const ra=15*(Number(coord[1])+Number(coord[2])/60+Number(coord[3])/3600);
       const dec=(Number(coord[5])+Number(coord[6])/60+Number(coord[7])/3600)*(coord[4]==='-'?-1:1);
-      const type=header[2].trim(),label=TYPES[type]||('Catalog object ('+type+')'),parts=[label,'SIMBAD identifier: '+header[1].trim()];
+      // Request verbose names at the service, decode known cached/short names
+      // locally, and retain unfamiliar responses without inventing a type.
+      const type=header[2].trim(),info=catalogTypeInfo(type),label=info?info.label:type,parts=[label,'SIMBAD identifier: '+header[1].trim()];
       for(let [pattern,title] of [[/^Morphological type:\s*(.+)$/m,'Morphology'],[/^Spectral type:\s*(.+)$/m,'Spectral type'],[/^Angular size:\s*(.+)$/m,'Angular size (arcmin)'],[/^Flux V\s*:\s*(.+)$/m,'V magnitude']]){
          let m=s.match(pattern);if(m&&!/^~(?:\s|$)/.test(m[1]))parts.push(title+': '+m[1].trim());}
       let aliases=[],block=s.match(/Identifiers\s*\(\d+\):\s*\n([\s\S]*?)(?:\n\s*\n|$)/);
       if(block)aliases=block[1].split(/\n| {2,}/).map(x=>x.trim()).filter(Boolean);
-      let star=/\*|\*r/.test(type)&&!['Cl*'].includes(type),main=header[1].trim();
+      // Verbose types have no asterisk. Use the catalog hierarchy, excluding
+      // nonstellar entries also placed in the stellar-evolution tree.
+      let star=info&&info.path?/^\*(?: >|$)/.test(info.path)&&!['PN','PN?','Pl','Pl?','HH','out','of?'].includes(info.code):/\*|\*r/.test(type)&&type!=='Cl*',main=header[1].trim();
       // Stellarium highlights stored coordinates using this exact label.
       // Named coordinate-marker selection is available as an explicit opt-in.
       let o={designation:query.replace(/\s+marker$/i,'').trim(),name:main,nameI18n:main,type:star?'Star':'Nebula',objtype:label,
@@ -1460,12 +1788,12 @@ var ABL = (function () {
    }
    return {VERSION,EXT,MONTHS,own,plain,copy,text,uuid,today,stamp,norm,html,coordinate,formatRA,formatDec,position,constellation,normalizeConstellation,
       monthKey,meta,config,refs,catalogIdentifier,setStellariumLabel,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
-      objectType,objectTypeChoices,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
+      objectType,objectTypeChoices,reevaluateObjectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
 })();
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.38.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.39.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1474,7 +1802,7 @@ var ABL = (function () {
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.38.0"
+#define VERSION "0.39.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1955,7 +2283,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.38.0';
+const ABL_VERSION='0.39.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2113,7 +2441,7 @@ function ablLookup(doc,query,serverIndex=0,refresh=false){
    let errors=[];
    for(let index of [serverIndex,1-serverIndex]){
       if(console.abortRequested)throw Error('Cancelled.');
-      let url=ABL_SERVERS[index]+'?Ident='+encodeURIComponent(query)+'&output.format=ASCII';
+      let url=ABL_SERVERS[index]+'?Ident='+encodeURIComponent(query)+'&output.format=ASCII&otypedisp=V';
       try{return ABL.parseSimbad(ablTransfer(url,2*1024*1024).utf8ToString(),query,url);}
       catch(e){errors.push(e.message||String(e));if(/Cancelled/.test(String(e)))throw e;}
    }
@@ -2152,6 +2480,70 @@ class ABLDuplicateDialog extends Dialog { constructor(parent,object,matches){
    this.backButton=ablButton(this,'Back to new object',()=>this.cancel());this.backButton.defaultButton=true;
    let buttons=new HorizontalSizer;buttons.spacing=6;buttons.addStretch();buttons.add(this.openButton);buttons.add(this.backButton);
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;this.sizer.add(this.info);this.sizer.add(this.entries);this.sizer.add(this.details);this.sizer.add(this.hint);this.sizer.add(buttons);this.adjustToContents();
+}}
+
+// Date-only selection uses civil year/month/day values. Avoid UTC conversions
+// that could shift an imaging date, and clamp days when changing month/year.
+class ABLImagingDateDialog extends Dialog { constructor(parent,value){
+   super(parent);this.windowTitle='Imaging date';this.selectedDate=null;
+   this.year=new SpinBox(this);this.year.setRange(0,9999);this.year.setFixedWidth(85);
+   this.month=new ComboBox(this);for(let name of ABL.MONTHS.slice(1))this.month.addItem(name);
+   this.day=new SpinBox(this);this.day.setRange(1,31);this.day.setFixedWidth(65);
+   this.updateDays=()=>{let y=this.year.value,m=this.month.currentItem+1,leap=y%4===0&&(y%100!==0||y%400===0);
+      this.day.maxValue=[31,leap?29:28,31,30,31,30,31,31,30,31,30,31][m-1];};
+   this.setDate=s=>{let values=s.split('-').map(Number);this.year.value=values[0];this.month.currentItem=values[1]-1;this.updateDays();this.day.value=values[2];};
+   this.value=()=>String(this.year.value).padStart(4,'0')+'-'+String(this.month.currentItem+1).padStart(2,'0')+'-'+String(this.day.value).padStart(2,'0');
+   this.year.onValueUpdated=this.month.onItemSelected=()=>this.updateDays();this.setDate(value&&ABL.validDate(value)?value:ABL.today());
+   let fields=new HorizontalSizer;fields.spacing=8;
+   for(let [title,control] of [['Year:',this.year],['Month:',this.month],['Day:',this.day]]){let label=new Label(this);label.text=title;fields.add(label);fields.add(control);}
+   this.todayButton=ablButton(this,'Today',()=>this.setDate(ABL.today()));
+   this.clearButton=ablButton(this,'Clear date',()=>{this.selectedDate='';this.ok();},'Remove the date while retaining the object\'s imaged flag.');
+   this.applyButton=ablButton(this,'Apply',()=>{this.selectedDate=this.value();this.ok();});this.applyButton.defaultButton=true;
+   this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());this.cancelButton.escapeButton=true;
+   let buttons=new HorizontalSizer;buttons.spacing=8;buttons.add(this.todayButton);buttons.add(this.clearButton);buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
+   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=12;this.sizer.add(fields);this.sizer.add(buttons);this.adjustToContents();
+}}
+
+// Optional sexagesimal entry for missing or manually supplied coordinates.
+// Keep untouched axes at their original precision; the four-decimal seconds
+// shown by the controls must not round an existing catalog position on Apply.
+class ABLCoordinatesDialog extends Dialog { constructor(parent,raText,decText){
+   super(parent);this.windowTitle='J2000 coordinates';this.coordinates=null;
+   const spin=(maximum)=>{let c=new SpinBox(this);c.setRange(0,maximum);c.setFixedWidth(this.logicalPixelsToPhysical(65));return c;};
+   const seconds=()=>{let c=new NumericEdit(this);c.label.hide();c.real=true;c.fixed=true;c.scientific=false;c.autoEditWidth=false;
+      c.setRange(0,59.9999);c.setPrecision(4);c.edit.setFixedWidth(this.logicalPixelsToPhysical(100));return c;};
+   this.raHours=spin(23);this.raMinutes=spin(59);this.raSeconds=seconds();
+   this.decSign=new ComboBox(this);this.decSign.addItem('+');this.decSign.addItem('−');
+   this.decDegrees=spin(90);this.decMinutes=spin(59);this.decSeconds=seconds();
+   const parts=(degrees,hours)=>{let t=Math.round(Math.abs(degrees)*(hours?240:3600)*10000);if(hours)t%=864000000;
+      return [Math.floor(t/36000000),Math.floor(t%36000000/600000),t%600000/10000];};
+   let originalRA=ABL.coordinate(raText,true),originalDec=ABL.coordinate(decText,false),r=parts(originalRA===null?0:originalRA,true),d=parts(originalDec===null?0:originalDec,false);
+   this.raHours.value=r[0];this.raMinutes.value=r[1];this.raSeconds.setValue(r[2]);
+   this.decSign.currentItem=originalDec<0||Object.is(originalDec,-0)?1:0;this.decDegrees.value=d[0];this.decMinutes.value=d[1];this.decSeconds.setValue(d[2]);
+   const raSignature=()=>[this.raHours.value,this.raMinutes.value,this.raSeconds.value].join('/');
+   const decSignature=()=>[this.decSign.currentItem,this.decDegrees.value,this.decMinutes.value,this.decSeconds.value].join('/');
+   let initialRA=raSignature(),initialDec=decSignature();
+   this.value=()=>({ra:originalRA!==null&&raSignature()===initialRA?originalRA:(this.raHours.value+this.raMinutes.value/60+this.raSeconds.value/3600)*15,
+      dec:originalDec!==null&&decSignature()===initialDec?originalDec:(this.decDegrees.value+this.decMinutes.value/60+this.decSeconds.value/3600)*(this.decSign.currentItem===1?-1:1)});
+   this.preview=new Label(this);
+   this.updatePosition=()=>{
+      // At either pole the fractional degree components must be zero.
+      let pole=this.decDegrees.value===90;this.decMinutes.enabled=this.decSeconds.enabled=!pole;
+      if(pole){this.decMinutes.value=0;this.decSeconds.setValue(0);}
+      let p=this.value();this.preview.text='Decimal degrees: RA '+p.ra.toFixed(8)+'; Dec '+p.dec.toFixed(8);
+   };
+   this.raHours.onValueUpdated=this.raMinutes.onValueUpdated=this.raSeconds.onValueUpdated=this.decSign.onItemSelected=this.decDegrees.onValueUpdated=this.decMinutes.onValueUpdated=this.decSeconds.onValueUpdated=()=>this.updatePosition();
+   let info=new Label(this);info.text='Enter J2000 coordinates. RA uses hours; Dec uses signed degrees.';
+   this.blankHint=new Label(this);this.blankHint.text='Missing or invalid coordinates start at zero. Enter the target position before Apply.';this.blankHint.visible=originalRA===null||originalDec===null;
+   const row=(caption,controls)=>{let s=new HorizontalSizer;s.spacing=6;let l=new Label(this);l.text=caption;l.setFixedWidth(this.logicalPixelsToPhysical(35));s.add(l);
+      for(let [control,unit] of controls){s.add(control);if(unit){let u=new Label(this);u.text=unit;s.add(u);}}s.addStretch();return s;};
+   let raRow=row('RA:',[[this.raHours,'h'],[this.raMinutes,'m'],[this.raSeconds,'s']]);
+   let decRow=row('Dec:',[[this.decSign,''],[this.decDegrees,'°'],[this.decMinutes,'′'],[this.decSeconds,'″']]);
+   this.applyButton=ablButton(this,'Apply',()=>{this.coordinates=this.value();this.ok();});this.applyButton.defaultButton=true;
+   this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());this.cancelButton.escapeButton=true;
+   let buttons=new HorizontalSizer;buttons.spacing=6;buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
+   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(info);this.sizer.add(raRow);this.sizer.add(decRow);this.sizer.add(this.preview);this.sizer.add(this.blankHint);this.sizer.add(buttons);
+   this.updatePosition();this.adjustToContents();
 }}
 
 // The editor works on a copy; only Apply returns a validated replacement.
@@ -2211,7 +2603,21 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
    },'Resolve this identifier and fill J2000 coordinates and catalog information.');
    let idRow=new HorizontalSizer;idRow.spacing=6;idRow.add(this.idEdit,100);idRow.add(this.lookupButton);
    this.nameEdit=new Edit(this);this.raEdit=new Edit(this);this.decEdit=new Edit(this);
+   this.nameCatalogButton=ablButton(this,'Use catalog identifier',()=>{this.nameEdit.text=this.idEdit.text.trim().replace(/\s+marker$/i,'');this.updateBand();},'Set Display name to the catalog identifier. The Stellarium label is unchanged until edited separately.');
+   let nameRow=new HorizontalSizer;nameRow.spacing=6;nameRow.add(this.nameEdit,100);nameRow.add(this.nameCatalogButton);
+   this.raEdit.setFixedWidth(this.logicalPixelsToPhysical(145));this.decEdit.setFixedWidth(this.logicalPixelsToPhysical(145));
+   this.coordinatesButton=ablButton(this,'Enter…',()=>{let picker=new ABLCoordinatesDialog(this,this.raEdit.text,this.decEdit.text);
+      if(parent.executeDialog(picker)){
+         // Preserve direct-entry formatting when an axis was not changed.
+         if(ABL.coordinate(this.raEdit.text,true)!==picker.coordinates.ra)this.raEdit.text=String(picker.coordinates.ra);
+         if(ABL.coordinate(this.decEdit.text,false)!==picker.coordinates.dec)this.decEdit.text=String(picker.coordinates.dec);
+         this.updatePosition();
+      }
+   },'Enter J2000 coordinates manually with separate RA hours/minutes/seconds and Dec sign/degrees/minutes/seconds controls. Existing coordinates are prefilled. Useful when a catalog lookup has no position. Direct decimal-degree or sexagesimal entry in these fields remains available.');
+   let coordinateRow=new HorizontalSizer;coordinateRow.spacing=8;coordinateRow.add(this.raEdit);let decLabel=new Label(this);decLabel.text='Dec (J2000):';coordinateRow.add(decLabel);coordinateRow.add(this.decEdit);coordinateRow.add(this.coordinatesButton);coordinateRow.addStretch();
    this.typeSelect=new ComboBox(this);this.typeSelect.editEnabled=true;this.typeSelect.autoCompletion=false;
+   // Long catalog descriptions must not squeeze the adjacent action labels.
+   this.typeSelect.setFixedWidth(this.logicalPixelsToPhysical(245));
    for(let label of ABL.objectTypeChoices(parent.doc))this.typeSelect.addItem(label);
    this.typeSelect.toolTip='Choose a common object type or type your own label. Manual types are retained by Look up and Update catalogs. Clear the field or choose Use catalog type to follow the catalog again.';
    this.typeReset=false;this.typeBaseline='';this.fillingType=false;
@@ -2223,11 +2629,23 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       let o=ABL.copy(this.source);delete ABL.meta(o).manualObjectType;
       this.fillingType=true;this.typeSelect.editText=ABL.objectType(o);this.fillingType=false;
       this.typeReset=true;this.catalogTypeButton.enabled=false;this.updateBand();
+      this.typeHint.text='Catalog type restored. Apply to keep it.';this.typeHint.toolTip='';
    },'Restore the latest catalog classification for this object. Apply retains the reset.');
-   this.typeChanged=()=>{if(this.fillingType)return;this.typeReset=false;this.catalogTypeButton.enabled=true;this.updateBand();};
+   this.typeChanged=()=>{if(this.fillingType)return;this.typeReset=false;this.catalogTypeButton.enabled=true;this.typeHint.text='Type edited manually. Apply to keep it.';this.typeHint.toolTip='';this.updateBand();};
    this.typeSelect.onEditTextUpdated=()=>this.typeChanged();
    this.typeSelect.onItemSelected=index=>{this.typeSelect.editText=this.typeSelect.itemText(index);this.typeChanged();};
-   let typeRow=new HorizontalSizer;typeRow.spacing=6;typeRow.add(this.typeSelect,100);typeRow.add(this.catalogTypeButton);
+   this.typeHint=new Label(this);this.typeHint.wordWrapping=true;this.typeHint.setFixedWidth(this.logicalPixelsToPhysical(478));this.typeHint.text='Re-evaluate considers catalog information, descriptions and comments.';
+   this.reevaluateTypeButton=ablButton(this,'Re-evaluate',()=>{
+      let o=ABL.copy(this.source);ABL.setCatalogInformation(o,this.catalogText.text);ABL.meta(o).notes=this.notesEdit.text;
+      let suggestion=ABL.reevaluateObjectType(o);
+      if(suggestion.type){
+         delete ABL.meta(o).manualObjectType;this.typeSelect.editText=suggestion.type;this.typeChanged();
+         if(suggestion.type===ABL.objectType(o)){this.typeReset=true;this.catalogTypeButton.enabled=false;this.updateBand();}
+         this.typeHint.text='Suggested: '+suggestion.type+' ('+suggestion.evidence[0].source+'). Apply to keep it.';
+      }else this.typeHint.text=suggestion.evidence.length?'No clear suggestion: conflicting information. See the tooltip.':'No recognizable type found; the current choice is unchanged.';
+      this.typeHint.toolTip=ABL.html(suggestion.reason+'\n'+suggestion.evidence.map(c=>c.source+': '+c.evidence).join('\n'));
+   },'Re-evaluate the object type from saved catalog data and the current Catalog information and Comments fields. Descriptions imported into Catalog information are included. No network lookup is performed; use Look up first for fresh SIMBAD data. Review the suggestion and its evidence, then Apply. Conflicting or unrecognized information leaves the current choice unchanged.');
+   let typeRow=new HorizontalSizer;typeRow.spacing=6;typeRow.add(this.typeSelect,100);typeRow.add(this.reevaluateTypeButton);typeRow.add(this.catalogTypeButton);
    this.majorEdit=new Edit(this);this.minorEdit=new Edit(this);this.majorEdit.setFixedWidth(100);this.minorEdit.setFixedWidth(100);
    this.majorEdit.toolTip='Major diameter in arcminutes. Leave both dimensions blank when unknown.';
    this.minorEdit.toolTip='Optional minor diameter in arcminutes; no larger than the major diameter.';
@@ -2252,11 +2670,14 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
    this.catalogResetButton=ablButton(this,'Use catalog text',()=>{
       this.catalogReset=true;delete ABL.meta(this.source).catalogInformation;this.catalogText.text=ABL.html(ABL.fetchedCatalogInformation(this.source));this.updateBand();
    },'Replace your edited text with the latest retrieved catalog information. Apply to keep this change.');
-   let catalogRow=new VerticalSizer;catalogRow.spacing=4;catalogRow.add(this.catalogText);let catalogActions=new HorizontalSizer;catalogActions.addStretch();catalogActions.add(this.catalogResetButton);catalogRow.add(catalogActions);
+   let catalogActions=new HorizontalSizer;catalogActions.addStretch();catalogActions.add(this.catalogResetButton);
    this.imaged=new CheckBox(this);this.imaged.text='I have imaged this object';
    this.imagedDate=new Edit(this);this.imagedDate.setFixedWidth(120);this.imagedDate.toolTip='Editable imaging date, YYYY-MM-DD. Entering a date marks this object as imaged. Clear the date to keep an imaged object without a known date.';
    this.imaged.onCheck=checked=>{if(!checked)this.imagedDate.text='';else if(!this.imagedDate.text)this.imagedDate.text=ABL.today();};
    this.imagedDate.onTextUpdated=value=>{if(value.trim()&&ABL.validDate(value.trim()))this.imaged.checked=true;};
+   this.imagedDateButton=ablButton(this,'Choose…',()=>{let picker=new ABLImagingDateDialog(this,this.imagedDate.text.trim());
+      if(parent.executeDialog(picker)){this.imagedDate.text=picker.selectedDate;if(picker.selectedDate)this.imaged.checked=true;}
+   },'Choose the imaging year, month and day, set Today, or clear the date. Cancel keeps the current entry.');
    this.marker=new CheckBox(this);this.marker.text='Use coordinate marker (adds “marker” to label)';
    this.marker.toolTip='<p><b>Normally leave this off</b> for recognized catalog objects such as NGC 936 or NGC 1232.</p>'+
       '<p>Use it when Stellarium cannot find a target by name, for example an obscure catalog object or a manually entered position without a recognized name. Double-clicking the imported entry then creates a named marker at its saved RA/Dec instead of potentially selecting a nearby star.</p>'+
@@ -2266,7 +2687,7 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       this.marker.checked=/marker/i.test(this.stellariumLabelEdit.text);};
    this.stellariumLabelEdit.onTextUpdated=value=>{this.marker.checked=/marker/i.test(value);this.labelAutomatic=ABL.norm(value)===ABL.norm(this.idEdit.text);};
    this.idEdit.onTextUpdated=()=>{if(this.labelAutomatic)this.stellariumLabelEdit.text=this.idEdit.text.trim()+(this.marker.checked?' marker':'');};
-   let status=new HorizontalSizer;status.spacing=8;status.add(this.imaged);status.addStretch();let dl=new Label(this);dl.text='Imaged on:';status.add(dl);status.add(this.imagedDate);
+   let status=new HorizontalSizer;status.spacing=8;status.add(this.imaged);status.addStretch();let dl=new Label(this);dl.text='Imaged on:';status.add(dl);status.add(this.imagedDate);status.add(this.imagedDateButton);
    this.applyButton=ablButton(this,'Apply',()=>{try{
       if(!object&&typeof this.listIds[this.listSelect.currentItem]!=='string')
          throw Error('Choose a destination in Add to list, or explicitly select No list — collection only.');
@@ -2286,10 +2707,10 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
    if(this.listSelect)this.sizer.add(ablRow(this,'Add to list:',this.listSelect));
    if(this.membershipTree)this.sizer.add(ablRow(this,'List memberships:',this.membershipTree));
    this.sizer.add(ablRow(this,'Catalog identifier:',idRow));this.sizer.add(ablRow(this,'Lookup service:',this.server));
-   this.sizer.add(ablRow(this,'Display name:',this.nameEdit));this.sizer.add(ablRow(this,'Stellarium label:',stellariumLabelRow));this.sizer.add(ablRow(this,'Object type:',typeRow));this.sizer.add(ablRow(this,'RA (J2000):',this.raEdit));this.sizer.add(ablRow(this,'Dec (J2000):',this.decEdit));
+   this.sizer.add(ablRow(this,'Display name:',nameRow));this.sizer.add(ablRow(this,'Stellarium label:',stellariumLabelRow));this.sizer.add(ablRow(this,'Object type:',typeRow));this.sizer.add(ablRow(this,'',this.typeHint));this.sizer.add(ablRow(this,'RA (J2000):',coordinateRow));
    this.sizer.add(ablRow(this,'Constellation / month:',this.constellationLabel));
    this.sizer.add(ablRow(this,'Apparent size (arcmin):',sizeRow));this.sizer.add(ablRow(this,'',this.sizeSource));
-   this.sizer.add(ablRow(this,'Filters:',this.filtersEdit));this.sizer.add(ablRow(this,'Target band:',bandRow));this.sizer.add(ablRow(this,'Comments:',this.notesEdit));this.sizer.add(ablRow(this,'Catalog information:',catalogRow));this.sizer.add(status);this.sizer.add(buttons);
+   this.sizer.add(ablRow(this,'Filters:',this.filtersEdit));this.sizer.add(ablRow(this,'Target band:',bandRow));this.sizer.add(ablRow(this,'Comments:',this.notesEdit));this.sizer.add(ablRow(this,'Catalog information:',this.catalogText));this.sizer.add(catalogActions);this.sizer.add(status);this.sizer.add(buttons);
    this.updateBand=()=>{
       let o=ABL.copy(this.source),m=ABL.meta(o);m.filters=this.filtersEdit.text;m.notes=this.notesEdit.text;o.name=o.nameI18n=m.displayName=this.nameEdit.text;
       this.applyObjectType(o);
@@ -2302,6 +2723,7 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       this.constellationLabel.text=code?((key==='SerCap'?'Serpens Caput':key==='SerCau'?'Serpens Cauda':ABL_CONSTELLATIONS[code])+' — '+ABL.MONTHS[month]):'Enter coordinates or use Look up';};
    this.raEdit.onTextUpdated=this.decEdit.onTextUpdated=()=>this.updatePosition();
    this.fill=()=>{let o=this.source,m=ABL.meta(o);this.nameEdit.text=m.displayName||o.name||o.nameI18n||'';this.raEdit.text=o.ra===undefined||o.ra===null?'':String(o.ra);this.decEdit.text=o.dec===undefined||o.dec===null?'':String(o.dec);
+      this.typeHint.text='Re-evaluate considers catalog information, descriptions and comments.';this.typeHint.toolTip='';
       this.stellariumLabelEdit.text=o.designation||this.idEdit.text;this.labelAutomatic=!o.designation||ABL.norm(o.designation)===ABL.norm(this.idEdit.text);
       this.fillingType=true;this.typeBaseline=ABL.objectType(o);this.typeSelect.editText=this.typeBaseline;this.typeReset=false;this.fillingType=false;
       this.catalogTypeButton.enabled=!!ABL.text(m.manualObjectType).trim();
@@ -2324,7 +2746,8 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       let label=this.stellariumLabelEdit.text.trim();
       if(!label||this.labelAutomatic&&ABL.norm(label)!==ABL.norm(o.designation))label=o.designation+(this.marker.checked?' marker':'');
       ABL.setStellariumLabel(o,this.idEdit.text,label);
-      if(!o.fov)o.fov=2;ABL.validateObject(o);
+      // Retain all four fractional-second digits offered by manual entry.
+      if(!o.fov)o.fov=2;ABL.validateObject(o,4);
       // Applying one edit must not rewrite unrelated defaults or round the
       // original coordinate representation. This also lets a later edit
       // restore the original content and clear the unsaved-change prompt.
@@ -2334,7 +2757,9 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
          const restore=(dest,source,keys)=>{for(let key of keys){if(ABL.own(source,key))dest[key]=ABL.copy(source[key]);else delete dest[key];}};
          if(unchanged([0,13,16])){restore(o,original,['designation','type','isVisibleMarker']);restore(m,old,['catalogIdentifier']);}
          if(unchanged([1])){restore(o,original,['name','nameI18n']);restore(m,old,['displayName']);}
-         if(unchanged([2,3]))restore(o,original,['ra','dec','constellation']);
+         if(unchanged([2]))restore(o,original,['ra']);
+         if(unchanged([3]))restore(o,original,['dec']);
+         if(unchanged([2,3]))restore(o,original,['constellation']);
          if(unchanged([4,5,6]))restore(m,old,['angularSize']);
          if(unchanged([7]))restore(m,old,['filters']);
          if(unchanged([8]))restore(m,old,['notes']);
@@ -2346,6 +2771,9 @@ class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifi
       }
       return o;};
    this.fill();this.initialForm=this.formSignature();this.initialObject=ABL.copy(this.source);this.adjustToContents();
+   // Wrapped hints and fixed-height editors need the fully calculated height;
+   // a smaller vertical layout can otherwise overlap the catalog text action.
+   this.setMinHeight(this.height);
 }}
 
 class ABLMonthsDialog extends Dialog { constructor(parent){

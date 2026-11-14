@@ -1,8 +1,8 @@
-Astro Bucket List 0.38.0
+Astro Bucket List 0.39.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
-PixInsight 1.9.5 or later with V8 and its standard CatalogStarGenerator and
+PixInsight 1.9.6 or later with V8 and its standard CatalogStarGenerator and
 AnnotateImage libraries. Use the documentation button for the full guide.
 
 COLLECTIONS
@@ -209,6 +209,25 @@ Apply checks for duplicates before closing.
 Cancel leaves the collection unchanged. A successful search-based addition
 clears view filters and highlights the new entry, retaining sort order and
 export checks. Save persists the entry. Search alone performs no lookup.
+SIMBAD lookups request full type descriptions. The script includes 226 catalog
+type definitions for offline interpretation of saved codes: rG, for example,
+displays as Radio galaxy and is a broadband target. Generated type lines are
+made readable without changing personal prose or manual Object types. Unknown
+future descriptions or codes are retained rather than guessed.
+
+Re-evaluate beside Object type proposes a more precise type from saved catalog
+metadata, current Catalog information, imported descriptions and Comments.
+Review its supporting text in the hint tooltip before Apply. Conflicting or
+unrecognized evidence leaves the type unchanged; candidate status is retained.
+No lookup is made automatically; use Look up first for fresh SIMBAD data.
+Display name has its own Use catalog identifier action. Compact RA and Dec
+fields share a row. Enter beside RA/Dec provides separate hours/minutes/seconds
+and sign/degrees/minutes/seconds controls for manual J2000 coordinate entry,
+including targets without a catalog position. Unchanged axes retain their
+original precision. Choose beside Imaged on offers Year, Month and Day selectors,
+Today, Clear date, Apply and Cancel. Day limits include leap years; selecting a
+date marks the object as imaged. Clearing the date retains its imaged flag.
+
 New objects use clean Stellarium labels without an added marker suffix.
 Add/Edit object includes an editable Stellarium label and Use catalog identifier
 for repairing existing labels. Apply, Save and reimport the collection into
@@ -384,5 +403,5 @@ Network and temporary storage
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.38.0.
+SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.39.0.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
