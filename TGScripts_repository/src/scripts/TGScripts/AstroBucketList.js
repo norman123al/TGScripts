@@ -6,7 +6,8 @@
 #endif
 
 /* Astro Bucket List 0.39.0 — PixInsight 1.9.6+, PJSR V8.
- * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
+ * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
+ * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
  */
 // BEGIN ABL_PORTABLE
@@ -1494,9 +1495,11 @@ var ABL = (function () {
       ClG:'Galaxy cluster',GrG:'Galaxy group',IG:'Interacting galaxies',PN:'Planetary nebula',PNc:'Planetary nebula candidate',HII:'H II region',SNR:'Supernova remnant',
       RNe:'Reflection nebula',DNe:'Dark nebula',MoC:'Molecular cloud',ISM:'Interstellar matter',Neb:'Nebula',GlC:'Globular cluster',OpC:'Open cluster','Cl*':'Star cluster',
       '*':'Star','**':'Double or multiple star','C*':'Carbon star','WR*':'Wolf-Rayet star','V*':'Variable star','Em*':'Emission-line star','Be*':'Be star','s*r':'Red supergiant'};
-   // Public SIMBAD otypedef data, retrieved 2026-11-14 from the CDS Harvard
+   // SIMBAD otypedef data (ODbL-1.0), retrieved 2026-11-14 from the CDS Harvard
    // mirror: https://simbad.cfa.harvard.edu/simbad/sim-tap/ (SELECT * FROM otypedef).
    // Each row is [code, compact label, full description, classification path].
+   // Attribution, license URI, citation and redistribution copy are supplied
+   // in AstroBucketList-DataNotices.txt and AstroBucketList-SIMBAD-otypes.json.
    // Keep a local snapshot so saved abbreviations also resolve without a lookup.
    // New lookups request verbose descriptions and can display future types too.
    const SIMBAD_TYPE_DEFINITIONS=[
@@ -1748,6 +1751,9 @@ var ABL = (function () {
       if(!header)throw Error('SIMBAD did not identify '+query+'. Try a full identifier such as M 31, NGC 7000 or PN G075.5+01.7.');
       let coord=s.match(/Coordinates\(ICRS,ep=J2000,eq=2000\):\s*(\d+)\s+(\d+)\s+([\d.]+)\s+([+-])(\d+)\s+(\d+)\s+([\d.]+)/);
       if(!coord)throw Error('SIMBAD identifies this object but has no usable J2000 coordinates. Enter coordinates manually.');
+      let components=[coord[1],coord[2],coord[3],coord[5],coord[6],coord[7]].map(Number);
+      if(components.some(x=>!Number.isFinite(x))||components[0]>=24||components[1]>=60||components[2]>=60||components[3]>90||components[4]>=60||components[5]>=60||components[3]===90&&(components[4]!==0||components[5]!==0))
+         throw Error('SIMBAD returned invalid J2000 coordinate components.');
       const ra=15*(Number(coord[1])+Number(coord[2])/60+Number(coord[3])/3600);
       const dec=(Number(coord[5])+Number(coord[6])/60+Number(coord[7])/3600)*(coord[4]==='-'?-1:1);
       // Request verbose names at the service, decode known cached/short names
@@ -2411,11 +2417,15 @@ function ablWrite(path,doc){
       catch(e){console.warningln('Collection saved. Local temporary files remain in '+directory+'. '+String(e));}
    }
 }
-// Bound downloads and allow console cancellation while keeping the UI alive.
-function ablTransfer(url,maxBytes,timeoutSeconds=30){
+// Transport authentication and response validation are separate from a
+// publisher-provided digest. These live services do not supply such a digest.
+// Never describe a locally computed cache hash as authentication of the source.
+function ablTransfer(url,maxBytes,timeoutSeconds=30,contentType='text/plain'){
+   if(!/^https:\/\/(?:simbad\.(?:cfa\.harvard\.edu|cds\.unistra\.fr)\/simbad\/sim-id|archive\.stsci\.edu\/cgi-bin\/dss_search)\?/.test(url))
+      throw Error('Unsupported download address. An HTTPS SIMBAD or DSS endpoint is required.');
    let data=new ByteArray,transfer=new NetworkTransfer,start=Date.now(),stopped='';
-   transfer.setURL(url);transfer.setConnectionTimeout(10);
-   transfer.setCustomHTTPHeaders(['User-Agent: '+CoreApplication.agentName+' AstroBucketList/'+ABL_VERSION,'Accept: */*']);
+   transfer.setURL(url);transfer.setConnectionTimeout(10);transfer.setSSL(true,true,true,true);
+   transfer.setCustomHTTPHeaders(['User-Agent: '+CoreApplication.agentName+' AstroBucketList/'+ABL_VERSION,'Accept: '+contentType]);
    transfer.onDownloadDataAvailable=function(chunk){
       if(data.length+chunk.length>maxBytes){stopped='The server response is too large.';return false;}
       data.add(chunk);return true;
@@ -2427,7 +2437,70 @@ function ablTransfer(url,maxBytes,timeoutSeconds=30){
       return true;
    };
    if(!transfer.download())throw Error(stopped||transfer.errorInformation||'Download failed.');
+   if(transfer.responseCode!==200)throw Error('The server returned HTTP '+transfer.responseCode+'.');
+   if(String(transfer.contentType).split(';')[0].trim().toLowerCase()!==contentType)
+      throw Error('The server returned an unexpected content type.');
+   if(!data.length)throw Error('The server returned an empty response.');
    return data;
+}
+function ablSimbadResponse(data){
+   let text=data.utf8ToString();
+   if(!/^C\.D\.S\.[^\r\n]*SIMBAD/.test(text)||/[\x00-\x08\x0b\x0c\x0e-\x1f\ufffd]/.test(text))
+      throw Error('The server did not return a valid SIMBAD text response.');
+   // The ASCII service terminates an object record with a separator. Refuse a
+   // partial record even when its early coordinate fields happened to arrive.
+   if(/^Object\s/m.test(text)&&(!/\n={10,}\s*$/.test(text)||(text.match(/^Object\s/gm)||[]).length!==1))
+      throw Error('The SIMBAD object response is incomplete or ambiguous.');
+   return text;
+}
+// Check GIF framing before writing or invoking the native image decoder.
+// This detects truncation and bounds allocations; it is not a service checksum.
+function ablValidateDSS(data){
+   let p=0,images=0,word=()=>byte()+256*byte();
+   const fail=()=>{throw Error('The DSS response is not a complete, supported GIF image.');};
+   const need=n=>{if(p+n>data.length)fail();};
+   const byte=()=>{need(1);return data.at(p++);};
+   const skip=n=>{need(n);p+=n;};
+   const blocks=()=>{for(let n;(n=byte())!==0;)skip(n);};
+   let signature='';for(let i=0;i<6;++i)signature+=String.fromCharCode(byte());
+   if(signature!=='GIF87a'&&signature!=='GIF89a')fail();
+   let width=word(),height=word(),flags=byte();skip(2);
+   if(!width||!height||width>16384||height>16384||width*height>64000000)fail();
+   if(flags&128)skip(3*(1<<((flags&7)+1)));
+   for(;;){
+      let block=byte();
+      if(block===0x3b){if(images!==1||p!==data.length)fail();return {width,height};}
+      if(block===0x21){byte();blocks();continue;}
+      if(block!==0x2c||++images>1)fail();
+      let left=word(),top=word(),w=word(),h=word(),packed=byte();
+      if(!w||!h||left+w>width||top+h>height)fail();
+      if(packed&128)skip(3*(1<<((packed&7)+1)));
+      let codeSize=byte();if(codeSize<2||codeSize>8)fail();blocks();
+   }
+}
+function ablSHA256(data){return (new CryptographicHash(CryptographicHash.SHA256)).hash(data).toHex();}
+function ablDSSImage(url,cache,files){
+   const maxBytes=128*1024*1024;
+   let previous=cache.get(url);
+   if(previous){
+      // Compare against the in-memory digest of the accepted download before
+      // reusing an on-disk preview. Missing or altered files are re-downloaded.
+      try{if(File.exists(previous.path)&&(new FileInfo(previous.path)).size===previous.bytes&&ablSHA256(File.readFile(previous.path))===previous.sha256)return previous.path;}catch(e){}
+      cache.delete(url);
+   }
+   let data=ablTransfer(url,maxBytes,90,'image/gif'),dimensions=ablValidateDSS(data),sha256=ablSHA256(data);
+   let file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.gif',check=null;
+   files.push(file);
+   try{
+      TGFileProtection.writeFile(file,data,'DSS preview image');
+      if((new FileInfo(file)).size!==data.length||ablSHA256(File.readFile(file))!==sha256)throw Error('DSS preview file verification failed.');
+      check=new Bitmap(file);
+      if(check.isNull||check.width!==dimensions.width||check.height!==dimensions.height)throw Error('The DSS image could not be decoded completely.');
+      cache.set(url,{path:file,bytes:data.length,sha256});return file;
+   }catch(e){
+      if(File.exists(file))try{TGFileProtection.removeFile(file,'Rejected DSS preview');}catch(cleanupError){console.warningln('Rejected preview remains at '+file);}
+      throw e;
+   }finally{if(check)check.clear();}
 }
 function ablBusy(dialog,label,operation,showConsole=true){
    let wasEnabled=dialog.enabled,abort=console.abortEnabled;
@@ -2442,7 +2515,7 @@ function ablLookup(doc,query,serverIndex=0,refresh=false){
    for(let index of [serverIndex,1-serverIndex]){
       if(console.abortRequested)throw Error('Cancelled.');
       let url=ABL_SERVERS[index]+'?Ident='+encodeURIComponent(query)+'&output.format=ASCII&otypedisp=V';
-      try{return ABL.parseSimbad(ablTransfer(url,2*1024*1024).utf8ToString(),query,url);}
+      try{return ABL.parseSimbad(ablSimbadResponse(ablTransfer(url,2*1024*1024)),query,url);}
       catch(e){errors.push(e.message||String(e));if(/Cancelled/.test(String(e)))throw e;}
    }
    throw Error(errors.join('\n\n'));
@@ -3288,13 +3361,10 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.contourState=ablContourFileState(this.contourPath);
    this.chartFiles=[];this.chartCache=new Map;
    this.io={read:ablRead,readListImport:ablReadListImport,write:ablWrite,lookup:ablLookup,finder:(o,fov)=>{
-      let url=ABL.finderURL(o,fov);if(this.chartCache.has(url)&&File.exists(this.chartCache.get(url)))return this.chartCache.get(url);
       // A full 120-arcminute DSS2 field can exceed 24 MiB. Keep a bounded
       // allowance large enough for the full-resolution GIF and a longer,
       // cancellable transfer deadline for these survey images.
-      let data=ablTransfer(url,128*1024*1024,90),file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.gif';
-      TGFileProtection.writeFile(file,data,"DSS preview image");this.chartFiles.push(file);
-      let check=new Bitmap(file);if(check.isNull)throw Error('No survey image was returned. Try a smaller field.');check.clear();this.chartCache.set(url,file);return file;
+      return ablDSSImage(ABL.finderURL(o,fov),this.chartCache,this.chartFiles);
    }};
    // Cache each chart variant only for this manager session. A chart never
    // changes list metadata, imaging flags, Gaia configuration or source images.
@@ -3471,6 +3541,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.updateImageAction=()=>{let p=this.activePreview();this.openImageButton.enabled=!!p&&!!p.bitmap&&!!p.loadedPath&&!p.disposed;this.openImageButton.toolTip='Open as image: '+(p?(p.sky?'Finder chart':'DSS survey image')+' in a native PixInsight image window.':'select the Finder chart or DSS survey image tab first.');};
    this.openImageButton=ablTool(this,':/icons/window-export.png','Open as image: select a preview tab.',()=>this.safe(()=>{
       let p=this.activePreview();if(!p||!p.bitmap||!p.loadedPath||p.disposed)return;
+      // Opening an image reads the temporary file again. Re-enter the DSS
+      // cache verification path even when the displayed bitmap is still valid.
+      if(!p.sky){p.renderPreview();if(p.previewState!=='ready')return;}
       let windows=ImageWindow.open(p.loadedPath);if(!windows.length)throw Error('Could not open the preview image.');for(let w of windows)w.show();
    }));this.openImageButton.enabled=false;
    this.updateFinderActions=()=>{

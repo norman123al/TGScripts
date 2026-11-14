@@ -1,0 +1,1420 @@
+{
+  "title": "Astro Bucket List SIMBAD-derived object-type data",
+  "source": "SIMBAD, CDS, Strasbourg, France",
+  "retrieved": "2026-11-14",
+  "endpoint": "https://simbad.cfa.harvard.edu/simbad/sim-tap/",
+  "query": "SELECT * FROM otypedef",
+  "license": "ODbL-1.0",
+  "licenseURI": "https://opendatacommons.org/licenses/odbl/1-0/",
+  "citation": "Wenger, M., et al. (2000), A&AS 143, 9–22. https://doi.org/10.1051/aas:2000332",
+  "transformations": "Select otype, label, description and path; sort by otype. Values unchanged. Presentation labels reproduce the script's separate display-name overrides.",
+  "columns": [
+    "otype",
+    "label",
+    "description",
+    "path"
+  ],
+  "data": [
+    [
+      "*",
+      "Star",
+      "Star",
+      "*"
+    ],
+    [
+      "**",
+      "**",
+      "Double or Multiple Star",
+      "* > **"
+    ],
+    [
+      "**?",
+      "**_Candidate",
+      "Double or Multiple Star Candidate",
+      "* > **"
+    ],
+    [
+      "?",
+      "Unknown",
+      "Object of Unknown Nature",
+      ""
+    ],
+    [
+      "AB*",
+      "AGB*",
+      "Asymptotic Giant Branch Star",
+      "* > Ev* > AB*"
+    ],
+    [
+      "AB?",
+      "AGB*_Candidate",
+      "Asymptotic Giant Branch Star Candidate",
+      "* > Ev* > AB*"
+    ],
+    [
+      "AG?",
+      "AGN_Candidate",
+      "Active Galaxy Nucleus Candidate",
+      "G > AGN"
+    ],
+    [
+      "AGN",
+      "AGN",
+      "Active Galaxy Nucleus",
+      "G > AGN"
+    ],
+    [
+      "Ae*",
+      "Ae*",
+      "Herbig Ae/Be Star",
+      "* > Y*O > Ae*"
+    ],
+    [
+      "Ae?",
+      "Ae*_Candidate",
+      "Herbig Ae/Be Star Candidate",
+      "* > Y*O > Ae*"
+    ],
+    [
+      "As*",
+      "Association",
+      "Association of Stars",
+      "As*"
+    ],
+    [
+      "As?",
+      "Association_Candidate",
+      "Association of Stars Candidate",
+      "As*"
+    ],
+    [
+      "BD*",
+      "BrownD*",
+      "Brown Dwarf",
+      "* > LM* > BD*"
+    ],
+    [
+      "BD?",
+      "BrownD*_Candidate",
+      "Brown Dwarf Candidate",
+      "* > LM* > BD*"
+    ],
+    [
+      "BH",
+      "BlackHole",
+      "Black Hole",
+      "grv > BH"
+    ],
+    [
+      "BH?",
+      "BlackHole_Candidate",
+      "Black Hole Candidate",
+      "grv > BH"
+    ],
+    [
+      "BL?",
+      "BLLac_Candidate",
+      "BL Lac Candidate",
+      "G > AGN > QSO > Bla > BLL"
+    ],
+    [
+      "BLL",
+      "BLLac",
+      "BL Lac",
+      "G > AGN > QSO > Bla > BLL"
+    ],
+    [
+      "BS*",
+      "BlueStraggler",
+      "Blue Straggler",
+      "* > MS* > BS*"
+    ],
+    [
+      "BS?",
+      "BlueStraggler_Candidate",
+      "Blue Straggler Candidate",
+      "* > MS* > BS*"
+    ],
+    [
+      "BY*",
+      "BYDraV*",
+      "BY Dra Variable",
+      "* > ** > BY*"
+    ],
+    [
+      "BY?",
+      "BYDraV*_Candidate",
+      "BY Dra Variable Candidate",
+      "* > ** > BY*"
+    ],
+    [
+      "Be*",
+      "Be*",
+      "Be Star",
+      "* > MS* > Be*"
+    ],
+    [
+      "Be?",
+      "Be*_Candidate",
+      "Be Star Candidate",
+      "* > MS* > Be*"
+    ],
+    [
+      "BiC",
+      "BrightestCG",
+      "Brightest Galaxy in a Cluster (BCG)",
+      "G > GiC > BiC"
+    ],
+    [
+      "Bla",
+      "Blazar",
+      "Blazar",
+      "G > AGN > QSO > Bla"
+    ],
+    [
+      "Bz?",
+      "Blazar_Candidate",
+      "Blazar Candidate",
+      "G > AGN > QSO > Bla"
+    ],
+    [
+      "C*",
+      "C*",
+      "Carbon Star",
+      "* > Ev* > C*"
+    ],
+    [
+      "C*?",
+      "C*_Candidate",
+      "Carbon Star Candidate",
+      "* > Ev* > C*"
+    ],
+    [
+      "C?G",
+      "ClG_Candidate",
+      "Cluster of Galaxies Candidate",
+      "ClG"
+    ],
+    [
+      "CGG",
+      "Compact_Gr_G",
+      "Compact Group of Galaxies",
+      "GrG > CGG"
+    ],
+    [
+      "CGb",
+      "ComGlob",
+      "Cometary Globule / Pillar",
+      "ISM > Cld > CGb"
+    ],
+    [
+      "CV*",
+      "CataclyV*",
+      "Cataclysmic Binary",
+      "* > ** > CV*"
+    ],
+    [
+      "CV?",
+      "CataclyV*_Candidate",
+      "Cataclysmic Binary Candidate",
+      "* > ** > CV*"
+    ],
+    [
+      "Ce*",
+      "Cepheid",
+      "Cepheid Variable",
+      "* > Ev* > Ce*"
+    ],
+    [
+      "Ce?",
+      "Cepheid_Candidate",
+      "Cepheid Variable Candidate",
+      "* > Ev* > Ce*"
+    ],
+    [
+      "Cl*",
+      "Cluster*",
+      "Cluster of Stars",
+      "Cl*"
+    ],
+    [
+      "Cl?",
+      "Cluster*_Candidate",
+      "Cluster of Stars Candidate",
+      "Cl*"
+    ],
+    [
+      "ClG",
+      "ClG",
+      "Cluster of Galaxies",
+      "ClG"
+    ],
+    [
+      "Cld",
+      "Cloud",
+      "Cloud",
+      "ISM > Cld"
+    ],
+    [
+      "DNe",
+      "DarkNeb",
+      "Dark Cloud (nebula)",
+      "ISM > Cld > DNe"
+    ],
+    [
+      "EB*",
+      "EclBin",
+      "Eclipsing Binary",
+      "* > ** > EB*"
+    ],
+    [
+      "EB?",
+      "EclBin_Candidate",
+      "Eclipsing Binary Candidate",
+      "* > ** > EB*"
+    ],
+    [
+      "El*",
+      "EllipVar",
+      "Ellipsoidal Variable",
+      "* > ** > El*"
+    ],
+    [
+      "El?",
+      "EllipVar_Candidate",
+      "Ellipsoidal Variable Candidate",
+      "* > ** > El*"
+    ],
+    [
+      "Em*",
+      "EmLine*",
+      "Emission-line Star",
+      "* > Em*"
+    ],
+    [
+      "EmG",
+      "EmissionG",
+      "Emission-line galaxy",
+      "G > EmG"
+    ],
+    [
+      "EmO",
+      "EmObj",
+      "Emission Object",
+      "Opt > EmO"
+    ],
+    [
+      "Er*",
+      "Eruptive*",
+      "Eruptive Variable",
+      "* > V* > Er*"
+    ],
+    [
+      "Er?",
+      "Eruptive*_Candidate",
+      "Eruptive Variable Candidate",
+      "* > V* > Er*"
+    ],
+    [
+      "Ev*",
+      "Evolved*",
+      "Evolved Star",
+      "* > Ev*"
+    ],
+    [
+      "Ev?",
+      "Evolved*_Candidate",
+      "Evolved Star Candidate",
+      "* > Ev*"
+    ],
+    [
+      "FIR",
+      "FarIR",
+      "Far-IR source (λ >= 30 µm)",
+      "IR > FIR"
+    ],
+    [
+      "G",
+      "Galaxy",
+      "Galaxy",
+      "G"
+    ],
+    [
+      "G?",
+      "Galaxy_Candidate",
+      "Galaxy Candidate",
+      "G"
+    ],
+    [
+      "GNe",
+      "GalNeb",
+      "Nebula",
+      "ISM > Cld > GNe"
+    ],
+    [
+      "GWE",
+      "GravWaveEvent",
+      "Gravitational Wave Event",
+      "grv > GWE"
+    ],
+    [
+      "GiC",
+      "GtowardsCl",
+      "Galaxy towards a Cluster of Galaxies",
+      "G > GiC"
+    ],
+    [
+      "GiG",
+      "GtowardsGroup",
+      "Galaxy towards a Group of Galaxies",
+      "G > GiG"
+    ],
+    [
+      "GiP",
+      "GinPair",
+      "Galaxy in Pair of Galaxies",
+      "G > GiP"
+    ],
+    [
+      "Gl?",
+      "GlobCluster_Candidate",
+      "Globular Cluster Candidate",
+      "Cl* > GlC"
+    ],
+    [
+      "GlC",
+      "GlobCluster",
+      "Globular Cluster",
+      "Cl* > GlC"
+    ],
+    [
+      "Gr?",
+      "GroupG_Candidate",
+      "Group of Galaxies Candidate",
+      "GrG"
+    ],
+    [
+      "GrG",
+      "GroupG",
+      "Group of Galaxies",
+      "GrG"
+    ],
+    [
+      "H2G",
+      "HIIG",
+      "HII Galaxy",
+      "G > H2G"
+    ],
+    [
+      "HB*",
+      "HorBranch*",
+      "Horizontal Branch Star",
+      "* > Ev* > HB*"
+    ],
+    [
+      "HB?",
+      "HorBranch*_Candidate",
+      "Horizontal Branch Star Candidate",
+      "* > Ev* > HB*"
+    ],
+    [
+      "HH",
+      "HerbigHaroObj",
+      "Herbig-Haro Object",
+      "* > Y*O > out > HH"
+    ],
+    [
+      "HI",
+      "HI",
+      "HI (21cm) Source",
+      "Rad > HI"
+    ],
+    [
+      "HII",
+      "HIIReg",
+      "HII Region",
+      "ISM > HII"
+    ],
+    [
+      "HS*",
+      "HotSubdwarf",
+      "Hot Subdwarf",
+      "* > Ev* > HS*"
+    ],
+    [
+      "HS?",
+      "HotSubdwarf_Candidate",
+      "Hot Subdwarf Candidate",
+      "* > Ev* > HS*"
+    ],
+    [
+      "HV*",
+      "HighVel*",
+      "High Velocity Star",
+      "* > HV*"
+    ],
+    [
+      "HVC",
+      "HVCld",
+      "High-velocity Cloud",
+      "ISM > Cld > HVC"
+    ],
+    [
+      "HX?",
+      "HighMassXBin_Candidate",
+      "High Mass X-ray Binary Candidate",
+      "* > ** > XB* > HXB"
+    ],
+    [
+      "HXB",
+      "HighMassXBin",
+      "High Mass X-ray Binary",
+      "* > ** > XB* > HXB"
+    ],
+    [
+      "IG",
+      "InteractingG",
+      "Interacting Galaxies",
+      "IG"
+    ],
+    [
+      "IR",
+      "Infrared",
+      "Infra-Red Source",
+      "IR"
+    ],
+    [
+      "ISM",
+      "ISM",
+      "Interstellar Medium Object",
+      "ISM"
+    ],
+    [
+      "Ir*",
+      "IrregularV*",
+      "Irregular Variable",
+      "* > V* > Ir*"
+    ],
+    [
+      "LI?",
+      "LensedImage_Candidate",
+      "Gravitationally Lensed Image Candidate",
+      "grv > gLS > LeI"
+    ],
+    [
+      "LIN",
+      "LINER",
+      "LINER-type Active Galaxy Nucleus",
+      "G > AGN > LIN"
+    ],
+    [
+      "LM*",
+      "Low-Mass*",
+      "Low-mass Star",
+      "* > LM*"
+    ],
+    [
+      "LM?",
+      "Low-Mass*_Candidate",
+      "Low-mass Star Candidate",
+      "* > LM*"
+    ],
+    [
+      "LP*",
+      "LongPeriodV*",
+      "Long-Period Variable",
+      "* > Ev* > LP*"
+    ],
+    [
+      "LP?",
+      "LongPeriodV*_Candidate",
+      "Long-Period Variable Candidate",
+      "* > Ev* > LP*"
+    ],
+    [
+      "LS?",
+      "GravLensSystem_Candidate",
+      "Gravitational Lens System (lens+images) Candidate",
+      "grv > gLS"
+    ],
+    [
+      "LSB",
+      "LowSurfBrghtG",
+      "Low Surface Brightness Galaxy",
+      "G > LSB"
+    ],
+    [
+      "LX?",
+      "LowMassXBin_Candidate",
+      "Low Mass X-ray Binary Candidate",
+      "* > ** > XB* > LXB"
+    ],
+    [
+      "LXB",
+      "LowMassXBin",
+      "Low Mass X-ray Binary",
+      "* > ** > XB* > LXB"
+    ],
+    [
+      "Le?",
+      "GravLens_Candidate",
+      "Gravitational Lens Candidate",
+      "grv > gLS > gLe"
+    ],
+    [
+      "LeG",
+      "LensedG",
+      "Gravitationally Lensed Image of a Galaxy",
+      "grv > gLS > LeI > LeG"
+    ],
+    [
+      "LeI",
+      "LensedImage",
+      "Gravitationally Lensed Image",
+      "grv > gLS > LeI"
+    ],
+    [
+      "LeQ",
+      "LensedQ",
+      "Gravitationally Lensed Image of a Quasar",
+      "grv > gLS > LeI > LeQ"
+    ],
+    [
+      "Lev",
+      "LensingEv",
+      "(Micro)Lensing Event",
+      "grv > Lev"
+    ],
+    [
+      "MGr",
+      "MouvGroup",
+      "Moving Group",
+      "As* > MGr"
+    ],
+    [
+      "MIR",
+      "MidIR",
+      "Mid-IR Source (3 to 30 µm)",
+      "IR > MIR"
+    ],
+    [
+      "MS*",
+      "MainSequence*",
+      "Main Sequence Star",
+      "* > MS*"
+    ],
+    [
+      "MS?",
+      "MainSequence*_Candidate",
+      "Main Sequence Star Candidate",
+      "* > MS*"
+    ],
+    [
+      "Ma*",
+      "Massiv*",
+      "Massive Star",
+      "* > Ma*"
+    ],
+    [
+      "Ma?",
+      "Massiv*_Candidate",
+      "Massive Star Candidate",
+      "* > Ma*"
+    ],
+    [
+      "Mas",
+      "Maser",
+      "Maser",
+      "Rad > Mas"
+    ],
+    [
+      "Mi*",
+      "Mira",
+      "Mira Variable",
+      "* > Ev* > AB* > Mi*"
+    ],
+    [
+      "Mi?",
+      "Mira_Candidate",
+      "Mira Variable Candidate",
+      "* > Ev* > AB* > Mi*"
+    ],
+    [
+      "MoC",
+      "MolCld",
+      "Molecular Cloud",
+      "ISM > Cld > MoC"
+    ],
+    [
+      "N*",
+      "Neutron*",
+      "Neutron Star",
+      "* > Ma* > N*"
+    ],
+    [
+      "N*?",
+      "Neutron*_Candidate",
+      "Neutron Star Candidate",
+      "* > Ma* > N*"
+    ],
+    [
+      "NIR",
+      "NearIR",
+      "Near-IR Source (λ < 3 µm)",
+      "IR > NIR"
+    ],
+    [
+      "No*",
+      "Nova",
+      "Classical Nova",
+      "* > ** > CV* > No*"
+    ],
+    [
+      "No?",
+      "Nova_Candidate",
+      "Classical Nova Candidate",
+      "* > ** > CV* > No*"
+    ],
+    [
+      "OH*",
+      "OH/IR*",
+      "OH/IR Star",
+      "* > Ev* > OH*"
+    ],
+    [
+      "OH?",
+      "OH/IR*_Candidate",
+      "OH/IR Star Candidate",
+      "* > Ev* > OH*"
+    ],
+    [
+      "OpC",
+      "OpenCluster",
+      "Open Cluster",
+      "Cl* > OpC"
+    ],
+    [
+      "Opt",
+      "Optical",
+      "Optical Source",
+      "Opt"
+    ],
+    [
+      "Or*",
+      "OrionV*",
+      "Orion Variable",
+      "* > Y*O > Or*"
+    ],
+    [
+      "PCG",
+      "protoClG",
+      "Proto Cluster of Galaxies",
+      "PCG"
+    ],
+    [
+      "PCG?",
+      "protoClG_Candidate",
+      "Proto Cluster of Galaxies Candidate",
+      "PCG"
+    ],
+    [
+      "PM*",
+      "HighPM*",
+      "High Proper Motion Star",
+      "* > PM*"
+    ],
+    [
+      "PN",
+      "PlanetaryNeb",
+      "Planetary Nebula",
+      "* > Ev* > PN"
+    ],
+    [
+      "PN?",
+      "PlanetaryNeb_Candidate",
+      "Planetary Nebula Candidate",
+      "* > Ev* > PN"
+    ],
+    [
+      "PaG",
+      "PairG",
+      "Pair of Galaxies",
+      "PaG"
+    ],
+    [
+      "Pe*",
+      "ChemPec*",
+      "Chemically Peculiar Star",
+      "* > Pe*"
+    ],
+    [
+      "Pe?",
+      "ChemPec*_Candidate",
+      "Chemically Peculiar Star Candidate",
+      "* > Pe*"
+    ],
+    [
+      "Pl",
+      "Planet",
+      "Extra-solar Planet",
+      "* > Pl"
+    ],
+    [
+      "Pl?",
+      "Planet_Candidate",
+      "Extra-solar Planet Candidate",
+      "* > Pl"
+    ],
+    [
+      "PoC",
+      "PartofCloud",
+      "Part of Cloud",
+      "PoC"
+    ],
+    [
+      "PoG",
+      "PartofG",
+      "Part of a Galaxy",
+      "PoG"
+    ],
+    [
+      "Psr",
+      "Pulsar",
+      "Pulsar",
+      "* > Ma* > N* > Psr"
+    ],
+    [
+      "Pu*",
+      "PulsV*",
+      "Pulsating Variable",
+      "* > V* > Pu*"
+    ],
+    [
+      "Pu?",
+      "PulsV*_Candidate",
+      "Pulsating Variable Candidate",
+      "* > V* > Pu*"
+    ],
+    [
+      "Q?",
+      "QSO_Candidate",
+      "Quasar Candidate",
+      "G > AGN > QSO"
+    ],
+    [
+      "QSO",
+      "QSO",
+      "Quasar",
+      "G > AGN > QSO"
+    ],
+    [
+      "RB?",
+      "RGB*_Candidate",
+      "Red Giant Branch star Candidate",
+      "* > Ev* > RG*"
+    ],
+    [
+      "RC*",
+      "RCrBV*",
+      "R CrB Variable",
+      "* > Pe* > RC*"
+    ],
+    [
+      "RC?",
+      "RCrBV*_Candidate",
+      "R CrB Variable Candidate",
+      "* > Pe* > RC*"
+    ],
+    [
+      "RG*",
+      "RGB*",
+      "Red Giant Branch star",
+      "* > Ev* > RG*"
+    ],
+    [
+      "RNe",
+      "RefNeb",
+      "Reflection Nebula",
+      "ISM > Cld > GNe > RNe"
+    ],
+    [
+      "RR*",
+      "RRLyrae",
+      "RR Lyrae Variable",
+      "* > Ev* > HB* > RR*"
+    ],
+    [
+      "RR?",
+      "RRLyrae_Candidate",
+      "RR Lyrae Variable Candidate",
+      "* > Ev* > HB* > RR*"
+    ],
+    [
+      "RS*",
+      "RSCVnV*",
+      "RS CVn Variable",
+      "* > ** > RS*"
+    ],
+    [
+      "RS?",
+      "RSCVnV*_Candidate",
+      "RS CVn Variable Candidate",
+      "* > ** > RS*"
+    ],
+    [
+      "RV*",
+      "RVTauV*",
+      "RV Tauri Variable",
+      "* > Ev* > RV*"
+    ],
+    [
+      "RV?",
+      "RVTauV*_Candidate",
+      "RV Tauri Variable Candidate",
+      "* > Ev* > RV*"
+    ],
+    [
+      "Rad",
+      "Radio",
+      "Radio Source",
+      "Rad"
+    ],
+    [
+      "Ro*",
+      "RotV*",
+      "Rotating Variable",
+      "* > V* > Ro*"
+    ],
+    [
+      "Ro?",
+      "RotV*_Candidate",
+      "Rotating Variable Candidate",
+      "* > V* > Ro*"
+    ],
+    [
+      "S*",
+      "S*",
+      "S Star",
+      "* > Ev* > S*"
+    ],
+    [
+      "S*?",
+      "S*_Candidate",
+      "S Star Candidate",
+      "* > Ev* > S*"
+    ],
+    [
+      "SB*",
+      "SB*",
+      "Spectroscopic Binary",
+      "* > ** > SB*"
+    ],
+    [
+      "SB?",
+      "SB*_Candidate",
+      "Spectroscopic Binary Candidate",
+      "* > ** > SB*"
+    ],
+    [
+      "SBG",
+      "StarburstG",
+      "Starburst Galaxy",
+      "G > SBG"
+    ],
+    [
+      "SC?",
+      "SuperClG_Candidate",
+      "Supercluster of Galaxies Candidate",
+      "SCG"
+    ],
+    [
+      "SCG",
+      "SuperClG",
+      "Supercluster of Galaxies",
+      "SCG"
+    ],
+    [
+      "SFR",
+      "StarFormingReg",
+      "Star Forming Region",
+      "ISM > SFR"
+    ],
+    [
+      "SN*",
+      "Supernova",
+      "SuperNova",
+      "* > SN*"
+    ],
+    [
+      "SN?",
+      "Supernova_Candidate",
+      "SuperNova Candidate",
+      "* > SN*"
+    ],
+    [
+      "SNR",
+      "SNRemnant",
+      "SuperNova Remnant",
+      "ISM > SNR"
+    ],
+    [
+      "SR?",
+      "SNRemnant_Candidate",
+      "SuperNova Remnant Candidate",
+      "ISM > SNR"
+    ],
+    [
+      "SX*",
+      "SXPheV*",
+      "SX Phe Variable",
+      "* > MS* > BS* > SX*"
+    ],
+    [
+      "St*",
+      "Stream",
+      "Stellar Stream",
+      "As* > St*"
+    ],
+    [
+      "Sy*",
+      "Symbiotic*",
+      "Symbiotic Star",
+      "* > ** > Sy*"
+    ],
+    [
+      "Sy1",
+      "Seyfert1",
+      "Seyfert 1 Galaxy",
+      "G > AGN > SyG > Sy1"
+    ],
+    [
+      "Sy2",
+      "Seyfert2",
+      "Seyfert 2 Galaxy",
+      "G > AGN > SyG > Sy2"
+    ],
+    [
+      "Sy?",
+      "Symbiotic*_Candidate",
+      "Symbiotic Star Candidate",
+      "* > ** > Sy*"
+    ],
+    [
+      "SyG",
+      "Seyfert",
+      "Seyfert Galaxy",
+      "G > AGN > SyG"
+    ],
+    [
+      "TT*",
+      "TTauri*",
+      "T Tauri Star",
+      "* > Y*O > TT*"
+    ],
+    [
+      "TT?",
+      "TTauri*_Candidate",
+      "T Tauri Star Candidate",
+      "* > Y*O > TT*"
+    ],
+    [
+      "ULX",
+      "ULX",
+      "Ultra-luminous X-ray Source",
+      "X > ULX"
+    ],
+    [
+      "UV",
+      "UV",
+      "UV-emission Source",
+      "UV"
+    ],
+    [
+      "UX?",
+      "ULX_Candidate",
+      "Ultra-luminous X-ray Source Candidate",
+      "X > ULX"
+    ],
+    [
+      "V*",
+      "Variable*",
+      "Variable Star",
+      "* > V*"
+    ],
+    [
+      "V*?",
+      "Variable*_Candidate",
+      "Variable Star Candidate",
+      "* > V*"
+    ],
+    [
+      "WD*",
+      "WhiteDwarf",
+      "White Dwarf",
+      "* > Ev* > WD*"
+    ],
+    [
+      "WD?",
+      "WhiteDwarf_Candidate",
+      "White Dwarf Candidate",
+      "* > Ev* > WD*"
+    ],
+    [
+      "WR*",
+      "WolfRayet*",
+      "Wolf-Rayet",
+      "* > Ma* > sg* > s*b > WR*"
+    ],
+    [
+      "WR?",
+      "WolfRayet*_Candidate",
+      "Wolf-Rayet Candidate",
+      "* > Ma* > sg* > s*b > WR*"
+    ],
+    [
+      "WV*",
+      "Type2Cep",
+      "Type II Cepheid Variable",
+      "* > Ev* > WV*"
+    ],
+    [
+      "WV?",
+      "Type2Cep_Candidate",
+      "Type II Cepheid Variable Candidate",
+      "* > Ev* > WV*"
+    ],
+    [
+      "X",
+      "X",
+      "X-ray Source",
+      "X"
+    ],
+    [
+      "XB*",
+      "XrayBin",
+      "X-ray Binary",
+      "* > ** > XB*"
+    ],
+    [
+      "XB?",
+      "XrayBin_Candidate",
+      "X-ray Binary Candidate",
+      "* > ** > XB*"
+    ],
+    [
+      "Y*?",
+      "YSO_Candidate",
+      "Young Stellar Object Candidate",
+      "* > Y*O"
+    ],
+    [
+      "Y*O",
+      "YSO",
+      "Young Stellar Object",
+      "* > Y*O"
+    ],
+    [
+      "a2*",
+      "alf2CVnV*",
+      "alpha2 CVn Variable",
+      "* > Pe* > a2*"
+    ],
+    [
+      "a2?",
+      "alf2CVnV*_Candidate",
+      "alpha2 CVn Variable Candidate",
+      "* > Pe* > a2*"
+    ],
+    [
+      "bC*",
+      "bCepV*",
+      "beta Cep Variable",
+      "* > Ma* > bC*"
+    ],
+    [
+      "bC?",
+      "bCepV*_Candidate",
+      "beta Cep Variable Candidate",
+      "* > Ma* > bC*"
+    ],
+    [
+      "bCG",
+      "BlueCompactG",
+      "Blue Compact Galaxy",
+      "G > bCG"
+    ],
+    [
+      "blu",
+      "blue",
+      "Blue Object",
+      "Opt > blu"
+    ],
+    [
+      "bub",
+      "Bubble",
+      "Bubble",
+      "ISM > bub"
+    ],
+    [
+      "cC*",
+      "ClassicalCep",
+      "Classical Cepheid Variable",
+      "* > Ev* > Ce* > cC*"
+    ],
+    [
+      "cm",
+      "cmRad",
+      "Centimetric Radio Source",
+      "Rad > cm"
+    ],
+    [
+      "cor",
+      "denseCore",
+      "Dense Core",
+      "ISM > cor"
+    ],
+    [
+      "dS*",
+      "delSctV*",
+      "delta Sct Variable",
+      "* > MS* > dS*"
+    ],
+    [
+      "err",
+      "Inexistent",
+      "Not an Object (Error, Artefact, ...)",
+      "err"
+    ],
+    [
+      "ev",
+      "Transient",
+      "Transient Event",
+      "ev"
+    ],
+    [
+      "flt",
+      "Filament",
+      "Interstellar Filament",
+      "ISM > flt"
+    ],
+    [
+      "gB",
+      "gammaBurst",
+      "Gamma-ray Burst",
+      "gam > gB"
+    ],
+    [
+      "gD*",
+      "gammaDorV*",
+      "gamma Dor Variable",
+      "* > MS* > gD*"
+    ],
+    [
+      "gLS",
+      "GravLensSystem",
+      "Gravitational Lens System (lens+images)",
+      "grv > gLS"
+    ],
+    [
+      "gLe",
+      "GravLens",
+      "Gravitational Lens",
+      "grv > gLS > gLe"
+    ],
+    [
+      "gam",
+      "gamma",
+      "Gamma-ray Source",
+      "gam"
+    ],
+    [
+      "glb",
+      "Globule",
+      "Globule (low-mass dark cloud)",
+      "ISM > Cld > glb"
+    ],
+    [
+      "grv",
+      "Gravitation",
+      "Gravitational Source",
+      "grv"
+    ],
+    [
+      "mR",
+      "metricRad",
+      "Metric Radio Source",
+      "Rad > mR"
+    ],
+    [
+      "mm",
+      "mmRad",
+      "Millimetric Radio Source",
+      "Rad > mm"
+    ],
+    [
+      "mul",
+      "Blend",
+      "Composite Object, Blend",
+      "mul"
+    ],
+    [
+      "of?",
+      "Outflow_Candidate",
+      "Outflow Candidate",
+      "* > Y*O > out"
+    ],
+    [
+      "out",
+      "Outflow",
+      "Outflow",
+      "* > Y*O > out"
+    ],
+    [
+      "pA*",
+      "post-AGB*",
+      "Post-AGB Star",
+      "* > Ev* > pA*"
+    ],
+    [
+      "pA?",
+      "post-AGB*_Candidate",
+      "Post-AGB Star Candidate",
+      "* > Ev* > pA*"
+    ],
+    [
+      "rB",
+      "radioBurst",
+      "Radio Burst",
+      "Rad > rB"
+    ],
+    [
+      "rG",
+      "RadioG",
+      "Radio Galaxy",
+      "G > AGN > rG"
+    ],
+    [
+      "reg",
+      "Region",
+      "Region defined in the Sky",
+      "reg"
+    ],
+    [
+      "s*b",
+      "BlueSG",
+      "Blue Supergiant",
+      "* > Ma* > sg* > s*b"
+    ],
+    [
+      "s*r",
+      "RedSG",
+      "Red Supergiant",
+      "* > Ma* > sg* > s*r"
+    ],
+    [
+      "s*y",
+      "YellowSG",
+      "Yellow Supergiant",
+      "* > Ma* > sg* > s*y"
+    ],
+    [
+      "s?b",
+      "BlueSG_Candidate",
+      "Blue Supergiant Candidate",
+      "* > Ma* > sg* > s*b"
+    ],
+    [
+      "s?r",
+      "RedSG_Candidate",
+      "Red Supergiant Candidate",
+      "* > Ma* > sg* > s*r"
+    ],
+    [
+      "s?y",
+      "YellowSG_Candidate",
+      "Yellow Supergiant Candidate",
+      "* > Ma* > sg* > s*y"
+    ],
+    [
+      "sg*",
+      "Supergiant",
+      "Evolved Supergiant",
+      "* > Ma* > sg*"
+    ],
+    [
+      "sg?",
+      "Supergiant_Candidate",
+      "Evolved Supergiant Candidate",
+      "* > Ma* > sg*"
+    ],
+    [
+      "sh",
+      "HIshell",
+      "Interstellar Shell",
+      "ISM > sh"
+    ],
+    [
+      "smm",
+      "smmRad",
+      "Sub-Millimetric Source",
+      "Rad > smm"
+    ],
+    [
+      "var",
+      "Variable",
+      "Variable source",
+      null
+    ],
+    [
+      "vid",
+      "Void",
+      "Underdense Region of the Universe",
+      "vid"
+    ]
+  ],
+  "presentationLabels": {
+    "G": "Galaxy",
+    "G?": "Galaxy candidate",
+    "rG": "Radio galaxy",
+    "SBG": "Starburst galaxy",
+    "EmG": "Emission-line galaxy",
+    "H2G": "H II galaxy",
+    "LSB": "Low surface brightness galaxy",
+    "bCG": "Blue compact galaxy",
+    "AGN": "Active galactic nucleus",
+    "AG?": "Active galactic nucleus candidate",
+    "Bla": "Blazar",
+    "BLL": "BL Lac object",
+    "QSO": "Quasar",
+    "Sy1": "Seyfert 1 galaxy",
+    "Sy2": "Seyfert 2 galaxy",
+    "LIN": "LINER galaxy nucleus",
+    "SyG": "Seyfert galaxy",
+    "GiG": "Galaxy in a group",
+    "GiP": "Galaxy in a pair",
+    "GiC": "Galaxy in a cluster",
+    "ClG": "Galaxy cluster",
+    "GrG": "Galaxy group",
+    "IG": "Interacting galaxies",
+    "PN": "Planetary nebula",
+    "PNc": "Planetary nebula candidate",
+    "HII": "H II region",
+    "SNR": "Supernova remnant",
+    "RNe": "Reflection nebula",
+    "DNe": "Dark nebula",
+    "MoC": "Molecular cloud",
+    "ISM": "Interstellar matter",
+    "Neb": "Nebula",
+    "GlC": "Globular cluster",
+    "OpC": "Open cluster",
+    "Cl*": "Star cluster",
+    "*": "Star",
+    "**": "Double or multiple star",
+    "C*": "Carbon star",
+    "WR*": "Wolf-Rayet star",
+    "V*": "Variable star",
+    "Em*": "Emission-line star",
+    "Be*": "Be star",
+    "s*r": "Red supergiant"
+  }
+}
