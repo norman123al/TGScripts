@@ -5,10 +5,10 @@
         TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.9.6:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="43e27e0179fe3c845d21c6dd0f91e86af32adcf2" type="script" releaseDate="20261114">
+   <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="3e58082dbe25c43b93132288ffb7825a3f986508" type="script" releaseDate="20261115">
          <title>
-            TGScripts - Astro Bucket List 0.39.0
+            TGScripts - Astro Bucket List 0.45.0
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,25 +36,25 @@
          </remove>
          <description>
             <p>
-               Image processing, imaging-target planning and subframe review tools for PixInsight. This package requires PixInsight 1.9.6 or later.
+               Astro Bucket List 0.45.0 adds local catalog lookup, richer interactive finder charts and observing-window planning. Requires PixInsight 1.9.6 Lockhart build 1718 or later.
             </p>
             <p>
-               Astro Bucket List 0.39.0 improves object editing, list management and Stellarium integration.
+               Look up targets in configured local catalogs and use bundled nebula outlines. SIMBAD remains available for missing objects and richer information, while manually edited metadata is preserved.
             </p>
             <p>
-               Object types support predefined and custom classifications, plus re-evaluation using catalog information, descriptions and comments. SIMBAD lookups request full type descriptions, and 226 bundled definitions make saved abbreviations readable offline. Manual classifications and candidate status are preserved.
+               Finder charts use the native chart engine with the Observing Atlas style and SVG/PDF export. Automatic projection, Milky Way shading and adjustable star density, size and color provide more control over chart appearance.
             </p>
             <p>
-               The object editor includes an imaging date selector, a &quot;Use catalog identifier&quot; action for Display name, and compact RA/Dec fields with manual sexagesimal entry. Unchanged coordinates retain their original precision.
+               Inspect, select, edit or add objects from the chart; zoom, pan and navigate with Center selection, Back, Forward and Home. Save table views and named chart presets. Unified Configuration brings chart settings, details, catalogs and outlines together, with persistent preferences and consistent Apply/Cancel behavior.
             </p>
             <p>
-               List memberships can be edited directly, including membership in multiple lists. Adding from &quot;All objects&quot; requires an explicit destination choice. &quot;Selected only&quot; filters the table to checked objects.
+               Plan the filtered targets for an observing site, evening date and fixed UTC offset. Compare altitude, darkness and optional Moon-separation limits, rank usable observing time and inspect target, Sun and Moon altitude curves. Calculations use local ephemerides, remain responsive and keep site preferences local.
             </p>
             <p>
-               New Stellarium labels omit the unwanted &quot;marker&quot; suffix. Existing labels can be edited or repaired without losing catalog identity or duplicate detection. Find ignores hidden marker suffixes, and the optional coordinate-marker behavior is explained in the updated documentation.
+               Layout refinements keep collapsible sections from resizing the window, make controls more compact and replace intrusive chart tooltips with concise status hints. Deprecated ByteArray access has been replaced. Updated documentation and a shorter README cover the current features.
             </p>
             <p>
-               Astro Bucket List and Subframe Quality Review signatures have been updated for PixInsight 1.9.6 Lockhart Build 1718.
+               SIMBAD-derived object-type data now includes separate ODbL licensing, attribution and a reusable data copy. SIMBAD and DSS downloads use HTTPS and stricter size, content and decoding checks; DSS cache reuse verifies a SHA-256 digest.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -63,4 +63,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-14T22:07:46.527Z" encoding="Base64">tCjSMMixYQEC1SSh3Tj+kcZl+9EWJHSlAQy/34jOjADOWB7K7KtuW+VVCdvFHG5MDyKuq3fQhQrchE3yWQwFDg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-15T22:00:09.331Z" encoding="Base64">Nhw6rAwDHRvpL0xLEHL8UYsMUXcbUfAFomTEKbrBEAUnKBdBfRqB4nR/DR1/avH9xjeFqfBEmfTo7aF5SGquCg==</Signature>

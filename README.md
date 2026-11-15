@@ -37,7 +37,7 @@ To try a newly added script before the next updater release, download or clone t
 
 ### Requirements
 
-- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**; **Subframe Quality Review requires 1.9.6 or later with ImageAnalysis installed**.
+- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**; **Subframe Quality Review requires 1.9.6 or later with ImageAnalysis installed**; **Astro Bucket List requires 1.9.6 build 1718 or later**.
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
@@ -61,7 +61,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [TG Field Mosaic](#tg-field-mosaic) | 2.3.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;11&#8209;10 |
 | Compare corners | [TG Corner Mosaic](#tg-corner-mosaic) | 2.3.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;11&#8209;10 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.39.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;14 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.45.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;15 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [TG Hue Range Mask](#tg-hue-range-mask) | 2.3.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;11&#8209;10 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -116,9 +116,9 @@ Combines the **four image corners and an optional center crop** into one inspect
 
 ### Astro Bucket List
 
-**Version:** 0.39.0 · **Last update:** 2026-11-14
+**Version:** 0.45.0 · **Last update:** 2026-11-15
 
-Plans imaging targets with **Stellarium-compatible observing lists**, constellation and month filters, flexible sorting, and broadband/narrowband classification. Imports a chosen source list into a named destination with collection-wide duplicate matching. Offers editable object types with common choices and custom labels retained during catalog updates. Keeps collection objects independently of logical lists, tracks imaging status and notes, merges collections, and exports selected targets. Deleting a list retains its objects; the separate Delete object action requires confirmation. Includes SIMBAD lookups, customizable finder charts for individual or filtered targets, and DSS survey previews.
+Manage **Stellarium-compatible observing lists**, track imaging status and notes, and find targets with flexible filters and sorting. Look up objects in local catalogs or SIMBAD, explore interactive finder charts and DSS previews, and export charts as SVG/PDF. Plan observing windows for your site and date using altitude, darkness and Moon separation.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_docu/pidoc/AstroBucketList.pidoc)
 
@@ -136,6 +136,8 @@ Plans imaging targets with **Stellarium-compatible observing lists**, constellat
 **DSS survey — NGC 7640**
 
 ![Astro Bucket List DSS2 Red survey preview of NGC 7640](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
+
+Survey cutout from DSS2 Red, POSS-II plate A0AM, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=350.527375&d=40.84530556&e=J2000&h=13.68&w=13.68&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 </details>
 
