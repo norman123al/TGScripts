@@ -2,11 +2,11 @@
 #include "lib/TGFileProtection.js"
 #ifndef ABL_LIBRARY
 #feature-id AstroBucketList : TG Scripts > Astro Bucket List
-#feature-info Maintain astronomical imaging bucket lists with saved views; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, inspect interactive finder charts, export SVG/PDF charts, view DSS images, and retain imaging status.
+#feature-info Maintain astronomical imaging bucket lists with saved views; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, navigate interactive finder charts, save chart presets, export SVG/PDF charts, view DSS images, and retain imaging status.
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.43.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.44.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.43.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.44.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.43.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.44.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.43.0', EXT = '_astroBucketList';
+   const VERSION = '0.44.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1826,7 +1826,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.43.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.44.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1834,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.43.0"
+#define VERSION "0.44.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2199,7 +2199,7 @@ function ablChartPick(record,catalog,isStar=false){
    return {designation:name,name:String(record['Common name']||name||(isStar?'Star at '+ABL.formatRA(record.posRD.x)+' '+ABL.formatDec(record.posRD.y):'')),type,aliases,ra:record.posRD.x,dec:record.posRD.y,
       magnitude:Number.isFinite(record.magnitude)&&Math.abs(record.magnitude)<90?record.magnitude:null,size,catalog,objectId:''};
 }
-function ablChartPicks(engine,object,targets){
+function ablChartPicks(engine,object,targets,centerPick=null){
    let hits=[],frame=engine.frame,metadata=engine.metadata;
    const add=(pick,p,priority)=>{
       if(p&&p.x>=0&&p.y>=0&&p.x<=metadata.width&&p.y<=metadata.height&&(pick.designation||pick.name))
@@ -2215,8 +2215,9 @@ function ablChartPicks(engine,object,targets){
       }
    }
    // Explicit table targets take precedence over coincident context markers.
-   let explicit=targets||[{id:ABL.meta(object).objectId,designation:ABL.catalogIdentifier(object),name:ABL.meta(object).displayName||object.name||object.nameI18n,
-      ...ABL.position(object),size:ABL.angularSize(object),type:ABL.objectType(object),aliases:ABL.meta(object).aliases||[]}];
+   let explicit=targets||(centerPick?[]:[{id:ABL.meta(object).objectId,designation:ABL.catalogIdentifier(object),name:ABL.meta(object).displayName||object.name||object.nameI18n,
+      ...ABL.position(object),size:ABL.angularSize(object),type:ABL.objectType(object),aliases:ABL.meta(object).aliases||[]}]);
+   if(!targets&&centerPick)add(ABL.copy(centerPick),metadata.Convert_RD_I(new Point(centerPick.ra,centerPick.dec)),2);
    for(let t of explicit)if(ablChartTargetPosition(t)){
       let aliases=Array.from(new Set([t.designation||t.name].concat(t.aliases||[]))),keys=new Set(aliases.map(ABL.norm));
       let catalogHit=hits.find(h=>h.aliases.some(a=>keys.has(ABL.norm(a))));
@@ -2326,7 +2327,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
       layer.gprops.showLabels=details.starNames||details.starMagnitudes;layer.gprops.labelFields=['','','','','ABL star label','','',''];starLayers.push(layer);engine.layers.push(layer);
    }
    if(details.contours&&details.contourPath){if(!File.exists(details.contourPath))throw Error('The selected Stellarium outline file is unavailable. Choose another file or Use bundled in Configuration.');engine.ablOutlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));}
-   let map=engine.BuildChart(),targetMarkers=[],picks=ablChartPicks(engine,object,targets);
+   let map=engine.BuildChart(),targetMarkers=[],picks=ablChartPicks(engine,object,targets,options.centerPick);
    if(targets){map.pushState();try{map.translateTransformation(engine.frame.x0,engine.frame.y0);targetMarkers=ablDrawTableTargets(map,engine.metadata,targets,style);}finally{map.popState();}}
    let result={style:style.key,styleName:style.name,projection,projectionName:projection==='gnomonic'?'Gnomonic':'Stereographic',
       milkyWay,milkyWayAvailable,starLimit:engine.chartStarLimit,starColors:engine.starColors,starSize:details.starSize,
@@ -2409,7 +2410,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.43.0';
+const ABL_VERSION='0.44.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2801,10 +2802,10 @@ function ablLoadViewPresets(text){
       return presets;
    }catch(e){return [];}
 }
-class ABLViewNameDialog extends Dialog { constructor(parent,name){
-   super(parent);this.windowTitle='Save view preset';this.autoDefaultButton=false;
+class ABLViewNameDialog extends Dialog { constructor(parent,name,chart=false){
+   super(parent);this.windowTitle=chart?'Save chart preset':'Save view preset';this.autoDefaultButton=false;
    this.nameEdit=new Edit(this);this.nameEdit.text=name;this.nameEdit.setMinWidth(320);
-   let info=new Label(this);info.wordWrapping=true;info.text='Save Find, all filters and the three sort choices. The preset applies within the current list. Checked object identities and chart settings are not saved.';
+   let info=new Label(this);info.wordWrapping=true;info.text=chart?'Name a copy of the Finder settings shown in Configuration, including catalogs and annotations. Apply Configuration to save it. Targets, navigation history, table filters and DSS settings are excluded.':'Save Find, all filters and the three sort choices. The preset applies within the current list. Checked object identities and chart settings are not saved.';
    let save=ablButton(this,'Save',()=>{let value=this.nameEdit.text.trim();if(!value||value.length>80){parent.error(Error('Enter a preset name of 1 to 80 characters.'));return;}this.presetName=value;this.ok();});
    let cancel=ablButton(this,'Cancel',()=>this.cancel()),buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(save);buttons.add(cancel);
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;this.sizer.add(info);this.sizer.add(ablRow(this,'Name:',this.nameEdit));this.sizer.add(buttons);this.adjustToContents();
@@ -3070,7 +3071,7 @@ class ABLMonthsDialog extends Dialog { constructor(parent){
 // Preferences describe all targets. Effective framing is derived separately
 // so fitting, missing sizes and survey limits never overwrite manual widths.
 function ablLoadPreviewPreferences(text,style='modern-editorial'){
-   let defaults={sky:Object.assign({coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},ABL.chartAppearance()),dss:{coverage:30,fitObjectSize:true}},saved;
+   let defaults={sky:Object.assign({coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},ABL.chartAppearance()),dss:{coverage:30,fitObjectSize:true},details:ablChartDetailSettings()},saved;
    try{saved=JSON.parse(text);}catch(e){return defaults;}
    for(let key of ['sky','dss']){let value=saved?.[key],target=defaults[key];if(!value||typeof value!=='object')continue;
       if(Number.isFinite(value.coverage)&&value.coverage>=(key==='sky'?.1:5)&&value.coverage<=120)target.coverage=value.coverage;
@@ -3083,6 +3084,7 @@ function ablLoadPreviewPreferences(text,style='modern-editorial'){
          if(Number.isFinite(value.insetDegrees)&&value.insetDegrees>=.1&&value.insetDegrees<=120)target.insetDegrees=value.insetDegrees;
       }
    }
+   defaults.details=ablChartDetailSettings(saved?.details);
    return defaults;
 }
 function ablPreviewSettings(object,sky,preferences){
@@ -3094,6 +3096,50 @@ function ablPreviewSettings(object,sky,preferences){
       if(value.insetDegrees>=value.coverage)value.insetDegrees=Math.max(.1,value.coverage/2);
    }
    return value;
+}
+
+// A chart preset stores preferred settings, never a target-specific fitted
+// width or viewport. Normalize without masking catalog availability so saved
+// choices remain intact when a local catalog is temporarily unavailable.
+function ablChartDetailSettings(value){
+   let raw=value&&typeof value==='object'?value:{},details={catalogs:{},borders:raw.borders!==false,starNames:raw.starNames===true,
+      starMagnitudes:raw.starMagnitudes===true,objectDetails:raw.objectDetails===true,contours:raw.contours!==false};
+   for(let entry of ablChartCatalogs()){
+      let c=raw.catalogs?.[entry.key]||{};
+      details.catalogs[entry.key]={enabled:typeof c.enabled==='boolean'?c.enabled:['messier','ngc'].includes(entry.key),
+         labels:c.labels!==false,mode:['auto','manual','unlimited'].includes(c.mode)?c.mode:'auto',
+         magnitude:Number.isFinite(c.magnitude)&&c.magnitude>=-5&&c.magnitude<=25?c.magnitude:12};
+   }
+   return details;
+}
+function ablChartPresetState(value={}){
+   if(!value||typeof value!=='object')value={};
+   return {sky:ablLoadPreviewPreferences(JSON.stringify({sky:value.sky})).sky,details:ablChartDetailSettings(value.details),
+      contourPath:typeof value.contourPath==='string'?value.contourPath:'',outlineLevel:[0,1,2,3].includes(value.outlineLevel)?value.outlineLevel:2};
+}
+function ablLoadChartPresets(text){
+   if(typeof text!=='string'||text.length>1048576)return [];
+   try{let data=JSON.parse(text);if(!data||data.version!==1||!Array.isArray(data.presets)||data.presets.length>50)return [];
+      let names=new Set,presets=[];
+      for(let p of data.presets){
+         if(!p||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>80||!p.chart||typeof p.chart!=='object'||Array.isArray(p.chart))continue;
+         let name=p.name.trim(),key=name.toLowerCase();if(names.has(key))continue;
+         if(typeof p.chart.contourPath==='string'&&p.chart.contourPath.length>4096)continue;
+         names.add(key);presets.push({name,chart:ablChartPresetState(p.chart)});
+      }
+      return presets;
+   }catch(e){return [];}
+}
+// Strip projected screen positions from a pick. Only fixed-sky facts belong
+// in history and cache keys; the next chart projects the target afresh.
+function ablNavigationPick(hit){
+   if(!hit||!ablChartTargetPosition(hit))throw Error('Choose a chart object with valid J2000 coordinates.');
+   return {designation:hit.designation||'',name:hit.name||hit.designation||'',type:hit.type||'',ra:hit.ra,dec:hit.dec,
+      size:hit.size?ABL.copy(hit.size):null,magnitude:Number.isFinite(hit.magnitude)?hit.magnitude:null,
+      aliases:Array.isArray(hit.aliases)?hit.aliases.slice():[],catalog:hit.catalog||'',objectId:hit.objectId||''};
+}
+function ablNavigationIdentity(object,group,centerPick){
+   return group?'group:'+JSON.stringify(group):object?JSON.stringify([ABL.position(object),ABL.norm(centerPick?centerPick.designation||centerPick.name:ABL.catalogIdentifier(object))]):'';
 }
 
 // The opt-in flag and filename are independent persistent script settings.
@@ -3118,13 +3164,17 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    super(manager);this.windowTitle='Configuration — '+ABL_TITLE;this.autoDefaultButton=false;
    this.doc=ABL.newDocument();ABL.config(this.doc).constellationMonths=ABL.copy(ABL.config(manager.doc).constellationMonths);
    this.outlinePath=manager.contourPath;this.outlineState=ablContourFileState(this.outlinePath);
-   this.startupGroup=ablGroup(this,'Startup');
+   this.error=e=>manager.error(e);this.loadingChart=false;
+   this.chartPresets=ABL.copy(manager.chartPresets);this.activeChartPreset=manager.finderPage.activeChartPreset;
+   this.tabs=new TabBox(this);this.finderTab=new Control(this.tabs);this.dssTab=new Control(this.tabs);this.generalTab=new Control(this.tabs);
+   this.tabs.addPage(this.finderTab,'Finder chart');this.tabs.addPage(this.dssTab,'DSS survey image');this.tabs.addPage(this.generalTab,'General');
+   this.startupGroup=ablGroup(this.generalTab,'Startup');
    this.rememberCollection=new CheckBox(this.startupGroup);this.rememberCollection.text='Remember last opened or saved collection';this.rememberCollection.checked=manager.rememberCollection;
    this.rememberCollection.toolTip='Off by default. When enabled, successful Open, Save and Save as operations remember the collection path for normal startup. This independent preference is stored in PixInsight settings alongside the filename. It does not save unsaved object edits. Explicit process-instance paths still open their specified collection.';
    this.startupHint=new Label(this.startupGroup);this.startupHint.wordWrapping=true;this.startupHint.setFixedWidth(this.logicalPixelsToPhysical(510));
    this.startupHint.text='Off starts with an empty collection. On reopens the last opened or saved file. Turning this off clears the remembered path, leaving the current collection open.';
    this.startupGroup.sizer.add(this.rememberCollection);this.startupGroup.sizer.add(this.startupHint);
-   this.finderGroup=ablGroup(this,'Finder chart');this.dssGroup=ablGroup(this,'DSS survey image');
+   this.finderGroup=ablGroup(this.finderTab,'Appearance and coverage');this.dssGroup=ablGroup(this.dssTab,'DSS survey image');
    const optionWidth=this.logicalPixelsToPhysical(118),labelWidth=this.font.width('Survey field (arcmin):')+this.logicalPixelsToPhysical(8);
    const widthEdit=(group,label,min,value)=>{let edit=new NumericEdit(group);edit.label.text=label;edit.label.setFixedWidth(labelWidth);edit.sizer.spacing=6;edit.fixed=true;edit.autoEditWidth=false;edit.setRange(min,120);edit.setPrecision(2);edit.setValue(value);edit.edit.setFixedWidth(this.logicalPixelsToPhysical(85));return edit;};
    this.skyCoverage=widthEdit(this.finderGroup,'Sky coverage (°):',.1,manager.previewPreferences.sky.coverage);
@@ -3169,14 +3219,14 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.milkyWayHint=new Label(this.appearanceColumn);this.milkyWayHint.text=this.milkyWay.enabled?'Local MilkyWay database available':'MilkyWay database unavailable — shading omitted';this.milkyWayHint.wordWrapping=true;this.milkyWayHint.setFixedWidth(this.logicalPixelsToPhysical(285));
    for(let control of [this.milkyWay,this.milkyWayStrength,this.milkyWayHint])this.appearanceColumn.sizer.add(control);this.appearanceColumn.sizer.addSpacing(6);this.appearanceColumn.sizer.add(densityRow);this.appearanceColumn.sizer.add(this.starSize);this.appearanceColumn.sizer.add(this.starColors);this.appearanceColumn.sizer.addStretch();
    this.previewValues=()=>({sky:{projection:this.projection.values[this.projection.currentItem],milkyWay:this.milkyWay.checked,milkyWayStrength:this.milkyWayStrength.value,starColors:this.starColors.checked,starDensity:this.starDensity.values[this.starDensity.currentItem],starSize:this.starSize.value,coverage:this.skyCoverage.value,fitObjectSize:this.skyFit.checked,style:this.styleSelect.values[this.styleSelect.currentItem],labelDensity:this.labelDensity.values[this.labelDensity.currentItem],inset:this.inset.checked,insetDegrees:this.insetField.value},dss:{coverage:this.surveyField.value,fitObjectSize:this.dssFit.checked}});
-   this.coverageHint=new Label(this);this.coverageHint.wordWrapping=true;this.coverageHint.setFixedWidth(this.logicalPixelsToPhysical(510));
+   this.coverageHint=new Label(this.dssTab);this.coverageHint.wordWrapping=true;this.coverageHint.setFixedWidth(this.logicalPixelsToPhysical(510));
    this.updating=false;
    this.updateFraming=()=>{
       this.milkyWayStrength.enabled=this.milkyWay.enabled&&this.milkyWay.checked;this.skyCoverage.enabled=!this.skyFit.checked;this.surveyField.enabled=!this.dssFit.checked;this.insetField.enabled=this.inset.checked;
       let size=manager.dssPage.object?ABL.angularSize(manager.dssPage.object):null;
       this.coverageHint.text='Settings apply to all targets and are remembered between launches. With fitting enabled, the widths shown are used when object size is unknown.'+(size&&size.majorArcmin>120?' The current DSS target uses the 120′ maximum.':'');
    };
-   this.milkyWay.onCheck=this.skyFit.onCheck=this.dssFit.onCheck=this.inset.onCheck=this.updateFraming;
+   this.dssFit.onCheck=this.updateFraming;
    const pair=(left,right)=>{left.setFixedWidth(optionWidth);let row=new HorizontalSizer;row.spacing=12;row.add(left);row.add(right);row.addStretch();return row;};
    // Reserve the same checkbox and label columns on every row. Fixed-width
    // choices align with the numeric fields without expanding across the group.
@@ -3184,13 +3234,18 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    let geometry=new VerticalSizer;geometry.spacing=6;geometry.add(pair(this.skyFit,this.skyCoverage));geometry.add(pair(this.inset,this.insetField));geometry.add(choiceRow('Projection:',this.projection));geometry.addStretch();geometry.add(choiceRow('Chart style:',this.styleSelect));geometry.add(choiceRow('Label density:',this.labelDensity));
    let finderColumns=new HorizontalSizer;finderColumns.spacing=24;finderColumns.add(geometry);finderColumns.add(this.appearanceColumn);finderColumns.addStretch();this.finderGroup.sizer.add(finderColumns);
    this.dssGroup.sizer.add(pair(this.dssFit,this.surveyField));this.updateFraming();
-   this.outlineGroup=ablGroup(this,'Nebula outlines');this.outlineLabel=new Label(this.outlineGroup);this.outlineLabel.text='Outline source:';
+   this.outlineGroup=ablGroup(this.finderTab,'Nebula outlines');this.outlineLabel=new Label(this.outlineGroup);this.outlineLabel.text='Outline source:';
    this.outlineLevel=new ComboBox(this.outlineGroup);for(let name of NebulaOutlines.levelNames)this.outlineLevel.addItem(name);this.outlineLevel.currentItem=manager.outlineLevel;
+   this.outlineLevel.adjustToContents();this.outlineLevel.setFixedWidth();
    this.outlineLevel.toolTip='Brightness level of bundled nebula outlines. If unavailable for a nebula, PixInsight uses the nearest available level. Custom Stellarium files provide their own contours.';
    this.outlineStatus=new Label(this.outlineGroup);this.outlineStatus.wordWrapping=true;this.outlineStatus.setFixedWidth(this.logicalPixelsToPhysical(480));
    this.setOutlinePath=path=>{
       let state=ablContourFileState(path);if(path&&state.status!=='loaded')throw Error(state.error);
+      let wasAvailable=ablContoursAvailable(this.outlineState);
       this.outlinePath=path;this.outlineState=state;this.updateOutlineStatus();
+      if(this.detailsEditor){let available=ablContoursAvailable(state);this.detailsEditor.contours.enabled=available;
+         if(!available)this.detailsEditor.contours.checked=false;else if(!wasAvailable)this.detailsEditor.contours.checked=true;}
+      this.syncChartPreset();
    };
    this.chooseOutline=ablButton(this.outlineGroup,'Choose file…',()=>{try{
       let d=new OpenFileDialog;d.caption='Choose Stellarium outline file';d.filters=[['Stellarium / SkyChart outlines','*.dat'],['All files','*']];if(manager.executeDialog(d))this.setOutlinePath(d.filePath);
@@ -3201,19 +3256,89 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
       this.outlineStatus.toolTip=this.outlinePath?'Custom Stellarium outline file (usually outlines.dat), also compatible with SkyChart.\n'+this.outlinePath:'Uses the OpenNGC and Nebula-Outlines databases configured in PixInsight. No download or separate outline file is required.';
       if(state.error)this.outlineStatus.toolTip+='\n'+state.error;this.clearOutline.enabled=!!this.outlinePath;this.outlineLevel.enabled=state.status==='bundled';
    };
-   let outlineRow=new HorizontalSizer;outlineRow.spacing=8;outlineRow.add(this.outlineLabel);outlineRow.add(this.chooseOutline);outlineRow.add(this.clearOutline);outlineRow.addStretch();this.outlineGroup.sizer.add(outlineRow);this.outlineGroup.sizer.add(this.outlineStatus);this.outlineGroup.sizer.add(ablRow(this.outlineGroup,'Brightness level:',this.outlineLevel));this.updateOutlineStatus();
-   this.monthsButton=ablButton(this,'Constellation months…',()=>{let d=new ABLMonthsDialog(this);if(manager.executeDialog(d))ABL.config(this.doc).constellationMonths=d.mapping;},'Edit planning months. The proposed mapping is stored with the collection only after applying Configuration.');
-   this.values=()=>Object.assign(this.previewValues(),{rememberCollection:this.rememberCollection.checked,contourPath:this.outlinePath,outlineLevel:this.outlineLevel.currentItem,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});
+   let outlineRow=new HorizontalSizer;outlineRow.spacing=8;outlineRow.add(this.outlineLabel);outlineRow.add(this.chooseOutline);outlineRow.add(this.clearOutline);outlineRow.addStretch();this.outlineGroup.sizer.add(outlineRow);this.outlineGroup.sizer.add(this.outlineStatus);
+   let levelRow=ablRow(this.outlineGroup,'Brightness level:',this.outlineLevel);levelRow.addStretch();this.outlineGroup.sizer.add(levelRow);this.updateOutlineStatus();
+   this.monthsGroup=ablGroup(this.generalTab,'Collection planning');
+   this.monthsButton=ablButton(this.monthsGroup,'Constellation months…',()=>{let d=new ABLMonthsDialog(this);if(manager.executeDialog(d))ABL.config(this.doc).constellationMonths=d.mapping;},'Edit planning months. The proposed mapping is stored with the collection only after applying Configuration.');
+   this.detailsEditor=new ABLChartDetailsControl(this.finderTab,manager);
+   this.captureChartPreset=()=>ablChartPresetState({sky:this.previewValues().sky,details:this.detailsEditor.values(),contourPath:this.outlinePath,outlineLevel:this.outlineLevel.currentItem});
+   this.refreshChartPresets=()=>{
+      this.chartPresetSelect.clear();this.chartPresetSelect.addItem('Custom settings');for(let p of this.chartPresets)this.chartPresetSelect.addItem(p.name);
+      this.chartPresetSelect.currentItem=Math.max(0,1+this.chartPresets.findIndex(p=>p.name===this.activeChartPreset));this.deleteChartPresetButton.enabled=!!this.activeChartPreset;
+   };
+   this.syncChartPreset=()=>{
+      if(this.loadingChart)return;
+      this.updateFraming();this.detailsEditor.settings=manager.finderPage.effectiveSettings(this.previewValues().sky);this.detailsEditor.updateCatalogEditor();
+      let preset=this.chartPresets.find(p=>p.name===this.activeChartPreset);
+      if(!preset||JSON.stringify(preset.chart)!==JSON.stringify(this.captureChartPreset()))this.activeChartPreset='';
+      this.refreshChartPresets();
+   };
+   this.loadChartPreset=name=>{
+      let preset=this.chartPresets.find(p=>p.name===name);if(!preset)return false;
+      let chart=ablChartPresetState(preset.chart),state=ablContourFileState(chart.contourPath),unavailable=[];
+      // Reject a missing explicit file before changing the proposal. A preset
+      // never silently substitutes bundled outlines for a custom source.
+      if(chart.contourPath&&state.status!=='loaded')throw Error('Cannot load chart preset “'+name+'”: '+state.error+' Current settings were retained. Choose an available outline source and save the preset again.');
+      this.loadingChart=true;
+      try{
+         for(let [key,control]of [['coverage',this.skyCoverage],['insetDegrees',this.insetField],['milkyWayStrength',this.milkyWayStrength],['starSize',this.starSize]])control.setValue(chart.sky[key]);
+         for(let [key,control]of [['fitObjectSize',this.skyFit],['inset',this.inset],['milkyWay',this.milkyWay],['starColors',this.starColors]])control.checked=chart.sky[key];
+         for(let [key,control]of [['style',this.styleSelect],['labelDensity',this.labelDensity],['projection',this.projection],['starDensity',this.starDensity]])control.currentItem=control.values.indexOf(chart.sky[key]);
+         this.outlinePath=chart.contourPath;this.outlineState=state;this.outlineLevel.currentItem=chart.outlineLevel;this.updateOutlineStatus();
+         for(let entry of this.detailsEditor.catalogEntries)if(!entry.available&&chart.details.catalogs[entry.key].enabled)unavailable.push(entry.label);
+         if(chart.details.contours&&!ablContoursAvailable(state))unavailable.push('nebula outlines');
+         this.detailsEditor.setValues(chart.details,manager.finderPage.effectiveSettings(chart.sky),ablContoursAvailable(state));this.activeChartPreset=name;
+      }finally{this.loadingChart=false;}
+      this.syncChartPreset();
+      if(unavailable.length)manager.notice('Unavailable local data was omitted from the proposed settings: '+unavailable.join(', ')+'. The saved preset is unchanged.');
+      return true;
+   };
+   this.saveChartPreset=name=>{
+      name=String(name).trim();if(!name||name.length>80)throw Error('Enter a preset name of 1 to 80 characters.');
+      let chart=this.captureChartPreset();if(chart.contourPath.length>4096)throw Error('The outline file path is too long for a chart preset.');
+      let next=ABL.copy(this.chartPresets),index=next.findIndex(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(index>=0&&!manager.confirm('Replace chart preset “'+next[index].name+'” with the Finder settings shown in Configuration?'))return false;
+      if(index<0&&next.length>=50)throw Error('There are already 50 chart presets. Delete an unused preset first.');
+      if(index>=0)next[index]={name,chart};else next.push({name,chart});next.sort((a,b)=>a.name.localeCompare(b.name));
+      this.chartPresets=next;this.activeChartPreset=name;this.refreshChartPresets();return true;
+   };
+   this.chartPresetSelect=new ComboBox(this.finderTab);this.chartPresetSelect.setFixedWidth(this.logicalPixelsToPhysical(220));
+   this.chartPresetSelect.toolTip='Fill the settings below from a named preset. Apply updates the chart and remembers these settings for all targets. Cancel discards the proposal. Custom settings retains the values without associating a preset name.';
+   this.chartPresetSelect.onItemSelected=index=>manager.safe(()=>{
+      if(index>0){try{this.loadChartPreset(this.chartPresets[index-1].name);}catch(e){this.refreshChartPresets();throw e;}}
+      else{this.activeChartPreset='';this.refreshChartPresets();}
+   });
+   this.saveChartPresetButton=ablButton(this.finderTab,'Save preset…',()=>manager.safe(()=>{let d=new ABLViewNameDialog(this,this.activeChartPreset,true);if(manager.executeDialog(d))this.saveChartPreset(d.presetName);}),
+      'Name a copy of all Finder settings shown below, including catalogs and annotations. The preset is saved when you Apply Configuration. Existing names require confirmation before replacement.');
+   this.deleteChartPresetButton=ablTool(this.finderTab,':/icons/delete.png','Remove the selected preset after confirmation. Apply saves the deletion; Cancel restores it. The settings below are retained.',()=>manager.safe(()=>{
+      if(!this.activeChartPreset||!manager.confirm('Delete chart preset “'+this.activeChartPreset+'”? The settings shown below will be retained. Apply Configuration to save the deletion.'))return;
+      this.chartPresets=this.chartPresets.filter(p=>p.name!==this.activeChartPreset);this.activeChartPreset='';this.refreshChartPresets();
+   }));
+   let presetLabel=new Label(this.finderTab);presetLabel.text='Chart preset:';let presets=new HorizontalSizer;presets.spacing=8;presets.add(presetLabel);presets.add(this.chartPresetSelect);presets.add(this.saveChartPresetButton);presets.add(this.deleteChartPresetButton);presets.addStretch();
+   this.presetHint=new Label(this.finderTab);this.presetHint.text='A preset is a named copy of the Finder settings below. Apply saves all changes; Cancel discards them.';
+   this.presetHint.wordWrapping=true;this.presetHint.setFixedWidth(this.logicalPixelsToPhysical(700));
+   this.detailsEditor.onChanged=()=>this.syncChartPreset();
+   for(let control of [this.skyFit,this.inset,this.milkyWay,this.starColors])control.onCheck=()=>this.syncChartPreset();
+   for(let control of [this.skyCoverage,this.insetField,this.milkyWayStrength,this.starSize])control.onValueUpdated=()=>this.syncChartPreset();
+   for(let control of [this.styleSelect,this.labelDensity,this.projection,this.starDensity,this.outlineLevel])control.onItemSelected=()=>this.syncChartPreset();
+   this.refreshChartPresets();this.updateFraming();
+   this.values=()=>Object.assign(this.previewValues(),{details:this.detailsEditor.values(),chartPresets:ABL.copy(this.chartPresets),activeChartPreset:this.activeChartPreset,
+      rememberCollection:this.rememberCollection.checked,contourPath:this.outlinePath,outlineLevel:this.outlineLevel.currentItem,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});
    this.applyButton=ablButton(this,'Apply',()=>{try{manager.validateConfiguration(this.values());this.ok();}catch(e){manager.error(e);}});this.applyButton.defaultButton=true;
    this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());
-   let buttons=new HorizontalSizer;buttons.spacing=8;buttons.add(this.monthsButton);buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
-   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.startupGroup);this.sizer.add(this.finderGroup);this.sizer.add(this.dssGroup);this.sizer.add(this.coverageHint);this.sizer.add(this.outlineGroup);this.sizer.add(buttons);this.adjustToContents();
+   let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
+   for(let tab of [this.finderTab,this.dssTab,this.generalTab]){tab.sizer=new VerticalSizer;tab.sizer.margin=10;tab.sizer.spacing=8;}
+   this.finderTab.sizer.add(presets);this.finderTab.sizer.add(this.presetHint);this.finderTab.sizer.add(this.finderGroup);this.finderTab.sizer.add(this.detailsEditor);this.finderTab.sizer.add(this.outlineGroup);this.finderTab.sizer.addStretch();
+   this.dssTab.sizer.add(this.dssGroup);this.dssTab.sizer.add(this.coverageHint);this.dssTab.sizer.addStretch();
+   let months=new HorizontalSizer;months.add(this.monthsButton);months.addStretch();this.monthsGroup.sizer.add(months);this.generalTab.sizer.add(this.startupGroup);this.generalTab.sizer.add(this.monthsGroup);this.generalTab.sizer.addStretch();
+   this.tabs.currentPageIndex=manager.tabs.currentPageIndex===2?1:0;
+   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.tabs);this.sizer.add(buttons);this.adjustToContents();
 }}
 
-// Chart details is a modal proposal: preview rendering is paused while
-// editing and one accepted change refreshes the active Finder chart.
-class ABLChartDetailsDialog extends Dialog { constructor(manager){
-   super(manager);this.windowTitle='Chart details — '+ABL_TITLE;this.autoDefaultButton=false;
+// Reusable detail editor. Its controls change only the Configuration draft;
+// the manager commits current preferences and named presets together on Apply.
+class ABLChartDetailsControl extends Control { constructor(parent,manager){
+   super(parent);this.onChanged=()=>{};
    let page=manager.finderPage;this.settings=ABL.copy(page.settings);
    this.detailsGroup=new Control(this);this.detailsGroup.sizer=new HorizontalSizer;this.detailsGroup.sizer.spacing=10;
    this.annotationPage=ablGroup(this.detailsGroup,'Annotations');this.catalogPage=ablGroup(this.detailsGroup,'Catalogs');
@@ -3254,11 +3379,11 @@ class ABLChartDetailsDialog extends Dialog { constructor(manager){
    };
    this.catalogTree.onCurrentNodeUpdated=()=>this.updateCatalogEditor();
    this.catalogTree.onNodeUpdated=(n,column)=>{if(column!==0||this.updatingCatalog||!n.entry.available)return;
-      this.catalogSettings[n.entry.key].enabled=n.checked;this.updateCatalogEditor();};
+      this.catalogSettings[n.entry.key].enabled=n.checked;this.updateCatalogEditor();this.onChanged();};
    this.changeCatalogProperty=()=>{
       if(this.updatingCatalog)return;let entry=this.catalogTree.currentNode?.entry;if(!entry)return;
       Object.assign(this.catalogSettings[entry.key],{labels:this.catalogLabels.checked,mode:this.catalogLimit.values[this.catalogLimit.currentItem],magnitude:this.catalogMagnitude.value});
-      this.updateCatalogEditor();
+      this.updateCatalogEditor();this.onChanged();
    };
    this.catalogLabels.onCheck=this.catalogLimit.onItemSelected=this.catalogMagnitude.onValueUpdated=this.changeCatalogProperty;
    let catalogProperties=new VerticalSizer;catalogProperties.spacing=6;catalogProperties.add(this.catalogLabels);
@@ -3277,15 +3402,21 @@ class ABLChartDetailsDialog extends Dialog { constructor(manager){
    this.contours=new CheckBox(this.annotationPage);this.contours.text='Nebula contours';
    this.contours.toolTip='Draw nebula outlines from PixInsight local databases by default, or from a custom Stellarium outlines.dat file. Choose the source and bundled outline brightness level in Configuration. Uncheck to hide all nebula contours.';
    for(let key of ['borders','contours','starNames','starMagnitudes','objectDetails']){
-      this[key].checked=page.details[key];this.annotationPage.sizer.add(this[key]);
+      this[key].checked=page.details[key];this[key].onCheck=()=>this.onChanged();this.annotationPage.sizer.add(this[key]);
    }
    this.contours.enabled=ablContoursAvailable(manager.contourState);if(!this.contours.enabled)this.contours.checked=false;
    this.values=()=>({catalogs:ABL.copy(this.catalogSettings),borders:this.borders.checked,starNames:this.starNames.checked,starMagnitudes:this.starMagnitudes.checked,objectDetails:this.objectDetails.checked,contours:this.contours.checked});
-   this.applyButton=ablButton(this,'Apply',()=>{this.editedDetails=this.values();this.ok();});this.applyButton.defaultButton=true;
-   this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
+   this.setValues=(value,settings,outlineAvailable)=>{
+      let details=ablChartDetailSettings(value);this.settings=ABL.copy(settings);this.catalogSettings=details.catalogs;
+      this.updatingCatalog=true;
+      try{for(let n of this.catalogNodes){this.catalogSettings[n.entry.key].enabled=n.entry.available&&this.catalogSettings[n.entry.key].enabled;n.checked=this.catalogSettings[n.entry.key].enabled;}}
+      finally{this.updatingCatalog=false;}
+      for(let key of ['borders','contours','starNames','starMagnitudes','objectDetails'])this[key].checked=details[key];
+      this.contours.enabled=outlineAvailable;if(!outlineAvailable)this.contours.checked=false;this.updateCatalogEditor();
+   };
    this.detailsGroup.sizer.add(this.annotationPage);this.detailsGroup.sizer.add(this.catalogPage);
    if(this.catalogNodes.length)this.catalogTree.currentNode=this.catalogNodes[0];this.updateCatalogEditor();
-   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.detailsGroup);this.sizer.add(buttons);this.adjustToContents();
+   this.sizer=new VerticalSizer;this.sizer.add(this.detailsGroup);
 }}
 
 // Each tab page owns its preview bitmap; the manager owns temporary chart
@@ -3297,35 +3428,79 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
    this.vectorChart=null;this.vectorTiles=sky?new ChartTileCache(32*1024*1024):null;this.exportPath='';
    this.hitIndex=null;this.hoverHit=null;this.pickedHit=null;
    this.tableGroup=null;this.frameError='';
+   this.centerPick=null;this.navigationHistory=[];this.navigationIndex=-1;this.navigationActive=false;
+   this.navigationInputKey=null;this.navigationDocument=null;this.pendingView=null;this.activeChartPreset='';
    this.previewState='idle';this.previewError='';this.renderSummary='';this.canPreview=false;
    this.settings=ablPreviewSettings(null,sky,manager.previewPreferences[sky?'sky':'dss']);
    this.catalogEntries=sky?ablChartCatalogs():[];
-   this.details={catalogs:{},borders:true,starNames:false,starMagnitudes:false,objectDetails:false,contours:sky&&ablContoursAvailable(manager.contourState)};
-   for(let entry of this.catalogEntries)this.details.catalogs[entry.key]={enabled:entry.available&&['messier','ngc'].includes(entry.key),labels:true,mode:'auto',magnitude:12};
+   this.details=ablChartDetailSettings(manager.previewPreferences.details);
+   this.details.contours=sky&&this.details.contours&&ablContoursAvailable(manager.contourState);
+   for(let entry of this.catalogEntries)this.details.catalogs[entry.key].enabled=this.details.catalogs[entry.key].enabled&&entry.available;
+   this.captureChartPreset=()=>ablChartPresetState({sky:manager.previewPreferences.sky,details:this.details,contourPath:manager.contourPath,outlineLevel:manager.outlineLevel});
+   this.syncChartPreset=()=>{
+      if(!sky||!this.activeChartPreset)return;
+      let preset=manager.chartPresets.find(p=>p.name===this.activeChartPreset);
+      if(!preset||JSON.stringify(preset.chart)!==JSON.stringify(this.captureChartPreset()))this.activeChartPreset='';
+   };
+   this.updateNavigationControls=()=>{
+      if(!sky||!this.backButton)return;
+      this.backButton.enabled=!this.disposed&&!this.rendering&&this.navigationIndex>0;
+      this.forwardButton.enabled=!this.disposed&&!this.rendering&&this.navigationIndex>=0&&this.navigationIndex<this.navigationHistory.length-1;
+      this.tableTargetButton.enabled=!this.disposed&&!this.rendering&&this.navigationActive;
+      this.scopeLabel.visible=this.scopeSelect.visible=!this.navigationActive;this.browsingLabel.visible=this.navigationActive;
+   };
+   this.resetNavigation=()=>{
+      this.navigationHistory=[];this.navigationIndex=-1;this.navigationActive=false;this.centerPick=null;this.pendingView=null;this.updateNavigationControls();
+   };
+   this.navigationSnapshot=source=>({object:this.object,group:this.tableGroup,centerPick:this.centerPick,source,
+      view:{zoom:this.view.zoom,centerX:this.view.centerX,centerY:this.view.centerY},settingsKey:JSON.stringify(this.captureChartPreset())});
+   this.rememberNavigationView=()=>{
+      if(this.bitmap&&this.navigationIndex>=0){let entry=this.navigationHistory[this.navigationIndex];
+         entry.view={zoom:this.view.zoom,centerX:this.view.centerX,centerY:this.view.centerY};entry.settingsKey=JSON.stringify(this.captureChartPreset());}
+   };
+   this.restoreViewport=view=>{
+      if(!view||!this.bitmap)return;
+      this.view={zoom:Math.max(1,Math.min(16,Number(view.zoom)||1)),centerX:Number.isFinite(view.centerX)?Math.max(0,Math.min(1,view.centerX)):.5,centerY:Number.isFinite(view.centerY)?Math.max(0,Math.min(1,view.centerY)):.5,drag:null};
+      this.previewRect();this.updateViewCursor();this.chart.update();
+   };
+   this.showNavigationEntry=entry=>{
+      this.navigationActive=!entry.source;
+      let view=entry.settingsKey===JSON.stringify(this.captureChartPreset())?entry.view:null;
+      this.displayTarget(entry.object,entry.group,entry.centerPick,view);this.updateNavigationControls();
+   };
+   this.centerOnSelection=()=>{
+      if(!sky||!this.pickedHit||!this.bitmap||this.rendering||this.disposed)return false;
+      let pick=ablNavigationPick(this.pickedHit),object=ablChartPickObject(pick);ABL.meta(object).objectId=pick.objectId;
+      if(ablNavigationIdentity(object,null,pick)===ablNavigationIdentity(this.object,this.tableGroup,this.centerPick))return false;
+      if(this.navigationIndex<0){this.navigationHistory=[this.navigationSnapshot(true)];this.navigationIndex=0;}else this.rememberNavigationView();
+      this.navigationHistory=this.navigationHistory.slice(0,this.navigationIndex+1);
+      let entry={object,group:null,centerPick:pick,source:false,view:null,settingsKey:JSON.stringify(this.captureChartPreset())};
+      this.navigationHistory.push(entry);
+      // Keep target snapshots and view transforms only, never retained native
+      // engines or bitmaps. Bound the session's navigation history.
+      if(this.navigationHistory.length>32)this.navigationHistory.shift();
+      this.navigationIndex=this.navigationHistory.length-1;this.showNavigationEntry(entry);return true;
+   };
+   this.navigateChart=delta=>{
+      let index=this.navigationIndex+delta;
+      if(!sky||this.rendering||this.disposed||![-1,1].includes(delta)||index<0||index>=this.navigationHistory.length)return false;
+      this.rememberNavigationView();this.navigationIndex=index;this.showNavigationEntry(this.navigationHistory[index]);return true;
+   };
+   this.returnToTableTarget=()=>{
+      if(this.rendering||this.disposed)return;
+      this.navigationInputKey=null;this.navigationDocument=null;this.resetNavigation();manager.updateSelection();
+   };
    this.availableDetails=()=>['borders','starNames','starMagnitudes','objectDetails'].concat(ablContoursAvailable(manager.contourState)?['contours']:[]);
    this.allDetailsEnabled=()=>sky&&(!ablMilkyWayAvailable()||this.settings.milkyWay)&&this.availableDetails().every(key=>this.details[key])&&this.catalogEntries.filter(e=>e.available).every(e=>this.details.catalogs[e.key].enabled);
    this.setAllDetails=checked=>{
-      let available=this.availableDetails();for(let key of ['borders','starNames','starMagnitudes','objectDetails','contours'])this.details[key]=checked&&available.includes(key);
-      for(let entry of this.catalogEntries)this.details.catalogs[entry.key].enabled=checked&&entry.available;
-      // Shading is a global appearance preference, also included in All
-      // details. Persist only an explicit toggle, never a rendering fallback.
-      if(ablMilkyWayAvailable()&&manager.previewPreferences.sky.milkyWay!==checked){
-         manager.previewPreferences.sky.milkyWay=checked;
-         if(manager.persistPreferences)manager.previewPreferenceStore.write(JSON.stringify(manager.previewPreferences));
-      }
-      this.optionsChanged();
+      let value=manager.currentConfiguration(),available=this.availableDetails();
+      for(let key of ['borders','starNames','starMagnitudes','objectDetails','contours'])value.details[key]=checked&&available.includes(key);
+      for(let entry of this.catalogEntries)value.details.catalogs[entry.key].enabled=checked&&entry.available;
+      if(ablMilkyWayAvailable())value.sky.milkyWay=checked;
+      // This shortcut uses the same persisted preferences as Configuration.
+      manager.applyConfiguration(value);
    };
-   this.applyDetails=value=>{if(JSON.stringify(value)===JSON.stringify(this.details))return;this.details=ABL.copy(value);this.optionsChanged();};
-   this.setContourPath=path=>{
-      let state=ablContourFileState(path);if(path&&state.status!=='loaded')throw Error(state.error);
-      // Enable contours when an outline source first becomes available. Keep a
-      // deliberate off choice when switching between available sources.
-      let wasLoaded=ablContoursAvailable(manager.contourState);
-      manager.contourPath=path;manager.contourState=state;if(!ablContoursAvailable(state))this.details.contours=false;else if(!wasLoaded)this.details.contours=true;
-      if(manager.persistPreferences)Settings.write('AstroBucketList/contourPath',DataType.String,path);
-      this.optionsChanged();
-   };
-   this.chartOptions=()=>Object.assign(ABL.copy(this.details),ABL.chartAppearance(this.settings),{style:this.settings.style,labelDensity:this.settings.labelDensity,contourPath:manager.contourPath,outlineLevel:manager.outlineLevel,inset:this.settings.inset,insetDegrees:this.settings.insetDegrees},this.tableGroup?{tableTargets:ABL.copy(this.tableGroup.targets)}:{});
+   this.chartOptions=()=>Object.assign(ABL.copy(this.details),ABL.chartAppearance(this.settings),{style:this.settings.style,labelDensity:this.settings.labelDensity,contourPath:manager.contourPath,outlineLevel:manager.outlineLevel,inset:this.settings.inset,insetDegrees:this.settings.insetDegrees},this.tableGroup?{tableTargets:ABL.copy(this.tableGroup.targets)}:this.centerPick?{centerPick:ABL.copy(this.centerPick)}:{});
    // One information block owns target identity, size, progress, source,
    // coverage limitations and errors. The image area contains only the image.
    this.info=new Label(this);this.info.useRichText=true;this.info.wordWrapping=true;
@@ -3336,6 +3511,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(position&&position.ra!==null&&position.dec!==null)lines.push('J2000: '+ABL.formatRA(position.ra)+' '+ABL.formatDec(position.dec));
       let status=!o?'Select an object in the Table tab.':!this.canPreview?'Enter coordinates through Edit object.':this.previewState==='loading'?(sky?'Rendering finder chart…':'Loading DSS2 Red survey image…'):this.previewState==='error'?'Preview unavailable: '+this.previewError:this.bitmap?this.renderSummary:'Preview updates automatically when this tab is active.';
       if(this.frameError)status=this.frameError;
+      if(this.navigationActive)status+=' · Browsing chart objects; table and DSS target unchanged';
       if(this.bitmap)status+=' · View: '+(this.view.zoom===1?'Fit':Math.round(this.view.zoom*100)+'% of fit');
       lines.push(ABL.html(status));
       if(this.tableGroup){let missing=this.tableGroup.targets.filter(t=>!ablChartTargetPosition(t));
@@ -3348,7 +3524,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(this.exportPath)lines.push('Exported chart: '+ABL.html(this.exportPath.replace(/.*[\\/]/,'')));
       this.info.text=lines.join('<br/>');this.info.toolTip=this.previewError||this.frameError||this.exportPath||(this.tableGroup?this.tableGroup.targets.filter(t=>!ablChartTargetPosition(t)).map(t=>t.name+' — coordinates missing').join('\n'):sky?manager.contourPath:'DSS2 Red survey at STScI');
    };
-   this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;this.hitIndex=null;this.hoverHit=this.pickedHit=null;if(this.updateInspection)this.updateInspection();if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
+   this.clearPreview=()=>{this.pendingView=null;if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;this.hitIndex=null;this.hoverHit=this.pickedHit=null;if(this.updateInspection)this.updateInspection();if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
    this.effectiveSettings=preferences=>{
       let value=ablPreviewSettings(this.object,sky,preferences);
       if(this.tableGroup){value.inset=false;try{value.coverage=ablTableChartFrame(this.tableGroup.targets,preferences.coverage,preferences.projection).coverage;}catch(e){/* updateFields presents framing errors in the information block. */}}
@@ -3367,16 +3543,30 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       let state=manager.contourState,loaded=ablContoursAvailable(state);
       if(!loaded)this.details.contours=false;
       if(manager.updateFinderActions)manager.updateFinderActions();
-      this.canPreview=position.ra!==null&&position.dec!==null;this.updateInfo();
+      this.canPreview=position.ra!==null&&position.dec!==null;this.updateInfo();this.updateNavigationControls();
       if(manager.updateMinimumSize)manager.updateMinimumSize();
    };
+   this.targetKey=(object,tableGroup,centerPick=null)=>{
+      let r=object?ABL.record(object,manager.doc):null;
+      return tableGroup?JSON.stringify(tableGroup):r?JSON.stringify([r.id,r.designation,r.name,ABL.position(object),ABL.angularSize(object),ABL.objectType(object),centerPick]):'';
+   };
+   this.displayTarget=(object,tableGroup=null,centerPick=null,viewport=null)=>{
+      let key=this.targetKey(object,tableGroup,centerPick);
+      if(key===this.objectKey){if(viewport)this.restoreViewport(viewport);return;}
+      this.tableGroup=tableGroup?ABL.copy(tableGroup):null;this.object=object?ABL.copy(object):null;this.centerPick=centerPick?ABL.copy(centerPick):null;
+      this.objectKey=key;this.redrawTimer.stop();this.pendingRedraw=false;this.clearPreview();this.pendingView=viewport;
+      this.updateFields();this.queueRedraw();
+   };
    this.setObject=(object,tableGroup=null)=>{
-      let copy=object?ABL.copy(object):null,record=copy?ABL.record(copy,manager.doc):null;
-      let key=tableGroup?JSON.stringify(tableGroup):copy?JSON.stringify([record.id,record.designation,record.name,ABL.position(copy),ABL.angularSize(copy),ABL.objectType(copy)]):'';
-      if(key===this.objectKey)return;
-      this.tableGroup=tableGroup?ABL.copy(tableGroup):null;
-      this.object=copy;
-      this.objectKey=key;this.redrawTimer.stop();this.pendingRedraw=false;this.clearPreview();this.updateFields();this.queueRedraw();
+      let key=this.targetKey(object,tableGroup);
+      if(sky){
+         // A new table target/filter scope or collection replaces the browsing
+         // context. Refreshes with the same input must not recenter navigation.
+         if(key!==this.navigationInputKey||manager.doc!==this.navigationDocument){
+            this.navigationInputKey=key;this.navigationDocument=manager.doc;this.resetNavigation();
+         }else if(this.navigationActive)return;
+      }
+      this.displayTarget(object,tableGroup);
    };
    this.renderPreview=()=>{
       if(this.rendering||this.disposed)return;this.redrawTimer.stop();this.pendingRedraw=false;this.rendering=true;
@@ -3389,9 +3579,9 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
          manager.io.skyChart(object,ABL.chartFraming(object,true).field,field,this.chartOptions()):manager.io.finder(object,ABL.dssField(object,field)),false);
       let path=typeof response==='string'?response:response.path,bitmap=new Bitmap(path);
       if(bitmap.isNull)throw Error('No chart image was returned. Try again with a different field.');
-      this.clearPreview();this.bitmap=bitmap;this.loadedPath=path;this.loadedField=field;
+      let restore=this.pendingView;this.clearPreview();this.bitmap=bitmap;this.loadedPath=path;this.loadedField=field;
       if(sky&&response.recording instanceof ChartRecording){this.vectorChart=response;this.hitIndex=new ABLChartHitIndex(response.picks);this.vectorTiles.use(response.recording,response.background);}
-      this.chart.update();
+      this.restoreViewport(restore);this.chart.update();
       this.previewState='ready';this.renderSummary=sky?ablChartStyle(this.settings.style).name+' · '+field+'° coverage · target at crosshair · '+(response.catalog||'local catalogs')+(Number.isFinite(response.objectCount)?' · '+response.objectCount+' catalog objects':''):'DSS2 Red · '+field+' × '+field+' arcmin · target at crosshair';
       if(this.tableGroup)this.renderSummary=ablChartStyle(this.settings.style).name+' · '+field+'° coverage · '+this.tableGroup.targets.filter(ablChartTargetPosition).length+' numbered table objects · '+(response.catalog||'local catalogs');
       if(sky&&response.projectionName)this.renderSummary+=' · '+response.projectionName;
@@ -3400,7 +3590,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(sky&&this.details.contours)this.renderSummary+=' · '+(response.contourCount||0)+' nebula contours';
       if(sky&&response.inset)this.renderSummary+=' · close-up '+response.inset.coverage+'°';
       this.updateInfo();manager.updateMinimumSize();
-   }catch(e){this.previewError=String(e.message||e);this.previewState='error';this.retryButton.visible=true;this.updateInfo();manager.updateMinimumSize();}finally{this.rendering=false;if(manager.updateImageAction)manager.updateImageAction();}
+   }catch(e){this.previewError=String(e.message||e);this.previewState='error';this.retryButton.visible=true;this.updateInfo();manager.updateMinimumSize();}finally{this.rendering=false;this.updateNavigationControls();if(manager.updateImageAction)manager.updateImageAction();}
    };
    this.retryButton=ablButton(this,'Retry',()=>this.queueRedraw(),'Retry this preview after a failed request.');this.retryButton.visible=false;
    // A single-shot timer coalesces edits and is stopped before rendering.
@@ -3420,14 +3610,22 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(!this.object||!this.canPreview){this.pendingRedraw=false;return;}
       this.renderPreview();
    };
-   this.optionsChanged=()=>{this.updateFields();this.clearPreview();this.queueRedraw();};
+   this.optionsChanged=()=>{this.updateFields();this.clearPreview();this.syncChartPreset();this.queueRedraw();};
    this.activate=()=>{this.updateFields();if(!this.bitmap)this.queueRedraw();};
    let controls=new HorizontalSizer;controls.spacing=8;
    if(sky){
+      this.backButton=ablTool(this,':/icons/arrow-left.png','Back to the previous Finder target. Retains current chart settings; restores zoom and pan if the settings still match.',()=>manager.safe(()=>this.navigateChart(-1)));
+      this.forwardButton=ablTool(this,':/icons/arrow-right.png','Forward to the next Finder target in this session.',()=>manager.safe(()=>this.navigateChart(1)));
+      this.tableTargetButton=ablTool(this,':/file-explorer/home.png','Return to the current table target or filtered-object chart and clear browsing history. Table selection, filters and DSS are retained.',()=>manager.safe(()=>this.returnToTableTarget()));
+      this.centerPickButton=ablButton(this,'Center on selection',()=>manager.safe(()=>this.centerOnSelection()),
+         'Center the Finder chart on this object using the current chart settings. Leaves table selection, filters, export checks and the DSS target unchanged. Use Back/Forward or Return to table target above to navigate.');
+      controls.add(this.backButton);controls.add(this.forwardButton);controls.add(this.tableTargetButton);controls.add(this.centerPickButton);controls.addSpacing(12);
+      this.browsingLabel=new Label(this);this.browsingLabel.text='Chart selection';this.browsingLabel.visible=false;
       this.scopeLabel=new Label(this);this.scopeLabel.text='Chart:';this.scopeLabel.textAlignment=TextAlignment.Left|TextAlignment.VertCenter;
       this.scopeSelect=new ComboBox(this);this.scopeSelect.addItem('Selected object');this.scopeSelect.addItem('All filtered objects');this.scopeSelect.enabled=false;
       this.scopeSelect.toolTip='With a constellation filter active, chart every object currently shown in the table. All other filters and the selected list apply; checks and highlighted rows do not limit the chart. Coverage expands to fit the objects and their sizes. Numbered markers match the object key. DSS remains a single-object image.';
-      this.scopeSelect.onItemSelected=()=>manager.updateSelection();controls.add(this.scopeLabel);controls.add(this.scopeSelect);
+      this.scopeSelect.onItemSelected=()=>manager.updateSelection();controls.add(this.scopeLabel);controls.add(this.scopeSelect);controls.add(this.browsingLabel);
+      this.updateNavigationControls();
    }
    controls.addStretch();controls.add(this.retryButton);
    this.chart=new Control(this);this.chart.setMinSize(620,360);this.chart.mouseTracking=sky;
@@ -3461,7 +3659,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       v.zoom=zoom;v.centerX=u+(this.chart.width/2-x)/(before.width*ratio);v.centerY=w+(this.chart.height/2-y)/(before.height*ratio);v.drag=null;
       this.hoverHit=null;this.previewRect();this.updateViewCursor();this.updateInfo();this.updateInspection();this.chart.update();return true;
    };
-   this.chart.toolTip=(sky?'Hover a symbol for catalog facts; click to select it, then use Edit object, Show in table or Add object below. Click empty sky to clear the selection. ':'')+'Wheel up to zoom in at the pointer; wheel down to zoom out. Drag with the left mouse button to pan. Double-click to fit the whole image. This changes only the preview, not sky coverage or the saved image.';
+   this.chart.toolTip=sky?'':'Wheel up to zoom in at the pointer; wheel down to zoom out. Drag with the left mouse button to pan. Double-click to fit the whole image. This changes only the preview, not sky coverage or the saved image.';
    this.chart.onMouseWheel=(x,y,delta)=>this.zoomAt(x,y,delta);
    this.pickAt=(x,y)=>{
       let r=this.previewRect();return r&&this.hitIndex?this.hitIndex.hit((x-r.x)/r.scale,(y-r.y)/r.scale,r.scale,this.logicalPixelsToPhysical(9)):null;
@@ -3511,7 +3709,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
    }finally{g.end();}};
    this.updateInspection=()=>{
       if(!sky||!this.hoverInfo)return;
-      this.hoverInfo.text=this.hoverHit?'Hover: '+ablChartPickText(this.hoverHit):'Hover a symbol to inspect it; click to select. Wheel to zoom, drag to pan, double-click to fit.';
+      this.hoverInfo.text=this.hoverHit?'Hover: '+ablChartPickText(this.hoverHit):'Hover to inspect · Click to select · Wheel to zoom · Drag to pan · Double-click to fit';
       this.hoverInfo.toolTip=this.hoverHit?ablChartPickText(this.hoverHit)+'\nJ2000: '+ABL.formatRA(this.hoverHit.ra)+' '+ABL.formatDec(this.hoverHit.dec)+'\n'+this.hoverHit.catalog:'';
       let hit=this.pickedHit;
       // Hover never scans the collection. Reconcile the selected symbol once
@@ -3523,6 +3721,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       this.pickInfo.text=hit?'Selected: '+ablChartPickText(hit):'No chart object selected';this.pickInfo.toolTip=hit?ablChartPickText(hit):'';
       this.pickAction.text=matches.length?'Edit object…':'Add object…';this.pickAction.enabled=!!hit;
       this.showPickButton.enabled=matches.length>0;
+      this.centerPickButton.enabled=!!hit&&ablChartTargetPosition(hit)&&!this.rendering&&!this.disposed;
    };
    this.resolvePick=()=>{
       let hit=this.pickedHit;if(!hit)return null;
@@ -3652,6 +3851,11 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       write:text=>Settings.write('AstroBucketList/viewPresets',DataType.String,text)
    };
    this.viewPresets=ablLoadViewPresets(this.persistPreferences?this.viewPresetStore.read():null);this.activeViewPreset='';
+   this.chartPresetStore=options.chartPresetStore||{
+      read:()=>{let text=Settings.read('AstroBucketList/chartPresets',DataType.String);return Settings.lastReadOK?text:null;},
+      write:text=>Settings.write('AstroBucketList/chartPresets',DataType.String,text)
+   };
+   this.chartPresets=ablLoadChartPresets(this.persistPreferences?this.chartPresetStore.read():null);
    this.contourPath=ablDefaultContourPath();
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
    this.contourState=ablContourFileState(this.contourPath);
@@ -3674,7 +3878,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // Include every display option and contour contents. Editing a local
       // contour file cannot silently reuse a stale preview.
       let cacheDetails=Object.assign({},details,{contourPath:details.contours?details.contourPath:'',insetDegrees:details.inset?details.insetDegrees:2});
-      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,o.name,o.nameI18n,ABL.meta(o).displayName,ABL.meta(o).objectId,ABL.meta(o).aliases,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,details.milkyWay?ablMilkyWayAvailable():false,outlineText,chartOptions.tableTargets||null]);
+      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,o.name,o.nameI18n,ABL.meta(o).displayName,ABL.meta(o).objectId,ABL.meta(o).aliases,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,details.milkyWay?ablMilkyWayAvailable():false,outlineText,chartOptions.tableTargets||null,chartOptions.centerPick||null]);
       if(this.chartCache.has(key)&&File.exists(this.chartCache.get(key).path))return this.chartCache.get(key);
       let file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.png';this.chartFiles.push(file);
       let result=ablSkyChart(o,field,sky,file,Object.assign({},chartOptions,{outlineData:details.contours&&details.contourPath?ABL.parseOutlines(outlineText):[]}));this.chartCache.set(key,result);
@@ -3873,32 +4077,48 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(value.outlineLevel!==undefined&&![0,1,2,3].includes(value.outlineLevel))throw Error('Choose a nebula outline brightness level.');
       return state;
    };
+   this.currentConfiguration=()=>Object.assign(ABL.copy(this.previewPreferences),{
+      details:ABL.copy(this.finderPage.details),contourPath:this.contourPath,outlineLevel:this.outlineLevel,
+      rememberCollection:this.rememberCollection,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});
    this.applyConfiguration=value=>{
-      // Store the preferred values, not object-specific fitted or capped
-      // results. Only changes affecting the current image invalidate it.
-      this.validateConfiguration(value);
-      if(value.rememberCollection!==this.rememberCollection){
-         // Enabling starts with the currently open path (or no path for a new
-         // collection). Clear the old path before changing the persisted flag
-         // so a stale filename cannot be revived by a later opt-in.
-         if(this.persistPreferences){this.collectionPreferenceStore.writePath(value.rememberCollection?this.path:'');this.collectionPreferenceStore.writeRemember(value.rememberCollection);}
-         this.rememberCollection=value.rememberCollection;
+      let state=this.validateConfiguration(value),p=this.finderPage,q=this.dssPage;
+      // Store preferred widths rather than the current target's fitted field.
+      // Normalize property order so an unchanged Apply retains the preview.
+      let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss,details:value.details||p.details}));
+      let sky=p.effectiveSettings(next.sky),dss=q.effectiveSettings(next.dss),details=ABL.copy(next.details);
+      for(let entry of p.catalogEntries)details.catalogs[entry.key].enabled=entry.available&&details.catalogs[entry.key].enabled;
+      details.contours=details.contours&&ablContoursAvailable(state);
+      let level=value.outlineLevel===undefined?this.outlineLevel:value.outlineLevel,pathChanged=this.contourPath!==value.contourPath;
+      let finderChanged=JSON.stringify(p.settings)!==JSON.stringify(sky)||JSON.stringify(p.details)!==JSON.stringify(details)||pathChanged||level!==this.outlineLevel;
+      let dssChanged=JSON.stringify(q.settings)!==JSON.stringify(dss),presets=value.chartPresets===undefined?this.chartPresets:value.chartPresets;
+      let presetText=JSON.stringify({version:1,presets}),previousPresets=JSON.stringify({version:1,presets:this.chartPresets});
+      if(presetText.length>1048576||!Array.isArray(presets)||presets.length>50)throw Error('Chart presets exceed the supported settings size.');
+      let writes=[];const change=(write,before,after)=>{if(before!==after)writes.push({write,before,after});};
+      if(this.persistPreferences){
+         change(text=>this.previewPreferenceStore.write(text),JSON.stringify(this.previewPreferences),JSON.stringify(next));
+         change(text=>this.chartPresetStore.write(text),previousPresets,presetText);
+         change(path=>Settings.write('AstroBucketList/contourPath',DataType.String,path),this.contourPath,value.contourPath);
+         change(n=>Settings.write('AstroBucketList/outlineLevel',DataType.Int32,n),this.outlineLevel,level);
+         if(value.rememberCollection!==this.rememberCollection){
+            change(path=>this.collectionPreferenceStore.writePath(path),this.collectionPreferenceStore.readPath(),value.rememberCollection?this.path:'');
+            change(flag=>this.collectionPreferenceStore.writeRemember(flag),this.rememberCollection,value.rememberCollection);
+         }
       }
-      // Canonical property order prevents an unchanged Apply from looking
-      // different just because the dialog assembled its fields in UI order.
-      let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss})),p=this.finderPage,q=this.dssPage,sky=p.effectiveSettings(next.sky),dss=q.effectiveSettings(next.dss);
-      let skyChanged=JSON.stringify(p.settings)!==JSON.stringify(sky),dssChanged=JSON.stringify(q.settings)!==JSON.stringify(dss),pathChanged=this.contourPath!==value.contourPath;
-      if(this.persistPreferences&&JSON.stringify(next)!==JSON.stringify(this.previewPreferences))this.previewPreferenceStore.write(JSON.stringify(next));
-      this.previewPreferences=next;p.settings=sky;q.settings=dss;this.chartStyle=next.sky.style;
-      let level=value.outlineLevel===undefined?this.outlineLevel:value.outlineLevel,levelChanged=level!==this.outlineLevel;this.outlineLevel=level;
-      if(levelChanged&&this.persistPreferences)Settings.write('AstroBucketList/outlineLevel',DataType.Int32,level);
-      if(pathChanged)p.setContourPath(value.contourPath);else if(skyChanged||levelChanged)p.optionsChanged();
-      if(dssChanged)q.optionsChanged();
+      let attempted=[];
+      try{for(let entry of writes){attempted.push(entry);entry.write(entry.after);}}
+      catch(e){let failures=[];for(let entry of attempted.reverse())try{entry.write(entry.before);}catch(restore){failures.push(String(restore));}
+         throw Error('Could not save Configuration: '+e+(failures.length?' Some previous preferences could not be restored: '+failures.join('; '):' Previous preferences were restored.')+' The current chart and collection are unchanged.');}
+      this.previewPreferences=next;this.chartPresets=ABL.copy(presets);this.rememberCollection=value.rememberCollection;
+      this.contourPath=value.contourPath;this.contourState=state;this.outlineLevel=level;this.chartStyle=next.sky.style;
+      p.settings=sky;p.details=details;q.settings=dss;
+      if(value.activeChartPreset!==undefined)p.activeChartPreset=value.activeChartPreset;
+      if(finderChanged)p.optionsChanged();if(dssChanged)q.optionsChanged();
       if(JSON.stringify(ABL.config(this.doc).constellationMonths)!==JSON.stringify(value.constellationMonths)){
          ABL.config(this.doc).constellationMonths=ABL.copy(value.constellationMonths);this.changed();this.refreshTree();
       }
+      p.syncChartPreset();this.updateFinderActions();
    };
-   this.configurationButton=ablTool(this,':/icons/gear.png','Configuration: startup preference, Finder and DSS settings, chart style, Stellarium outlines and constellation months.',()=>this.safe(()=>{
+   this.configurationButton=ablTool(this,':/icons/gear.png','Configuration: Finder settings, chart presets, annotations, catalogs and outlines; DSS settings, startup preference and constellation months.',()=>this.safe(()=>{
       this.finderPage.updateFields();this.dssPage.updateFields();let d=new ABLConfigurationDialog(this);if(this.executeDialog(d))this.applyConfiguration(d.values());
    }));
    this.activePreview=()=>this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:null;
@@ -3919,15 +4139,13 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.exportChartButton=ablTool(this,':/icons/document-save.png','Export Finder chart as SVG or PDF. Saves the complete displayed chart, including its close-up or object key, independently of preview zoom. Vector text and symbols remain sharp when enlarged. Available only for a loaded Finder chart.',()=>this.safe(()=>this.exportChart()));this.exportChartButton.enabled=false;
    this.updateFinderActions=()=>{
       let p=this.finderPage,active=this.tabs.currentPageIndex===1&&!!p&&!p.disposed;
-      this.chartDetailsButton.enabled=this.allDetailsButton.enabled=active;
+      this.allDetailsButton.enabled=active;
       this.allDetailsButton.checked=!!p&&p.allDetailsEnabled();
       this.allDetailsButton.toolTip='All details: '+(this.allDetailsButton.checked?'turn off all available annotations and catalogs.':'turn on all available annotations and catalogs.')+' Milky Way shading is included; star appearance, catalog labels and magnitude settings are retained. Available only on Finder chart.';
    };
    this.allDetailsButton=ablTool(this,':/icons/select-all.png','All details',()=>{});this.allDetailsButton.checkable=true;this.allDetailsButton.enabled=false;
-   this.allDetailsButton.onClick=checked=>{if(this.tabs.currentPageIndex!==1||this.finderPage.disposed)return;this.finderPage.setAllDetails(!!checked);};
-   this.chartDetailsButton=ablTool(this,':/icons/properties.png','Chart details: choose annotations, catalogs, labels and magnitude limits. Available only on Finder chart.',()=>this.safe(()=>{
-      if(this.tabs.currentPageIndex!==1||this.finderPage.disposed)return;this.finderPage.updateFields();let d=new ABLChartDetailsDialog(this);if(this.executeDialog(d))this.finderPage.applyDetails(d.editedDetails);
-   }));this.chartDetailsButton.enabled=false;
+   this.allDetailsButton.onClick=checked=>this.safe(()=>{if(this.tabs.currentPageIndex!==1||this.finderPage.disposed)return;
+      try{this.finderPage.setAllDetails(!!checked);}finally{this.updateFinderActions();}});
    this.closeButton=ablTool(this,':/process-interface/cancel.png','Close the list manager; offer to save any changes.',()=>{if(this.canClose())this.ok();});
    // One section toggle hides both groups. Keep their distinct titles and
    // compact widths so file actions and list membership remain easy to find.
@@ -3937,7 +4155,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.listsGroup=ablGroup(this.collectionSection,'Lists');this.listsGroup.sizer.add(lists);this.listsGroup.sizer.add(listActions);this.listsGroup.sizer.addStretch();
    this.collectionSection.sizer=new HorizontalSizer;this.collectionSection.sizer.spacing=8;this.collectionSection.sizer.add(this.collectionGroup);this.collectionSection.sizer.add(this.listsGroup);this.collectionSection.sizer.addStretch();
    this.objectsGroup=ablGroup(this.tablePage,'Objects');this.objectsGroup.sizer.add(this.tree,100);this.objectsGroup.sizer.add(this.searchNotice);this.objectsGroup.sizer.add(objects);this.objectsGroup.sizer.add(selectedObjects);
-   let footer=new HorizontalSizer;footer.spacing=8;footer.add(this.instanceButton);footer.add(this.summary,100);footer.add(this.allDetailsButton);footer.add(this.chartDetailsButton);footer.add(this.exportChartButton);footer.add(this.openImageButton);footer.add(this.configurationButton);footer.add(this.closeButton);footer.add(this.helpButton);
+   let footer=new HorizontalSizer;footer.spacing=8;footer.add(this.instanceButton);footer.add(this.summary,100);footer.add(this.allDetailsButton);footer.add(this.exportChartButton);footer.add(this.openImageButton);footer.add(this.configurationButton);footer.add(this.closeButton);footer.add(this.helpButton);
    this.tablePage.sizer=new VerticalSizer;this.tablePage.sizer.margin=8;this.tablePage.sizer.spacing=8;this.tablePage.sizer.add(this.filterBar);this.tablePage.sizer.add(this.filterSection);this.tablePage.sizer.add(this.objectsGroup,100);this.tablePage.sizer.add(this.detailsBar);this.tablePage.sizer.add(this.details);
    this.finderPage=new ABLChartPage(this.tabs,this,true);this.dssPage=new ABLChartPage(this.tabs,this,false);
    this.tabs.addPage(this.tablePage,'Table');this.tabs.addPage(this.finderPage,'Finder chart');this.tabs.addPage(this.dssPage,'DSS survey image');this.tabs.currentPageIndex=0;
@@ -4143,7 +4361,13 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       else{this.clearedSelectionId='';this.updateSelection();this.updateSummary();}
    };
    this.tree.onKeyRelease=()=>{if(this.tree.currentNode?.selected){this.clearedSelectionId='';this.updateSelection();this.updateSummary();}return false;};
-   this.tree.onNodeActivated=n=>{if(n&&n.record){this.selectionUpdateTimer.stop();this.rowClick=null;this.clearedSelectionId='';this.tree.currentNode=n;n.selected=true;this.updateSelection();this.updateSummary();this.tabs.currentPageIndex=1;this.tabs.onPageSelected();}};
+   this.tree.onNodeActivated=n=>{if(n&&n.record){
+      this.selectionUpdateTimer.stop();this.rowClick=null;this.clearedSelectionId='';this.tree.currentNode=n;n.selected=true;
+      // Double-click explicitly requests this table target, even when it is
+      // unchanged and the Finder is currently browsing a different object.
+      this.finderPage.navigationInputKey=null;this.finderPage.resetNavigation();
+      this.updateSelection();this.updateSummary();this.tabs.currentPageIndex=1;this.tabs.onPageSelected();
+   }};
    this.listSelect.onItemSelected=i=>{this.listId=this.listIds[i]||'';this.refreshTree();};
    this.searchEdit.onTextUpdated=()=>this.refreshTree();
    this.selectedOnlyFilter.onCheck=()=>this.refreshTree();
@@ -4197,7 +4421,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       this.exportToPath(target,mode);
    };
    this.onClose=()=>this.canClose();
-   this.cleanup=()=>{this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");}catch(e){}this.chartFiles=[];this.chartCache.clear();};
+   this.cleanup=()=>{this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.finderPage.resetNavigation();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");}catch(e){}this.chartFiles=[];this.chartCache.clear();};
    let initialLists=Object.keys(this.doc.observingLists);this.listId=initialLists.length===1&&!ABL.refs(this.doc).some(r=>!r.listId)?initialLists[0]:'';
    // Explicit minimums override PJSR's computed ones. Measure without that
    // override, then enforce the complete native layout instead of allowing
