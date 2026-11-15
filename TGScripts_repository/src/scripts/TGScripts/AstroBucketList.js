@@ -2,11 +2,11 @@
 #include "lib/TGFileProtection.js"
 #ifndef ABL_LIBRARY
 #feature-id AstroBucketList : TG Scripts > Astro Bucket List
-#feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, export vector finder charts as SVG/PDF, view DSS images, and retain imaging status.
+#feature-info Maintain astronomical imaging bucket lists with saved views; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, inspect interactive finder charts, export SVG/PDF charts, view DSS images, and retain imaging status.
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.42.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.43.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.42.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.43.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.42.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.43.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.42.0', EXT = '_astroBucketList';
+   const VERSION = '0.43.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1826,7 +1826,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.42.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.43.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1834,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.42.0"
+#define VERSION "0.43.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2043,7 +2043,7 @@ function ablCatalogMagnitude(entry,choice,degrees){
 // table order, including rows without coordinates in the printed object key.
 function ablTableChartTargets(records){
    return records.map(r=>({id:r.id,designation:r.designation,name:ABL.objectHeading(r.designation,r.name),ra:r.ra,dec:r.dec,
-      size:r.size?ABL.copy(r.size):null,type:r.objectType}));
+      size:r.size?ABL.copy(r.size):null,type:r.objectType,displayName:r.name,aliases:(ABL.meta(r.object).aliases||[]).slice()}));
 }
 function ablChartTargetPosition(t){return Number.isFinite(t.ra)&&t.ra>=0&&t.ra<360&&Number.isFinite(t.dec)&&Math.abs(t.dec)<=90;}
 // Both projections use a tangent plane in radians. Keep the angular field,
@@ -2183,6 +2183,99 @@ class ABLSkyChartEngine extends SkyChartEngine {
    }
 }
 
+// Interaction metadata uses the same projection and frame as the drawing.
+// Keep only catalog facts, never native catalog/engine references. Catalog
+// symbols with centers outside the map and outline-only context are not picks.
+function ablChartPick(record,catalog,isStar=false){
+   let name=String(record.name||'').trim(),type=isStar?'Star':String(record.Type||record['ABL type']||'').trim();
+   let aliases=[name,record['NGC/IC'],record['Common name']].filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim());
+   let size=null;
+   if(!isStar&&Number.isFinite(record.diameter)&&record.diameter>0){
+      size={majorArcmin:record.diameter*60,minorArcmin:Number.isFinite(record.axisRatio)&&record.axisRatio>1?record.diameter*60/record.axisRatio:null,source:'PixInsight local catalog: '+catalog};
+      if(!ABL.validSize(size))size=null;
+   }
+   // Gaia XPSD records intentionally omit source identifiers. A positional
+   // caption identifies the symbol on screen but is never a fabricated ID.
+   return {designation:name,name:String(record['Common name']||name||(isStar?'Star at '+ABL.formatRA(record.posRD.x)+' '+ABL.formatDec(record.posRD.y):'')),type,aliases,ra:record.posRD.x,dec:record.posRD.y,
+      magnitude:Number.isFinite(record.magnitude)&&Math.abs(record.magnitude)<90?record.magnitude:null,size,catalog,objectId:''};
+}
+function ablChartPicks(engine,object,targets){
+   let hits=[],frame=engine.frame,metadata=engine.metadata;
+   const add=(pick,p,priority)=>{
+      if(p&&p.x>=0&&p.y>=0&&p.x<=metadata.width&&p.y<=metadata.height&&(pick.designation||pick.name))
+         hits.push(Object.assign(pick,{x:p.x+frame.x0,y:p.y+frame.y0,priority}));
+   };
+   for(let star of engine.chartStars)add(ablChartPick(star.record,star.layer.catalog.name,true),star,0);
+   for(let layer of engine.layers)if(layer.visible&&layer instanceof ABLChartCatalogLayer&&!layer.isStarLayer&&layer.gprops.showMarkers){
+      let records=layer.GetObjects();if(!records||layer.maxObjects>=0&&records.length>layer.maxObjects)continue;
+      for(let o of records)if(o){
+         // An outline with no projected segments is not visible in this map.
+         if(o.outline&&!CatalogLayer.ProjectOutline(metadata,o.outline,o.outlineOpen===true).length)continue;
+         add(ablChartPick(o,layer.catalog.name),metadata.Convert_RD_I(o.posRD),1);
+      }
+   }
+   // Explicit table targets take precedence over coincident context markers.
+   let explicit=targets||[{id:ABL.meta(object).objectId,designation:ABL.catalogIdentifier(object),name:ABL.meta(object).displayName||object.name||object.nameI18n,
+      ...ABL.position(object),size:ABL.angularSize(object),type:ABL.objectType(object),aliases:ABL.meta(object).aliases||[]}];
+   for(let t of explicit)if(ablChartTargetPosition(t)){
+      let aliases=Array.from(new Set([t.designation||t.name].concat(t.aliases||[]))),keys=new Set(aliases.map(ABL.norm));
+      let catalogHit=hits.find(h=>h.aliases.some(a=>keys.has(ABL.norm(a))));
+      add({objectId:t.id||'',designation:t.designation||t.name,name:t.displayName||t.name||t.designation,type:t.type||'',
+         size:t.size||null,ra:t.ra,dec:t.dec,magnitude:catalogHit?catalogHit.magnitude:null,aliases,
+         catalog:catalogHit?catalogHit.catalog:'Collection target'},metadata.Convert_RD_I(new Point(t.ra,t.dec)),2);
+   }
+   return hits;
+}
+function ablOffsetChartPicks(hits,x,y){return hits.map(h=>Object.assign({},h,{x:h.x+x,y:h.y+y}));}
+// A uniform grid bounds mouse-move work even in a dense local star field.
+// Distance is measured on screen, with a fixed logical-pixel pick tolerance.
+class ABLChartHitIndex {
+   constructor(hits){
+      this.cells=new Map;this.cellSize=32;this.x0=this.y0=Infinity;this.x1=this.y1=-Infinity;
+      for(let h of hits||[]){let ix=Math.floor(h.x/this.cellSize),iy=Math.floor(h.y/this.cellSize),key=ix+','+iy;
+         this.x0=Math.min(this.x0,ix);this.x1=Math.max(this.x1,ix);this.y0=Math.min(this.y0,iy);this.y1=Math.max(this.y1,iy);
+         if(!this.cells.has(key))this.cells.set(key,[]);this.cells.get(key).push(h);
+      }
+   }
+   hit(x,y,scale,tolerance=9){
+      if(!Number.isFinite(scale)||scale<=0||!Number.isFinite(x)||!Number.isFinite(y))return null;
+      let radius=tolerance/scale,best=null,distance=Infinity;
+      // A long printed object key can make Fit very small. Bound the search
+      // to occupied map cells, not the enormous inverse screen-pixel radius.
+      for(let ix=Math.max(this.x0,Math.floor((x-radius)/this.cellSize));ix<=Math.min(this.x1,Math.floor((x+radius)/this.cellSize));++ix)
+         for(let iy=Math.max(this.y0,Math.floor((y-radius)/this.cellSize));iy<=Math.min(this.y1,Math.floor((y+radius)/this.cellSize));++iy)
+            for(let h of this.cells.get(ix+','+iy)||[]){let d=Math.hypot(h.x-x,h.y-y)*scale;
+               if(d>tolerance)continue;
+               // Prefer the closest symbol; prefer an explicit target when
+               // its center is effectively coincident (within two pixels).
+               if(!best||d<distance-2||Math.abs(d-distance)<=2&&h.priority>best.priority){best=h;distance=d;}
+            }
+      return best;
+   }
+}
+function ablChartPickObject(hit){
+   let o=ablLocalRecord({name:hit.designation,names:hit.aliases||[],type:hit.type,ra:hit.ra,dec:hit.dec,
+      magnitude:hit.magnitude,catalogs:[hit.catalog]},hit.designation);
+   o.name=o.nameI18n=hit.name||hit.designation;
+   if(!hit.designation){
+      let m=ABL.meta(o);delete m.catalogMainId;m.aliases=[];
+      m.catalogSummary=['Star','Local catalogs: '+hit.catalog,Number.isFinite(hit.magnitude)?'Catalog magnitude: '+hit.magnitude:'',
+         'This local catalog record has no source identifier. Coordinates are J2000.'].filter(Boolean).join('\n');
+   }
+   if(ABL.validSize(hit.size))ABL.meta(o).catalogAngularSize=ABL.copy(hit.size);
+   return o;
+}
+function ablChartPickMatches(doc,hit){
+   if(hit.objectId){let r=ABL.refs(doc).find(r=>ABL.meta(r.object).objectId===hit.objectId);if(r)return [{id:hit.objectId,object:r.object}];}
+   if(!hit.designation)return [];
+   return ABL.duplicateMatches(doc,ablChartPickObject(hit));
+}
+function ablChartPickText(hit){
+   if(!hit)return '';
+   return [hit.designation?ABL.objectHeading(hit.designation,hit.name):hit.name,hit.type,'Size: '+ABL.sizeText(hit.size),
+      Number.isFinite(hit.magnitude)?'mag '+Number(hit.magnitude.toFixed(2)):'Magnitude unavailable'].filter(Boolean).join(' · ');
+}
+
 // The same recording supplies the embedded preview, the image and both vector
 // formats. No temporary image window or rasterized star field is needed.
 function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
@@ -2233,7 +2326,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
       layer.gprops.showLabels=details.starNames||details.starMagnitudes;layer.gprops.labelFields=['','','','','ABL star label','','',''];starLayers.push(layer);engine.layers.push(layer);
    }
    if(details.contours&&details.contourPath){if(!File.exists(details.contourPath))throw Error('The selected Stellarium outline file is unavailable. Choose another file or Use bundled in Configuration.');engine.ablOutlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));}
-   let map=engine.BuildChart(),targetMarkers=[];
+   let map=engine.BuildChart(),targetMarkers=[],picks=ablChartPicks(engine,object,targets);
    if(targets){map.pushState();try{map.translateTransformation(engine.frame.x0,engine.frame.y0);targetMarkers=ablDrawTableTargets(map,engine.metadata,targets,style);}finally{map.popState();}}
    let result={style:style.key,styleName:style.name,projection,projectionName:projection==='gnomonic'?'Gnomonic':'Stereographic',
       milkyWay,milkyWayAvailable,starLimit:engine.chartStarLimit,starColors:engine.starColors,starSize:details.starSize,
@@ -2241,7 +2334,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
       stars:engine.chartStats.stars,objectCount:engine.chartStats.deepSky,labelCount:engine.ablLabelCount,starLabelCount:starLayers.reduce((n,l)=>n+(l.labelObjects?l.labelObjects.size:0),0),
       contourCount:(engine.ablContours?engine.ablContours.count:0)+engine.ablOutlineCount,contourSource:details.contourPath?'Stellarium file':'PixInsight local databases',details,targetMarkers,tableTargetCount:targets?targets.length:0,
       catalogs:catalogLayers.map(l=>l.catalog.name),catalogOptions:choices,constellations:constellationLayer.visibleNames,background:style.band};
-   if(mapOnly)return Object.assign(result,{recording:map});
+   if(mapOnly)return Object.assign(result,{recording:map,picks});
    let inset=details.inset?ablSkyChart(object,fieldArcmin,details.insetDegrees,'',Object.assign({},options,{inset:false,_mapOnly:true})):null;
    let title=ABL.catalogIdentifier(object)||'Target',keyFont=new Font(style.face,20,'px'),key=targets?ablTableChartKey(targets,keyFont,details):null;
    let legendFont=new Font(style.face,17,'px'),items=engine.SymbolLegendItems(),legendHeight=28,legend=engine.SymbolLegendLayout(items,legendFont,legendHeight);
@@ -2275,7 +2368,8 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
    let bitmap=new Bitmap(recording.width,recording.height),graphics=new Graphics(bitmap);
    try{recording.paint(graphics);}finally{graphics.end();}
    try{TGFileProtection.assertOutsideInstallation(path,'Finder chart image');if(File.exists(path)||File.directoryExists(path))throw Error('The temporary chart path is already occupied.');bitmap.save(path);}finally{bitmap.clear();}
-   return Object.assign(result,{path,recording,title,inset:inset?{coverage:details.insetDegrees,projection:inset.projection,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
+   picks=ablOffsetChartPicks(picks,0,header);if(inset)picks.push(...ablOffsetChartPicks(inset.picks,width+20,header));
+   return Object.assign(result,{path,recording,title,picks,interactionBytes:JSON.stringify(picks).length*2,inset:inset?{coverage:details.insetDegrees,projection:inset.projection,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
 }
 
 // Export a complete vector drawing, not a bitmap embedded in a document.
@@ -2315,7 +2409,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.42.0';
+const ABL_VERSION='0.43.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2689,11 +2783,38 @@ class ABLCoordinatesDialog extends Dialog { constructor(parent,raText,decText){
    this.updatePosition();this.adjustToContents();
 }}
 
+const ABL_VIEW_SORTS=['constellation','month','month-desc','size','size-desc','ra','ra-desc','dec','dec-desc'];
+function ablViewState(value={}){
+   if(!value||typeof value!=='object')value={};
+   let sorts=Array.isArray(value.sorts)?value.sorts:[],text=v=>typeof v==='string'?v:'';
+   return {search:text(value.search).slice(0,4096),month:value.month==='near-current'||Number.isInteger(value.month)&&value.month>=-1&&value.month<=12?value.month:-1,
+      status:['all','not-imaged','imaged'].includes(value.status)?value.status:'all',constellation:text(value.constellation)||null,objectType:text(value.objectType).slice(0,256)||null,
+      band:['broadband','narrowband','unclassified'].includes(value.band)?value.band:null,selectedOnly:value.selectedOnly===true,
+      sorts:[ABL_VIEW_SORTS.includes(sorts[0])?sorts[0]:'constellation',ABL_VIEW_SORTS.includes(sorts[1])?sorts[1]:null,ABL_VIEW_SORTS.includes(sorts[2])?sorts[2]:null]};
+}
+function ablLoadViewPresets(text){
+   if(typeof text!=='string'||text.length>1048576)return [];
+   try{let data=JSON.parse(text);if(!data||data.version!==1||!Array.isArray(data.presets)||data.presets.length>50)return [];
+      let names=new Set,presets=[];
+      for(let p of data.presets){if(!p||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>80||!p.view||typeof p.view!=='object')continue;
+         let name=p.name.trim(),key=name.toLowerCase();if(names.has(key))continue;names.add(key);presets.push({name,view:ablViewState(p.view)});}
+      return presets;
+   }catch(e){return [];}
+}
+class ABLViewNameDialog extends Dialog { constructor(parent,name){
+   super(parent);this.windowTitle='Save view preset';this.autoDefaultButton=false;
+   this.nameEdit=new Edit(this);this.nameEdit.text=name;this.nameEdit.setMinWidth(320);
+   let info=new Label(this);info.wordWrapping=true;info.text='Save Find, all filters and the three sort choices. The preset applies within the current list. Checked object identities and chart settings are not saved.';
+   let save=ablButton(this,'Save',()=>{let value=this.nameEdit.text.trim();if(!value||value.length>80){parent.error(Error('Enter a preset name of 1 to 80 characters.'));return;}this.presetName=value;this.ok();});
+   let cancel=ablButton(this,'Cancel',()=>this.cancel()),buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(save);buttons.add(cancel);
+   this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;this.sizer.add(info);this.sizer.add(ablRow(this,'Name:',this.nameEdit));this.sizer.add(buttons);this.adjustToContents();
+}}
+
 // The editor works on a copy; only Apply returns a validated replacement.
-class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifier=''){
+class ABLObjectDialog extends Dialog { constructor(parent,object,initialIdentifier='',seed=null){
    super(parent);
    this.windowTitle=(object?'Edit object':'Add object')+' — '+ABL_TITLE;
-   this.source=object?ABL.copy(object):{designation:'',name:'',type:'Nebula',isVisibleMarker:false,ra:'',dec:''};
+   this.source=object?ABL.copy(object):seed?ABL.copy(seed):{designation:'',name:'',type:'Nebula',isVisibleMarker:false,ra:'',dec:''};
    ABL.consolidateObjectInformation(this.source);
    this.editedObject=null;this.lookupPerformed=false;this.setMinWidth(660);
    let m=ABL.meta(this.source);
@@ -3174,6 +3295,7 @@ class ABLChartDetailsDialog extends Dialog { constructor(manager){
 class ABLChartPage extends Control { constructor(parent,manager,sky){
    super(parent);this.manager=manager;this.sky=sky;this.object=null;this.objectKey=null;this.bitmap=null;this.loadedPath='';this.updating=false;
    this.vectorChart=null;this.vectorTiles=sky?new ChartTileCache(32*1024*1024):null;this.exportPath='';
+   this.hitIndex=null;this.hoverHit=null;this.pickedHit=null;
    this.tableGroup=null;this.frameError='';
    this.previewState='idle';this.previewError='';this.renderSummary='';this.canPreview=false;
    this.settings=ablPreviewSettings(null,sky,manager.previewPreferences[sky?'sky':'dss']);
@@ -3226,7 +3348,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(this.exportPath)lines.push('Exported chart: '+ABL.html(this.exportPath.replace(/.*[\\/]/,'')));
       this.info.text=lines.join('<br/>');this.info.toolTip=this.previewError||this.frameError||this.exportPath||(this.tableGroup?this.tableGroup.targets.filter(t=>!ablChartTargetPosition(t)).map(t=>t.name+' — coordinates missing').join('\n'):sky?manager.contourPath:'DSS2 Red survey at STScI');
    };
-   this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
+   this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;this.hitIndex=null;this.hoverHit=this.pickedHit=null;if(this.updateInspection)this.updateInspection();if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
    this.effectiveSettings=preferences=>{
       let value=ablPreviewSettings(this.object,sky,preferences);
       if(this.tableGroup){value.inset=false;try{value.coverage=ablTableChartFrame(this.tableGroup.targets,preferences.coverage,preferences.projection).coverage;}catch(e){/* updateFields presents framing errors in the information block. */}}
@@ -3268,7 +3390,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       let path=typeof response==='string'?response:response.path,bitmap=new Bitmap(path);
       if(bitmap.isNull)throw Error('No chart image was returned. Try again with a different field.');
       this.clearPreview();this.bitmap=bitmap;this.loadedPath=path;this.loadedField=field;
-      if(sky&&response.recording instanceof ChartRecording){this.vectorChart=response;this.vectorTiles.use(response.recording,response.background);}
+      if(sky&&response.recording instanceof ChartRecording){this.vectorChart=response;this.hitIndex=new ABLChartHitIndex(response.picks);this.vectorTiles.use(response.recording,response.background);}
       this.chart.update();
       this.previewState='ready';this.renderSummary=sky?ablChartStyle(this.settings.style).name+' · '+field+'° coverage · target at crosshair · '+(response.catalog||'local catalogs')+(Number.isFinite(response.objectCount)?' · '+response.objectCount+' catalog objects':''):'DSS2 Red · '+field+' × '+field+' arcmin · target at crosshair';
       if(this.tableGroup)this.renderSummary=ablChartStyle(this.settings.style).name+' · '+field+'° coverage · '+this.tableGroup.targets.filter(ablChartTargetPosition).length+' numbered table objects · '+(response.catalog||'local catalogs');
@@ -3308,14 +3430,14 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       this.scopeSelect.onItemSelected=()=>manager.updateSelection();controls.add(this.scopeLabel);controls.add(this.scopeSelect);
    }
    controls.addStretch();controls.add(this.retryButton);
-   this.chart=new Control(this);this.chart.setMinSize(620,360);
+   this.chart=new Control(this);this.chart.setMinSize(620,360);this.chart.mouseTracking=sky;
    // Zoom changes only the viewport transform. Finder paints cached vectors
    // at display resolution; DSS magnifies its bitmap. Neither queries a catalog.
    // Store a normalized center so resizing keeps the viewed region centered.
    this.view={zoom:1,centerX:.5,centerY:.5,drag:null};
    const arrowCursor=new Cursor(StdCursor.Arrow),panCursor=new Cursor(StdCursor.OpenHand),dragCursor=new Cursor(StdCursor.ClosedHand);
-   this.updateViewCursor=()=>{this.chart.cursor=this.view.drag?dragCursor:this.bitmap&&this.view.zoom>1?panCursor:arrowCursor;};
-   this.resetView=(notify=true)=>{this.view={zoom:1,centerX:.5,centerY:.5,drag:null};this.updateViewCursor();if(notify){this.updateInfo();this.chart.update();}};
+   this.updateViewCursor=()=>{this.chart.cursor=this.view.drag&&this.view.drag.moved&&this.view.zoom>1?dragCursor:this.bitmap&&this.view.zoom>1?panCursor:arrowCursor;};
+   this.resetView=(notify=true)=>{this.view={zoom:1,centerX:.5,centerY:.5,drag:null};this.hoverHit=null;this.updateViewCursor();if(notify){this.updateInfo();this.updateInspection();this.chart.update();}};
    this.previewRect=()=>{
       if(!this.bitmap)return null;
       let width=this.chart.width,height=this.chart.height,v=this.view;
@@ -3337,24 +3459,41 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       x=Math.max(before.x,Math.min(before.x+before.width,x));y=Math.max(before.y,Math.min(before.y+before.height,y));
       let ratio=zoom/v.zoom,u=(x-before.x)/before.width,w=(y-before.y)/before.height;
       v.zoom=zoom;v.centerX=u+(this.chart.width/2-x)/(before.width*ratio);v.centerY=w+(this.chart.height/2-y)/(before.height*ratio);v.drag=null;
-      this.previewRect();this.updateViewCursor();this.updateInfo();this.chart.update();return true;
+      this.hoverHit=null;this.previewRect();this.updateViewCursor();this.updateInfo();this.updateInspection();this.chart.update();return true;
    };
-   this.chart.toolTip='Wheel up to zoom in at the pointer; wheel down to zoom out. Drag with the left mouse button to pan. Double-click to fit the whole image. This changes only the preview, not sky coverage or the saved image.';
+   this.chart.toolTip=(sky?'Hover a symbol for catalog facts; click to select it, then use Edit object, Show in table or Add object below. Click empty sky to clear the selection. ':'')+'Wheel up to zoom in at the pointer; wheel down to zoom out. Drag with the left mouse button to pan. Double-click to fit the whole image. This changes only the preview, not sky coverage or the saved image.';
    this.chart.onMouseWheel=(x,y,delta)=>this.zoomAt(x,y,delta);
+   this.pickAt=(x,y)=>{
+      let r=this.previewRect();return r&&this.hitIndex?this.hitIndex.hit((x-r.x)/r.scale,(y-r.y)/r.scale,r.scale,this.logicalPixelsToPhysical(9)):null;
+   };
    this.chart.onMousePress=(x,y,button)=>{
-      if(button!==MouseButton.Left||!this.bitmap||this.view.zoom===1||this.disposed||this.rendering)return false;
-      let rect=this.previewRect();this.view.drag={x,y,centerX:this.view.centerX,centerY:this.view.centerY,width:rect.width,height:rect.height};this.updateViewCursor();return true;
+      if(button!==MouseButton.Left||!this.bitmap||this.disposed||this.rendering)return false;
+      let rect=this.previewRect();this.view.drag={x,y,moved:false,centerX:this.view.centerX,centerY:this.view.centerY,width:rect.width,height:rect.height};return true;
    };
    this.chart.onMouseMove=(x,y,buttons)=>{
-      let drag=this.view.drag;if(!drag)return false;
-      if(!(buttons&MouseButton.Left)){this.view.drag=null;this.updateViewCursor();return false;}
-      this.view.centerX=drag.centerX-(x-drag.x)/drag.width;this.view.centerY=drag.centerY-(y-drag.y)/drag.height;
-      this.previewRect();this.chart.update();return true;
+      let drag=this.view.drag;
+      if(drag&&!(buttons&MouseButton.Left)){this.view.drag=null;this.updateViewCursor();drag=null;}
+      if(drag){
+         if(Math.hypot(x-drag.x,y-drag.y)>this.logicalPixelsToPhysical(4))drag.moved=true;
+         if(drag.moved&&this.view.zoom>1){
+            this.hoverHit=null;this.view.centerX=drag.centerX-(x-drag.x)/drag.width;this.view.centerY=drag.centerY-(y-drag.y)/drag.height;
+            this.previewRect();this.updateViewCursor();this.updateInspection();this.chart.update();
+         }
+      }else if(sky){let hit=this.pickAt(x,y);if(hit!==this.hoverHit){this.hoverHit=hit;this.updateInspection();this.chart.update();}}
+      return true;
    };
-   this.chart.onMouseRelease=(x,y,button)=>{if(button!==MouseButton.Left||!this.view.drag)return false;this.view.drag=null;this.updateViewCursor();return true;};
+   this.chart.onMouseRelease=(x,y,button)=>{
+      if(button!==MouseButton.Left||!this.view.drag)return false;
+      let drag=this.view.drag;this.view.drag=null;this.updateViewCursor();
+      if(sky&&!drag.moved&&Math.hypot(x-drag.x,y-drag.y)<=this.logicalPixelsToPhysical(4)){
+         this.pickedHit=this.pickAt(x,y);this.hoverHit=null;this.updateInspection();this.chart.update();
+      }
+      return true;
+   };
    this.chart.onMouseDoubleClick=(x,y,buttons)=>{if(!this.bitmap||!(buttons&MouseButton.Left))return false;this.resetView();return true;};
-   this.chart.onResize=()=>{this.view.drag=null;this.previewRect();this.updateViewCursor();this.chart.update();};
-   this.chart.onHide=()=>{this.view.drag=null;this.updateViewCursor();};
+   this.chart.onLeave=()=>{this.hoverHit=null;this.updateInspection();this.chart.update();return true;};
+   this.chart.onResize=()=>{this.view.drag=null;this.hoverHit=null;this.previewRect();this.updateViewCursor();this.updateInspection();this.chart.update();};
+   this.chart.onHide=()=>{this.view.drag=null;this.hoverHit=null;this.updateViewCursor();this.updateInspection();};
    this.chart.onPaint=()=>{let g=new Graphics(this.chart);try{
       g.fillRect(this.chart.boundsRect,new Brush(0xff10141a));
       if(this.bitmap){let r=this.previewRect(),x=r.x,y=r.y,w=r.width,h=r.height;
@@ -3365,10 +3504,47 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
             if(this.vectorChart)this.vectorTiles.paint(g,Math.round(x),Math.round(y),r.scale,x0,y0,x1,y1,this.chart.resourcePixelRatio/this.chart.displayPixelRatio);
             else g.drawScaledBitmapRect(new Rect(x0,y0,x1,y1),this.bitmap,new Rect((x0-x)/r.scale,(y0-y)/r.scale,(x1-x)/r.scale,(y1-y)/r.scale));
          }
+         if(sky)for(let hit of [this.pickedHit,this.hoverHit])if(hit){let px=x+hit.x*r.scale,py=y+hit.y*r.scale;
+            if(px>=0&&py>=0&&px<this.chart.width&&py<this.chart.height){let radius=this.logicalPixelsToPhysical(hit===this.pickedHit?12:9);g.antialiasing=true;g.pen=new Pen(0xff10141a,4);g.strokeEllipse(px-radius,py-radius,px+radius,py+radius);g.pen=new Pen(hit===this.pickedHit?0xffffca60:0xff72ddff,2);g.strokeEllipse(px-radius,py-radius,px+radius,py+radius);}}
          if(!sky){let cx=x+w/2,cy=y+h/2;g.pen=new Pen(0xff65ff99,1);g.drawLine(cx-18,cy,cx-6,cy);g.drawLine(cx+6,cy,cx+18,cy);g.drawLine(cx,cy-18,cx,cy-6);g.drawLine(cx,cy+6,cx,cy+18);}
       }
    }finally{g.end();}};
-   this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(controls);this.sizer.add(this.info);this.sizer.add(this.chart,100);this.setObject(null);
+   this.updateInspection=()=>{
+      if(!sky||!this.hoverInfo)return;
+      this.hoverInfo.text=this.hoverHit?'Hover: '+ablChartPickText(this.hoverHit):'Hover a symbol to inspect it; click to select. Wheel to zoom, drag to pan, double-click to fit.';
+      this.hoverInfo.toolTip=this.hoverHit?ablChartPickText(this.hoverHit)+'\nJ2000: '+ABL.formatRA(this.hoverHit.ra)+' '+ABL.formatDec(this.hoverHit.dec)+'\n'+this.hoverHit.catalog:'';
+      let hit=this.pickedHit;
+      // Hover never scans the collection. Reconcile the selected symbol once
+      // per selection or collection revision, including edits and imports.
+      if(this.matchHit!==hit||this.matchDocument!==manager.doc||this.matchRevision!==manager.objectRevision){
+         this.pickMatches=hit?ablChartPickMatches(manager.doc,hit):[];this.matchHit=hit;this.matchDocument=manager.doc;this.matchRevision=manager.objectRevision;
+      }
+      let matches=this.pickMatches||[];
+      this.pickInfo.text=hit?'Selected: '+ablChartPickText(hit):'No chart object selected';this.pickInfo.toolTip=hit?ablChartPickText(hit):'';
+      this.pickAction.text=matches.length?'Edit object…':'Add object…';this.pickAction.enabled=!!hit;
+      this.showPickButton.enabled=matches.length>0;
+   };
+   this.resolvePick=()=>{
+      let hit=this.pickedHit;if(!hit)return null;
+      let matches=ablChartPickMatches(manager.doc,hit);
+      if(matches.length<=1)return {hit,id:matches.length?matches[0].id:''};
+      // Imported collections can contain ambiguous aliases. Reuse the
+      // existing chooser rather than silently editing the first match.
+      let d=new ABLDuplicateDialog(manager,ablChartPickObject(hit),matches);d.windowTitle='Choose collection object';d.info.text='More than one collection entry matches this chart identifier. Choose the entry for this action.';d.hint.text='The chart data will not overwrite the selected entry.';d.openButton.text='Choose object';d.backButton.text='Cancel';
+      return manager.executeDialog(d)?{hit,id:d.existingObjectId}:null;
+   };
+   this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(controls);this.sizer.add(this.info);this.sizer.add(this.chart,100);
+   if(sky){
+      this.hoverInfo=new Label(this);this.hoverInfo.wordWrapping=true;this.hoverInfo.setFixedHeight(this.logicalPixelsToPhysical(34));
+      this.pickInfo=new Label(this);this.pickInfo.wordWrapping=true;this.pickInfo.setMinWidth(100);this.pickInfo.setFixedHeight(this.logicalPixelsToPhysical(38));
+      this.pickAction=ablButton(this,'Add object…',()=>manager.safe(()=>{let pick=this.resolvePick();if(!pick)return;if(pick.id)manager.editObject(pick.id);else manager.addObject(pick.hit.designation,ablChartPickObject(pick.hit));this.updateInspection();}),
+         'Edit the matching collection entry, even if hidden by filters, or review a new object with local chart facts. Only Apply changes the collection. Look up in the editor can enrich its information.');
+      this.showPickButton=ablButton(this,'Show in table',()=>manager.safe(()=>{let pick=this.resolvePick();if(pick&&pick.id)manager.openExistingObject(pick.id,false);}),
+         'Reveal the existing object in All objects, clearing table filters. Sorting and export checks are retained.');
+      let row=new HorizontalSizer;row.spacing=8;row.add(this.pickInfo,100);row.add(this.pickAction);row.add(this.showPickButton);
+      this.sizer.add(this.hoverInfo);this.sizer.add(row);
+   }
+   this.setObject(null);this.updateInspection();
 }}
 
 // Apply returns a complete proposed transfer. Cancel discards the proposal,
@@ -3471,6 +3647,11 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    };
    this.previewPreferences=ablLoadPreviewPreferences(this.persistPreferences?this.previewPreferenceStore.read():null,this.chartStyle);
    this.chartStyle=this.previewPreferences.sky.style;
+   this.viewPresetStore=options.viewPresetStore||{
+      read:()=>{let text=Settings.read('AstroBucketList/viewPresets',DataType.String);return Settings.lastReadOK?text:null;},
+      write:text=>Settings.write('AstroBucketList/viewPresets',DataType.String,text)
+   };
+   this.viewPresets=ablLoadViewPresets(this.persistPreferences?this.viewPresetStore.read():null);this.activeViewPreset='';
    this.contourPath=ablDefaultContourPath();
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
    this.contourState=ablContourFileState(this.contourPath);
@@ -3493,14 +3674,14 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // Include every display option and contour contents. Editing a local
       // contour file cannot silently reuse a stale preview.
       let cacheDetails=Object.assign({},details,{contourPath:details.contours?details.contourPath:'',insetDegrees:details.inset?details.insetDegrees:2});
-      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,details.milkyWay?ablMilkyWayAvailable():false,outlineText,chartOptions.tableTargets||null]);
+      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,o.name,o.nameI18n,ABL.meta(o).displayName,ABL.meta(o).objectId,ABL.meta(o).aliases,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,details.milkyWay?ablMilkyWayAvailable():false,outlineText,chartOptions.tableTargets||null]);
       if(this.chartCache.has(key)&&File.exists(this.chartCache.get(key).path))return this.chartCache.get(key);
       let file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.png';this.chartFiles.push(file);
       let result=ablSkyChart(o,field,sky,file,Object.assign({},chartOptions,{outlineData:details.contours&&details.contourPath?ABL.parseOutlines(outlineText):[]}));this.chartCache.set(key,result);
       // Vector recordings are larger than bitmap-cache metadata. Bound their
       // retained memory; an evicted chart can be rebuilt from the same inputs.
-      let charts=Array.from(this.chartCache).filter(e=>e[0].startsWith('sky:')),bytes=charts.reduce((n,e)=>n+(e[1].recording?e[1].recording.bytes:0),0);
-      while(charts.length>1&&(charts.length>6||bytes>32*1024*1024)){let old=charts.shift();bytes-=old[1].recording?old[1].recording.bytes:0;this.chartCache.delete(old[0]);}
+      let charts=Array.from(this.chartCache).filter(e=>e[0].startsWith('sky:')),bytes=charts.reduce((n,e)=>n+(e[1].recording?e[1].recording.bytes:0)+(e[1].interactionBytes||0),0);
+      while(charts.length>1&&(charts.length>6||bytes>32*1024*1024)){let old=charts.shift();bytes-=(old[1].recording?old[1].recording.bytes:0)+(old[1].interactionBytes||0);this.chartCache.delete(old[0]);}
       return result;
    };
    if(options.io)for(let k of Object.keys(options.io))this.io[k]=options.io[k];
@@ -3552,13 +3733,67 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // and saved object metadata, including imaging/filter information.
       this.clearFilters();this.refreshTree();
    },'Clear Find, Month, imaging state, Constellation, Object type, Target band and Selected only. Keep the sort order and checked objects.');
-   this.sortModes=['constellation','month','month-desc','size','size-desc','ra','ra-desc','dec','dec-desc'];
+   this.sortModes=ABL_VIEW_SORTS;
    this.sortSelect=new ComboBox(this.sortGroup);this.secondarySortSelect=new ComboBox(this.sortGroup);this.tertiarySortSelect=new ComboBox(this.sortGroup);
    for(let control of [this.secondarySortSelect,this.tertiarySortSelect])control.addItem('None');
    for(let text of ['Constellation','Month: January–December','Month: December–January','Size: smallest first','Size: largest first','RA: increasing','RA: decreasing','Dec: increasing','Dec: decreasing'])for(let control of [this.sortSelect,this.secondarySortSelect,this.tertiarySortSelect])control.addItem(text);
    this.sortSelect.toolTip='Primary sort: change row order by constellation, calendar month, major diameter, or numeric J2000 RA/Dec. Then by breaks ties. Missing values stay last in either direction.';
    this.secondarySortSelect.toolTip='Optional secondary sort, used only when primary values are equal. For example: Sort by Dec: increasing, then Size: largest first. None skips this criterion.';
    this.tertiarySortSelect.toolTip='Optional third sort, used only when the preceding selected criteria tie. For example: Dec: increasing, then Size: largest first, finally RA: increasing. None skips this criterion. Missing values stay last.';
+   this.viewPresetSelect=new ComboBox(this.filterColumn);this.viewPresetSelect.setFixedWidth(this.logicalPixelsToPhysical(270));
+   this.viewPresetSelect.toolTip='Restore saved search, filters and three sort criteria within the current list. The relative month choice remains relative to today. Presets are local PixInsight preferences shared by your collections.';
+   this.captureView=()=>ablViewState(Object.assign({},this.filterOptions(),{selectedOnly:this.selectedOnlyFilter.checked,
+      sorts:[this.sortModes[this.sortSelect.currentItem],this.secondarySortSelect.currentItem?this.sortModes[this.secondarySortSelect.currentItem-1]:null,this.tertiarySortSelect.currentItem?this.sortModes[this.tertiarySortSelect.currentItem-1]:null]}));
+   this.refreshViewPresets=()=>{
+      this.viewPresetSelect.clear();this.viewPresetSelect.addItem('Custom view');
+      for(let p of this.viewPresets)this.viewPresetSelect.addItem(p.name);
+      this.viewPresetSelect.currentItem=Math.max(0,1+this.viewPresets.findIndex(p=>p.name===this.activeViewPreset));
+      this.deleteViewPresetButton.enabled=!!this.activeViewPreset;
+   };
+   this.syncViewPreset=()=>{
+      if(this.activeViewPreset){let preset=this.viewPresets.find(p=>p.name===this.activeViewPreset);
+         if(!preset||JSON.stringify(preset.view)!==JSON.stringify(this.captureView())){this.activeViewPreset='';this.refreshViewPresets();}}
+   };
+   this.storeViewPresets=next=>{
+      // Write before committing the in-memory change; a failed settings write
+      // must not masquerade as a saved, renamed or removed preset.
+      if(this.persistPreferences)this.viewPresetStore.write(JSON.stringify({version:1,presets:next}));
+      this.viewPresets=next;
+   };
+   this.saveViewPreset=name=>{
+      name=String(name).trim();if(!name||name.length>80)throw Error('Enter a preset name of 1 to 80 characters.');
+      let view=this.captureView();
+      if(view.search!==this.searchEdit.text||view.objectType!==(this.typeFilter.values[this.typeFilter.currentItem]||null))
+         throw Error('A saved view supports up to 4096 search characters and 256 object-type characters. Shorten the value before saving.');
+      let next=ABL.copy(this.viewPresets),index=next.findIndex(p=>p.name.toLowerCase()===name.toLowerCase());
+      if(index>=0&&!this.confirm('Replace the saved view “'+next[index].name+'” with the current filters and sorting?'))return false;
+      if(index<0&&next.length>=50)throw Error('There are already 50 saved views. Delete an unused preset first.');
+      let preset={name,view};if(index>=0)next[index]=preset;else next.push(preset);
+      next.sort((a,b)=>a.name.localeCompare(b.name));this.storeViewPresets(next);this.activeViewPreset=name;this.refreshViewPresets();return true;
+   };
+   this.applyViewPreset=name=>{
+      let preset=this.viewPresets.find(p=>p.name===name);if(!preset)return;
+      let v=ablViewState(preset.view),all=ABL.records(this.doc,this.listId),date=new Date(),unavailable=[];
+      this.building=true;
+      try{
+         this.searchEdit.text=v.search;this.monthFilter.currentItem=Math.max(0,this.monthFilter.values.indexOf(v.month));this.statusFilter.currentItem=['all','not-imaged','imaged'].indexOf(v.status);
+         this.bandFilter.currentItem=Math.max(0,this.bandFilter.values.indexOf(v.band));this.selectedOnlyFilter.checked=v.selectedOnly;
+         this.constellationFilter.currentItem=0;this.typeFilter.currentItem=0;this.refreshFilterChoices(all,date);
+         let index=this.constellationFilter.values.indexOf(v.constellation);if(index<0&&v.constellation)unavailable.push('Constellation');this.constellationFilter.currentItem=Math.max(0,index);
+         this.refreshFilterChoices(all,date);index=this.typeFilter.values.indexOf(v.objectType);if(index<0&&v.objectType)unavailable.push('Object type');this.typeFilter.currentItem=Math.max(0,index);
+         this.sortSelect.currentItem=this.sortModes.indexOf(v.sorts[0]);this.secondarySortSelect.currentItem=v.sorts[1]?this.sortModes.indexOf(v.sorts[1])+1:0;this.tertiarySortSelect.currentItem=v.sorts[2]?this.sortModes.indexOf(v.sorts[2])+1:0;
+      }finally{this.building=false;}
+      this.activeViewPreset=name;this.refreshViewPresets();this.refreshTree();
+      if(unavailable.length)this.notice('Applied “'+name+'”. '+unavailable.join(' and ')+' choices are unavailable in this list or filtered set and were reset to All. The saved preset is unchanged; the controls now show Custom view.');
+   };
+   this.viewPresetSelect.onItemSelected=index=>this.safe(()=>{if(this.building)return;if(index>0)this.applyViewPreset(this.viewPresets[index-1].name);else{this.activeViewPreset='';this.refreshViewPresets();}});
+   this.saveViewPresetButton=ablButton(this.filterColumn,'Save view…',()=>this.safe(()=>{let d=new ABLViewNameDialog(this,this.activeViewPreset);if(this.executeDialog(d))this.saveViewPreset(d.presetName);}),
+      'Save or replace a named view in local PixInsight preferences. Collection contents, list memberships, checked identities and chart settings are unchanged.');
+   this.deleteViewPresetButton=ablTool(this.filterColumn,':/icons/delete.png','Delete the selected saved view after confirmation. The displayed filters and collection are retained.',()=>this.safe(()=>{
+      if(!this.activeViewPreset||!this.confirm('Delete saved view “'+this.activeViewPreset+'”? The collection and current filters are retained.'))return;
+      this.storeViewPresets(this.viewPresets.filter(p=>p.name!==this.activeViewPreset));this.activeViewPreset='';this.refreshViewPresets();
+   }));
+   let presetRow=new HorizontalSizer;presetRow.spacing=8;let presetLabel=new Label(this.filterColumn);presetLabel.text='View preset:';presetRow.add(presetLabel);presetRow.add(this.viewPresetSelect);presetRow.add(this.saveViewPresetButton);presetRow.add(this.deleteViewPresetButton);presetRow.addStretch();this.refreshViewPresets();
    // Align labelled filters in two compact columns. Search has its own row
    // above the filters, while sorting remains a separate operation.
    // Measure the actual font and right-align text so even short labels end
@@ -3578,7 +3813,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    // spacer receives extra window width instead of stretching the filters.
    // One section owns search, filters and sorting. Keep the two groups
    // compact and distinct while hiding all view controls with one toggle.
-   this.filterColumn.sizer=new VerticalSizer;this.filterColumn.sizer.spacing=8;this.filterColumn.sizer.add(searchRow);this.filterColumn.sizer.add(this.filterGroup);this.filterColumn.sizer.addStretch();
+   this.filterColumn.sizer=new VerticalSizer;this.filterColumn.sizer.spacing=8;this.filterColumn.sizer.add(presetRow);this.filterColumn.sizer.add(searchRow);this.filterColumn.sizer.add(this.filterGroup);this.filterColumn.sizer.addStretch();
    this.filterSection.sizer=new HorizontalSizer;this.filterSection.sizer.spacing=8;this.filterSection.sizer.add(this.filterColumn);this.filterSection.sizer.add(this.sortGroup);this.filterSection.sizer.addStretch();
    // Use the native item view strictly as a flat table. Each object is a leaf
    // row; no constellation parents or expand/collapse controls are created.
@@ -3592,17 +3827,18 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.details=new TextBox(this.tablePage);this.details.readOnly=true;this.details.font=this.font;this.details.setMinHeight(105);
    this.detailsBar=new SectionBar(this.tablePage,'Object information and imaging notes');this.detailsBar.setSection(this.details);
    this.searchNotice=new Label(this.tablePage);this.searchNotice.wordWrapping=true;this.searchNotice.visible=false;
-   this.addButton=ablButton(this.tablePage,'Add object…',()=>this.safe(()=>{
-      let query=this.nodes.length===0?this.searchEdit.text.trim():'';
-      let d=new ABLObjectDialog(this,null,query);
+   this.addObject=(query='',seed=null)=>{
+      let d=new ABLObjectDialog(this,null,query,seed);
+      if(seed&&!query){d.idEdit.toolTip='This chart catalog supplies coordinates and magnitude, but no source identifier. Enter a known catalog identifier or your own unique label before applying.';d.idEdit.hasFocus=true;}
       if(this.executeDialog(d)){
          if(d.existingObjectId){this.openExistingObject(d.existingObjectId);return;}
          let o=ABL.addObject(this.doc,d.destinationListId,d.editedObject);this.listId=d.destinationListId;this.changed();
-         // A resolved catalog name or planning month may differ from the
-         // search. Reveal the accepted entry without losing export checks.
+         // Reveal the accepted entry without losing export checks. A chart
+         // selection uses the same validation and explicit list choice as Add.
          if(query)this.clearFilters();this.refreshLists(ABL.meta(o).objectId);
       }
-   }));
+   };
+   this.addButton=ablButton(this.tablePage,'Add object…',()=>this.safe(()=>this.addObject(this.nodes.length===0?this.searchEdit.text.trim():'')));
    this.editButton=ablButton(this.tablePage,'Edit object…',()=>this.safe(()=>this.editSelected()));
    this.deleteObjectButton=ablButton(this.tablePage,'Delete object…',()=>this.safe(()=>{
       let r=this.selected();if(!r)return;
@@ -3739,7 +3975,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // Review the destination with filters, sorting and export checks intact.
       this.listId=result.destinationId;this.refreshLists(ids[0]);
    };
-   this.changed=()=>{this.dirty=ablCollectionSignature(this.doc)!==this.savedSignature;this.updateHeader();};
+   this.objectRevision=0;
+   this.changed=()=>{++this.objectRevision;this.dirty=ablCollectionSignature(this.doc)!==this.savedSignature;this.updateHeader();};
    this.updateHeader=()=>{this.windowTitle=ABL_TITLE+' '+ABL_VERSION+(this.dirty?' *':'');this.fileLabel.text=(this.path||'Unsaved collection')+(this.dirty?' — modified':'');this.fileLabel.toolTip=this.path;this.listSelect.toolTip=this.listSelect.itemText(this.listSelect.currentItem);this.saveButton.enabled=this.dirty||!this.path;this.instanceButton.enabled=!!this.path;if(this.updateMinimumSize)this.updateMinimumSize();};
    this.refreshLists=(selectId='')=>{let ids=Object.keys(this.doc.observingLists);if(this.listId&&!ABL.own(this.doc.observingLists,this.listId))this.listId='';
       this.listIds=[''].concat(ids);this.listSelect.clear();this.listSelect.addItem('All objects');for(let id of ids)this.listSelect.addItem(this.doc.observingLists[id].name);
@@ -3766,6 +4003,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    // this from a checkbox callback: Qt still owns the native item during that
    // event, so check/uncheck handlers update existing rows in place.
    this.refreshTree=(selectId='')=>{
+      if(this.building)return;
       this.stateRefreshTimer.stop();
       this.selectionUpdateTimer.stop();this.rowClick=null;
       if(selectId)this.clearedSelectionId='';
@@ -3810,7 +4048,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
          let noCheckedMatch=this.selectedOnlyFilter.checked&&!this.nodes.length;
          this.searchNotice.text=noCheckedMatch?'No checked objects match this view. Turn off Selected only to choose more objects, or Reset filters to widen the search.':'No matches in this view. Use Add searched object to create an entry, or Reset filters to widen the search.';
          this.searchNotice.visible=noMatch||noCheckedMatch;
-      }finally{this.building=false;this.updateSelection();this.updateHeader();}
+      }finally{this.building=false;this.updateSelection();this.updateHeader();this.syncViewPreset();}
    };
    this.updateSummary=(all=ABL.records(this.doc,this.listId))=>{let highlighted=this.tree.selectedNodes.length;this.summary.text=this.nodes.length+' shown / '+all.length+' objects · '+all.filter(r=>r.imaged).length+' imaged · '+highlighted+' selected · '+this.exportIds.size+' checked';this.uncheckButton.enabled=this.exportIds.size>0;this.checkSelectedButton.enabled=highlighted>0;this.addToListButton.enabled=this.moveToListButton.enabled=this.exportSelectedButton.enabled=this.actionSelectionIds().length>0;this.checkShownButton.enabled=this.nodes.length>0;this.resetFiltersButton.enabled=!!this.searchEdit.text||this.monthFilter.currentItem!==0||this.statusFilter.currentItem!==0||this.constellationFilter.currentItem!==0||this.typeFilter.currentItem!==0||this.bandFilter.currentItem!==0||this.selectedOnlyFilter.checked;};
    this.updateSelection=()=>{let r=this.selected();this.editButton.enabled=this.deleteObjectButton.enabled=!!r;this.catalogButton.enabled=(this.listId?this.doc.observingLists[this.listId].objects:ABL.refs(this.doc)).length>0;this.removeButton.enabled=!!r&&!!this.listId;
@@ -3835,13 +4073,14 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    };
    // Navigate only after the Add and duplicate dialogs have returned, so the
    // active table and modal editor have a consistent current object.
-   this.openExistingObject=id=>{
+   this.openExistingObject=(id,edit=true)=>{
       if(!ABL.refs(this.doc).some(r=>ABL.meta(r.object).objectId===id))throw Error('The existing object is no longer in this collection.');
       this.tabs.currentPageIndex=0;this.tabs.onPageSelected();this.listId='';this.clearFilters();
       for(let n of this.nodes)n.selected=false;
-      this.refreshLists(id);this.editSelected();
+      this.refreshLists(id);if(edit)this.editSelected();
    };
-   this.editSelected=()=>{let r=this.selected();if(!r)return;let d=new ABLObjectDialog(this,r.object);if(this.executeDialog(d)){
+   this.editSelected=()=>{let r=this.selected();if(r)this.editObject(r.id);};
+   this.editObject=id=>{let r=ABL.records(this.doc).find(r=>r.id===id);if(!r)return;let d=new ABLObjectDialog(this,r.object);if(this.executeDialog(d)){
       ABL.replaceObject(this.doc,r.id,d.editedObject,d.editedListIds);
       // Keep the edited target visible if it was removed from the active list.
       if(this.listId&&!d.editedListIds.includes(this.listId))this.listId='';
@@ -4000,10 +4239,10 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.tabs.onPageSelected=()=>{this.updateMinimumSize();for(let page of [this.finderPage,this.dssPage])page.redrawTimer.stop();let page=this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:null;if(page)page.activate();this.updateImageAction();this.updateFinderActions();};
    this.onHide=()=>{this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();};
    this.onShow=()=>this.tabs.onPageSelected();
-   // Defer minimum-size measurement until the native section transition is
-   // complete; measuring mid-toggle can reserve hidden space or overlap rows.
+   // Preserve the window dimensions for both sections. Recompute minimums
+   // after the visibility change so the active tab receives the freed space.
    ablStableSection(this,this.detailsBar,this.details);
-   this.collectionBar.onToggleSection=(bar,begin)=>{this.togglingSection=begin;if(!begin)this.updateMinimumSize();};
+   ablStableSection(this,this.collectionBar,this.collectionSection);
    this.refreshLists();this.ensureLayoutUpdated();this.adjustToContents();this.updateMinimumSize();
    this.resize(Math.max(this.minWidth,this.logicalPixelsToPhysical(1560)),Math.max(this.minHeight,this.logicalPixelsToPhysical(820)));
 }}
