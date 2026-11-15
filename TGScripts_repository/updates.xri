@@ -5,8 +5,8 @@
         TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.9.6:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="e99dcc97be65cdb68ee6a6c6bb4bf44030068dba" type="script" releaseDate="20261115">
+   <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="3e58082dbe25c43b93132288ffb7825a3f986508" type="script" releaseDate="20261115">
          <title>
             TGScripts - Astro Bucket List 0.45.0
          </title>
@@ -63,4 +63,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-15T21:34:41.309Z" encoding="Base64">6e1wGDLsWRBkEyDD3/JircXlW7slMof1LFdZNILfxrjYbMYeihWGr7rHSWKC/vnk/NubYrKfNfMuco0GlzfOCQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-15T22:00:09.331Z" encoding="Base64">Nhw6rAwDHRvpL0xLEHL8UYsMUXcbUfAFomTEKbrBEAUnKBdBfRqB4nR/DR1/avH9xjeFqfBEmfTo7aF5SGquCg==</Signature>

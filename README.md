@@ -137,6 +137,8 @@ Manage **Stellarium-compatible observing lists**, track imaging status and notes
 
 ![Astro Bucket List DSS2 Red survey preview of NGC 7640](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
 
+Survey cutout from DSS2 Red, POSS-II plate A0AM, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=350.527375&d=40.84530556&e=J2000&h=13.68&w=13.68&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 </details>
 
 ### BBStarReduction

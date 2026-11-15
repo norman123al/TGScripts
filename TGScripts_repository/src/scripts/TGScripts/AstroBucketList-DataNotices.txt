@@ -1,4 +1,6 @@
-Astro Bucket List — SIMBAD data notice
+Astro Bucket List — third-party data notices
+
+SIMBAD
 
 SIMBAD is operated by CDS, Strasbourg, France.
 Source and license statement: https://simbad.cfa.harvard.edu/simbad/
@@ -39,3 +41,20 @@ The program code is MIT-licensed; see AstroBucketList-LICENSE.txt. That license
 does not relicense the SIMBAD-derived database. ODbL does not license the
 program code or DSS survey images. Other astronomical data sources are credited
 in the user guide and retain their respective terms.
+
+Digitized Sky Survey (DSS)
+DSS2 Red survey cutouts come from the Digitized Sky Survey at STScI/MAST.
+The MAST data-use policy identifies the applicable plate copyright holders and
+licenses DSS images under CC BY-NC-SA 4.0. When sharing a cutout, retain its
+source and plate-holder credit, indicate any changes, and follow the license's
+noncommercial and share-alike conditions.
+https://archive.stsci.edu/publishing/data-use
+https://creativecommons.org/licenses/by-nc-sa/4.0/
+
+The bundled AstroBucketList_dss_survey.jpg shows an NGC 7640 cutout from
+DSS2 Red, POSS-II plate A0AM, digitized and served by STScI/MAST. The underlying
+survey imagery is copyright © 1993–2003 California Institute of Technology.
+Astro Bucket List displays the cutout within its interface and overlays a
+crosshair. The survey cutout as shown is licensed under CC BY-NC-SA 4.0.
+Source image:
+https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=350.527375&d=40.84530556&e=J2000&h=13.68&w=13.68&f=gif&c=none
