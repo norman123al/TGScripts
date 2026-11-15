@@ -6,7 +6,7 @@
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.41.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.42.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.41.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.42.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.41.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.42.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.41.0', EXT = '_astroBucketList';
+   const VERSION = '0.42.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1331,12 +1331,21 @@ var ABL = (function () {
       if(active||!outlines.length)throw Error('The contour file has no complete outlines or ends inside a contour.');
       return outlines;
    }
+   // These preferences affect the drawing only. One normalization path also
+   // upgrades older saved preferences and supplies complete cache keys.
+   function chartAppearance(options={}) {
+      return {projection:['auto','gnomonic','stereographic'].includes(options.projection)?options.projection:'auto',
+         milkyWay:options.milkyWay!==false,
+         milkyWayStrength:Number.isFinite(options.milkyWayStrength)&&options.milkyWayStrength>=5&&options.milkyWayStrength<=30?options.milkyWayStrength:10,
+         starColors:options.starColors===true,starDensity:['sparse','normal','dense'].includes(options.starDensity)?options.starDensity:'normal',
+         starSize:Number.isFinite(options.starSize)&&options.starSize>=50&&options.starSize<=200?options.starSize:100};
+   }
    // Normalize display-only options once for rendering and the session cache.
    function chartDetails(options={}) {
-      return {starNames:options.starNames===true,starMagnitudes:options.starMagnitudes===true,
+      return Object.assign(chartAppearance(options),{starNames:options.starNames===true,starMagnitudes:options.starMagnitudes===true,
          objectDetails:options.objectDetails===true,labelDensity:['sparse','normal','detailed'].includes(options.labelDensity)?options.labelDensity:'normal',
          contours:options.contours===true,contourPath:text(options.contourPath),outlineLevel:[0,1,2,3].includes(options.outlineLevel)?options.outlineLevel:2,inset:options.inset===true,
-         insetDegrees:Number.isFinite(options.insetDegrees)?options.insetDegrees:2};
+         insetDegrees:Number.isFinite(options.insetDegrees)?options.insetDegrees:2});
    }
    function chartObjectDetails(o) {
       let fields=[],type=text(o.Type).trim();if(type)fields.push(type);
@@ -1812,12 +1821,12 @@ var ABL = (function () {
    }
    return {VERSION,EXT,MONTHS,own,plain,copy,text,uuid,today,stamp,norm,html,coordinate,formatRA,formatDec,position,constellation,normalizeConstellation,
       monthKey,meta,config,refs,catalogIdentifier,setStellariumLabel,same,newDocument,normalizeDocument,parseDocument,parseListImport,addList,deleteList,removeFromList,deleteObject,transferObjects,importDocuments,importListChoices,importListDestination,importObjectsAsList,exportDocument,exportObjects,setState,duplicateMatches,validateNewObject,addObject,replaceObject,
-      objectType,objectTypeChoices,reevaluateObjectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
+      objectType,objectTypeChoices,reevaluateObjectType,cleanNotes,cleanDocumentNotes,commentText,informationText,fetchedCatalogInformation,catalogInformation,consolidateObjectInformation,consolidateDocumentInformation,setCatalogInformation,filterInfo,BAND_LABELS,bandFilters,targetBand,setTargetBand,objectHeading,validSize,parseAngularSize,catalogSize,angularSize,sizeText,manualSize,chartFraming,defaultSkyCoverage,defaultInsetCoverage,parseOutlines,chartAppearance,chartDetails,chartObjectDetails,refreshCatalog,record,records,adjacentMonths,filter,sortedRecords,validDate,validateObject,parseSimbad,lookupLocal,dssField,finderURL};
 })();
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.41.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.42.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1825,7 +1834,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.41.0"
+#define VERSION "0.42.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2037,37 +2046,57 @@ function ablTableChartTargets(records){
       size:r.size?ABL.copy(r.size):null,type:r.objectType}));
 }
 function ablChartTargetPosition(t){return Number.isFinite(t.ra)&&t.ra>=0&&t.ra<360&&Number.isFinite(t.dec)&&Math.abs(t.dec)<=90;}
-function ablTableChartFrame(targets,minimum=45){
+// Both projections use a tangent plane in radians. Keep the angular field,
+// the fitting calculation and the center scale bar on the same geometry.
+function ablChartProjection(coverage,choice='auto'){
+   return choice==='gnomonic'||choice==='stereographic'?choice:coverage<=20?'gnomonic':'stereographic';
+}
+function ablChartPlaneWidth(degrees,projection){
+   return projection==='stereographic'?4*Math.tan(degrees*Math.PI/720):2*Math.tan(degrees*Math.PI/360);
+}
+function ablMilkyWayAvailable(){
+   try{return typeof MilkyWayLayer!=='undefined'&&typeof XESDServer!=='undefined'&&XESDServer.isAvailable('MilkyWay');}catch(e){return false;}
+}
+function ablTableChartFrame(targets,minimum=45,projection='auto'){
    const rad=Math.PI/180,width=1340,height=680,valid=targets.filter(ablChartTargetPosition);
    if(!valid.length)throw Error(targets.length?'The shown objects need coordinates. Use Edit object or Update catalogs.':'No objects match the active filters.');
    const vector=(ra,dec)=>[Math.cos(dec)*Math.cos(ra),Math.cos(dec)*Math.sin(ra),Math.sin(dec)];
    const dot=(a,b)=>a.reduce((n,v,i)=>n+v*b[i],0);
    const unit=a=>{let n=Math.hypot(...a);if(n<1e-10)throw Error('These objects cannot fit in one finder chart. Narrow the filters.');return a.map(v=>v/n);};
-   let centers=valid.map(t=>vector(t.ra*rad,t.dec*rad)),center=unit(centers.reduce((a,v)=>a.map((x,i)=>x+v[i]),[0,0,0]));
-   let points=[];
+   let centers=valid.map(t=>vector(t.ra*rad,t.dec*rad)),initial=unit(centers.reduce((a,v)=>a.map((x,i)=>x+v[i]),[0,0,0])),points=[];
    for(let t of valid){
       let ra=t.ra*rad,dec=t.dec*rad,c=vector(ra,dec),east=[-Math.sin(ra),Math.cos(ra),0],north=[-Math.sin(dec)*Math.cos(ra),-Math.sin(dec)*Math.sin(ra),Math.cos(dec)];points.push(c);
-      // Bound the full major diameter conservatively in every direction,
-      // without inventing a position angle for a catalog ellipse.
+      // Enclose the full major diameter without inventing a position angle.
       let radius=t.size?t.size.majorArcmin/120*rad:0;
       if(radius)for(let i=0;i<32;++i){let a=i*Math.PI/16;points.push(c.map((v,j)=>v*Math.cos(radius)+(east[j]*Math.cos(a)+north[j]*Math.sin(a))*Math.sin(radius)));}
    }
-   let ra,dec,east,north,bounds;
-   for(let pass=0;pass<4;++pass){
-      ra=Math.atan2(center[1],center[0]);dec=Math.asin(Math.max(-1,Math.min(1,center[2])));
-      east=[-Math.sin(ra),Math.cos(ra),0];north=[-Math.sin(dec)*Math.cos(ra),-Math.sin(dec)*Math.sin(ra),Math.cos(dec)];
-      bounds={x0:Infinity,x1:-Infinity,y0:Infinity,y1:-Infinity};
-      for(let p of points){let z=dot(p,center);if(z<=.001)throw Error('These objects span too much sky for one finder chart. Narrow the filters.');
-         let x=dot(p,east)/z,y=dot(p,north)/z;bounds.x0=Math.min(bounds.x0,x);bounds.x1=Math.max(bounds.x1,x);bounds.y0=Math.min(bounds.y0,y);bounds.y1=Math.max(bounds.y1,y);}
-      if(pass<3){let x=(bounds.x0+bounds.x1)/2,y=(bounds.y0+bounds.y1)/2;center=unit(center.map((v,i)=>v+x*east[i]+y*north[i]));}
-   }
-   // Fit the shorter vertical dimension as well as the horizontal field.
-   // Reserve space for markers/labels and round upward, never crop a target.
-   let plane=Math.max(Math.abs(bounds.x0),Math.abs(bounds.x1))/(1-120/width);
-   plane=Math.max(plane,Math.max(Math.abs(bounds.y0),Math.abs(bounds.y1))*width/(height-120));
-   let coverage=Math.ceil(Math.max(minimum,2*Math.atan(plane)/rad)*100)/100;
-   if(coverage>170)throw Error('These objects need more than 170° coverage. Narrow the filters.');
-   return {ra:(ra/rad+360)%360,dec:dec/rad,coverage,plotted:valid.length,missing:targets.length-valid.length};
+   const fit=kind=>{
+      let center=initial.slice(),ra,dec,east,north,bounds;
+      for(let pass=0;pass<4;++pass){
+         ra=Math.atan2(center[1],center[0]);dec=Math.asin(Math.max(-1,Math.min(1,center[2])));
+         east=[-Math.sin(ra),Math.cos(ra),0];north=[-Math.sin(dec)*Math.cos(ra),-Math.sin(dec)*Math.sin(ra),Math.cos(dec)];
+         bounds={x0:Infinity,x1:-Infinity,y0:Infinity,y1:-Infinity};
+         for(let p of points){let z=dot(p,center);if(z<=.001)throw Error('These objects span too much sky for one finder chart. Narrow the filters.');
+            let f=kind==='stereographic'?2/(1+z):1/z,x=dot(p,east)*f,y=dot(p,north)*f;
+            bounds.x0=Math.min(bounds.x0,x);bounds.x1=Math.max(bounds.x1,x);bounds.y0=Math.min(bounds.y0,y);bounds.y1=Math.max(bounds.y1,y);}
+         if(pass<3){let x=(bounds.x0+bounds.x1)/2,y=(bounds.y0+bounds.y1)/2,r=Math.hypot(x,y);
+            if(r>1e-12){let a=kind==='stereographic'?2*Math.atan(r/2):Math.atan(r);center=unit(center.map((v,i)=>v*Math.cos(a)+(x*east[i]+y*north[i])*Math.sin(a)/r));}}
+      }
+      // Reserve marker space on both axes, including the shorter map height.
+      let plane=Math.max(Math.abs(bounds.x0),Math.abs(bounds.x1))/(1-120/width);
+      plane=Math.max(plane,Math.max(Math.abs(bounds.y0),Math.abs(bounds.y1))*width/(height-120));
+      let angle=kind==='stereographic'?4*Math.atan(plane/2):2*Math.atan(plane);
+      let coverage=Math.ceil(Math.max(minimum,angle/rad)*100)/100;
+      if(coverage>170)throw Error('These objects need more than 170° coverage. Narrow the filters.');
+      return {ra:(ra/rad+360)%360,dec:dec/rad,coverage,projection:kind,plotted:valid.length,missing:targets.length-valid.length};
+   };
+   let kind=ablChartProjection(minimum,projection),frame;
+   try{frame=fit(kind);}catch(e){if(projection!=='auto'||kind!=='gnomonic')throw e;frame=fit('stereographic');}
+   if(projection==='auto'&&frame.projection==='gnomonic'&&frame.coverage>20)frame=fit('stereographic');
+   // Rounding near the automatic threshold must not switch the renderer back
+   // to a different projection than the one used to fit the group.
+   if(projection==='auto'&&frame.projection==='stereographic')frame.coverage=Math.max(20.01,frame.coverage);
+   return frame;
 }
 // Explicit table targets are always marked, independently of catalog switches,
 // magnitude cutoffs and label density. Number labels use leader lines where
@@ -2165,22 +2194,31 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
    if(!Number.isFinite(fieldArcmin)||fieldArcmin<1||fieldArcmin>1800||!Number.isFinite(skyDegrees)||skyDegrees<.1||skyDegrees>(targets?170:120))throw Error('Choose valid survey and sky coverage.');
    if(details.inset&&(!Number.isFinite(details.insetDegrees)||details.insetDegrees<.1||details.insetDegrees>=skyDegrees))throw Error('Choose a close-up coverage of at least 0.1° and smaller than the overview.');
    let engine=new ABLSkyChartEngine(details,style);
-   engine.centerRA=position.ra;engine.centerDec=position.dec;engine.projection=Projection.Gnomonic;
-   // The engine's field width measures the projection plane. Convert the
-   // user's angular edge-to-edge coverage to its tangent-plane equivalent.
-   engine.fieldWidth=2*Math.tan(skyDegrees*Math.PI/360)*180/Math.PI;
+   const projection=ablChartProjection(skyDegrees,details.projection);
+   engine.centerRA=position.ra;engine.centerDec=position.dec;engine.projection=projection==='gnomonic'?Projection.Gnomonic:Projection.Stereographic;
+   // Native fieldWidth measures the plane, not edge-to-edge sky coverage.
+   engine.fieldWidth=ablChartPlaneWidth(skyDegrees,projection)*180/Math.PI;
    engine.pageFormat=SkyChartEngine.Custom;engine.pageWidth=width/SkyChartEngine.PX_PER_MM;engine.pageHeight=height/SkyChartEngine.PX_PER_MM;
-   engine.pageMargin=2;engine.showLegend=false;engine.observationTime=2451545.0;engine.starColors=false;
+   engine.pageMargin=2;engine.showLegend=false;engine.observationTime=2451545.0;engine.starColors=details.starColors;
    engine.backgroundColor=style.band;engine.mapBackgroundColor=style.sky;engine.frameColor=style.ink;engine.leaderLineColor=style.secondary;
-   engine.starMinSize=2.5;engine.starMaxSize=18;engine.starHalos=true;engine.starHalo=1.8;engine.haloMapColor=true;engine.starOutlines=false;
-   engine.autoStarLimit=false;engine.starLimitMagnitude=Math.min(15,Math.max(5.5,6.7-3*Math.log10(skyDegrees/30)));
+   engine.starMinSize=2.5*details.starSize/100;engine.starMaxSize=18*details.starSize/100;engine.starHalos=true;engine.starHalo=1.8*details.starSize/100;engine.haloMapColor=true;engine.starOutlines=false;
+   // Normal preserves the established depth. Sparse/Dense shift the limiting
+   // magnitude by one; availability still depends on the local star catalog.
+   engine.autoStarLimit=false;engine.starLimitMagnitude=Math.min(15,Math.max(5.5,6.7-3*Math.log10(skyDegrees/30))+({sparse:-1,normal:0,dense:1}[details.starDensity]));
    // Per-catalog limits are authoritative, including No limit. Do not impose
    // a second, hidden magnitude cutoff through the engine's global default.
    engine.autoDSOLimit=false;engine.dsoLimitMagnitude=99;engine.dsoMinSize=7;engine.labelReductionFactor=.85;
    if(!style.atlas){engine.dsoLineColors=ChartSymbols.TypeNames.map(()=>style.object);engine.dsoFillColors=ChartSymbols.TypeNames.map(()=>((style.object&0xffffff)|0x18000000)>>>0);}
    let grid=new ChartGridLayer;grid.density=3;grid.gprops.lineColor=style.grid;grid.gprops.labelColor=style.gridLabel;grid.gprops.labelSize=16;grid.gprops.labelFace=style.face;
    let constellationLayer=new ABLConstellationLayer(skyDegrees>=5);constellationLayer.gprops.lineColor=style.asterism;constellationLayer.gprops.lineWidth=1.5;constellationLayer.gprops.labelColor=style.constellation;constellationLayer.gprops.labelFace=style.face;constellationLayer.gprops.labelSize=28;constellationLayer.gprops.labelItalic=style.vintage;
-   engine.layers=[grid];const showBorders=options.borders!==false;if(showBorders)engine.layers.push(new ABLConstellationBordersLayer(style.border));engine.layers.push(constellationLayer);
+   let milkyWayAvailable=ablMilkyWayAvailable(),milkyWay=details.milkyWay&&milkyWayAvailable;
+   engine.layers=[];
+   if(milkyWay){let layer=new MilkyWayLayer;
+      // Native fills preserve the catalog's isophotes. Style-aware tints are
+      // deliberately subtle; each overlapping brightness level adds opacity.
+      let tint=style.vintage?0x806846:style.atlas?0x6884a5:0x9aadc9;
+      layer.gprops.lineColor=((Math.round(details.milkyWayStrength*2.55)<<24)|tint)>>>0;engine.layers.push(layer);}
+   engine.layers.push(grid);const showBorders=options.borders!==false;if(showBorders)engine.layers.push(new ABLConstellationBordersLayer(style.border));engine.layers.push(constellationLayer);
    let entries=ablChartCatalogs(),choices=ablChartCatalogOptions(options),catalogLayers=[];
    for(let i=0;i<entries.length;++i){let entry=entries[i],choice=choices[i];if(!entry.available||!choice.enabled)continue;
       let layer=new ABLChartCatalogLayer(entry.catalog);layer.visible=true;layer.catalog.showOutlines=false;layer.catalog.magMax=ablCatalogMagnitude(entry,choice,skyDegrees);
@@ -2197,7 +2235,9 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
    if(details.contours&&details.contourPath){if(!File.exists(details.contourPath))throw Error('The selected Stellarium outline file is unavailable. Choose another file or Use bundled in Configuration.');engine.ablOutlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));}
    let map=engine.BuildChart(),targetMarkers=[];
    if(targets){map.pushState();try{map.translateTransformation(engine.frame.x0,engine.frame.y0);targetMarkers=ablDrawTableTargets(map,engine.metadata,targets,style);}finally{map.popState();}}
-   let result={style:style.key,styleName:style.name,borders:showBorders,catalog:local?'Local '+local.name+' and bundled stars':'Bundled named and bright stars',localGaia:!!local,
+   let result={style:style.key,styleName:style.name,projection,projectionName:projection==='gnomonic'?'Gnomonic':'Stereographic',
+      milkyWay,milkyWayAvailable,starLimit:engine.chartStarLimit,starColors:engine.starColors,starSize:details.starSize,
+      coloredStars:engine.chartStars.filter(s=>Number.isFinite(s.record.chartBV)).length,borders:showBorders,catalog:local?'Local '+local.name+' and bundled stars':'Bundled named and bright stars',localGaia:!!local,
       stars:engine.chartStats.stars,objectCount:engine.chartStats.deepSky,labelCount:engine.ablLabelCount,starLabelCount:starLayers.reduce((n,l)=>n+(l.labelObjects?l.labelObjects.size:0),0),
       contourCount:(engine.ablContours?engine.ablContours.count:0)+engine.ablOutlineCount,contourSource:details.contourPath?'Stellarium file':'PixInsight local databases',details,targetMarkers,tableTargetCount:targets?targets.length:0,
       catalogs:catalogLayers.map(l=>l.catalog.name),catalogOptions:choices,constellations:constellationLayer.visibleNames,background:style.band};
@@ -2216,12 +2256,12 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
    g.pen=new Pen(style.ink);let titleFont=new Font(style.face,31,'px');titleFont.bold=!style.vintage;g.font=titleFont;
    let heading=title;while(heading.length>1&&g.font.width(heading)>850)heading=heading.slice(0,-1);if(heading!==title)heading+='…';g.drawText(24,40,heading);
    g.font=new Font(style.face,20,'px');g.pen=new Pen(style.secondary);g.drawText(24,65,targets?targets.length+' shown objects · '+targetMarkers.length+' plotted'+(targetMarkers.length<targets.length?' · '+(targets.length-targetMarkers.length)+' without coordinates':''):'Apparent size  '+ABL.sizeText(ABL.angularSize(object)));
-   g.drawText(1000,34,'Field width  '+skyDegrees+'°');g.drawText(1000,64,'N ↑   E ←   ·   J2000');
+   g.drawText(1000,34,'Field width  '+skyDegrees+'°');g.drawText(1000,64,'N ↑   E ←   ·   J2000 · '+result.projectionName);
    let y=header+height;g.pen=new Pen(style.rule);g.drawLine(24,y,width-24,y);g.font=new Font(style.face,20,'px');g.pen=new Pen(style.ink);
    g.drawText(24,y+32,'RA  '+ABL.formatRA(position.ra)+'     Dec  '+ABL.formatDec(position.dec));
    if(showBorders){g.pen=new Pen(style.border,1.5,PenStyle.Dash);g.drawLine(700,y+26,744,y+26);g.pen=new Pen(style.ink);g.font=new Font(style.face,17,'px');g.drawText(754,y+32,'Constellation borders');}
    g.font=new Font(style.face,18,'px');g.drawText(24,y+68,targets?'Numbered rings = table objects · Other symbols = catalog context':'Crosshair = target · Symbols show catalog object types');
-   let barDegrees=skyDegrees/5,barPixels=2*Math.tan(barDegrees*Math.PI/360)/(engine.metadata.resolution*Math.PI/180),x=width-30-barPixels;
+   let barDegrees=skyDegrees/5,barPixels=ablChartPlaneWidth(barDegrees,projection)/(engine.metadata.resolution*Math.PI/180),x=width-30-barPixels;
    g.drawLine(x,y+63,width-30,y+63);g.drawLine(x,y+57,x,y+69);g.drawLine(width-30,y+57,width-30,y+69);
    let scaleText=barDegrees>=1?Number(barDegrees.toPrecision(3))+'°':Number((barDegrees*60).toPrecision(3))+'′';g.drawText(x,y+43,scaleText+' at center');
    if(items.length)engine.DrawSymbolLegend(g,24,y+100,items,legend);
@@ -2235,7 +2275,7 @@ function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
    let bitmap=new Bitmap(recording.width,recording.height),graphics=new Graphics(bitmap);
    try{recording.paint(graphics);}finally{graphics.end();}
    try{TGFileProtection.assertOutsideInstallation(path,'Finder chart image');if(File.exists(path)||File.directoryExists(path))throw Error('The temporary chart path is already occupied.');bitmap.save(path);}finally{bitmap.clear();}
-   return Object.assign(result,{path,recording,title,inset:inset?{coverage:details.insetDegrees,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
+   return Object.assign(result,{path,recording,title,inset:inset?{coverage:details.insetDegrees,projection:inset.projection,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
 }
 
 // Export a complete vector drawing, not a bitmap embedded in a document.
@@ -2275,7 +2315,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.41.0';
+const ABL_VERSION='0.42.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2445,7 +2485,7 @@ function ablValidateDSS(data){
    let p=0,images=0,word=()=>byte()+256*byte();
    const fail=()=>{throw Error('The DSS response is not a complete, supported GIF image.');};
    const need=n=>{if(p+n>data.length)fail();};
-   const byte=()=>{need(1);return data.at(p++);};
+   const byte=()=>{need(1);return data[p++];};
    const skip=n=>{need(n);p+=n;};
    const blocks=()=>{for(let n;(n=byte())!==0;)skip(n);};
    let signature='';for(let i=0;i<6;++i)signature+=String.fromCharCode(byte());
@@ -2909,12 +2949,13 @@ class ABLMonthsDialog extends Dialog { constructor(parent){
 // Preferences describe all targets. Effective framing is derived separately
 // so fitting, missing sizes and survey limits never overwrite manual widths.
 function ablLoadPreviewPreferences(text,style='modern-editorial'){
-   let defaults={sky:{coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},dss:{coverage:30,fitObjectSize:true}},saved;
+   let defaults={sky:Object.assign({coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},ABL.chartAppearance()),dss:{coverage:30,fitObjectSize:true}},saved;
    try{saved=JSON.parse(text);}catch(e){return defaults;}
    for(let key of ['sky','dss']){let value=saved?.[key],target=defaults[key];if(!value||typeof value!=='object')continue;
       if(Number.isFinite(value.coverage)&&value.coverage>=(key==='sky'?.1:5)&&value.coverage<=120)target.coverage=value.coverage;
       if(typeof value.fitObjectSize==='boolean')target.fitObjectSize=value.fitObjectSize;
       if(key==='sky'){
+         Object.assign(target,ABL.chartAppearance(value));
          if(['modern-editorial','vintage-atlas','observing-atlas'].includes(value.style))target.style=value.style;
          if(['sparse','normal','detailed'].includes(value.labelDensity))target.labelDensity=value.labelDensity;
          if(typeof value.inset==='boolean')target.inset=value.inset;
@@ -2985,23 +3026,42 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.inset.toolTip='Add a separate square close-up beside the overview, using the same style, catalogs and details.';
    this.insetField=widthEdit(this.finderGroup,'Coverage (°):',.1,manager.previewPreferences.sky.insetDegrees);
    this.insetField.toolTip='Preferred close-up width for all targets. If it is too large for the current overview, that chart uses half the overview width without changing this preference.';
-   this.previewValues=()=>({sky:{coverage:this.skyCoverage.value,fitObjectSize:this.skyFit.checked,style:this.styleSelect.values[this.styleSelect.currentItem],labelDensity:this.labelDensity.values[this.labelDensity.currentItem],inset:this.inset.checked,insetDegrees:this.insetField.value},dss:{coverage:this.surveyField.value,fitObjectSize:this.dssFit.checked}});
+   this.projection=new ComboBox(this.finderGroup);this.projection.values=['auto','gnomonic','stereographic'];
+   for(let name of ['Automatic','Gnomonic','Stereographic'])this.projection.addItem(name);
+   this.projection.currentItem=this.projection.values.indexOf(manager.previewPreferences.sky.projection);
+   this.projection.toolTip='Automatic uses Gnomonic up to 20° and Stereographic above 20° to reduce stretching in wide views. The close-up is chosen independently. Manual choices apply to both. Sky coverage remains the actual horizontal angular width.';
+   this.appearanceColumn=new Control(this.finderGroup);this.appearanceColumn.sizer=new VerticalSizer;this.appearanceColumn.sizer.spacing=6;
+   const appearance=manager.previewPreferences.sky;
+   this.milkyWay=new CheckBox(this.appearanceColumn);this.milkyWay.text='Milky Way shading';this.milkyWay.checked=appearance.milkyWay;this.milkyWay.enabled=ablMilkyWayAvailable();
+   this.milkyWay.toolTip='Shade integrated-starlight contours from PixInsight’s local MilkyWay database. Enabled by default. No download is made. When the database is unavailable, charts omit shading and retain your preference. All details also toggles this layer.';
+   this.milkyWayStrength=new NumericEdit(this.appearanceColumn);this.milkyWayStrength.label.text='Shading strength (%):';this.milkyWayStrength.setRange(5,30);this.milkyWayStrength.setPrecision(0);this.milkyWayStrength.setValue(appearance.milkyWayStrength);
+   this.milkyWayStrength.toolTip='Opacity added by each Milky Way brightness contour, from 5 to 30 percent. Overlapping levels build up the shading; 10 percent is the default.';
+   this.starDensity=new ComboBox(this.appearanceColumn);this.starDensity.values=['sparse','normal','dense'];for(let name of ['Sparse','Normal','Dense'])this.starDensity.addItem(name);
+   this.starDensity.currentItem=this.starDensity.values.indexOf(appearance.starDensity);
+   this.starDensity.toolTip='Normal adjusts the star magnitude limit to the sky coverage. Sparse uses a limit one magnitude brighter; Dense goes one magnitude fainter, up to magnitude 15. Local catalog coverage limits which stars can appear. This is independent of label density and deep-sky catalog limits.';
+   this.starSize=new NumericEdit(this.appearanceColumn);this.starSize.label.text='Star size (%):';this.starSize.setRange(50,200);this.starSize.setPrecision(0);this.starSize.setValue(appearance.starSize);
+   this.starSize.toolTip='Scale magnitude-dependent star symbols and their halos from 50 to 200 percent. This does not change the star count, field coverage or deep-sky object sizes.';
+   for(let edit of [this.milkyWayStrength,this.starSize]){edit.label.setFixedWidth(this.font.width('Shading strength (%):')+this.logicalPixelsToPhysical(8));edit.sizer.spacing=6;edit.fixed=true;edit.autoEditWidth=false;edit.edit.setFixedWidth(this.logicalPixelsToPhysical(65));}
+   this.starColors=new CheckBox(this.appearanceColumn);this.starColors.text='Use catalog star colors';this.starColors.checked=appearance.starColors;
+   this.starColors.toolTip='Use available catalog color indices. Stars without color data keep the chart style’s neutral color. Off by default, including black stars in Observing Atlas. This is a schematic color rendering, not a calibrated photograph.';
+   let densityRow=new HorizontalSizer;densityRow.spacing=6;let densityLabel=new Label(this.appearanceColumn);densityLabel.text='Star density:';densityLabel.setFixedWidth(this.starSize.label.width);densityLabel.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;this.starDensity.setFixedWidth(this.logicalPixelsToPhysical(110));densityRow.add(densityLabel);densityRow.add(this.starDensity);densityRow.addStretch();
+   this.milkyWayHint=new Label(this.appearanceColumn);this.milkyWayHint.text=this.milkyWay.enabled?'Local MilkyWay database available':'MilkyWay database unavailable — shading omitted';this.milkyWayHint.wordWrapping=true;this.milkyWayHint.setFixedWidth(this.logicalPixelsToPhysical(285));
+   for(let control of [this.milkyWay,this.milkyWayStrength,this.milkyWayHint])this.appearanceColumn.sizer.add(control);this.appearanceColumn.sizer.addSpacing(6);this.appearanceColumn.sizer.add(densityRow);this.appearanceColumn.sizer.add(this.starSize);this.appearanceColumn.sizer.add(this.starColors);this.appearanceColumn.sizer.addStretch();
+   this.previewValues=()=>({sky:{projection:this.projection.values[this.projection.currentItem],milkyWay:this.milkyWay.checked,milkyWayStrength:this.milkyWayStrength.value,starColors:this.starColors.checked,starDensity:this.starDensity.values[this.starDensity.currentItem],starSize:this.starSize.value,coverage:this.skyCoverage.value,fitObjectSize:this.skyFit.checked,style:this.styleSelect.values[this.styleSelect.currentItem],labelDensity:this.labelDensity.values[this.labelDensity.currentItem],inset:this.inset.checked,insetDegrees:this.insetField.value},dss:{coverage:this.surveyField.value,fitObjectSize:this.dssFit.checked}});
    this.coverageHint=new Label(this);this.coverageHint.wordWrapping=true;this.coverageHint.setFixedWidth(this.logicalPixelsToPhysical(510));
    this.updating=false;
    this.updateFraming=()=>{
-      this.skyCoverage.enabled=!this.skyFit.checked;this.surveyField.enabled=!this.dssFit.checked;this.insetField.enabled=this.inset.checked;
+      this.milkyWayStrength.enabled=this.milkyWay.enabled&&this.milkyWay.checked;this.skyCoverage.enabled=!this.skyFit.checked;this.surveyField.enabled=!this.dssFit.checked;this.insetField.enabled=this.inset.checked;
       let size=manager.dssPage.object?ABL.angularSize(manager.dssPage.object):null;
       this.coverageHint.text='Settings apply to all targets and are remembered between launches. With fitting enabled, the widths shown are used when object size is unknown.'+(size&&size.majorArcmin>120?' The current DSS target uses the 120′ maximum.':'');
    };
-   this.skyFit.onCheck=this.dssFit.onCheck=this.inset.onCheck=this.updateFraming;
+   this.milkyWay.onCheck=this.skyFit.onCheck=this.dssFit.onCheck=this.inset.onCheck=this.updateFraming;
    const pair=(left,right)=>{left.setFixedWidth(optionWidth);let row=new HorizontalSizer;row.spacing=12;row.add(left);row.add(right);row.addStretch();return row;};
    // Reserve the same checkbox and label columns on every row. Fixed-width
    // choices align with the numeric fields without expanding across the group.
    const choiceRow=(caption,control)=>{control.setFixedWidth(this.logicalPixelsToPhysical(150));let label=new Label(this.finderGroup);label.text=caption;label.textAlignment=TextAlignment.Right|TextAlignment.VertCenter;label.setFixedWidth(labelWidth);let row=new HorizontalSizer;row.spacing=6;row.addSpacing(optionWidth+this.logicalPixelsToPhysical(12));row.add(label);row.add(control);row.addStretch();return row;};
-   this.finderGroup.sizer.add(pair(this.skyFit,this.skyCoverage));
-   this.finderGroup.sizer.add(pair(this.inset,this.insetField));
-   this.finderGroup.sizer.add(choiceRow('Chart style:',this.styleSelect));
-   this.finderGroup.sizer.add(choiceRow('Label density:',this.labelDensity));
+   let geometry=new VerticalSizer;geometry.spacing=6;geometry.add(pair(this.skyFit,this.skyCoverage));geometry.add(pair(this.inset,this.insetField));geometry.add(choiceRow('Projection:',this.projection));geometry.addStretch();geometry.add(choiceRow('Chart style:',this.styleSelect));geometry.add(choiceRow('Label density:',this.labelDensity));
+   let finderColumns=new HorizontalSizer;finderColumns.spacing=24;finderColumns.add(geometry);finderColumns.add(this.appearanceColumn);finderColumns.addStretch();this.finderGroup.sizer.add(finderColumns);
    this.dssGroup.sizer.add(pair(this.dssFit,this.surveyField));this.updateFraming();
    this.outlineGroup=ablGroup(this,'Nebula outlines');this.outlineLabel=new Label(this.outlineGroup);this.outlineLabel.text='Outline source:';
    this.outlineLevel=new ComboBox(this.outlineGroup);for(let name of NebulaOutlines.levelNames)this.outlineLevel.addItem(name);this.outlineLevel.currentItem=manager.outlineLevel;
@@ -3121,10 +3181,16 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
    this.details={catalogs:{},borders:true,starNames:false,starMagnitudes:false,objectDetails:false,contours:sky&&ablContoursAvailable(manager.contourState)};
    for(let entry of this.catalogEntries)this.details.catalogs[entry.key]={enabled:entry.available&&['messier','ngc'].includes(entry.key),labels:true,mode:'auto',magnitude:12};
    this.availableDetails=()=>['borders','starNames','starMagnitudes','objectDetails'].concat(ablContoursAvailable(manager.contourState)?['contours']:[]);
-   this.allDetailsEnabled=()=>sky&&this.availableDetails().every(key=>this.details[key])&&this.catalogEntries.filter(e=>e.available).every(e=>this.details.catalogs[e.key].enabled);
+   this.allDetailsEnabled=()=>sky&&(!ablMilkyWayAvailable()||this.settings.milkyWay)&&this.availableDetails().every(key=>this.details[key])&&this.catalogEntries.filter(e=>e.available).every(e=>this.details.catalogs[e.key].enabled);
    this.setAllDetails=checked=>{
       let available=this.availableDetails();for(let key of ['borders','starNames','starMagnitudes','objectDetails','contours'])this.details[key]=checked&&available.includes(key);
       for(let entry of this.catalogEntries)this.details.catalogs[entry.key].enabled=checked&&entry.available;
+      // Shading is a global appearance preference, also included in All
+      // details. Persist only an explicit toggle, never a rendering fallback.
+      if(ablMilkyWayAvailable()&&manager.previewPreferences.sky.milkyWay!==checked){
+         manager.previewPreferences.sky.milkyWay=checked;
+         if(manager.persistPreferences)manager.previewPreferenceStore.write(JSON.stringify(manager.previewPreferences));
+      }
       this.optionsChanged();
    };
    this.applyDetails=value=>{if(JSON.stringify(value)===JSON.stringify(this.details))return;this.details=ABL.copy(value);this.optionsChanged();};
@@ -3137,7 +3203,7 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(manager.persistPreferences)Settings.write('AstroBucketList/contourPath',DataType.String,path);
       this.optionsChanged();
    };
-   this.chartOptions=()=>Object.assign(ABL.copy(this.details),{style:this.settings.style,labelDensity:this.settings.labelDensity,contourPath:manager.contourPath,outlineLevel:manager.outlineLevel,inset:this.settings.inset,insetDegrees:this.settings.insetDegrees},this.tableGroup?{tableTargets:ABL.copy(this.tableGroup.targets)}:{});
+   this.chartOptions=()=>Object.assign(ABL.copy(this.details),ABL.chartAppearance(this.settings),{style:this.settings.style,labelDensity:this.settings.labelDensity,contourPath:manager.contourPath,outlineLevel:manager.outlineLevel,inset:this.settings.inset,insetDegrees:this.settings.insetDegrees},this.tableGroup?{tableTargets:ABL.copy(this.tableGroup.targets)}:{});
    // One information block owns target identity, size, progress, source,
    // coverage limitations and errors. The image area contains only the image.
    this.info=new Label(this);this.info.useRichText=true;this.info.wordWrapping=true;
@@ -3163,13 +3229,13 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
    this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
    this.effectiveSettings=preferences=>{
       let value=ablPreviewSettings(this.object,sky,preferences);
-      if(this.tableGroup){value.inset=false;try{value.coverage=ablTableChartFrame(this.tableGroup.targets,preferences.coverage).coverage;}catch(e){/* updateFields presents framing errors in the information block. */}}
+      if(this.tableGroup){value.inset=false;try{value.coverage=ablTableChartFrame(this.tableGroup.targets,preferences.coverage,preferences.projection).coverage;}catch(e){/* updateFields presents framing errors in the information block. */}}
       return value;
    };
    this.updateFields=()=>{
       this.frameError='';
       if(this.tableGroup){
-         try{let frame=ablTableChartFrame(this.tableGroup.targets,manager.previewPreferences.sky.coverage);
+         try{let frame=ablTableChartFrame(this.tableGroup.targets,manager.previewPreferences.sky.coverage,manager.previewPreferences.sky.projection);
             this.object={designation:this.tableGroup.title,ra:ABL.formatRA(frame.ra),dec:ABL.formatDec(frame.dec)};
          }catch(e){this.object=null;this.frameError=String(e.message||e);}
       }
@@ -3206,6 +3272,9 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       this.chart.update();
       this.previewState='ready';this.renderSummary=sky?ablChartStyle(this.settings.style).name+' · '+field+'° coverage · target at crosshair · '+(response.catalog||'local catalogs')+(Number.isFinite(response.objectCount)?' · '+response.objectCount+' catalog objects':''):'DSS2 Red · '+field+' × '+field+' arcmin · target at crosshair';
       if(this.tableGroup)this.renderSummary=ablChartStyle(this.settings.style).name+' · '+field+'° coverage · '+this.tableGroup.targets.filter(ablChartTargetPosition).length+' numbered table objects · '+(response.catalog||'local catalogs');
+      if(sky&&response.projectionName)this.renderSummary+=' · '+response.projectionName;
+      if(sky&&response.milkyWay)this.renderSummary+=' · Milky Way shading';
+      else if(sky&&this.settings.milkyWay&&response.milkyWayAvailable===false)this.renderSummary+=' · Milky Way database unavailable';
       if(sky&&this.details.contours)this.renderSummary+=' · '+(response.contourCount||0)+' nebula contours';
       if(sky&&response.inset)this.renderSummary+=' · close-up '+response.inset.coverage+'°';
       this.updateInfo();manager.updateMinimumSize();
@@ -3424,7 +3493,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       // Include every display option and contour contents. Editing a local
       // contour file cannot silently reuse a stale preview.
       let cacheDetails=Object.assign({},details,{contourPath:details.contours?details.contourPath:'',insetDegrees:details.inset?details.insetDegrees:2});
-      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,outlineText,chartOptions.tableTargets||null]);
+      let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,details.milkyWay?ablMilkyWayAvailable():false,outlineText,chartOptions.tableTargets||null]);
       if(this.chartCache.has(key)&&File.exists(this.chartCache.get(key).path))return this.chartCache.get(key);
       let file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.png';this.chartFiles.push(file);
       let result=ablSkyChart(o,field,sky,file,Object.assign({},chartOptions,{outlineData:details.contours&&details.contourPath?ABL.parseOutlines(outlineText):[]}));this.chartCache.set(key,result);
@@ -3562,6 +3631,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       for(let [key,min]of [['sky',.1],['dss',5]])if(!value[key]||!Number.isFinite(value[key].coverage)||value[key].coverage<min||value[key].coverage>120)throw Error('Choose sky coverage from 0.1–120° and survey field from 5–120 arcminutes.');
       if(!['modern-editorial','vintage-atlas','observing-atlas'].includes(value.sky.style)||!['sparse','normal','detailed'].includes(value.sky.labelDensity))throw Error('Choose a chart style and label density.');
       if(!Number.isFinite(value.sky.insetDegrees)||value.sky.insetDegrees<.1||value.sky.insetDegrees>120)throw Error('Choose close-up coverage from 0.1–120°.');
+      let appearance=ABL.chartAppearance(value.sky);
+      for(let key of Object.keys(appearance))if(value.sky[key]!==undefined&&appearance[key]!==value.sky[key])throw Error('Choose valid projection, Milky Way and star appearance settings.');
       let state=ablContourFileState(value.contourPath);if(value.contourPath!==this.contourPath&&value.contourPath&&state.status!=='loaded')throw Error(state.error);
       if(value.outlineLevel!==undefined&&![0,1,2,3].includes(value.outlineLevel))throw Error('Choose a nebula outline brightness level.');
       return state;
@@ -3577,7 +3648,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
          if(this.persistPreferences){this.collectionPreferenceStore.writePath(value.rememberCollection?this.path:'');this.collectionPreferenceStore.writeRemember(value.rememberCollection);}
          this.rememberCollection=value.rememberCollection;
       }
-      let next={sky:ABL.copy(value.sky),dss:ABL.copy(value.dss)},p=this.finderPage,q=this.dssPage,sky=p.effectiveSettings(next.sky),dss=q.effectiveSettings(next.dss);
+      // Canonical property order prevents an unchanged Apply from looking
+      // different just because the dialog assembled its fields in UI order.
+      let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss})),p=this.finderPage,q=this.dssPage,sky=p.effectiveSettings(next.sky),dss=q.effectiveSettings(next.dss);
       let skyChanged=JSON.stringify(p.settings)!==JSON.stringify(sky),dssChanged=JSON.stringify(q.settings)!==JSON.stringify(dss),pathChanged=this.contourPath!==value.contourPath;
       if(this.persistPreferences&&JSON.stringify(next)!==JSON.stringify(this.previewPreferences))this.previewPreferenceStore.write(JSON.stringify(next));
       this.previewPreferences=next;p.settings=sky;q.settings=dss;this.chartStyle=next.sky.style;
@@ -3612,7 +3685,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       let p=this.finderPage,active=this.tabs.currentPageIndex===1&&!!p&&!p.disposed;
       this.chartDetailsButton.enabled=this.allDetailsButton.enabled=active;
       this.allDetailsButton.checked=!!p&&p.allDetailsEnabled();
-      this.allDetailsButton.toolTip='All details: '+(this.allDetailsButton.checked?'turn off all available annotations and catalogs.':'turn on all available annotations and catalogs.')+' Catalog label and magnitude settings are retained. Available only on Finder chart.';
+      this.allDetailsButton.toolTip='All details: '+(this.allDetailsButton.checked?'turn off all available annotations and catalogs.':'turn on all available annotations and catalogs.')+' Milky Way shading is included; star appearance, catalog labels and magnitude settings are retained. Available only on Finder chart.';
    };
    this.allDetailsButton=ablTool(this,':/icons/select-all.png','All details',()=>{});this.allDetailsButton.checkable=true;this.allDetailsButton.enabled=false;
    this.allDetailsButton.onClick=checked=>{if(this.tabs.currentPageIndex!==1||this.finderPage.disposed)return;this.finderPage.setAllDetails(!!checked);};
