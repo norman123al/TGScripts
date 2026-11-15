@@ -1,9 +1,105 @@
-Astro Bucket List 0.39.0
+Astro Bucket List 0.45.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
-PixInsight 1.9.6 or later with V8 and its standard CatalogStarGenerator and
+PixInsight 1.9.6 build 1718 or later with V8 and its standard SkyChartGenerator and
 AnnotateImage libraries. Use the documentation button for the full guide.
+
+OBSERVING NIGHT
+Open Observing night to plan all targets currently shown in Table. Site and
+limits opens Configuration > Observing. Enter latitude (north positive),
+longitude (east positive), optional height and a fixed UTC offset for the night,
+including daylight saving time. No site is assumed and no location is sent online.
+Apply saves these preferences locally; Cancel discards the proposal.
+Choose an evening date; the plan covers noon to next noon. +1 means the next day.
+Tonight uses today's date at the configured offset. The offset does not change
+automatically with the date or during a daylight-saving transition night.
+Default limits are altitude >= 30 degrees and Sun <= -18 degrees. Optional Moon
+separation is off at zero and applies only while the Moon is above the horizon.
+Results show peak altitude in darkness, time above the altitude threshold,
+dark time before Moon filtering, total usable time, the longest window and the
+minimum Moon separation while the Moon is up during dark altitude windows.
+Rank by usable time, peak in darkness or name. Select a result for target,
+Sun and Moon altitude curves; green bands show usable intervals. Hover the
+graph for concise values in the bottom message. Double-click a result for Finder.
+Missing coordinates and targets without usable windows remain visible with a
+reason. Date/site/filter changes discard stale results; inactive tabs pause.
+Stop cancels an unfinished calculation; Recalculate retries it.
+The planner uses PixInsight's local fundamental ephemerides and documented
+position APIs. Two-minute samples and interpolated threshold crossings provide
+approximate windows, with times rounded to minutes. It treats saved J2000 object
+positions as fixed, without proper motion. Atmospheric refraction, terrain,
+obstructions, weather and sky brightness are not modeled. See PiDoc for limits.
+Site and limits use AstroBucketList/observingPreferences in per-user PixInsight
+settings. The chosen night and results remain in memory. No planner runtime
+files, downloads or external programs are used. Collections, metadata,
+constellation months and chart presets are not changed by planning.
+
+SAVED VIEWS
+Use View preset in Find, filter and sort to recall search text, all filters and
+three sort choices within the current list. Save view creates or replaces a
+named preset; replacing or deleting asks for confirmation. Up to 50 presets
+are stored in PixInsight's per-user settings under AstroBucketList/viewPresets.
+They are shared across collections, but do not save list choice, checked object
+identities or chart settings. Selected only uses the current checks. Relative
+months remain relative to today. Unavailable constellation/type choices reset
+to All with an explanation; the preset is retained. Manual changes show Custom
+view. Startup restores the preset menu without automatically applying a view.
+Presets do not change the collection or travel with .sol files/process icons.
+
+INTERACTIVE FINDER
+A short hint below the Finder chart explains hover, click, zoom, pan and fit.
+The chart has no tooltip. Hover over a symbol to show its name, type, apparent
+size and magnitude in that message area.
+The tooltip also gives J2000 coordinates and source. Click to select the symbol;
+the actions below the chart offer Edit object and Show in table for a matching
+entry, or Add object to review a new entry with the available local catalog
+facts. The close-up inset also supports selection. Dragging pans without
+selecting; wheel zoom and double-click Fit remain available. Empty sky clears
+the selection. Hover/click do not query the network or change the collection.
+Show in table reveals the entry in All objects and clears filters. Editing
+keeps the Finder tab and uses the normal editor. Adding asks for a destination
+from All objects, checks duplicates, and commits only on Apply. It never adds
+a marker suffix or imaging status. Local Gaia XPSD stars have no source IDs:
+hover shows their coordinates and magnitude, while Add leaves the identifier
+for you to enter. Outline-only context is not selectable. Preview highlight
+rings are not included in image/SVG/PDF export.
+
+CHART NAVIGATION
+Select a chart symbol and use Center on selection beside Back/Forward/Home
+above the chart to redraw around it with the current Finder settings. Back/Forward visit earlier centers, retaining
+current settings and restoring zoom/pan when those settings still match.
+The home symbol returns to the table target or filtered chart and clears
+history. Browsing changes neither the table nor DSS target, and never adds
+objects or changes metadata. New table targets, changed filtered-group data,
+double-clicking a table row and opening another collection reset browsing.
+History holds at most 32 targets; a new center after Back drops the forward
+branch. Navigation is local and makes no SIMBAD or DSS requests.
+
+CHART PRESETS AND CONFIGURATION
+Open the bottom gear to edit Finder settings, DSS settings, Observing settings or General preferences
+in one Configuration window. Finder chart combines appearance, coverage,
+annotations, catalogs and their properties, outline source and brightness level.
+Chart preset at the top stores a named copy of these same Finder settings.
+It is useful for recalling different chart arrangements, not a separate set of
+settings. Current choices are remembered across targets and launches without
+needing to save a named preset.
+Choosing a preset fills the controls below it. Save preset captures the proposed
+values, including unapplied edits. Replacement and deletion ask for confirmation.
+Apply commits all changes, including preset creation/replacement/deletion;
+Cancel discards all proposals. Applying retains the chart center and navigation
+history. Manual Finder changes show Custom settings. DSS and General are separate
+and do not detach the selected Finder preset.
+Up to 50 chart presets are stored under AstroBucketList/chartPresets in PixInsight's
+per-user settings. Current Finder appearance, annotations, catalog properties
+and DSS framing use AstroBucketList/previewPreferences. Outline source and level
+use AstroBucketList/contourPath and AstroBucketList/outlineLevel. Settings are shared
+across collections but excluded from SOL files and process icons. Named chart
+presets exclude targets, table filters, list selection, zoom, navigation history,
+DSS settings and General preferences. Table-view presets remain independent.
+Unavailable local catalogs are omitted with an explanation; the saved preset
+is retained. A missing/invalid custom outline file rejects loading that preset
+without changing the proposal. Custom paths are references, not embedded files.
 
 COLLECTIONS
 A collection is the .sol file; it owns objects independently of its named lists.
@@ -56,20 +152,21 @@ all other filters apply; export checks and highlighted rows do not limit it.
 Numbered rings match an object key in table sort order. Missing coordinates are
 reported and marked in the key. Coverage expands to fit the targets and their
 known sizes, with the configured width as a minimum and 170 degrees as the
-group limit. Close-up is omitted for group charts. Both styles and chart detail
+group limit. Close-up is omitted for group charts. All styles and chart detail
 options work; context catalog limits never exclude explicit table targets.
 Filter/list/sort changes update the preview automatically. Clearing the
 constellation filter restores Selected object mode. Scope is temporary and
 DSS remains a single-object image. Open as image includes the full object key.
 Both previews support mouse-wheel zoom around the pointer. Drag with the left
 button to pan and double-click to fit the whole image. Zoom ranges from Fit
-to 1600% of fit and is reported in the information block. It magnifies loaded
-pixels without changing coverage, requesting data or altering collection data.
+to 1600% of fit and is reported in the information block. Finder redraws cached vectors at display resolution; DSS magnifies its loaded
+pixels. Neither changes coverage, requests data or alters collection data.
 Each tab retains its view while switching tabs; a new target or changed chart
 settings resets the affected view to Fit. Open as image opens the full image.
 NGC/IC and Messier catalog objects start enabled when installed. Nebula contours
-starts enabled with a configured valid outline file; selecting a first valid
-file also enables them. Chart details can turn these defaults off.
+starts enabled with bundled PixInsight outlines or a configured valid file.
+Making an unavailable outline source available also enables them.
+Chart details can turn these defaults off.
 Objects appear in a flat table with a Constellation column and no collapsible
 groups. Sort by can order objects by calendar month in either direction;
 unassigned months stay last. Size sorting ranks major diameters across all
@@ -84,8 +181,9 @@ Constellation, Target band, Imaging status and Object type. Collection holds
 file actions, while Lists holds the selector, New list, List details and Delete
 list. The smaller list selector has no redundant label and sits above its actions. Collection and Lists
 are side by side. One collapsible Collection and lists section contains both groups above
-all three tabs. It starts expanded; click the header to hide or restore both
-without changing the active list, filters, sort order, export checks or edits.
+all three tabs. It starts expanded; click the header to hide or restore both.
+Collapsing keeps the window size unchanged and gives the freed height to the
+table or preview, retaining the active list, filters, sort order, checks and edits.
 Collection, Lists and the filter/sort groups stay compact at the left; extra
 window width remains to their right. Minimum window dimensions follow the
 controls, keeping the table, buttons and previews separated when resized.
@@ -119,7 +217,7 @@ replacement and recovery files are briefly created beside the collection and
 backup, then removed after success. Failed saves retain recovery
 files at the location reported in the error message.
 No predefined bucket list is included or loaded. Save your collection outside
-the entire PixInsight installation; locations inside it are rejected. Configuration > Startup offers Remember
+the entire PixInsight installation; locations inside it are rejected. Configuration > General > Startup offers Remember
 last opened or saved collection, off by default. Apply stores this independent
 toggle in PixInsight settings beside the filename. It applies across collections
 and launches, and is not stored in the .sol file or in process instances.
@@ -170,10 +268,11 @@ are unchanged. All objects displays each target once across list memberships. Co
 saved imaging notes; use Edit object to change them. Generated month/constellation headings containing source-line references are
 removed from comments throughout the table, editor, object details and exports.
 The lower-right Configuration gear opens a separate window. Its Finder chart
-group contains Sky coverage, Fit object size, Chart style, Label density and
-Close-up inset with its width. Its DSS survey image group contains Survey field
-and its own Fit object size checkbox. It also offers the Stellarium outline
-file and constellation planning months.
+tab contains Sky coverage, Fit object size, Chart style, Label density and
+Close-up inset with its width. Its DSS survey image tab contains Survey field
+and its own Fit object size checkbox. Its Nebula outlines group selects the
+bundled outline brightness level or a custom Stellarium file. Configuration
+also offers constellation planning months under General.
 Apply commits proposed settings; Cancel discards them. Only applied month
 assignments modify the collection; chart settings and outline preferences do not.
 Filters shows explicit filter mentions from comments unless you enter your
@@ -219,7 +318,8 @@ Re-evaluate beside Object type proposes a more precise type from saved catalog
 metadata, current Catalog information, imported descriptions and Comments.
 Review its supporting text in the hint tooltip before Apply. Conflicting or
 unrecognized evidence leaves the type unchanged; candidate status is retained.
-No lookup is made automatically; use Look up first for fresh SIMBAD data.
+No lookup is made automatically; select SIMBAD and use Look up first for
+richer catalog data.
 Display name has its own Use catalog identifier action. Compact RA and Dec
 fields share a row. Enter beside RA/Dec provides separate hours/minutes/seconds
 and sign/degrees/minutes/seconds controls for manual J2000 coordinate entry,
@@ -311,9 +411,41 @@ Find and automatic target-band classification. Manual types survive catalog
 updates and saving/reopening. Use catalog type or clear the field to restore
 the latest catalog classification. Cancel keeps the stored type unchanged.
 
+VECTOR FINDER CHART EXPORT
+The bottom document/save symbol exports a loaded Finder chart as SVG or PDF.
+Select the Finder tab and choose a filename ending in .svg or .pdf. The native
+file chooser asks before replacing a document. The exported drawing includes
+the full chart, selected style, inset and object key, regardless of preview zoom.
+SVG labels are converted to paths for consistent fonts and Greek characters.
+PDF contains the same vector drawing on one page. Documents are 297 mm wide,
+with height matching the chart; use Fit to page for other print-paper sizes.
+The existing information block reports the saved filename. Export and Cancel
+leave collection data unchanged. DSS retains its Open as image workflow.
+PDF export uses a temporary AstroBucketList-export file in the system temporary
+directory. Safe replacement uses verified .tgscripts-write and recovery files
+beside the selected destination; successful exports remove them. Failures report
+any retained recovery path. No collection .bak file is made for a chart export.
+Preview recordings and the bounded vector tile cache remain in memory. Finder
+rendering, vector zoom and SVG/PDF export make no network connections.
+
 CATALOGS AND CHARTS
-Look up and Update catalogs refresh SIMBAD coordinates, types and available
-apparent dimensions. Manual sizes and personal imaging information are retained. DSS2 Red finder images also require internet access.
+Look up and Update catalogs search PixInsight's local indexes first and use
+SIMBAD for missing names or unavailable local indexes. Lookup source also
+offers explicit SIMBAD choices for richer descriptions, types and apparent
+sizes, even for locally known targets. Local indexes do not provide sizes.
+The source choice is retained for this manager session. Multiple exact local
+matches require a choice in the editor; bulk updates skip and report them.
+Local refreshes preserve richer existing classifications and descriptions.
+Manual metadata, including unsaved edits and deliberately cleared fields, is
+retained. Edited coordinates are preserved; the reset symbol beside Enter
+explicitly adopts the latest catalog position. Only coordinates still equal
+to their saved catalog baseline refresh automatically from SIMBAD. Positions
+without a baseline are retained conservatively; missing components are filled.
+Display names, comments, filter information, imaging status and date, list
+memberships, manual type/size/band classifications and edited Catalog information
+survive refreshes. Cancel leaves the collection unchanged; Apply and Save retain
+editor changes. Local catalog lookup needs no network connection. SIMBAD and
+DSS survey images require internet access.
 Styled sky charts use configured local Gaia catalogs or bundled
 bright stars and work offline. Finder coverage defaults to 45 degrees, with
 Fit object size off. DSS defaults to fitting, with a 30-arcminute fallback for
@@ -338,18 +470,21 @@ metadata, no-op Apply, view changes and local preferences keep the collection
 clean. Saving establishes a new baseline; failed saves retain unsaved changes.
 Collapsing Object information keeps the window size and enlarges the table.
 With fitting enabled, known sizes determine the DSS width; manual preferences are retained.
-The Finder tab uses its area for information and the preview. The bottom Chart
-details symbol opens a separate window with annotations, the catalog checklist
-and properties arranged side by side. Apply commits details and redraws Finder;
-Cancel retains the loaded chart and its details. Unchanged Apply reuses the image.
-The symbol is enabled only on Finder, and previews pause while the window is open. The DSS tab contains information
-and the survey image. All chart settings are edited in Configuration. Compact
-Chart style and Label density controls are at the bottom of the Finder chart
-group, aligned with the numeric fields.
+The main Finder tab contains navigation, information and the interactive preview.
+The bottom gear opens Configuration. Its Finder chart tab combines presets,
+appearance, annotations, the catalog checklist and properties, and nebula outlines.
+Annotations and catalogs are arranged side by side. Compact Chart style and Label
+density controls are aligned below the geometric settings. Apply commits the
+proposal and redraws affected previews; Cancel retains current settings, presets
+and the loaded chart. Unchanged Apply reuses the image. Previews pause while the
+window is open. The DSS survey image tab in Configuration contains survey framing;
+General contains the startup preference and constellation-month assignments.
 Choose Chart style: Modern Editorial uses a dark sky, sans-serif labels and
 a cool accent; Vintage Atlas uses ivory paper, sepia markings, serif labels
-and fine double rules. The style is remembered locally and applies to Open as
-image. Both show identical sky positions and catalog data, with a center
+and fine double rules; Observing Atlas uses white paper, black stars with halos
+and colored symbols for different object types. The style is remembered locally
+and applies to the preview, Open as image and vector export. All styles show
+identical sky positions and catalog data, with a center
 crosshair, separate title band, coordinates, symbol key and angular scale.
 Changing style updates the Finder preview automatically.
 Constellation borders in Chart details is enabled by default. Dashed lines show the region
@@ -359,30 +494,37 @@ The bottom All details symbol selects or deselects every available catalog and
 annotation, including constellation borders and Messier. It is enabled only on
 Finder. Its pressed state reports whether every available detail is selected,
 and the tooltip describes the next action.
-It skips unavailable choices and leaves Chart settings, catalog label choices
-and magnitude properties unchanged.
+It skips unavailable choices and also toggles Milky Way shading. It remembers
+the same annotation, catalog and shading preferences as Configuration, retaining
+other appearance settings, catalog label choices and magnitude properties.
 Chart details optionally adds star names, catalog magnitudes and object type,
 angular size and magnitude where available. Sparse/Normal/Detailed controls
 label density without removing object markers. Magnitude passbands depend on
-the source catalog. Nebula contours reads a local Stellarium/SkyChart
-outlines.dat file; common installation paths are detected. Open Configuration
-with the bottom gear to choose or clear the file. In that separate window,
-Choose file sits beside Outline file. Status shows Loaded after validation,
-No outline file selected, File missing or Not loaded. Tooltips identify the
-Stellarium outline format and show the full path and any error. Clear file
-stages an empty selection. Apply deselects it and turns contours off without
-deleting the file; Cancel retains the current selection. The path or
-cleared choice is remembered across launches. Nebula contours starts enabled
-with a valid loaded file; Chart details can turn it off. Without a valid file this option is disabled, and only
-boundaries represented in the file can be drawn.
+the source catalog. Nebula contours uses the OpenNGC-Outlines and Nebula-Outlines
+databases supplied with PixInsight by default. No separate file or download is
+needed. Configuration offers All levels, Faintest extent, Standard (default)
+and Brightest parts. If a level is absent, PixInsight uses the nearest available
+level. Only represented objects have contours, so some fields contain none.
+Choose file optionally selects a local Stellarium/SkyChart outlines.dat file
+as an explicit override. Status reports the bundled source, validated filename
+and contour count, or a missing/invalid file. Tooltips identify the file format,
+full path and errors. Brightness level is disabled for custom files.
+Use bundled deselects the custom file without deleting it. Apply saves the
+source and brightness level locally and updates Finder; Cancel discards proposed
+changes. A deliberately disabled contours option stays off when switching
+between available sources. If the selected source is unavailable, contours is
+disabled. The chart information block reports the source and contour count.
+Outline settings do not modify collection data or DSS. PixInsight's installed
+catalog files and configuration are never changed by this script.
 Close-up inset adds a separate square projection beside the unobscured
 overview. Its preferred width starts at 2 degrees and applies to all targets.
 If too large for the overview, the current chart uses half the overview width,
 at least 0.1 degrees, without replacing that preference. A 0.1-degree overview
 temporarily hides the inset; a wider overview restores the saved choice.
-Optional details and close-up choices survive target selection during this session and
-work with both styles. Open as image includes them. With the inset enabled
-the chart is 2080 by 960 pixels; otherwise it is 1440 by 960.
+Applied details and close-up choices survive target selection and restarting,
+and work with all three styles. Open as image includes them. With the inset enabled
+the image is 2080 pixels wide; otherwise it is 1440 pixels wide. Its height
+adapts to the symbol legend and any filtered-object key.
 Use the main preview tabs to access charts and survey images. Spaced labels keep dense fields readable. Previews stay in their tabs.
 DSS requests always use the maximum 120-arcminute width for objects larger
 than that limit, even when Fit object size is unchecked.
@@ -400,8 +542,52 @@ from the active preview for saving in PixInsight. It is enabled only on Finder
 or DSS with a loaded image and is disabled on Table.
 
 Network and temporary storage
+Downloads explicitly require TLS with server certificate and hostname checks,
+HTTP 200, the expected response type and a bounded nonempty body. SIMBAD object
+records and coordinates are validated before use. DSS GIF framing, dimensions
+and native decoding are checked before caching; a SHA-256 digest in memory
+detects changes to temporary DSS files before cache reuse. These services have
+no publisher-supplied cryptographic digest or signature available to the script.
+Local cache hashes do not independently authenticate the publisher's payload;
+the CPD interpretation for these live responses requires PTeam clarification.
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.39.0.
+Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.45.0.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
+
+This product is based on software from the PixInsight project, developed
+by Pleiades Astrophoto and its contributors (https://pixinsight.com/).
+
+SIMBAD data licensing
+Program code is MIT-licensed. SIMBAD-derived object-type tables are licensed
+separately under ODbL v1.0, https://opendatacommons.org/licenses/odbl/1-0/.
+The installed script directory includes AstroBucketList-DataNotices.txt,
+AstroBucketList-ODbL-1.0.txt and AstroBucketList-SIMBAD-otypes.json with provenance,
+the complete license and a machine-readable redistribution copy. This JSON
+file is not a runtime dependency. SIMBAD is operated at CDS, Strasbourg, France.
+Citation: Wenger et al. (2000), A&AS 143, 9–22, doi:10.1051/aas:2000332.
+
+FINDER PROJECTION AND SKY APPEARANCE
+Configuration offers Automatic, Gnomonic and Stereographic projection.
+Automatic uses Gnomonic through 20 degrees and Stereographic for wider fields;
+the close-up chooses independently. Manual choices apply to both maps. The
+requested width is the true horizontal angle, and the scale bar is measured at
+the center. Filtered-object fitting uses the selected projection on both axes.
+Very large groups may require narrower filters or a different projection.
+Milky Way shading starts enabled and uses PixInsight's local MilkyWay database
+of Gaia DR3 integrated-starlight contours. No download or configuration change
+is made. Missing data disables the controls and is reported in the chart while
+retaining the preference. Shading strength is 5–30% per overlapping brightness
+level (default 10%). This schematic background is independent of nebula outlines.
+Star density offers Sparse, Normal and Dense; the alternatives to
+Normal shift the magnitude limit by one magnitude brighter or fainter. The
+faintest limit is magnitude 15, subject to available local catalog stars.
+Star size scales symbols and halos from 50–200% (default 100%) without changing
+counts or coverage. Catalog star colors are optional and off by default. Stars
+without color indices keep their neutral style color; Observing Atlas normally
+uses black stars. Star density is independent of label density and DSO limits.
+These preferences persist in PixInsight settings and apply to all targets,
+previews, image output and SVG/PDF exports. They do not alter collection data.
+All details includes the available Milky Way layer, persisting its on/off choice
+while preserving shading strength, star appearance and projection.
