@@ -2,11 +2,11 @@
 #include "lib/TGFileProtection.js"
 #ifndef ABL_LIBRARY
 #feature-id AstroBucketList : TG Scripts > Astro Bucket List
-#feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, view finder charts and DSS images, and retain imaging status.
+#feature-info Maintain astronomical imaging bucket lists by constellation and month; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, export vector finder charts as SVG/PDF, view DSS images, and retain imaging status.
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.40.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.41.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.40.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.41.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.40.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.41.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.40.0', EXT = '_astroBucketList';
+   const VERSION = '0.41.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1817,16 +1817,15 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.40.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.41.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
 #ifndef __ABL_CHARTS
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
-#define CSG_SETTINGS_MODULE "AstroBucketListChartsCSG"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.40.0"
+#define VERSION "0.41.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -1834,11 +1833,17 @@ var ABL = (function () {
 // These src/scripts engines are internal components covered by this script's
 // signature. Revalidate compatibility after PixInsight updates and re-sign
 // AstroBucketList whenever any of these included components changes.
-#include <../src/scripts/CatalogStarGenerator/CatalogStarGeneratorEngine.js>
+#include <pjsr/utility/ScriptErrors.js>
 #include <../src/scripts/AnnotateImage/Entity.js>
 #include <../src/scripts/AnnotateImage/GraphicProperties.js>
 #include <../src/scripts/AnnotateImage/Layer.js>
 #include <../src/scripts/AnnotateImage/AnnotationEngine.js>
+#define RELEASE_YEAR 2026
+#include <../src/scripts/SkyChartGenerator/ChartGraphics.js>
+#include <../src/scripts/SkyChartGenerator/ChartStarNames.js>
+#include <../src/scripts/SkyChartGenerator/ChartEngine.js>
+#include <../src/scripts/SkyChartGenerator/ChartLayers.js>
+#undef RELEASE_YEAR
 #undef VERSION
 #undef TITLE
 
@@ -1898,19 +1903,10 @@ class ABLConstellationLayer extends ConstLinesLayer {
       }
    }
 }
-// Keep all object outlines, but label only a spaced subset. Separate marker
-// and label passes let AnnotateImage optimize those labels without discarding
-// faint objects just to make room for their text.
-class ABLChartCatalogLayer extends CatalogLayer {
-   Draw(g,metadata,bounds,imageWnd,engine,entities){
-      if(!this.labelObjects)return super.Draw(g,metadata,bounds,imageWnd,engine,entities);
-      let objects=this.objects,labels=this.gprops.showLabels,markers=this.gprops.showMarkers;
-      try{
-         this.gprops.showLabels=false;super.Draw(g,metadata,bounds,imageWnd,engine,entities);
-         this.gprops.showMarkers=false;this.gprops.showLabels=labels;this.objects=objects.filter(o=>o&&this.labelObjects.has(o));
-         super.Draw(g,metadata,bounds,imageWnd,engine,entities);
-      }finally{this.objects=objects;this.gprops.showLabels=labels;this.gprops.showMarkers=markers;}
-   }
+// Keep every marker while restricting labels to a spaced subset. The native
+// chart layer draws each star once and lets label placement avoid its halo.
+class ABLChartCatalogLayer extends ChartCatalogLayer {
+   HasLabels(object){return (!this.labelObjects||this.labelObjects.has(object))&&super.HasLabels(object);}
 }
 // Use PixInsight's bundled boundary polylines and projection-aware clipping.
 // Dashed strokes distinguish region borders from solid constellation asterisms.
@@ -1972,29 +1968,16 @@ class ABLNebulaContoursLayer extends Layer {
       }
    }
 }
-// Build one concise label per star. Named stars take precedence at matching
-// positions; unnamed Gaia stars can still carry magnitudes in a close-up.
-function ablStarLabelLayer(generator,details,style){
-   if(!details.starNames&&!details.starMagnitudes)return null;
-   let layer=new ABLChartCatalogLayer(new NamedStarsCatalog),seen=new Set,objects=[];
-   let catalogs=[generator.catalog,generator.catalog2].filter(c=>c&&c.objects);
-   catalogs.sort((a,b)=>(b instanceof NamedStarsCatalog?1:0)-(a instanceof NamedStarsCatalog?1:0));
-   for(let catalog of catalogs)for(let o of catalog.objects){
-      if(!o||!Number.isFinite(o.magnitude)||o.magnitude>generator.maxMagnitude)continue;
-      let key=o.posRD.x.toFixed(3)+','+o.posRD.y.toFixed(3);if(seen.has(key))continue;seen.add(key);
-      let name=details.starNames&&catalog instanceof NamedStarsCatalog?String(o['Common name']||o.name||''):'';
-      if(name&&catalog.translateGreekLetters)name=catalog.translateGreekLetters(name);
-      let label=[name,details.starMagnitudes?'mag '+o.magnitude.toFixed(1):''].filter(Boolean).join(' · ');
-      if(label)objects.push(Object.assign({},o,{'ABL star label':label}));
-   }
-   layer.objects=objects;layer.isStar=true;layer.visible=true;layer.gprops.showMarkers=false;
-   layer.gprops.labelFields=['ABL star label','','','','','','',''];layer.gprops.labelFace=style.face;layer.gprops.labelSize=20;layer.gprops.labelColor=style.secondary;
-   return layer;
-}
-// Appearance affects drawing only. Both styles share the same projection,
+// Appearance affects drawing only. The styles share the same projection,
 // catalog selection, magnitude limits, label spacing and angular scale.
 function ablChartStyle(key){
-   return key==='vintage-atlas'?{
+   return key==='observing-atlas'?{
+      key:'observing-atlas',name:'Observing Atlas',face:'DejaVu Sans',vintage:false,atlas:true,
+      sky:0xffffffff,band:0xffffffff,ink:0xff20252b,secondary:0xff56616b,
+      star:0xff111111,faintStar:0xff4c5054,grid:0xffdce1e6,gridLabel:0xff687785,
+      asterism:0xff7390ae,constellation:0xff8c9eae,object:0xff42756b,objectLabel:0xff253b48,
+      accent:0xff315d83,rule:0xffb9c6d1,border:0xffb19d9d
+   }:key==='vintage-atlas'?{
       key:'vintage-atlas',name:'Vintage Atlas',face:'DejaVu Serif',vintage:true,
       sky:0xfff3e9d2,band:0xffe9dcc0,ink:0xff43382a,secondary:0xff705e47,
       star:0xff43382a,faintStar:0xff7b6850,grid:0xffc6b798,gridLabel:0xff887455,
@@ -2055,7 +2038,7 @@ function ablTableChartTargets(records){
 }
 function ablChartTargetPosition(t){return Number.isFinite(t.ra)&&t.ra>=0&&t.ra<360&&Number.isFinite(t.dec)&&Math.abs(t.dec)<=90;}
 function ablTableChartFrame(targets,minimum=45){
-   const rad=Math.PI/180,width=1440,height=780,valid=targets.filter(ablChartTargetPosition);
+   const rad=Math.PI/180,width=1340,height=680,valid=targets.filter(ablChartTargetPosition);
    if(!valid.length)throw Error(targets.length?'The shown objects need coordinates. Use Edit object or Update catalogs.':'No objects match the active filters.');
    const vector=(ra,dec)=>[Math.cos(dec)*Math.cos(ra),Math.cos(dec)*Math.sin(ra),Math.sin(dec)];
    const dot=(a,b)=>a.reduce((n,v,i)=>n+v*b[i],0);
@@ -2089,8 +2072,8 @@ function ablTableChartFrame(targets,minimum=45){
 // Explicit table targets are always marked, independently of catalog switches,
 // magnitude cutoffs and label density. Number labels use leader lines where
 // needed; the complete names appear in a separate key below the sky map.
-function ablDrawTableTargets(bitmap,metadata,targets,style){
-   let g=new Graphics(bitmap),labels=[],markers=[];const w=bitmap.width,h=bitmap.height;
+function ablDrawTableTargets(recording,metadata,targets,style){
+   let g=recording,labels=[],markers=[];const w=metadata.width,h=metadata.height;
    try{
       g.antialiasing=true;g.textAntialiasing=true;g.font=new Font(style.face,23,'px');g.font.bold=true;
       for(let i=0;i<targets.length;++i){let t=targets[i];if(!ablChartTargetPosition(t))continue;
@@ -2127,203 +2110,172 @@ function ablTableChartKey(targets,font,details){
    }
    return {cells,rowHeights,height:60+rowHeights.reduce((a,b)=>a+b,0),columnWidth};
 }
+// A small adapter keeps the manager's catalog choices and label-density
+// preferences while using PixInsight's vector symbols and label placement.
+class ABLSkyChartEngine extends SkyChartEngine {
+   constructor(details,style){super();this.ablDetails=details;this.ablStyle=style;this.ablOutlineData=[];this.ablLabelCount=0;this.ablOutlineCount=0;}
+   LoadLayers(){
+      super.LoadLayers();
+      if(this.layerErrors.length)throw Error(this.layerErrors.join('\n'));
+      let details=this.ablDetails,byName=new Map,used=new Set;
+      this.ablOutlineCount=0;
+      if(details.contours){
+         let data=details.contourPath?this.ablOutlineData:ablBundledContours(this.metadata,details.outlineLevel);
+         for(let outline of data){let key=NebulaOutlines.Key(outline.name);if(!byName.has(key))byName.set(key,[]);byName.get(key).push(outline);}
+         this.ablOutlineData=data;
+      }
+      for(let layer of this.layers)if(layer.visible&&layer instanceof ABLChartCatalogLayer){
+         layer.isStar=layer.isStarLayer;
+         for(let o of layer.objects||[])if(o){
+            if(layer.isStarLayer){
+               let name=details.starNames&&layer.catalog instanceof NamedStarsCatalog?String(o['Common name']||o.name||''):'';
+               if(name&&layer.catalog.translateGreekLetters)name=layer.catalog.translateGreekLetters(name);
+               o['ABL star label']=[name,details.starMagnitudes&&Number.isFinite(o.magnitude)?'mag '+o.magnitude.toFixed(1):''].filter(Boolean).join(' · ');
+            }else{
+               o['ABL type']=o.Type||ChartSymbols.TypeNames[o.chartType]||'';
+               o['ABL details']=ABL.chartObjectDetails(Object.assign({},o,{Type:''}));
+               // Native catalog markers use the actual outline when present.
+               // Unlisted nebulae remain in the separate context layer below.
+               for(let name of [o.name,o['NGC/IC']]){let key=NebulaOutlines.Key(name),outlines=byName.get(key);if(!outlines)continue;
+                  o.outline=outlines.map(outline=>outline.points);used.add(key);break;
+               }
+            }
+         }
+      }
+      if(details.contours){
+         this.ablOutlineCount=Array.from(used).reduce((n,key)=>n+byName.get(key).length,0);
+         this.ablContours=new ABLNebulaContoursLayer(this.ablOutlineData.filter(o=>!used.has(NebulaOutlines.Key(o.name))),this.ablStyle);
+         this.layers.unshift(this.ablContours);
+      }
+   }
+   RemoveDuplicates(){
+      super.RemoveDuplicates();
+      this.ablLabelCount=ablChartLabels(this.layers.filter(l=>l.visible&&l instanceof ABLChartCatalogLayer),this.metadata,this.frame.width,this.frame.height,this.ablDetails);
+   }
+}
+
+// The same recording supplies the embedded preview, the image and both vector
+// formats. No temporary image window or rasterized star field is needed.
 function ablSkyChart(object,fieldArcmin,skyDegrees,path,options={}){
-   // Close-ups are rendered in memory and return before any file operation.
-   if(options._mapOnly!==true){
-      TGFileProtection.assertOutsideInstallation(path,"Finder chart image");
-      if(File.exists(path)||File.directoryExists(path))throw Error("The temporary chart path is already occupied.");
-   }
-   const position=ABL.position(object),mapOnly=options._mapOnly===true,width=mapOnly?600:1440,height=mapOnly?600:780,header=80,footer=100;
+   const mapOnly=options._mapOnly===true,position=ABL.position(object),width=mapOnly?600:1440,height=mapOnly?600:780,header=80;
+   if(!mapOnly){TGFileProtection.assertOutsideInstallation(path,'Finder chart image');if(File.exists(path)||File.directoryExists(path))throw Error('The temporary chart path is already occupied.');}
    const targets=Array.isArray(options.tableTargets)?options.tableTargets:null;
-   const details=ABL.chartDetails(targets?Object.assign({},options,{inset:false}):options);
-   const style=ablChartStyle(options.style);
+   const details=ABL.chartDetails(targets?Object.assign({},options,{inset:false}):options),style=ablChartStyle(options.style);
    if(position.ra===null||position.dec===null)throw Error('This object needs valid coordinates first.');
-   if(!Number.isFinite(fieldArcmin)||fieldArcmin<1||fieldArcmin>1800||!Number.isFinite(skyDegrees)||skyDegrees<.1||skyDegrees>(targets?170:120))
-      throw Error('Choose a survey field of 1–1800 arcminutes and sky coverage of 0.1–120 degrees.');
-   if(details.inset&&(!Number.isFinite(details.insetDegrees)||details.insetDegrees<.1||details.insetDegrees>=skyDegrees))
-      throw Error('Choose a close-up coverage of at least 0.1° and smaller than the overview.');
-   let outlineData=[];
-   if(details.contours&&details.contourPath){
-      if(!File.exists(details.contourPath))throw Error('The selected Stellarium outline file is unavailable. Choose another file or Use bundled in Configuration.');
-      outlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));
+   if(!Number.isFinite(fieldArcmin)||fieldArcmin<1||fieldArcmin>1800||!Number.isFinite(skyDegrees)||skyDegrees<.1||skyDegrees>(targets?170:120))throw Error('Choose valid survey and sky coverage.');
+   if(details.inset&&(!Number.isFinite(details.insetDegrees)||details.insetDegrees<.1||details.insetDegrees>=skyDegrees))throw Error('Choose a close-up coverage of at least 0.1° and smaller than the overview.');
+   let engine=new ABLSkyChartEngine(details,style);
+   engine.centerRA=position.ra;engine.centerDec=position.dec;engine.projection=Projection.Gnomonic;
+   // The engine's field width measures the projection plane. Convert the
+   // user's angular edge-to-edge coverage to its tangent-plane equivalent.
+   engine.fieldWidth=2*Math.tan(skyDegrees*Math.PI/360)*180/Math.PI;
+   engine.pageFormat=SkyChartEngine.Custom;engine.pageWidth=width/SkyChartEngine.PX_PER_MM;engine.pageHeight=height/SkyChartEngine.PX_PER_MM;
+   engine.pageMargin=2;engine.showLegend=false;engine.observationTime=2451545.0;engine.starColors=false;
+   engine.backgroundColor=style.band;engine.mapBackgroundColor=style.sky;engine.frameColor=style.ink;engine.leaderLineColor=style.secondary;
+   engine.starMinSize=2.5;engine.starMaxSize=18;engine.starHalos=true;engine.starHalo=1.8;engine.haloMapColor=true;engine.starOutlines=false;
+   engine.autoStarLimit=false;engine.starLimitMagnitude=Math.min(15,Math.max(5.5,6.7-3*Math.log10(skyDegrees/30)));
+   // Per-catalog limits are authoritative, including No limit. Do not impose
+   // a second, hidden magnitude cutoff through the engine's global default.
+   engine.autoDSOLimit=false;engine.dsoLimitMagnitude=99;engine.dsoMinSize=7;engine.labelReductionFactor=.85;
+   if(!style.atlas){engine.dsoLineColors=ChartSymbols.TypeNames.map(()=>style.object);engine.dsoFillColors=ChartSymbols.TypeNames.map(()=>((style.object&0xffffff)|0x18000000)>>>0);}
+   let grid=new ChartGridLayer;grid.density=3;grid.gprops.lineColor=style.grid;grid.gprops.labelColor=style.gridLabel;grid.gprops.labelSize=16;grid.gprops.labelFace=style.face;
+   let constellationLayer=new ABLConstellationLayer(skyDegrees>=5);constellationLayer.gprops.lineColor=style.asterism;constellationLayer.gprops.lineWidth=1.5;constellationLayer.gprops.labelColor=style.constellation;constellationLayer.gprops.labelFace=style.face;constellationLayer.gprops.labelSize=28;constellationLayer.gprops.labelItalic=style.vintage;
+   engine.layers=[grid];const showBorders=options.borders!==false;if(showBorders)engine.layers.push(new ABLConstellationBordersLayer(style.border));engine.layers.push(constellationLayer);
+   let entries=ablChartCatalogs(),choices=ablChartCatalogOptions(options),catalogLayers=[];
+   for(let i=0;i<entries.length;++i){let entry=entries[i],choice=choices[i];if(!entry.available||!choice.enabled)continue;
+      let layer=new ABLChartCatalogLayer(entry.catalog);layer.visible=true;layer.catalog.showOutlines=false;layer.catalog.magMax=ablCatalogMagnitude(entry,choice,skyDegrees);
+      layer.gprops.showLabels=choice.labels;layer.gprops.labelFields=['','','','','Name','','',details.objectDetails?'ABL details':''];
+      if(details.objectDetails)layer.gprops.labelFields[0]='ABL type';
+      layer.gprops.labelFace=style.face;layer.gprops.labelSize=details.objectDetails?16:19;layer.gprops.labelColor=style.objectLabel;layer.gprops.lineWidth=1.4;
+      catalogLayers.push(layer);engine.layers.push(layer);
    }
-   const title=ABL.catalogIdentifier(object)||'Target';
-   let id;do{id='ABL_Sky_'+ABL.uuid().slice(1,9);}while(View.viewById(id));
-   let stars=null,bitmap=null,insetMap=null;
+   let local=ablLocalChartCatalog(),starLayers=[];
+   for(let catalog of [new NamedStarsCatalog].concat(local?[local]:[])){
+      let layer=new ABLChartCatalogLayer(catalog);layer.visible=true;layer.gprops.lineColor=style.star;layer.gprops.labelColor=style.secondary;layer.gprops.labelFace=style.face;layer.gprops.labelSize=17;
+      layer.gprops.showLabels=details.starNames||details.starMagnitudes;layer.gprops.labelFields=['','','','','ABL star label','','',''];starLayers.push(layer);engine.layers.push(layer);
+   }
+   if(details.contours&&details.contourPath){if(!File.exists(details.contourPath))throw Error('The selected Stellarium outline file is unavailable. Choose another file or Use bundled in Configuration.');engine.ablOutlineData=options.outlineData||ABL.parseOutlines(File.readTextFile(details.contourPath));}
+   let map=engine.BuildChart(),targetMarkers=[];
+   if(targets){map.pushState();try{map.translateTransformation(engine.frame.x0,engine.frame.y0);targetMarkers=ablDrawTableTargets(map,engine.metadata,targets,style);}finally{map.popState();}}
+   let result={style:style.key,styleName:style.name,borders:showBorders,catalog:local?'Local '+local.name+' and bundled stars':'Bundled named and bright stars',localGaia:!!local,
+      stars:engine.chartStats.stars,objectCount:engine.chartStats.deepSky,labelCount:engine.ablLabelCount,starLabelCount:starLayers.reduce((n,l)=>n+(l.labelObjects?l.labelObjects.size:0),0),
+      contourCount:(engine.ablContours?engine.ablContours.count:0)+engine.ablOutlineCount,contourSource:details.contourPath?'Stellarium file':'PixInsight local databases',details,targetMarkers,tableTargetCount:targets?targets.length:0,
+      catalogs:catalogLayers.map(l=>l.catalog.name),catalogOptions:choices,constellations:constellationLayer.visibleNames,background:style.band};
+   if(mapOnly)return Object.assign(result,{recording:map});
+   let inset=details.inset?ablSkyChart(object,fieldArcmin,details.insetDegrees,'',Object.assign({},options,{inset:false,_mapOnly:true})):null;
+   let title=ABL.catalogIdentifier(object)||'Target',keyFont=new Font(style.face,20,'px'),key=targets?ablTableChartKey(targets,keyFont,details):null;
+   let legendFont=new Font(style.face,17,'px'),items=engine.SymbolLegendItems(),legendHeight=28,legend=engine.SymbolLegendLayout(items,legendFont,legendHeight);
+   while(legend.width>width-48&&legendHeight<168){legendHeight+=28;legend=engine.SymbolLegendLayout(items,legendFont,legendHeight);}
+   const footer=100+(items.length?legendHeight+16:0),recording=new ChartRecording(width+(inset?640:0),header+height+footer+(key?key.height:0)),g=recording;
+   ChartFill.Rect(g,0,0,recording.width,recording.height,new Brush(style.band));
+   g.pushState();g.translateTransformation(0,header);map.paint(g);g.popState();
+   g.antialiasing=true;g.textAntialiasing=true;
+   let cx=width/2,cy=header+height/2;
+   if(!targets){g.pen=new Pen(style.sky,6);for(let pass=0;pass<2;++pass){if(pass)g.pen=new Pen(style.accent,2.5);g.drawLine(cx-23,cy,cx-9,cy);g.drawLine(cx+9,cy,cx+23,cy);g.drawLine(cx,cy-23,cx,cy-9);g.drawLine(cx,cy+9,cx,cy+23);}}
+   g.pen=new Pen(style.vintage?style.rule:style.accent,style.vintage?1:3);g.drawLine(24,7,width-24,7);if(style.vintage)g.drawLine(24,11,width-24,11);
+   g.pen=new Pen(style.ink);let titleFont=new Font(style.face,31,'px');titleFont.bold=!style.vintage;g.font=titleFont;
+   let heading=title;while(heading.length>1&&g.font.width(heading)>850)heading=heading.slice(0,-1);if(heading!==title)heading+='…';g.drawText(24,40,heading);
+   g.font=new Font(style.face,20,'px');g.pen=new Pen(style.secondary);g.drawText(24,65,targets?targets.length+' shown objects · '+targetMarkers.length+' plotted'+(targetMarkers.length<targets.length?' · '+(targets.length-targetMarkers.length)+' without coordinates':''):'Apparent size  '+ABL.sizeText(ABL.angularSize(object)));
+   g.drawText(1000,34,'Field width  '+skyDegrees+'°');g.drawText(1000,64,'N ↑   E ←   ·   J2000');
+   let y=header+height;g.pen=new Pen(style.rule);g.drawLine(24,y,width-24,y);g.font=new Font(style.face,20,'px');g.pen=new Pen(style.ink);
+   g.drawText(24,y+32,'RA  '+ABL.formatRA(position.ra)+'     Dec  '+ABL.formatDec(position.dec));
+   if(showBorders){g.pen=new Pen(style.border,1.5,PenStyle.Dash);g.drawLine(700,y+26,744,y+26);g.pen=new Pen(style.ink);g.font=new Font(style.face,17,'px');g.drawText(754,y+32,'Constellation borders');}
+   g.font=new Font(style.face,18,'px');g.drawText(24,y+68,targets?'Numbered rings = table objects · Other symbols = catalog context':'Crosshair = target · Symbols show catalog object types');
+   let barDegrees=skyDegrees/5,barPixels=2*Math.tan(barDegrees*Math.PI/360)/(engine.metadata.resolution*Math.PI/180),x=width-30-barPixels;
+   g.drawLine(x,y+63,width-30,y+63);g.drawLine(x,y+57,x,y+69);g.drawLine(width-30,y+57,width-30,y+69);
+   let scaleText=barDegrees>=1?Number(barDegrees.toPrecision(3))+'°':Number((barDegrees*60).toPrecision(3))+'′';g.drawText(x,y+43,scaleText+' at center');
+   if(items.length)engine.DrawSymbolLegend(g,24,y+100,items,legend);
+   if(key){let top=header+height+footer;g.pen=new Pen(style.rule);g.drawLine(24,top,width-24,top);g.font=keyFont;g.pen=new Pen(style.ink);g.drawText(24,top+32,'Objects in table order');let offsets=[top+64];for(let rh of key.rowHeights)offsets.push(offsets[offsets.length-1]+rh);for(let cell of key.cells)for(let j=0;j<cell.lines.length;++j)g.drawText(24+cell.column*key.columnWidth,offsets[cell.row]+j*27,cell.lines[j]);}
+   if(inset){let x=width+20;g.pen=new Pen(style.rule);g.drawLine(width,0,width,recording.height);g.font=new Font(style.face,26,'px');g.pen=new Pen(style.ink);g.drawText(x,40,'Close-up · '+details.insetDegrees+'°');g.font=new Font(style.face,18,'px');g.pen=new Pen(style.secondary);g.drawText(x,66,'N ↑   E ←   ·   J2000   ·   target at center');
+      g.pushState();g.translateTransformation(x,header);inset.recording.paint(g);g.popState();let cx=x+300,cy=header+300;g.pen=new Pen(style.accent,2);g.drawLine(cx-16,cy,cx-6,cy);g.drawLine(cx+6,cy,cx+16,cy);g.drawLine(cx,cy-16,cx,cy-6);g.drawLine(cx,cy+6,cx,cy+16);
+      g.pen=new Pen(style.ink);g.font=new Font(style.face,20,'px');g.drawText(x,header+638,'Apparent size: '+ABL.sizeText(ABL.angularSize(object)));
+      let label='Object type: '+ABL.objectType(object);while(label.length>1&&g.font.width(label)>590)label=label.slice(0,-1);if(label!=='Object type: '+ABL.objectType(object))label+='…';g.drawText(x,header+670,label);
+      g.pen=new Pen(style.secondary);g.font=new Font(style.face,18,'px');g.drawText(x,header+707,'Same target · independently projected close-up');g.drawText(x,header+739,inset.objectCount+' catalog objects · '+inset.starLabelCount+' star labels');if(details.contours)g.drawText(x,header+771,inset.contourCount+' local nebula contours');
+   }
+   let bitmap=new Bitmap(recording.width,recording.height),graphics=new Graphics(bitmap);
+   try{recording.paint(graphics);}finally{graphics.end();}
+   try{TGFileProtection.assertOutsideInstallation(path,'Finder chart image');if(File.exists(path)||File.directoryExists(path))throw Error('The temporary chart path is already occupied.');bitmap.save(path);}finally{bitmap.clear();}
+   return Object.assign(result,{path,recording,title,inset:inset?{coverage:details.insetDegrees,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
+}
+
+// Export a complete vector drawing, not a bitmap embedded in a document.
+// Documents are 297 mm wide and retain the preview's aspect ratio, including
+// an inset or a long object key. Print dialogs can fit them to another page.
+function ablExportChart(chart,path){
+   if(!chart||!(chart.recording instanceof ChartRecording))throw Error('Load a Finder chart before exporting it.');
+   path=TGFileProtection.assertOutsideInstallation(path,'Finder chart export');
+   let extension=path.toLowerCase().match(/\.(svg|pdf)$/);if(!extension)throw Error('Choose a filename ending in .svg or .pdf.');
+   const recording=chart.recording,title=chart.title||'Finder chart',widthMM=297,heightMM=widthMM*recording.height/recording.width;
+   if(heightMM>2000)throw Error('The chart is too tall for a document. Narrow the table filters before exporting.');
+   let temporary='',bytes;
    try{
-      let generator=new CatalogStarGenerator;
-      generator.useImageMetadata=false;generator.width=width;generator.height=height;generator.ra=position.ra;generator.dec=position.dec;
-      generator.observationTime=2451545.0;generator.rotation=0;generator.projection=0;
-      // The TAN plane scale is chosen from the actual edge-to-edge angle,
-      // rather than treating degrees as a flat coordinate at large fields.
-      generator.resolution=2*Math.tan(skyDegrees*Math.PI/360)*180/Math.PI/width;
-      let local=ablLocalChartCatalog();
-      generator.catalog=local||new NamedStarsCatalog;
-      // Gaia has an incomplete bright end; named stars supply the familiar
-      // constellation anchors. The generator removes positional duplicates.
-      generator.catalog2=local?new NamedStarsCatalog:new NullCatalog;
-      const source=local?'Local '+local.name:'Bundled named and bright stars';
-      console.writeln('Sky chart catalog: '+source);
-      // Sparse naked-eye context at wide scales, progressively deeper stars
-      // when zooming in. This keeps small targets useful without a busy map.
-      generator.maxMagnitude=Math.min(15,Math.max(5.5,6.7-3*Math.log10(skyDegrees/30)));
-      generator.autoGraphics=true;generator.generateStars=true;generator.generateNoise=false;generator.outputImageId=id;
-      stars=generator.render();
-      // Draw catalog symbols on a solid background. The synthetic window
-      // supplies astrometry; the selected style supplies the map's palette.
-      bitmap=new Bitmap(width,height);bitmap.fill(style.sky);let symbols=new Graphics(bitmap),starCount=0;
-      try{
-         symbols.antialiasing=true;
-         for(let catalog of [generator.catalog,generator.catalog2])for(let record of catalog.objects||[]){
-            if(!record||!Number.isFinite(record.magnitude)||record.magnitude>generator.maxMagnitude)continue;
-            let point=generator.metadata.Convert_RD_I(record.posRD);
-            if(!point||point.x<0||point.y<0||point.x>=width||point.y>=height)continue;
-            let brightness=generator.maxMagnitude-record.magnitude,radius=Math.max(1.8,Math.min(6,1.8+brightness*.65));
-            let rect=new Rect(point.x-radius,point.y-radius,point.x+radius,point.y+radius);
-            if(brightness>1.5||style.vintage)symbols.fillEllipse(rect,new Brush(brightness>1.5?style.star:style.faintStar));
-            else{symbols.pen=new Pen(style.faintStar,1.5);symbols.strokeEllipse(rect);}
-            ++starCount;
-         }
-      }finally{symbols.end();}
-      stars.mainView.beginProcess(UndoFlag.NoSwapFile);
-      // CatalogStarGenerator produces grayscale. Preserve the paper/sky and
-      // ink colors when transferring our fully opaque bitmap into its image.
-      try{stars.mainView.image.colorSpace=ColorSpace.RGB;stars.mainView.image.blend(bitmap);}finally{stars.mainView.endProcess();}
-      bitmap.clear();bitmap=null;
-      let annotation=new AnnotationEngine;annotation.window=stars;annotation.metadata=new AstrometricMetadata;
-      annotation.metadata.ExtractMetadata(stars);annotation.applySTF=false;annotation.textScale=1;annotation.graphicsScale=1;
-      annotation.observationTime=2451545.0;annotation.optimizeLabelPlacement=true;annotation.smallSizeThreshold=4;
-      annotation.layers=[new GridLayer,new ABLConstellationLayer(skyDegrees>=5),new ABLChartCatalogLayer(new MessierCatalog),new ABLChartCatalogLayer(new NGCICCatalog)];
-      let entries=ablChartCatalogs(),choices=ablChartCatalogOptions(options);
-      for(let entry of entries.slice(2))annotation.layers.push(new ABLChartCatalogLayer(entry.catalog||new NullCatalog));
-      for(let i=0;i<annotation.layers.length;++i){let layer=annotation.layers[i];layer.visible=true;
-         // The dedicated contour layer controls all nebula outlines, including
-         // those absent from the selected annotation catalogs. Avoid doubles.
-         if(layer.catalog)layer.catalog.showOutlines=false;
-         layer.gprops.lineColor=i===0?style.grid:i===1?style.asterism:style.object;layer.gprops.labelColor=i===0?style.gridLabel:i===1?style.constellation:style.objectLabel;
-         layer.gprops.labelFace=style.face;layer.gprops.labelItalic=style.vintage&&i===1;
-         layer.gprops.lineWidth=i===0?1:1.8;layer.gprops.labelSize=i===1?32:i===0?20:25;
-         if(i===0)layer.density=3;
-         if(i===1)layer.margin=5;
-         if(i>=2){let choice=choices[i-2];layer.visible=choice.enabled;
-            layer.gprops.showLabels=choice.labels;layer.gprops.labelFields=['Name','','','','','','',''];layer.catalog.magMax=ablCatalogMagnitude(entries[i-2],choice,skyDegrees);}
-         if(layer.visible&&layer.Load)layer.Load(annotation.metadata,annotation.vizierServer);}
-      if(details.objectDetails){
-         // Messier's local CSV references NGC/IC but lacks a Type column.
-         // Join that local metadata before duplicate marker removal.
-         let ngc=annotation.layers[3];if(!ngc.visible&&entries[1].available)ngc.Load(annotation.metadata,annotation.vizierServer);
-         let types=new Map((ngc.objects||[]).filter(Boolean).map(o=>[ABL.norm(o.name),o.Type]));
-         for(let layer of annotation.layers.slice(2))if(layer.visible)for(let o of layer.objects||[])if(o){
-            if(!o.Type&&o['NGC/IC'])o.Type=types.get(ABL.norm(o['NGC/IC']));
-            if(!o.Type&&ABL.norm(o.name)===ABL.norm(title)){let type=ABL.objectType(object);if(type!=='Unspecified')o.Type=type;}
-            o['ABL details']=ABL.chartObjectDetails(Object.assign({},o,{Type:''}));o['ABL type']=o.Type||'';layer.gprops.labelSize=18;
-            // Stack short lines instead of one long catalog sentence. A very
-            // large marker needs room for its name; the inset's information
-            // band still supplies the selected target's type and dimensions.
-            if(o.diameter/annotation.metadata.resolution>width/3)o['ABL details']=o['ABL type']='';
-            layer.gprops.labelFields=['','','Name','','ABL type','','','ABL details'];
-         }
+      if(extension[1]==='svg'){
+         // SVG resolution is integral. Set physical size at a fixed DPI and
+         // keep chart coordinates in the viewBox, avoiding size-rounding drift.
+         let svg=new SVG;svg.resolution=300;svg.size=new Rect(0,0,widthMM/25.4*300,heightMM/25.4*300);svg.viewBox=new Rect(0,0,recording.width,recording.height);
+         svg.title=title;svg.description='Finder chart generated by Astro Bucket List '+ABL_VERSION+' with PixInsight chart libraries by Pleiades Astrophoto.';svg.textToPaths=true;
+         let graphics=new Graphics(svg);try{recording.paint(graphics);}finally{graphics.end();}
+         bytes=svg.outputData;if(!bytes.length)throw Error('The SVG renderer returned an empty document.');
+      }else{
+         temporary=File.uniqueFileName(File.systemTempDirectory,20,'AstroBucketList-export-','.pdf');TGFileProtection.assertOutsideInstallation(temporary,'Temporary chart export');
+         if(File.exists(temporary)||File.directoryExists(temporary))throw Error('The temporary export path is already occupied.');
+         // Limit the PDF object's lifetime to rendering. Read it only after
+         // the graphics context has ended and finalized the document.
+         let pdf=new PDF(temporary);pdf.pageSize=new Rect(0,0,Math.min(widthMM,heightMM),Math.max(widthMM,heightMM));pdf.landscape=widthMM>heightMM;pdf.margins=new Rect(0,0,0,0);pdf.resolution=300;pdf.title=title;pdf.creator='Astro Bucket List '+ABL_VERSION+' / PixInsight';
+         let graphics=new Graphics(pdf);try{let scale=widthMM/25.4*300/recording.width;graphics.scaleTransformation(scale,scale);recording.paint(graphics);}finally{graphics.end();}
+         bytes=File.readFile(temporary);if(bytes.length<8||bytes[0]!==37||bytes[1]!==80||bytes[2]!==68||bytes[3]!==70)throw Error('The PDF renderer did not produce a complete document.');
       }
-      annotation.RemoveDuplicates();
-      // Avoid a second catalog label/marker at an explicit table target.
-      if(targets)for(let layer of annotation.layers.slice(2)){
-         layer.gprops.labelSize=Math.min(layer.gprops.labelSize,20);layer.gprops.labelColor=style.secondary;
-         layer.objects=(layer.objects||[]).filter(o=>!o||!targets.some(t=>ablChartTargetPosition(t)&&
-            (t.designation&&[o.name,o['NGC/IC']].some(name=>name&&ABL.norm(name)===ABL.norm(t.designation))||
-             Math.abs(t.dec-o.posRD.y)<.001&&Math.abs(((t.ra-o.posRD.x+540)%360)-180)*Math.cos(t.dec*Math.PI/180)<.001)));
-      }
-      let catalogLayers=annotation.layers.slice(2).filter(layer=>layer.visible),objectCount=catalogLayers.reduce((n,layer)=>n+(layer.objects||[]).filter(Boolean).length,0);
-      let starLayer=ablStarLabelLayer(generator,details,style);
-      if(starLayer)annotation.layers.push(starLayer);
-      let labelCount=ablChartLabels(starLayer?catalogLayers.concat(starLayer):catalogLayers,annotation.metadata,width,height,details);
-      let constellationLayer=annotation.layers[1],showBorders=options.borders!==false;
-      // Put borders behind asterisms and catalog annotations. Keep them out
-      // of object counts, duplicate removal and catalog-label selection.
-      if(showBorders)annotation.layers.splice(1,0,new ABLConstellationBordersLayer(style.border));
-      if(details.contours&&!details.contourPath)outlineData=ablBundledContours(annotation.metadata,details.outlineLevel);
-      let contours=details.contours?new ABLNebulaContoursLayer(outlineData,style):null;
-      if(contours)annotation.layers.unshift(contours);
-      // Raster renditions contain transparent annotations. Composite them
-      // with the styled star image through the engine's preview interface.
-      let raster=annotation.generateRasterRenditions();
-      try{bitmap=annotation.PreviewBitmap(raster);}finally{AnnotationEngine.FreeRaster(raster);}
-      let targetMarkers=targets?ablDrawTableTargets(bitmap,annotation.metadata,targets,style):[];
-      let result={style:style.key,styleName:style.name,borders:showBorders,catalog:source,localGaia:!!local,
-         stars:starCount,objectCount,labelCount,starLabelCount:starLayer?starLayer.labelObjects.size:0,
-         contourCount:contours?contours.count:0,contourSource:details.contourPath?'Stellarium file':'PixInsight local databases',details,targetMarkers,tableTargetCount:targets?targets.length:0,
-         catalogs:catalogLayers.map(layer=>layer.catalog.name),catalogOptions:choices,constellations:constellationLayer.visibleNames};
-      if(mapOnly){result.bitmap=bitmap;bitmap=null;return result;}
-      let inset=null;
-      if(details.inset){
-         inset=ablSkyChart(object,fieldArcmin,details.insetDegrees,'',Object.assign({},options,{inset:false,_mapOnly:true,outlineData}));
-         insetMap=inset.bitmap;delete inset.bitmap;
-      }
-      // A landscape map uses the tab's width. Put identification, orientation
-      // and the key in separate bands so no tiny footer obscures the sky.
-      let keyFont=new Font(style.face,21,'px'),key=targets?ablTableChartKey(targets,keyFont,details):null;
-      let map=bitmap;bitmap=new Bitmap(width+(inset?640:0),header+height+footer+(key?key.height:0));bitmap.fill(style.band);let g=new Graphics(bitmap);
-      try{
-         // Mark the selected target's center with a crosshair. Chart coverage
-         // is supplied by the caller; this marker does not represent a camera
-         // footprint or the target's apparent size.
-         g.drawBitmap(0,header,map);let cx=width/2,cy=header+height/2;
-         g.antialiasing=true;g.textAntialiasing=true;
-         if(!targets){g.pen=new Pen(style.sky,6);for(let pass=0;pass<2;++pass){if(pass)g.pen=new Pen(style.accent,2.5);g.drawLine(cx-23,cy,cx-9,cy);g.drawLine(cx+9,cy,cx+23,cy);g.drawLine(cx,cy-23,cx,cy-9);g.drawLine(cx,cy+9,cx,cy+23);}}
-         // A double rule evokes a printed atlas; a single accent rule and
-         // bold sans-serif heading keep the modern style visually distinct.
-         g.pen=new Pen(style.vintage?style.rule:style.accent,style.vintage?1:3);g.drawLine(24,7,width-24,7);
-         if(style.vintage){g.drawLine(24,11,width-24,11);g.pen=new Pen(style.rule);g.strokeRect(1,header,width-1,header+height-1);}
-         g.pen=new Pen(style.ink);g.font=new Font(style.face,31,'px');g.font.bold=!style.vintage;
-         // Elide unusually long user names so they cannot run into the key.
-         let heading=title;while(heading.length>1&&g.font.width(heading)>850)heading=heading.slice(0,-1);if(heading!==title)heading+='…';
-         g.drawText(24,40,heading);g.font=new Font(style.face,20,'px');g.pen=new Pen(style.secondary);
-         g.drawText(24,65,targets?targets.length+' shown objects · '+targetMarkers.length+' plotted'+(targetMarkers.length<targets.length?' · '+(targets.length-targetMarkers.length)+' without coordinates':''):'Apparent size  '+ABL.sizeText(ABL.angularSize(object)));
-         g.drawText(1000,34,'Field width  '+skyDegrees+'°');g.drawText(1000,64,'N ↑   E ←   ·   J2000');
-         let y=header+height;g.pen=new Pen(style.rule);g.drawLine(0,y,width,y);if(style.vintage)g.drawLine(24,y+5,width-24,y+5);g.font=new Font(style.face,21,'px');g.pen=new Pen(style.ink);
-         g.drawText(24,y+34,'RA  '+ABL.formatRA(position.ra)+'     Dec  '+ABL.formatDec(position.dec));
-         if(showBorders){g.pen=new Pen(style.border,1.5,PenStyle.Dash);g.drawLine(700,y+28,744,y+28);g.pen=new Pen(style.ink);g.font=new Font(style.face,18,'px');g.drawText(754,y+34,'Constellation borders');g.font=new Font(style.face,21,'px');}
-         g.drawText(24,y+73,targets?'Numbered rings = table objects · Other symbols = catalog context':'Center crosshair = target   ·   Outlines / crosses = catalog objects');
-         if(key){
-            let top=header+height+footer;g.pen=new Pen(style.rule);g.drawLine(24,top,width-24,top);g.font=keyFont;g.pen=new Pen(style.ink);g.drawText(24,top+32,'Objects in table order');
-            let offsets=[top+64];for(let rh of key.rowHeights)offsets.push(offsets[offsets.length-1]+rh);
-            for(let cell of key.cells)for(let j=0;j<cell.lines.length;++j)g.drawText(24+cell.column*key.columnWidth,offsets[cell.row]+j*27,cell.lines[j]);
-         }
-         // Scale is angular separation at the field center, derived from the
-         // same TAN projection as the map, not a degrees-per-pixel estimate.
-         let barDegrees=skyDegrees/5,barPixels=2*Math.tan(barDegrees*Math.PI/360)/(generator.resolution*Math.PI/180),x=width-30-barPixels;
-         g.drawLine(x,y+64,width-30,y+64);g.drawLine(x,y+57,x,y+71);g.drawLine(width-30,y+57,width-30,y+71);
-         let scaleText=barDegrees>=1?Number(barDegrees.toPrecision(3))+'°':Number((barDegrees*60).toPrecision(3))+'′';g.drawText(x,y+40,scaleText+' at center');
-         if(inset){
-            // A separate square projection gives true additional sky detail.
-            // Keep it beside the overview so no corner of the map is hidden.
-            let x=width+20;g.pen=new Pen(style.rule);g.drawLine(width,0,width,bitmap.height);
-            g.font=new Font(style.face,26,'px');g.pen=new Pen(style.ink);g.drawText(x,40,'Close-up · '+details.insetDegrees+'°');
-            g.font=new Font(style.face,18,'px');g.pen=new Pen(style.secondary);g.drawText(x,66,'N ↑   E ←   ·   J2000   ·   target at center');
-            g.drawBitmap(x,header,insetMap);g.pen=new Pen(style.rule);g.strokeRect(x,header,x+600,header+600);
-            let cx=x+300,cy=header+300;g.pen=new Pen(style.accent,2);
-            g.drawLine(cx-16,cy,cx-6,cy);g.drawLine(cx+6,cy,cx+16,cy);g.drawLine(cx,cy-16,cx,cy-6);g.drawLine(cx,cy+6,cx,cy+16);
-            g.pen=new Pen(style.ink);g.font=new Font(style.face,20,'px');
-            g.drawText(x,header+638,'Apparent size: '+ABL.sizeText(ABL.angularSize(object)));
-            g.drawText(x,header+670,'Object type: '+ABL.objectType(object));
-            g.pen=new Pen(style.secondary);g.drawText(x,header+707,'Same target · independently projected close-up');
-            g.drawText(x,header+739,inset.objectCount+' catalog objects · '+inset.starLabelCount+' star labels');
-            if(details.contours)g.drawText(x,header+771,inset.contourCount+' local nebula contours');
-         }
-      }finally{g.end();map.clear();}
-      TGFileProtection.assertOutsideInstallation(path,"Finder chart image");
-      if(File.exists(path)||File.directoryExists(path))throw Error("The temporary chart path is already occupied.");
-      bitmap.save(path);return Object.assign(result,{path,inset:inset?{coverage:details.insetDegrees,stars:inset.stars,objectCount:inset.objectCount,starLabelCount:inset.starLabelCount,contourCount:inset.contourCount}:null});
-   }finally{
-      if(bitmap)bitmap.clear();if(insetMap)insetMap.clear();
-      // Close only our uniquely named temporary field, including partial renders.
-      let view=View.viewById(id);if(view)view.window.forceClose();
-   }
+      // The shared writer verifies staged bytes, preserves an existing file
+      // during replacement and reports a recovery path if restoration fails.
+      TGFileProtection.writeFile(path,bytes,'Finder chart export');
+   }finally{if(temporary&&File.exists(temporary))try{TGFileProtection.removeFile(temporary,'Temporary chart export');}catch(e){console.warningln('Temporary chart export remains at '+temporary+': '+String(e));}}
+   return path;
 }
 #endif
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.40.0';
+const ABL_VERSION='0.41.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -2963,7 +2915,7 @@ function ablLoadPreviewPreferences(text,style='modern-editorial'){
       if(Number.isFinite(value.coverage)&&value.coverage>=(key==='sky'?.1:5)&&value.coverage<=120)target.coverage=value.coverage;
       if(typeof value.fitObjectSize==='boolean')target.fitObjectSize=value.fitObjectSize;
       if(key==='sky'){
-         if(['modern-editorial','vintage-atlas'].includes(value.style))target.style=value.style;
+         if(['modern-editorial','vintage-atlas','observing-atlas'].includes(value.style))target.style=value.style;
          if(['sparse','normal','detailed'].includes(value.labelDensity))target.labelDensity=value.labelDensity;
          if(typeof value.inset==='boolean')target.inset=value.inset;
          if(Number.isFinite(value.insetDegrees)&&value.insetDegrees>=.1&&value.insetDegrees<=120)target.insetDegrees=value.insetDegrees;
@@ -3021,10 +2973,10 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.dssFit.toolTip='Fit the DSS width to 1.5 times the apparent major diameter. Objects larger than 120 arcminutes always use the maximum field.';
    this.skyCoverage.toolTip='Preferred Finder width for every target, 0.1–120 degrees. When fitting is enabled this is the fallback for unknown sizes.';
    this.surveyField.toolTip='Preferred square DSS width for every target, 5–120 arcminutes. Fitting uses the target size when available; larger targets always use 120 arcminutes without replacing this preference.';
-   this.styleSelect=new ComboBox(this.finderGroup);this.styleSelect.values=['modern-editorial','vintage-atlas'];
+   this.styleSelect=new ComboBox(this.finderGroup);this.styleSelect.values=['modern-editorial','vintage-atlas','observing-atlas'];
    for(let key of this.styleSelect.values)this.styleSelect.addItem(ablChartStyle(key).name);
    this.styleSelect.currentItem=this.styleSelect.values.indexOf(manager.previewPreferences.sky.style);
-   this.styleSelect.toolTip='Modern Editorial uses a dark sky and sans-serif labels. Vintage Atlas uses warm paper, sepia ink and serif labels.';
+   this.styleSelect.toolTip='Modern Editorial uses a dark sky and sans-serif labels. Vintage Atlas uses warm paper, sepia ink and serif labels. Observing Atlas uses white paper, black stars and colored astronomical symbols.';
    this.labelDensity=new ComboBox(this.finderGroup);this.labelDensity.values=['sparse','normal','detailed'];
    for(let name of ['Sparse','Normal','Detailed'])this.labelDensity.addItem(name);
    this.labelDensity.currentItem=this.labelDensity.values.indexOf(manager.previewPreferences.sky.labelDensity);
@@ -3161,6 +3113,7 @@ class ABLChartDetailsDialog extends Dialog { constructor(manager){
 // the affected page, and hidden pages defer rendering until activated.
 class ABLChartPage extends Control { constructor(parent,manager,sky){
    super(parent);this.manager=manager;this.sky=sky;this.object=null;this.objectKey=null;this.bitmap=null;this.loadedPath='';this.updating=false;
+   this.vectorChart=null;this.vectorTiles=sky?new ChartTileCache(32*1024*1024):null;this.exportPath='';
    this.tableGroup=null;this.frameError='';
    this.previewState='idle';this.previewError='';this.renderSummary='';this.canPreview=false;
    this.settings=ablPreviewSettings(null,sky,manager.previewPreferences[sky?'sky':'dss']);
@@ -3204,9 +3157,10 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
       if(!sky&&size&&size.majorArcmin>120)lines.push('Object exceeds DSS coverage: the maximum 120′ field is used.');
       else if(sky&&size&&size.majorArcmin>7200)lines.push('Sky coverage is limited to 120°.');
       if(sky){let state=manager.contourState,source=state.status==='bundled'?'Bundled PixInsight outlines · '+NebulaOutlines.levelNames[manager.outlineLevel]:state.status==='loaded'?'Custom outlines: '+manager.contourPath.replace(/.*[\\/]/,''):'Nebula outlines unavailable · check Configuration';lines.push(ABL.html(source+(ablContoursAvailable(state)?this.details.contours?' · contours enabled':' · contours off':'')));}
-      this.info.text=lines.join('<br/>');this.info.toolTip=this.previewError||this.frameError||(this.tableGroup?this.tableGroup.targets.filter(t=>!ablChartTargetPosition(t)).map(t=>t.name+' — coordinates missing').join('\n'):sky?manager.contourPath:'DSS2 Red survey at STScI');
+      if(this.exportPath)lines.push('Exported chart: '+ABL.html(this.exportPath.replace(/.*[\\/]/,'')));
+      this.info.text=lines.join('<br/>');this.info.toolTip=this.previewError||this.frameError||this.exportPath||(this.tableGroup?this.tableGroup.targets.filter(t=>!ablChartTargetPosition(t)).map(t=>t.name+' — coordinates missing').join('\n'):sky?manager.contourPath:'DSS2 Red survey at STScI');
    };
-   this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
+   this.clearPreview=()=>{if(this.bitmap){this.bitmap.clear();this.bitmap=null;}this.vectorChart=null;if(this.vectorTiles)this.vectorTiles.use(null,0);this.exportPath='';this.resetView(false);this.loadedPath='';this.renderSummary='';this.previewError='';this.previewState='idle';if(manager.updateImageAction)manager.updateImageAction();if(this.retryButton)this.retryButton.visible=false;this.updateInfo();this.chart.update();};
    this.effectiveSettings=preferences=>{
       let value=ablPreviewSettings(this.object,sky,preferences);
       if(this.tableGroup){value.inset=false;try{value.coverage=ablTableChartFrame(this.tableGroup.targets,preferences.coverage).coverage;}catch(e){/* updateFields presents framing errors in the information block. */}}
@@ -3247,13 +3201,15 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
          manager.io.skyChart(object,ABL.chartFraming(object,true).field,field,this.chartOptions()):manager.io.finder(object,ABL.dssField(object,field)),false);
       let path=typeof response==='string'?response:response.path,bitmap=new Bitmap(path);
       if(bitmap.isNull)throw Error('No chart image was returned. Try again with a different field.');
-      this.clearPreview();this.bitmap=bitmap;this.loadedPath=path;this.loadedField=field;if(manager.updateImageAction)manager.updateImageAction();this.chart.update();
+      this.clearPreview();this.bitmap=bitmap;this.loadedPath=path;this.loadedField=field;
+      if(sky&&response.recording instanceof ChartRecording){this.vectorChart=response;this.vectorTiles.use(response.recording,response.background);}
+      this.chart.update();
       this.previewState='ready';this.renderSummary=sky?ablChartStyle(this.settings.style).name+' · '+field+'° coverage · target at crosshair · '+(response.catalog||'local catalogs')+(Number.isFinite(response.objectCount)?' · '+response.objectCount+' catalog objects':''):'DSS2 Red · '+field+' × '+field+' arcmin · target at crosshair';
       if(this.tableGroup)this.renderSummary=ablChartStyle(this.settings.style).name+' · '+field+'° coverage · '+this.tableGroup.targets.filter(ablChartTargetPosition).length+' numbered table objects · '+(response.catalog||'local catalogs');
       if(sky&&this.details.contours)this.renderSummary+=' · '+(response.contourCount||0)+' nebula contours';
       if(sky&&response.inset)this.renderSummary+=' · close-up '+response.inset.coverage+'°';
       this.updateInfo();manager.updateMinimumSize();
-   }catch(e){this.previewError=String(e.message||e);this.previewState='error';this.retryButton.visible=true;this.updateInfo();manager.updateMinimumSize();}finally{this.rendering=false;}
+   }catch(e){this.previewError=String(e.message||e);this.previewState='error';this.retryButton.visible=true;this.updateInfo();manager.updateMinimumSize();}finally{this.rendering=false;if(manager.updateImageAction)manager.updateImageAction();}
    };
    this.retryButton=ablButton(this,'Retry',()=>this.queueRedraw(),'Retry this preview after a failed request.');this.retryButton.visible=false;
    // A single-shot timer coalesces edits and is stopped before rendering.
@@ -3284,8 +3240,8 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
    }
    controls.addStretch();controls.add(this.retryButton);
    this.chart=new Control(this);this.chart.setMinSize(620,360);
-   // Zoom changes only the viewport transform. Reuse the original bitmap and
-   // render cache: wheel and drag events never trigger a catalog/DSS request.
+   // Zoom changes only the viewport transform. Finder paints cached vectors
+   // at display resolution; DSS magnifies its bitmap. Neither queries a catalog.
    // Store a normalized center so resizing keeps the viewed region centered.
    this.view={zoom:1,centerX:.5,centerY:.5,drag:null};
    const arrowCursor=new Cursor(StdCursor.Arrow),panCursor=new Cursor(StdCursor.OpenHand),dragCursor=new Cursor(StdCursor.ClosedHand);
@@ -3336,7 +3292,10 @@ class ABLChartPage extends Control { constructor(parent,manager,sky){
          // Draw only the visible source region; do not allocate enlarged
          // bitmaps at high zoom. The DSS target marker follows image center.
          let x0=Math.max(0,x),y0=Math.max(0,y),x1=Math.min(this.chart.width,x+w),y1=Math.min(this.chart.height,y+h);
-         if(x1>x0&&y1>y0)g.drawScaledBitmapRect(new Rect(x0,y0,x1,y1),this.bitmap,new Rect((x0-x)/r.scale,(y0-y)/r.scale,(x1-x)/r.scale,(y1-y)/r.scale));
+         if(x1>x0&&y1>y0){
+            if(this.vectorChart)this.vectorTiles.paint(g,Math.round(x),Math.round(y),r.scale,x0,y0,x1,y1,this.chart.resourcePixelRatio/this.chart.displayPixelRatio);
+            else g.drawScaledBitmapRect(new Rect(x0,y0,x1,y1),this.bitmap,new Rect((x0-x)/r.scale,(y0-y)/r.scale,(x1-x)/r.scale,(y1-y)/r.scale));
+         }
          if(!sky){let cx=x+w/2,cy=y+h/2;g.pen=new Pen(0xff65ff99,1);g.drawLine(cx-18,cy,cx-6,cy);g.drawLine(cx+6,cy,cx+18,cy);g.drawLine(cx,cy-18,cx,cy-6);g.drawLine(cx,cy+6,cx,cy+18);}
       }
    }finally{g.end();}};
@@ -3468,7 +3427,12 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       let key='sky:'+JSON.stringify([ABL.position(o),o.designation||o.name,ABL.angularSize(o),ABL.objectType(o),field,sky,ablChartCatalogOptions(chartOptions),ablChartStyle(chartOptions.style).key,chartOptions.borders!==false,cacheDetails,outlineText,chartOptions.tableTargets||null]);
       if(this.chartCache.has(key)&&File.exists(this.chartCache.get(key).path))return this.chartCache.get(key);
       let file=File.systemTempDirectory+'/AstroBucketList-'+ABL.uuid().slice(1,-1)+'.png';this.chartFiles.push(file);
-      let result=ablSkyChart(o,field,sky,file,Object.assign({},chartOptions,{outlineData:details.contours&&details.contourPath?ABL.parseOutlines(outlineText):[]}));this.chartCache.set(key,result);return result;
+      let result=ablSkyChart(o,field,sky,file,Object.assign({},chartOptions,{outlineData:details.contours&&details.contourPath?ABL.parseOutlines(outlineText):[]}));this.chartCache.set(key,result);
+      // Vector recordings are larger than bitmap-cache metadata. Bound their
+      // retained memory; an evicted chart can be rebuilt from the same inputs.
+      let charts=Array.from(this.chartCache).filter(e=>e[0].startsWith('sky:')),bytes=charts.reduce((n,e)=>n+(e[1].recording?e[1].recording.bytes:0),0);
+      while(charts.length>1&&(charts.length>6||bytes>32*1024*1024)){let old=charts.shift();bytes-=old[1].recording?old[1].recording.bytes:0;this.chartCache.delete(old[0]);}
+      return result;
    };
    if(options.io)for(let k of Object.keys(options.io))this.io[k]=options.io[k];
    this.windowTitle=ABL_TITLE+' '+ABL_VERSION;
@@ -3596,7 +3560,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.validateConfiguration=value=>{
       if(typeof value.rememberCollection!=='boolean')throw Error('Choose whether to remember the last opened or saved collection.');
       for(let [key,min]of [['sky',.1],['dss',5]])if(!value[key]||!Number.isFinite(value[key].coverage)||value[key].coverage<min||value[key].coverage>120)throw Error('Choose sky coverage from 0.1–120° and survey field from 5–120 arcminutes.');
-      if(!['modern-editorial','vintage-atlas'].includes(value.sky.style)||!['sparse','normal','detailed'].includes(value.sky.labelDensity))throw Error('Choose a chart style and label density.');
+      if(!['modern-editorial','vintage-atlas','observing-atlas'].includes(value.sky.style)||!['sparse','normal','detailed'].includes(value.sky.labelDensity))throw Error('Choose a chart style and label density.');
       if(!Number.isFinite(value.sky.insetDegrees)||value.sky.insetDegrees<.1||value.sky.insetDegrees>120)throw Error('Choose close-up coverage from 0.1–120°.');
       let state=ablContourFileState(value.contourPath);if(value.contourPath!==this.contourPath&&value.contourPath&&state.status!=='loaded')throw Error(state.error);
       if(value.outlineLevel!==undefined&&![0,1,2,3].includes(value.outlineLevel))throw Error('Choose a nebula outline brightness level.');
@@ -3629,7 +3593,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       this.finderPage.updateFields();this.dssPage.updateFields();let d=new ABLConfigurationDialog(this);if(this.executeDialog(d))this.applyConfiguration(d.values());
    }));
    this.activePreview=()=>this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:null;
-   this.updateImageAction=()=>{let p=this.activePreview();this.openImageButton.enabled=!!p&&!!p.bitmap&&!!p.loadedPath&&!p.disposed;this.openImageButton.toolTip='Open as image: '+(p?(p.sky?'Finder chart':'DSS survey image')+' in a native PixInsight image window.':'select the Finder chart or DSS survey image tab first.');};
+   this.updateImageAction=()=>{let p=this.activePreview();this.openImageButton.enabled=!!p&&!!p.bitmap&&!!p.loadedPath&&!p.disposed;this.openImageButton.toolTip='Open as image: '+(p?(p.sky?'Finder chart':'DSS survey image')+' in a native PixInsight image window.':'select the Finder chart or DSS survey image tab first.');if(this.exportChartButton)this.exportChartButton.enabled=!!p&&p.sky&&!!p.vectorChart&&p.previewState==='ready'&&!p.rendering&&!p.disposed;};
    this.openImageButton=ablTool(this,':/icons/window-export.png','Open as image: select a preview tab.',()=>this.safe(()=>{
       let p=this.activePreview();if(!p||!p.bitmap||!p.loadedPath||p.disposed)return;
       // Opening an image reads the temporary file again. Re-enter the DSS
@@ -3637,6 +3601,13 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(!p.sky){p.renderPreview();if(p.previewState!=='ready')return;}
       let windows=ImageWindow.open(p.loadedPath);if(!windows.length)throw Error('Could not open the preview image.');for(let w of windows)w.show();
    }));this.openImageButton.enabled=false;
+   this.chooseChartExportPath=()=>{let d=new SaveFileDialog;d.caption='Export Finder chart';d.filters=[['Scalable Vector Graphics','*.svg'],['PDF document','*.pdf']];d.defaultExtension='svg';d.overwritePrompt=true;let title=this.finderPage.vectorChart?this.finderPage.vectorChart.title:'Finder chart';d.initialPath=title.replace(/[\\/:*?"<>|\x00-\x1f]/g,'_')+'.svg';return this.executeDialog(d)?d.filePath:'';};
+   this.exportChart=()=>{
+      let p=this.activePreview();if(!p||!p.sky||!p.vectorChart||p.previewState!=='ready'||p.rendering||p.disposed)return false;
+      let path=this.chooseChartExportPath();if(!path)return false;
+      ablBusy(this,'Exporting Finder chart…',()=>ablExportChart(p.vectorChart,path),false);p.exportPath=path;p.updateInfo();return true;
+   };
+   this.exportChartButton=ablTool(this,':/icons/document-save.png','Export Finder chart as SVG or PDF. Saves the complete displayed chart, including its close-up or object key, independently of preview zoom. Vector text and symbols remain sharp when enlarged. Available only for a loaded Finder chart.',()=>this.safe(()=>this.exportChart()));this.exportChartButton.enabled=false;
    this.updateFinderActions=()=>{
       let p=this.finderPage,active=this.tabs.currentPageIndex===1&&!!p&&!p.disposed;
       this.chartDetailsButton.enabled=this.allDetailsButton.enabled=active;
@@ -3657,7 +3628,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.listsGroup=ablGroup(this.collectionSection,'Lists');this.listsGroup.sizer.add(lists);this.listsGroup.sizer.add(listActions);this.listsGroup.sizer.addStretch();
    this.collectionSection.sizer=new HorizontalSizer;this.collectionSection.sizer.spacing=8;this.collectionSection.sizer.add(this.collectionGroup);this.collectionSection.sizer.add(this.listsGroup);this.collectionSection.sizer.addStretch();
    this.objectsGroup=ablGroup(this.tablePage,'Objects');this.objectsGroup.sizer.add(this.tree,100);this.objectsGroup.sizer.add(this.searchNotice);this.objectsGroup.sizer.add(objects);this.objectsGroup.sizer.add(selectedObjects);
-   let footer=new HorizontalSizer;footer.spacing=8;footer.add(this.instanceButton);footer.add(this.summary,100);footer.add(this.allDetailsButton);footer.add(this.chartDetailsButton);footer.add(this.openImageButton);footer.add(this.configurationButton);footer.add(this.closeButton);footer.add(this.helpButton);
+   let footer=new HorizontalSizer;footer.spacing=8;footer.add(this.instanceButton);footer.add(this.summary,100);footer.add(this.allDetailsButton);footer.add(this.chartDetailsButton);footer.add(this.exportChartButton);footer.add(this.openImageButton);footer.add(this.configurationButton);footer.add(this.closeButton);footer.add(this.helpButton);
    this.tablePage.sizer=new VerticalSizer;this.tablePage.sizer.margin=8;this.tablePage.sizer.spacing=8;this.tablePage.sizer.add(this.filterBar);this.tablePage.sizer.add(this.filterSection);this.tablePage.sizer.add(this.objectsGroup,100);this.tablePage.sizer.add(this.detailsBar);this.tablePage.sizer.add(this.details);
    this.finderPage=new ABLChartPage(this.tabs,this,true);this.dssPage=new ABLChartPage(this.tabs,this,false);
    this.tabs.addPage(this.tablePage,'Table');this.tabs.addPage(this.finderPage,'Finder chart');this.tabs.addPage(this.dssPage,'DSS survey image');this.tabs.currentPageIndex=0;
