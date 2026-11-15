@@ -2,11 +2,11 @@
 #include "lib/TGFileProtection.js"
 #ifndef ABL_LIBRARY
 #feature-id AstroBucketList : TG Scripts > Astro Bucket List
-#feature-info Maintain astronomical imaging bucket lists with saved views; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, navigate interactive finder charts, save chart presets, export SVG/PDF charts, view DSS images, and retain imaging status.
+#feature-info Maintain astronomical imaging bucket lists with saved views; exchange Stellarium SOL files, look up local catalog and SIMBAD objects, navigate interactive finder charts, save chart presets, export SVG/PDF charts, view DSS images, plan observing windows with local Sun/Moon ephemerides, and retain imaging status.
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.44.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.45.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.44.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.45.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.44.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.45.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.44.0', EXT = '_astroBucketList';
+   const VERSION = '0.45.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1826,7 +1826,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.44.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.45.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1834,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.44.0"
+#define VERSION "0.45.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2410,7 +2410,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.44.0';
+const ABL_VERSION='0.45.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -3158,6 +3158,222 @@ function ablRememberedCollectionPath(store=ablCollectionPreferenceStore()){
    let path=store.readPath();return typeof path==='string'?path:'';
 }
 
+// Observing preferences belong to the local PixInsight profile, never to an
+// object, SOL collection or chart preset. No site is assumed before setup.
+function ablPlanningPreferences(value={}){
+   let p={siteName:'',latitude:null,longitude:null,height:0,utcOffset:-new Date().getTimezoneOffset()/60,minAltitude:30,sunAltitude:-18,moonSeparation:0};
+   if(!value||typeof value!=='object')return p;
+   if(typeof value.siteName==='string')p.siteName=value.siteName.trim().slice(0,80);
+   for(let [key,min,max]of [['latitude',-90,90],['longitude',-180,180],['height',-500,10000],['utcOffset',-12,14],['minAltitude',0,90],['moonSeparation',0,180]])
+      if(Number.isFinite(value[key])&&value[key]>=min&&value[key]<=max)p[key]=value[key];
+   if([0,-6,-12,-18].includes(value.sunAltitude))p.sunAltitude=value.sunAltitude;
+   return p;
+}
+function ablLoadPlanningPreferences(text){try{return ablPlanningPreferences(JSON.parse(text));}catch(e){return ablPlanningPreferences();}}
+function ablValidatePlanningPreferences(value){
+   let normalized=ablPlanningPreferences(value);
+   if(!value||Object.keys(normalized).some(key=>value[key]!==normalized[key]))throw Error('Enter valid observing coordinates, UTC offset and planning limits.');
+   if((value.latitude===null)!==(value.longitude===null))throw Error('Enter both latitude and longitude, or leave both empty.');
+   if(Math.abs(value.utcOffset*60-Math.round(value.utcOffset*60))>1e-8)throw Error('Specify the UTC offset in whole minutes, for example 1, 5.5 or 5.75 hours.');
+   return normalized;
+}
+function ablPlanningToday(offset){return new Date(Date.now()+offset*3600000).toISOString().slice(0,10);}
+function ablPlanningOffset(offset){let minutes=Math.round(Math.abs(offset)*60);return 'UTC'+(offset<0?'−':'+')+String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');}
+function ablPlanningPeriod(date,offset){
+   if(!ABL.validDate(date))throw Error('Enter an observing date as YYYY-MM-DD.');
+   // UTC parsing avoids the computer's timezone and Date's special handling
+   // of years 0–99. The selected date denotes the evening, noon to next noon.
+   let day=Date.parse(date+'T00:00:00Z'),start=day+(12-offset)*3600000;
+   if(!Number.isFinite(start))throw Error('Invalid observing date.');
+   return {date,offset,start,end:start+86400000,day};
+}
+function ablPlanningTime(ms,period){
+   let local=new Date(Math.round((ms+period.offset*3600000)/60000)*60000),next=local.getTime()>=period.day+86400000;
+   return local.toISOString().slice(11,16)+(next?' +1':'');
+}
+function ablPlanningHours(ms){return ms>0&&ms<360000?' <0.1 h':(ms/3600000).toFixed(1)+' h';}
+function ablPlanningDuration(intervals){return intervals.reduce((sum,r)=>sum+r[1]-r[0],0);}
+function ablPlanningRange(range,period){return ablPlanningTime(range[0],period)+'–'+ablPlanningTime(range[1],period);}
+
+// Locate crossings of each sampled constraint, then test the resulting
+// subintervals. Splitting every crossing preserves the Moon-below-horizon OR
+// separation rule and disjoint windows that a single Boolean sample would lose.
+function ablPlanningIntervals(times,series,accept){
+   let result=[];
+   for(let i=0;i<times.length-1;++i){let breaks=[0,1];
+      for(let values of series){let a=values[i],b=values[i+1];if(a*b<0)breaks.push(a/(a-b));}
+      breaks.sort((a,b)=>a-b);
+      for(let j=0;j<breaks.length-1;++j){let a=breaks[j],b=breaks[j+1];if(b-a<1e-12)continue;
+         let middle=(a+b)/2;if(!accept(series.map(values=>values[i]+middle*(values[i+1]-values[i]))))continue;
+         let lo=times[i]+a*(times[i+1]-times[i]),hi=times[i]+b*(times[i+1]-times[i]);
+         if(result.length&&Math.abs(result[result.length-1][1]-lo)<1)result[result.length-1][1]=hi;else result.push([lo,hi]);
+      }
+   }
+   return result;
+}
+function ablPlanningAt(values,time,night){let index=Math.max(0,Math.min(values.length-1,(time-night.period.start)/night.step)),i=Math.floor(index),f=index-i;return i+1<values.length?values[i]+f*(values[i+1]-values[i]):values[i];}
+function ablPlanningExtremum(values,intervals,night,maximum){
+   let best=null;const consider=(time,value)=>{if(!best||(maximum?value>best.value:value<best.value))best={time,value};};
+   for(let range of intervals){consider(range[0],ablPlanningAt(values,range[0],night));consider(range[1],ablPlanningAt(values,range[1],night));
+      for(let i=Math.ceil((range[0]-night.period.start)/night.step);i<values.length&&night.times[i]<=range[1];++i)consider(night.times[i],values[i]);}
+   return best;
+}
+
+// Native IAU reductions keep Sun, Moon and fixed J2000 collection targets in
+// one apparent topocentric frame. Equinox-based ObserverPosition matches
+// apparent(); equatorialToHorizontal() handles GAST and east-positive longitude.
+// Geometric horizons are used: no weather-dependent atmospheric refraction.
+function ablPlanningNight(date,preferences){
+   let p=ablValidatePlanningPreferences(preferences);if(p.latitude===null)throw Error('Set latitude and longitude in Configuration → Observing.');
+   let period=ablPlanningPeriod(date,p.utcOffset),ephemeris=EphemerisFile.fundamentalEphemerides;
+   if(period.start<ephemeris.startTime.getTime()+86400000||period.end>ephemeris.endTime.getTime()-86400000)throw Error('This night is outside the installed fundamental ephemeris date range.');
+   return {preferences:p,period,step:120000,count:721,ephemeris,
+      observer:new ObserverPosition(p.longitude,p.latitude,p.height),sun:new EphemerisHandle(ephemeris,'Sn','SSB'),moon:new EphemerisHandle(ephemeris,'Mn','Ea'),
+      times:[],positions:[],sunAltitudes:[],moonAltitudes:[],moonCoordinates:[],darkness:[],darkIntervals:[]};
+}
+function ablPlanningSample(night){
+   let time=night.period.start+night.times.length*night.step,position=new Position(new Date(time),'UTC');
+   // Polar motion is negligible at the minute/degree resolution of planning.
+   // Disabling this correction also avoids requiring a separate CIP database.
+   position.polarMotionEnabled=false;position.observer=night.observer;
+   let sun=position.apparent(night.sun).toSpherical2Pi(),moon=position.apparent(night.moon).toSpherical2Pi();
+   let sunAltitude=Math.deg(position.equatorialToHorizontal(sun).y),moonAltitude=Math.deg(position.equatorialToHorizontal(moon).y);
+   night.times.push(time);night.positions.push(position);night.sunAltitudes.push(sunAltitude);night.moonAltitudes.push(moonAltitude);night.moonCoordinates.push(moon);
+   night.darkness.push(night.preferences.sunAltitude-sunAltitude);
+   if(night.times.length===night.count)night.darkIntervals=ablPlanningIntervals(night.times,[night.darkness],v=>v[0]>=0);
+}
+function ablPlanningTarget(night,record){
+   let coordinates=ABL.position(record.object),p=night.preferences;
+   let result={record,missing:!Number.isFinite(coordinates.ra)||!Number.isFinite(coordinates.dec),above:0,dark:0,usable:0,windows:[],peak:null,moonMinimum:null,moonUp:false};
+   if(result.missing){result.status='Missing coordinates';return result;}
+   let star=new StarPosition(coordinates.ra,coordinates.dec),altitudes=[],separations=[],altitudeLimit=[],separationLimit=[];
+   for(let i=0;i<night.positions.length;++i){let position=night.positions[i],s=position.apparent(star).toSpherical2Pi(),m=night.moonCoordinates[i];
+      let altitude=Math.deg(position.equatorialToHorizontal(s).y),cosine=Math.sin(s[1])*Math.sin(m[1])+Math.cos(s[1])*Math.cos(m[1])*Math.cos(s[0]-m[0]);
+      let separation=Math.deg(Math.acos(Math.max(-1,Math.min(1,cosine))));altitudes.push(altitude);separations.push(separation);altitudeLimit.push(altitude-p.minAltitude);separationLimit.push(separation-p.moonSeparation);
+   }
+   let above=ablPlanningIntervals(night.times,[altitudeLimit],v=>v[0]>=0),base=ablPlanningIntervals(night.times,[altitudeLimit,night.darkness],v=>v[0]>=0&&v[1]>=0);
+   let moonUp=ablPlanningIntervals(night.times,[altitudeLimit,night.darkness,night.moonAltitudes],v=>v[0]>=0&&v[1]>=0&&v[2]>0);
+   result.windows=p.moonSeparation?ablPlanningIntervals(night.times,[altitudeLimit,night.darkness,night.moonAltitudes,separationLimit],v=>v[0]>=0&&v[1]>=0&&(v[2]<=0||v[3]>=0)):base;
+   result.above=ablPlanningDuration(above);result.dark=ablPlanningDuration(base);result.usable=ablPlanningDuration(result.windows);
+   result.best=result.windows.reduce((best,range)=>!best||range[1]-range[0]>best[1]-best[0]?range:best,null);
+   result.peak=ablPlanningExtremum(altitudes,night.darkIntervals,night,true);result.moonUp=moonUp.length>0;
+   result.moonMinimum=ablPlanningExtremum(separations,moonUp,night,false)?.value??null;
+   result.status=!night.darkIntervals.length?'No darkness':!result.above?'Below altitude limit':!result.dark?'No dark altitude window':!result.usable?'Moon separation limit':'Available';
+   // Curves are transient. The page retains only the selected row's curve,
+   // not hundreds of samples for every collection object.
+   result.curve={altitudes,separations};return result;
+}
+
+// The planner processes short timer slices. Leaving the tab or opening a
+// modal dialog pauses it; a new date, site or filtered set discards stale work.
+class ABLPlanningPage extends Control { constructor(parent,manager){
+   super(parent);this.manager=manager;this.disposed=false;this.pendingRedraw=false;this.job=null;this.night=null;this.results=[];this.selectedId='';this.inputSelection='';this.key='';this.completedKey='';this.plotResult=null;this.building=false;
+   this.date=ablPlanningToday(manager.planningPreferences.utcOffset);
+   this.dateEdit=new Edit(this);this.dateEdit.text=this.date;this.dateEdit.setFixedWidth(this.logicalPixelsToPhysical(110));
+   this.dateEdit.toolTip='Evening date, YYYY-MM-DD. The plan covers local noon on this date through noon the following day. Times use the fixed UTC offset in Observing configuration, including any daylight saving adjustment.';
+   this.changeDate=date=>{this.date=date;this.dateEdit.text=date;this.refreshInput();};
+   this.dateEdit.onEditCompleted=()=>this.changeDate(this.dateEdit.text.trim());this.dateEdit.onKeyPress=key=>{if(key!==KeyCode.Return)return false;this.changeDate(this.dateEdit.text.trim());return true;};
+   this.dateButton=ablButton(this,'Choose…',()=>manager.safe(()=>{let d=new ABLImagingDateDialog(manager,this.date);d.windowTitle='Observing night';d.clearButton.hide();d.todayButton.onClick=()=>d.setDate(ablPlanningToday(manager.planningPreferences.utcOffset));if(manager.executeDialog(d)&&d.selectedDate)this.changeDate(d.selectedDate);}));
+   this.todayButton=ablButton(this,'Tonight',()=>this.changeDate(ablPlanningToday(manager.planningPreferences.utcOffset)));
+   this.settingsButton=ablButton(this,'Site and limits…',()=>manager.safe(()=>manager.openConfiguration(3)));
+   this.sort=new ComboBox(this);for(let name of ['Usable time','Peak in darkness','Object name'])this.sort.addItem(name);this.sort.adjustToContents();this.sort.setFixedWidth();this.sort.onItemSelected=()=>this.rebuild();
+   this.stopButton=ablButton(this,'Stop',()=>{this.redrawTimer.stop();this.job=null;this.pendingRedraw=false;this.info.text='Planning stopped. Recalculate to try again.';this.stopButton.visible=false;this.retryButton.visible=true;});this.stopButton.visible=false;
+   this.retryButton=ablButton(this,'Recalculate',()=>{this.key='';this.refreshInput();});this.retryButton.visible=false;
+   let controls=new HorizontalSizer;controls.spacing=6;let dateLabel=new Label(this);dateLabel.text='Night of:';let sortLabel=new Label(this);sortLabel.text='Rank by:';
+   controls.add(dateLabel);controls.add(this.dateEdit);controls.add(this.dateButton);controls.add(this.todayButton);controls.addSpacing(8);controls.add(this.settingsButton);controls.addSpacing(8);controls.add(sortLabel);controls.add(this.sort);controls.addStretch();controls.add(this.stopButton);controls.add(this.retryButton);
+   this.info=new Label(this);this.info.wordWrapping=true;this.info.setFixedHeight(this.logicalPixelsToPhysical(60));
+   this.tree=new TreeBox(this);this.tree.headerVisible=true;this.tree.rootDecoration=false;this.tree.alternateRowColor=true;this.tree.numberOfColumns=8;this.tree.setMinHeight(this.logicalPixelsToPhysical(160));
+   for(let [i,label]of ['Object','Peak in dark','Above minimum','Dark time','Usable','Best window','Moon min','Status'].entries())this.tree.setHeaderText(i,label);
+   this.tree.toolTip='Plans every object currently shown in Table, respecting its list and filters. Usable time also applies the Moon-separation limit when the Moon is above the horizon. Double-click a row to open its Finder chart.';
+   this.graph=new Control(this);this.graph.setMinSize(this.logicalPixelsToPhysical(620),this.logicalPixelsToPhysical(210));this.graph.mouseTracking=true;
+   this.detail=new Label(this);this.detail.wordWrapping=true;this.detail.setFixedHeight(this.logicalPixelsToPhysical(42));
+   this.note=new Label(this);this.note.wordWrapping=true;this.note.text='Times are approximate · +1 means the next day · Fixed UTC offset: check daylight saving time · Weather and obstructions are not modeled.';
+   this.tree.onCurrentNodeUpdated=node=>{if(!this.building){this.selectedId=node?.result?.record.id||'';this.updatePlot();}};
+   this.tree.onNodeActivated=node=>{let id=node?.result?.record.id,n=manager.nodes.find(n=>n.record.id===id);if(n)manager.tree.onNodeActivated(n);};
+   this.refreshInput=()=>this.setRecords((manager.nodes||[]).map(n=>n.record),manager.selected?.()?.id||'');
+   this.setRecords=(records,selection)=>{
+      this.records=records;
+      if(selection!==this.inputSelection){this.inputSelection=selection;this.selectedId=selection;}
+      let key=JSON.stringify([this.date,manager.planningPreferences,records.map(r=>[r.id,r.designation,r.name,ABL.position(r.object)])]);
+      if(key!==this.key){this.key=key;this.redrawTimer.stop();this.job=null;this.night=null;this.results=[];this.plotResult=null;this.completedKey='';
+         this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
+         this.graph.update();this.detail.text='';this.retryButton.visible=false;this.stopButton.visible=false;
+         if(manager.planningPreferences.latitude===null||manager.planningPreferences.longitude===null){this.pendingRedraw=false;this.info.text='Set your observing site in Site and limits… to plan the objects shown in Table.';return;}
+         if(!ABL.validDate(this.date)){this.pendingRedraw=false;this.info.text='Enter the evening date as YYYY-MM-DD.';return;}
+         if(!records.length){this.pendingRedraw=false;this.info.text='No objects shown in Table. Adjust its list or filters to plan targets.';return;}
+         this.pendingRedraw=true;this.info.text='Ready to plan '+records.length+' objects shown in Table.';this.queueRedraw();
+      }else if(this.completedKey===this.key)this.selectCurrent();
+   };
+   this.queueRedraw=()=>{this.redrawTimer.stop();if(this.pendingRedraw&&!this.disposed&&manager.tabs.currentPageIndex===3&&manager.visible)this.redrawTimer.start();};
+   this.activate=()=>{this.refreshInput();this.queueRedraw();};
+   this.step=(budget=25)=>{
+      if(!this.pendingRedraw||this.disposed)return;
+      try{
+         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),index:0,results:[]};
+         let job=this.job,deadline=Date.now()+budget;this.stopButton.visible=true;
+         while(job.night.times.length<job.night.count&&Date.now()<deadline)ablPlanningSample(job.night);
+         while(job.night.times.length===job.night.count&&job.index<this.records.length&&Date.now()<deadline){let result=ablPlanningTarget(job.night,this.records[job.index++]);delete result.curve;job.results.push(result);}
+         this.info.text=job.night.times.length<job.night.count?'Calculating local Sun and Moon positions…':'Planning '+job.index+' / '+this.records.length+' objects…';
+         if(job.index===this.records.length){this.night=job.night;this.results=job.results;this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;this.rebuild();}
+      }catch(e){this.job=null;this.night=null;this.results=[];this.plotResult=null;this.tree.clear();this.graph.update();this.pendingRedraw=false;this.stopButton.visible=false;this.retryButton.visible=true;this.info.text='Planning unavailable: '+String(e.message||e);}
+   };
+   this.redrawTimer=new Timer(.03,false,this);this.redrawTimer.onTimeout=()=>{
+      if(!this.pendingRedraw||this.disposed||!manager.visible||manager.tabs.currentPageIndex!==3)return;
+      if(manager.chartPauseDepth||!manager.enabled||!manager.isActiveWindow){this.redrawTimer.start();return;}
+      this.step();this.queueRedraw();
+   };
+   this.selectCurrent=()=>{
+      let node=this.nodes?.find(n=>n.result.record.id===this.selectedId)||this.nodes?.[0];
+      if(node){this.building=true;try{this.tree.currentNode=node;node.selected=true;this.selectedId=node.result.record.id;}finally{this.building=false;}}
+      this.updatePlot();
+   };
+   this.rebuild=()=>{
+      if(!this.night)return;let p=this.night.preferences,period=this.night.period,rows=this.results.slice();
+      rows.sort((a,b)=>(this.sort.currentItem===0?b.usable-a.usable:this.sort.currentItem===1?(b.peak?.value??-Infinity)-(a.peak?.value??-Infinity):0)||a.record.designation.localeCompare(b.record.designation));
+      this.building=true;try{this.tree.clear();this.nodes=[];
+         this.tree.setHeaderText(2,'Above '+p.minAltitude+'°');
+         for(let r of rows){let n=new TreeBoxNode(this.tree);n.result=r;
+            let text=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),r.best?ablPlanningRange(r.best,period):'—',r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
+            for(let i=0;i<text.length;++i)n.setText(i,text[i]);
+            n.setToolTip(1,'Highest altitude during the selected darkness, and its approximate time.');n.setToolTip(2,'Total above the minimum altitude over noon–noon, including daylight.');n.setToolTip(3,'Time above the altitude limit while the Sun is below '+p.sunAltitude+'°, before the Moon limit.');n.setToolTip(4,'Total time meeting altitude, darkness and the optional Moon-separation limit.');n.setToolTip(5,r.windows.map(w=>ablPlanningRange(w,period)).join('\n'));n.setToolTip(6,'Smallest Moon separation during dark time above the altitude limit while the Moon is up, before Moon filtering.');this.nodes.push(n);
+         }
+         for(let i=0;i<8;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
+      }finally{this.building=false;}
+      let site=p.siteName||'Observing site',dark=ablPlanningDuration(this.night.darkIntervals),available=rows.filter(r=>r.usable>0).length;
+      this.info.text=site+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' · '+ablPlanningOffset(p.utcOffset)+'\n'+available+' / '+rows.length+' targets usable · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'° · '+(p.moonSeparation?'Moon separation ≥ '+p.moonSeparation+'° when up':'Moon separation unrestricted');
+      this.selectCurrent();
+   };
+   this.updatePlot=()=>{
+      let row=this.results.find(r=>r.record.id===this.selectedId);
+      this.plotResult=row&&!row.missing&&this.night?ablPlanningTarget(this.night,row.record):null;
+      this.detailText=row?row.missing?'Enter coordinates in Edit object to plan this target.':row.windows.length?'Usable: '+row.windows.map(w=>ablPlanningRange(w,this.night.period)).join(' · '):row.status+'. Try another night or adjust the observing limits.':'Select a planning row to inspect its altitude curve.';
+      this.detail.text=this.detailText;this.graph.update();
+   };
+   this.graph.onMouseMove=x=>{if(!this.plotResult||!this.night)return;let left=this.logicalPixelsToPhysical(48),width=this.graph.width-left-this.logicalPixelsToPhysical(16),index=Math.max(0,Math.min(this.night.count-1,Math.round((x-left)/width*(this.night.count-1))));
+      this.detail.text=ablPlanningTime(this.night.times[index],this.night.period)+' · Target '+this.plotResult.curve.altitudes[index].toFixed(1)+'° · Moon '+this.night.moonAltitudes[index].toFixed(1)+'° · Sun '+this.night.sunAltitudes[index].toFixed(1)+'° · Moon separation '+this.plotResult.curve.separations[index].toFixed(1)+'°';};
+   this.graph.onLeave=()=>{this.detail.text=this.detailText||'';};
+   this.graph.onPaint=()=>{
+      let g=new Graphics(this.graph);try{
+         g.fillRect(this.graph.boundsRect,new Brush(0xff171d25));g.font=this.font;g.pen=new Pen(0xffcbd3dc);
+         if(!this.night||!this.plotResult){g.drawText(this.logicalPixelsToPhysical(18),this.logicalPixelsToPhysical(30),'Select a target with coordinates to display its night.');return;}
+         let night=this.night,r=this.plotResult,left=this.logicalPixelsToPhysical(48),top=this.logicalPixelsToPhysical(30),width=this.graph.width-left-this.logicalPixelsToPhysical(16),height=this.graph.height-top-this.logicalPixelsToPhysical(30);
+         const x=t=>left+(t-night.period.start)/86400000*width,y=alt=>top+(90-alt)/180*height;
+         for(let span of night.darkIntervals)g.fillRect(x(span[0]),top,x(span[1]),top+height,new Brush(0xff222f45));
+         for(let span of r.windows)g.fillRect(x(span[0]),top,x(span[1]),top+height,new Brush(0xff214739));
+         for(let altitude=-90;altitude<=90;altitude+=30){g.pen=new Pen(0xff405063);g.drawLine(left,y(altitude),left+width,y(altitude));g.pen=new Pen(0xffaebaca);g.drawText(this.logicalPixelsToPhysical(4),y(altitude)+4,altitude+'°');}
+         for(let hour=0;hour<=24;hour+=4){let time=night.period.start+hour*3600000,label=ablPlanningTime(time,night.period);g.pen=new Pen(0xffaebaca);g.drawText(Math.max(0,Math.min(this.graph.width-this.font.width(label),x(time)-this.font.width(label)/2)),top+height+this.logicalPixelsToPhysical(20),label);}
+         g.pen=new Pen(0xff83b58d);for(let px=left;px<left+width;px+=12)g.drawLine(px,y(night.preferences.minAltitude),Math.min(left+width,px+6),y(night.preferences.minAltitude));
+         g.antialiasing=true;
+         for(let [values,color]of [[night.sunAltitudes,0xffa7876b],[night.moonAltitudes,0xffe8c465],[r.curve.altitudes,0xff72c8ff]]){g.pen=new Pen(color,2);for(let i=1;i<values.length;++i)g.drawLine(x(night.times[i-1]),y(values[i-1]),x(night.times[i]),y(values[i]));}
+         let captions=[['Target',0xff72c8ff],['Moon',0xffe8c465],['Sun',0xffa7876b],['Green: usable',0xff8ed4a2]],px=left;
+         for(let [caption,color]of captions){g.pen=new Pen(color);g.drawText(px,this.logicalPixelsToPhysical(20),caption);px+=this.font.width(caption)+this.logicalPixelsToPhysical(20);}
+      }finally{g.end();}
+   };
+   this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(controls);this.sizer.add(this.info);this.sizer.add(this.tree,50);this.sizer.add(this.graph,50);this.sizer.add(this.detail);this.sizer.add(this.note);
+   this.dispose=()=>{this.disposed=true;this.pendingRedraw=false;this.redrawTimer.stop();this.job=null;this.night=null;this.results=[];this.plotResult=null;};
+}}
+
+
 // Configuration owns temporary controls and proposed values. Cancel leaves
 // previews, local preferences and collection metadata untouched.
 class ABLConfigurationDialog extends Dialog { constructor(manager){
@@ -3168,6 +3384,7 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.chartPresets=ABL.copy(manager.chartPresets);this.activeChartPreset=manager.finderPage.activeChartPreset;
    this.tabs=new TabBox(this);this.finderTab=new Control(this.tabs);this.dssTab=new Control(this.tabs);this.generalTab=new Control(this.tabs);
    this.tabs.addPage(this.finderTab,'Finder chart');this.tabs.addPage(this.dssTab,'DSS survey image');this.tabs.addPage(this.generalTab,'General');
+   this.observingTab=new Control(this.tabs);this.tabs.addPage(this.observingTab,'Observing');
    this.startupGroup=ablGroup(this.generalTab,'Startup');
    this.rememberCollection=new CheckBox(this.startupGroup);this.rememberCollection.text='Remember last opened or saved collection';this.rememberCollection.checked=manager.rememberCollection;
    this.rememberCollection.toolTip='Off by default. When enabled, successful Open, Save and Save as operations remember the collection path for normal startup. This independent preference is stored in PixInsight settings alongside the filename. It does not save unsaved object edits. Explicit process-instance paths still open their specified collection.';
@@ -3322,16 +3539,43 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    for(let control of [this.skyCoverage,this.insetField,this.milkyWayStrength,this.starSize])control.onValueUpdated=()=>this.syncChartPreset();
    for(let control of [this.styleSelect,this.labelDensity,this.projection,this.starDensity,this.outlineLevel])control.onItemSelected=()=>this.syncChartPreset();
    this.refreshChartPresets();this.updateFraming();
-   this.values=()=>Object.assign(this.previewValues(),{details:this.detailsEditor.values(),chartPresets:ABL.copy(this.chartPresets),activeChartPreset:this.activeChartPreset,
+   const observing=manager.planningPreferences;
+   this.siteGroup=ablGroup(this.observingTab,'Observing site');this.limitGroup=ablGroup(this.observingTab,'Night limits');
+   this.siteName=new Edit(this.siteGroup);this.siteName.text=observing.siteName;this.siteName.setFixedWidth(this.logicalPixelsToPhysical(260));
+   this.latitude=new Edit(this.siteGroup);this.longitude=new Edit(this.siteGroup);
+   for(let [key,control]of [['latitude',this.latitude],['longitude',this.longitude]]){control.text=observing[key]===null?'':String(observing[key]);control.setFixedWidth(this.logicalPixelsToPhysical(110));}
+   this.latitude.toolTip='Geodetic latitude in decimal degrees, −90 to +90. North is positive. No default site is assumed.';
+   this.longitude.toolTip='Geodetic longitude in decimal degrees, −180 to +180. East is positive, west negative. Coordinates are stored locally and never sent online by the planner.';
+   const number=(group,label,min,max,value,precision=0)=>{let edit=new NumericEdit(group);edit.label.text=label;edit.label.setFixedWidth(this.logicalPixelsToPhysical(180));edit.fixed=true;edit.autoEditWidth=false;edit.setRange(min,max);edit.setPrecision(precision);edit.setValue(value);edit.edit.setFixedWidth(this.logicalPixelsToPhysical(85));return edit;};
+   this.siteHeight=number(this.siteGroup,'Height (m):',-500,10000,observing.height);
+   this.siteHeight.toolTip='Geodetic height above the reference ellipsoid. Zero is a sufficient approximation for ordinary planning if unknown.';
+   this.utcOffset=number(this.siteGroup,'UTC offset (hours):',-12,14,observing.utcOffset,2);
+   this.utcOffset.toolTip='Fixed offset for the selected observing night, including daylight saving time, for example +1 in winter or +2 in summer in Central Europe. It applies to the entire noon–noon period. No automatic timezone or daylight-saving conversion is performed.';
+   this.minimumAltitude=number(this.limitGroup,'Minimum altitude (°):',0,90,observing.minAltitude,1);
+   this.minimumMoon=number(this.limitGroup,'Moon separation (°):',0,180,observing.moonSeparation,1);
+   this.minimumMoon.toolTip='Optional minimum angular separation from the Moon. Zero disables this restriction. The limit is applied only while the Moon center is above the geometric horizon; a below-horizon Moon never removes usable time.';
+   this.darkness=new ComboBox(this.limitGroup);this.darkness.values=[-18,-12,-6,0];
+   for(let name of ['Astronomical · Sun below −18°','Nautical · Sun below −12°','Civil · Sun below −6°','Sun below horizon'])this.darkness.addItem(name);
+   this.darkness.currentItem=this.darkness.values.indexOf(observing.sunAltitude);this.darkness.adjustToContents();this.darkness.setFixedWidth();
+   const compact=(group,label,control)=>{let row=ablRow(group,label,control);row.addStretch();group.sizer.add(row);};
+   compact(this.siteGroup,'Site name:',this.siteName);
+   let coordinates=new HorizontalSizer;coordinates.spacing=8;coordinates.add(this.latitude);let longitudeLabel=new Label(this.siteGroup);longitudeLabel.text='Longitude (°E):';coordinates.add(longitudeLabel);coordinates.add(this.longitude);coordinates.addStretch();this.siteGroup.sizer.add(ablRow(this.siteGroup,'Latitude (°N):',coordinates));
+   this.siteGroup.sizer.add(this.siteHeight);this.siteGroup.sizer.add(this.utcOffset);
+   this.limitGroup.sizer.add(this.minimumAltitude);compact(this.limitGroup,'Darkness:',this.darkness);this.limitGroup.sizer.add(this.minimumMoon);
+   this.observingHint=new Label(this.observingTab);this.observingHint.wordWrapping=true;this.observingHint.setFixedWidth(this.logicalPixelsToPhysical(660));
+   this.observingHint.text='Plan the objects currently shown in Table using local PixInsight ephemerides. The evening date covers noon to next noon at this fixed UTC offset; check it when daylight saving time changes. Altitudes ignore atmospheric refraction, terrain, buildings and weather. These preferences stay on this computer.';
+   this.planningValues=()=>({siteName:this.siteName.text.trim(),latitude:this.latitude.text.trim()?Number(this.latitude.text):null,longitude:this.longitude.text.trim()?Number(this.longitude.text):null,height:this.siteHeight.value,utcOffset:this.utcOffset.value,minAltitude:this.minimumAltitude.value,sunAltitude:this.darkness.values[this.darkness.currentItem],moonSeparation:this.minimumMoon.value});
+   this.values=()=>Object.assign(this.previewValues(),{planning:this.planningValues(),details:this.detailsEditor.values(),chartPresets:ABL.copy(this.chartPresets),activeChartPreset:this.activeChartPreset,
       rememberCollection:this.rememberCollection.checked,contourPath:this.outlinePath,outlineLevel:this.outlineLevel.currentItem,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});
    this.applyButton=ablButton(this,'Apply',()=>{try{manager.validateConfiguration(this.values());this.ok();}catch(e){manager.error(e);}});this.applyButton.defaultButton=true;
    this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());
    let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(this.applyButton);buttons.add(this.cancelButton);
-   for(let tab of [this.finderTab,this.dssTab,this.generalTab]){tab.sizer=new VerticalSizer;tab.sizer.margin=10;tab.sizer.spacing=8;}
+   for(let tab of [this.finderTab,this.dssTab,this.generalTab,this.observingTab]){tab.sizer=new VerticalSizer;tab.sizer.margin=10;tab.sizer.spacing=8;}
    this.finderTab.sizer.add(presets);this.finderTab.sizer.add(this.presetHint);this.finderTab.sizer.add(this.finderGroup);this.finderTab.sizer.add(this.detailsEditor);this.finderTab.sizer.add(this.outlineGroup);this.finderTab.sizer.addStretch();
    this.dssTab.sizer.add(this.dssGroup);this.dssTab.sizer.add(this.coverageHint);this.dssTab.sizer.addStretch();
    let months=new HorizontalSizer;months.add(this.monthsButton);months.addStretch();this.monthsGroup.sizer.add(months);this.generalTab.sizer.add(this.startupGroup);this.generalTab.sizer.add(this.monthsGroup);this.generalTab.sizer.addStretch();
-   this.tabs.currentPageIndex=manager.tabs.currentPageIndex===2?1:0;
+   this.observingTab.sizer.add(this.siteGroup);this.observingTab.sizer.add(this.limitGroup);this.observingTab.sizer.add(this.observingHint);this.observingTab.sizer.addStretch();
+   this.tabs.currentPageIndex=manager.tabs.currentPageIndex===3?3:manager.tabs.currentPageIndex===2?1:0;
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.tabs);this.sizer.add(buttons);this.adjustToContents();
 }}
 
@@ -3829,10 +4073,10 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    // including native file choosers and confirmation/error messages.
    this.chartPauseDepth=0;
    this.withChartPaused=operation=>{
-      ++this.chartPauseDepth;for(let page of [this.finderPage,this.dssPage])if(page)page.redrawTimer.stop();
+      ++this.chartPauseDepth;for(let page of [this.finderPage,this.dssPage,this.planningPage])if(page)page.redrawTimer.stop();
       try{return operation();}finally{
          --this.chartPauseDepth;
-         if(!this.chartPauseDepth)for(let page of [this.finderPage,this.dssPage])if(page?.pendingRedraw)page.queueRedraw();
+         if(!this.chartPauseDepth)for(let page of [this.finderPage,this.dssPage,this.planningPage])if(page?.pendingRedraw)page.queueRedraw();
       }
    };
    this.executeDialog=dialog=>this.withChartPaused(()=>dialog.execute());
@@ -3856,6 +4100,11 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       write:text=>Settings.write('AstroBucketList/chartPresets',DataType.String,text)
    };
    this.chartPresets=ablLoadChartPresets(this.persistPreferences?this.chartPresetStore.read():null);
+   this.planningPreferenceStore=options.planningPreferenceStore||{
+      read:()=>{let text=Settings.read('AstroBucketList/observingPreferences',DataType.String);return Settings.lastReadOK?text:null;},
+      write:text=>Settings.write('AstroBucketList/observingPreferences',DataType.String,text)
+   };
+   this.planningPreferences=ablLoadPlanningPreferences(this.persistPreferences?this.planningPreferenceStore.read():null);
    this.contourPath=ablDefaultContourPath();
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
    this.contourState=ablContourFileState(this.contourPath);
@@ -4067,6 +4316,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.instanceButton.onMousePress=()=>this.safe(()=>{ablStoreInstance(this.path);this.newInstance();});
    this.helpButton=ablTool(this,':/process-interface/browse-documentation.png','Open the PiDoc user guide.',()=>ablShowDocumentation());
    this.validateConfiguration=value=>{
+      if(value.planning!==undefined)ablValidatePlanningPreferences(value.planning);
       if(typeof value.rememberCollection!=='boolean')throw Error('Choose whether to remember the last opened or saved collection.');
       for(let [key,min]of [['sky',.1],['dss',5]])if(!value[key]||!Number.isFinite(value[key].coverage)||value[key].coverage<min||value[key].coverage>120)throw Error('Choose sky coverage from 0.1–120° and survey field from 5–120 arcminutes.');
       if(!['modern-editorial','vintage-atlas','observing-atlas'].includes(value.sky.style)||!['sparse','normal','detailed'].includes(value.sky.labelDensity))throw Error('Choose a chart style and label density.');
@@ -4078,10 +4328,10 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       return state;
    };
    this.currentConfiguration=()=>Object.assign(ABL.copy(this.previewPreferences),{
-      details:ABL.copy(this.finderPage.details),contourPath:this.contourPath,outlineLevel:this.outlineLevel,
+      planning:ABL.copy(this.planningPreferences),details:ABL.copy(this.finderPage.details),contourPath:this.contourPath,outlineLevel:this.outlineLevel,
       rememberCollection:this.rememberCollection,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});
    this.applyConfiguration=value=>{
-      let state=this.validateConfiguration(value),p=this.finderPage,q=this.dssPage;
+      let state=this.validateConfiguration(value),p=this.finderPage,q=this.dssPage,planning=value.planning===undefined?this.planningPreferences:ablValidatePlanningPreferences(value.planning);
       // Store preferred widths rather than the current target's fitted field.
       // Normalize property order so an unchanged Apply retains the preview.
       let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss,details:value.details||p.details}));
@@ -4095,6 +4345,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(presetText.length>1048576||!Array.isArray(presets)||presets.length>50)throw Error('Chart presets exceed the supported settings size.');
       let writes=[];const change=(write,before,after)=>{if(before!==after)writes.push({write,before,after});};
       if(this.persistPreferences){
+         change(text=>this.planningPreferenceStore.write(text),JSON.stringify(this.planningPreferences),JSON.stringify(planning));
          change(text=>this.previewPreferenceStore.write(text),JSON.stringify(this.previewPreferences),JSON.stringify(next));
          change(text=>this.chartPresetStore.write(text),previousPresets,presetText);
          change(path=>Settings.write('AstroBucketList/contourPath',DataType.String,path),this.contourPath,value.contourPath);
@@ -4108,7 +4359,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       try{for(let entry of writes){attempted.push(entry);entry.write(entry.after);}}
       catch(e){let failures=[];for(let entry of attempted.reverse())try{entry.write(entry.before);}catch(restore){failures.push(String(restore));}
          throw Error('Could not save Configuration: '+e+(failures.length?' Some previous preferences could not be restored: '+failures.join('; '):' Previous preferences were restored.')+' The current chart and collection are unchanged.');}
-      this.previewPreferences=next;this.chartPresets=ABL.copy(presets);this.rememberCollection=value.rememberCollection;
+      this.planningPreferences=ABL.copy(planning);this.previewPreferences=next;this.chartPresets=ABL.copy(presets);this.rememberCollection=value.rememberCollection;
       this.contourPath=value.contourPath;this.contourState=state;this.outlineLevel=level;this.chartStyle=next.sky.style;
       p.settings=sky;p.details=details;q.settings=dss;
       if(value.activeChartPreset!==undefined)p.activeChartPreset=value.activeChartPreset;
@@ -4116,11 +4367,13 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(JSON.stringify(ABL.config(this.doc).constellationMonths)!==JSON.stringify(value.constellationMonths)){
          ABL.config(this.doc).constellationMonths=ABL.copy(value.constellationMonths);this.changed();this.refreshTree();
       }
-      p.syncChartPreset();this.updateFinderActions();
+      p.syncChartPreset();this.updateFinderActions();this.planningPage.refreshInput();
    };
-   this.configurationButton=ablTool(this,':/icons/gear.png','Configuration: Finder settings, chart presets, annotations, catalogs and outlines; DSS settings, startup preference and constellation months.',()=>this.safe(()=>{
-      this.finderPage.updateFields();this.dssPage.updateFields();let d=new ABLConfigurationDialog(this);if(this.executeDialog(d))this.applyConfiguration(d.values());
-   }));
+   this.openConfiguration=tab=>{
+      this.finderPage.updateFields();this.dssPage.updateFields();let d=new ABLConfigurationDialog(this);if(tab!==undefined)d.tabs.currentPageIndex=tab;
+      if(this.executeDialog(d))this.applyConfiguration(d.values());
+   };
+   this.configurationButton=ablTool(this,':/icons/gear.png','Configuration: Finder settings and presets; DSS settings; observing site and limits; startup preference and constellation months.',()=>this.safe(()=>this.openConfiguration()));
    this.activePreview=()=>this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:null;
    this.updateImageAction=()=>{let p=this.activePreview();this.openImageButton.enabled=!!p&&!!p.bitmap&&!!p.loadedPath&&!p.disposed;this.openImageButton.toolTip='Open as image: '+(p?(p.sky?'Finder chart':'DSS survey image')+' in a native PixInsight image window.':'select the Finder chart or DSS survey image tab first.');if(this.exportChartButton)this.exportChartButton.enabled=!!p&&p.sky&&!!p.vectorChart&&p.previewState==='ready'&&!p.rendering&&!p.disposed;};
    this.openImageButton=ablTool(this,':/icons/window-export.png','Open as image: select a preview tab.',()=>this.safe(()=>{
@@ -4158,7 +4411,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    let footer=new HorizontalSizer;footer.spacing=8;footer.add(this.instanceButton);footer.add(this.summary,100);footer.add(this.allDetailsButton);footer.add(this.exportChartButton);footer.add(this.openImageButton);footer.add(this.configurationButton);footer.add(this.closeButton);footer.add(this.helpButton);
    this.tablePage.sizer=new VerticalSizer;this.tablePage.sizer.margin=8;this.tablePage.sizer.spacing=8;this.tablePage.sizer.add(this.filterBar);this.tablePage.sizer.add(this.filterSection);this.tablePage.sizer.add(this.objectsGroup,100);this.tablePage.sizer.add(this.detailsBar);this.tablePage.sizer.add(this.details);
    this.finderPage=new ABLChartPage(this.tabs,this,true);this.dssPage=new ABLChartPage(this.tabs,this,false);
-   this.tabs.addPage(this.tablePage,'Table');this.tabs.addPage(this.finderPage,'Finder chart');this.tabs.addPage(this.dssPage,'DSS survey image');this.tabs.currentPageIndex=0;
+   this.planningPage=new ABLPlanningPage(this.tabs,this);
+   this.tabs.addPage(this.tablePage,'Table');this.tabs.addPage(this.finderPage,'Finder chart');this.tabs.addPage(this.dssPage,'DSS survey image');this.tabs.addPage(this.planningPage,'Observing night');this.tabs.currentPageIndex=0;
    this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(this.titleLabel);this.sizer.add(this.collectionBar);this.sizer.add(this.collectionSection);this.sizer.add(this.tabs,100);this.sizer.add(footer);
    this.safe=f=>{try{return f();}catch(e){this.error(e);return false;}};
    // A checkbox's native item must outlive Qt's mouse/keyboard event handler.
@@ -4274,7 +4528,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       let p=this.finderPage,code=this.constellationFilter.values[this.constellationFilter.currentItem];p.scopeSelect.enabled=!!code;
       if(!code)p.scopeSelect.currentItem=0;
       let group=code&&p.scopeSelect.currentItem===1?{title:this.constellationFilter.itemText(this.constellationFilter.currentItem),targets:ablTableChartTargets(this.nodes.map(n=>n.record))}:null;
-      p.setObject(r?r.object:null,group);this.dssPage.setObject(r?r.object:null);
+      p.setObject(r?r.object:null,group);this.dssPage.setObject(r?r.object:null);this.planningPage.setRecords(this.nodes.map(n=>n.record),r?r.id:'');
       this.details.text=r?ABL.html([ABL.objectHeading(r.designation,r.name),r.constellation+' · '+r.monthName+' · '+(r.imaged?'Imaged '+r.imagedOn:'Not yet imaged'),'Target band: '+r.bandLabel+' ('+(r.bandMode==='manual'?'Manual':'Automatic')+')','Apparent size: '+r.sizeText,r.catalogSummary,r.notes].filter(Boolean).join('\n')):'Check objects for list actions or export. Use Edit object to record imaging status and date.';
       if(this.updateMinimumSize)this.updateMinimumSize();
    };
@@ -4421,7 +4675,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       this.exportToPath(target,mode);
    };
    this.onClose=()=>this.canClose();
-   this.cleanup=()=>{this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.finderPage.resetNavigation();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");}catch(e){}this.chartFiles=[];this.chartCache.clear();};
+   this.cleanup=()=>{this.planningPage.dispose();this.finderPage.disposed=this.dssPage.disposed=true;this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.stateRefreshTimer.stop();this.selectionUpdateTimer.stop();this.rowClick=null;this.finderPage.clearPreview();this.finderPage.resetNavigation();this.dssPage.clearPreview();this.updateFinderActions();for(let path of this.chartFiles)try{if(File.exists(path))TGFileProtection.removeFile(path,"Collection or preview file");}catch(e){}this.chartFiles=[];this.chartCache.clear();};
    let initialLists=Object.keys(this.doc.observingLists);this.listId=initialLists.length===1&&!ABL.refs(this.doc).some(r=>!r.listId)?initialLists[0]:'';
    // Explicit minimums override PJSR's computed ones. Measure without that
    // override, then enforce the complete native layout instead of allowing
@@ -4447,7 +4701,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
             if(shortfall<=0)break;
             this.setMinHeight(this.height+shortfall);this.ensureLayoutUpdated();
          }
-         else for(let pass=0;pass<3;++pass){
+         else if(this.tabs.currentPageIndex===1||this.tabs.currentPageIndex===2)for(let pass=0;pass<3;++pass){
             // Wrapped hints can gain a line after the adjacent groups settle.
             // Reserve the actual preview bounds as well as the smart minimum,
             // including when entering this tab from a shorter collapsed table.
@@ -4460,8 +4714,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       }finally{this.updatingMinimumSize=false;}
    };
    this.onResize=()=>this.updateMinimumSize();
-   this.tabs.onPageSelected=()=>{this.updateMinimumSize();for(let page of [this.finderPage,this.dssPage])page.redrawTimer.stop();let page=this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:null;if(page)page.activate();this.updateImageAction();this.updateFinderActions();};
-   this.onHide=()=>{this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();};
+   this.tabs.onPageSelected=()=>{this.updateMinimumSize();for(let page of [this.finderPage,this.dssPage,this.planningPage])page.redrawTimer.stop();let page=this.tabs.currentPageIndex===1?this.finderPage:this.tabs.currentPageIndex===2?this.dssPage:this.tabs.currentPageIndex===3?this.planningPage:null;if(page)page.activate();this.updateImageAction();this.updateFinderActions();};
+   this.onHide=()=>{this.finderPage.redrawTimer.stop();this.dssPage.redrawTimer.stop();this.planningPage.redrawTimer.stop();};
    this.onShow=()=>this.tabs.onPageSelected();
    // Preserve the window dimensions for both sections. Recompute minimums
    // after the visibility change so the active tab receives the freed space.
