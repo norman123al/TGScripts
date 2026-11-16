@@ -1,4 +1,4 @@
-Astro Bucket List 0.45.0
+Astro Bucket List 0.46.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -10,13 +10,19 @@ Open Observing night to plan all targets currently shown in Table. Site and
 limits opens Configuration > Observing. Enter latitude (north positive),
 longitude (east positive), optional height and a fixed UTC offset for the night,
 including daylight saving time. No site is assumed and no location is sent online.
-Apply saves these preferences locally; Cancel discards the proposal.
-Choose an evening date; the plan covers noon to next noon. +1 means the next day.
+Named profiles retain independent sites, limits and horizons. New creates a blank
+site; Duplicate copies it; Delete asks for confirmation. Apply saves all profile
+changes; Cancel discards every proposal. The Observing night Site selector
+switches applied profiles and recalculates. Profiles remain local.
+Choose an evening date; the plan covers noon to next noon in the selected site's
+local time. HH:mm axis ticks have no day suffix. The axis labels the evening
+date and the new date at midnight, with a vertical midnight divider. Local time
+and its UTC offset are stated explicitly. Hover and table tooltips show dates.
 Tonight uses today's date at the configured offset. The offset does not change
 automatically with the date or during a daylight-saving transition night.
 Default limits are altitude >= 30 degrees and Sun <= -18 degrees. Optional Moon
 separation is off at zero and applies only while the Moon is above the horizon.
-Results show peak altitude in darkness, time above the altitude threshold,
+Results show peak altitude in darkness, time clearing the altitude threshold and enabled custom horizon,
 dark time before Moon filtering, total usable time, the longest window and the
 minimum Moon separation while the Moon is up during dark altitude windows.
 Rank by usable time, peak in darkness or name. Select a result for target,
@@ -28,12 +34,55 @@ Stop cancels an unfinished calculation; Recalculate retries it.
 The planner uses PixInsight's local fundamental ephemerides and documented
 position APIs. Two-minute samples and interpolated threshold crossings provide
 approximate windows, with times rounded to minutes. It treats saved J2000 object
-positions as fixed, without proper motion. Atmospheric refraction, terrain,
-obstructions, weather and sky brightness are not modeled. See PiDoc for limits.
-Site and limits use AstroBucketList/observingPreferences in per-user PixInsight
-settings. The chosen night and results remain in memory. No planner runtime
-files, downloads or external programs are used. Collections, metadata,
+positions as fixed, without proper motion. Terrain and obstructions are represented only by a supplied horizon.
+Atmospheric refraction, weather and sky brightness are not modeled. See PiDoc for limits.
+Up to 30 profiles and their embedded horizons use AstroBucketList/observingPreferences
+in per-user PixInsight settings, with a 1 MiB limit. The chosen night and results
+remain in memory. Calculations make no files, downloads or external calls. Collections, metadata,
 constellation months and chart presets are not changed by planning.
+
+CUSTOM HORIZONS
+Configuration > Observing contains a horizon editor and preview for each site.
+Enter azimuth altitude pairs in decimal degrees: north 0, east 90, south 180,
+west 270. Use 2-720 points; # starts a comment. Whitespace, commas or semicolons
+separate values. The interpolated profile wraps through north. Matching 0/360
+closure is accepted; conflicting duplicates are rejected.
+Import a Stellarium polygonal horizon point file, not landscape.ini or a ZIP.
+Match Import format to polygonal_horizon_list_mode and Rotation to
+polygonal_angle_rotatez. Degrees/radians/gradians and altitude/zenith distance
+are supported. The editor always shows converted azimuth/altitude degrees.
+Files are limited to 128 KiB. Failed imports leave the draft intact.
+The loaded filename/point count is displayed; edits show Manual profile.
+Use this site's horizon enables/disables it; Clear removes it. Apply stores
+points with the profile; the original file is no longer needed. Cancel discards
+draft edits. Targets must clear both Minimum altitude and the enabled horizon.
+The orange Horizon/min curve follows the target path. Horizon vertices are
+considered between samples, but timing remains approximate. The constraint uses
+the target center; allow room for large targets near obstructions. Obstructions
+do not change twilight or Moon-up calculations.
+
+EXPORT OBSERVING PLANS
+Export plan offers CSV and A4 landscape PDF. Choose All results, Usable targets
+only or Selected rows. Ctrl/Shift-click planning rows for multiple selection;
+Table checkboxes are independent. Export follows the current ranking and stays
+disabled until the plan is complete and its chosen scope is nonempty.
+Reports include site coordinates, evening date, fixed UTC offset, limits,
+horizon state, target names, peak altitude, durations and every usable window.
+CSV adds J2000 coordinates, horizon source, local ISO timestamps and UTC times.
+It uses UTF-8 and protects formula-like labels for spreadsheet use. PDF wraps
+text and repeats context on each page; the limit is 200 pages. PDF times are
+explicitly local, with calendar dates on peaks and windows to show midnight crossings. Narrow filters
+or use CSV for larger plans. Review location details before sharing.
+The chooser asks before replacing a file. Cancel writes nothing. Export does
+not change the collection. CSV is generated in memory; PDF uses a temporary
+AstroBucketList-plan- file in the system temporary directory, removed afterwards.
+Shared verified replacement creates .tgscripts-write-/.tgscripts-recovery- files
+beside the destination when needed; failures report retained recovery paths.
+Exports make no .bak file. Windows file protection uses the read-only mountvol
+query described below. No network connection or external PDF renderer is used.
+Add to list uses the same Results scope to create a dated observing list or add
+targets to an existing one. It retains metadata and other memberships and avoids
+duplicates. Cancel changes nothing; confirm and Save to retain the grouping.
 
 SAVED VIEWS
 Use View preset in Find, filter and sort to recall search text, all filters and
@@ -51,7 +100,7 @@ INTERACTIVE FINDER
 A short hint below the Finder chart explains hover, click, zoom, pan and fit.
 The chart has no tooltip. Hover over a symbol to show its name, type, apparent
 size and magnitude in that message area.
-The tooltip also gives J2000 coordinates and source. Click to select the symbol;
+Click to select the symbol;
 the actions below the chart offer Edit object and Show in table for a matching
 entry, or Add object to review a new entry with the available local catalog
 facts. The close-up inset also supports selection. Dragging pans without
@@ -553,7 +602,7 @@ the CPD interpretation for these live responses requires PTeam clarification.
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.45.0.
+Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.46.0.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
 
 This product is based on software from the PixInsight project, developed

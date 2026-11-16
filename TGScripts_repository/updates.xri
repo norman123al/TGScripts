@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="3e58082dbe25c43b93132288ffb7825a3f986508" type="script" releaseDate="20261115">
+      <package fileName="TGScripts_repository.tar.gz" sha1="26965453712fa39e274290fdfcc33ed42bc15e0a" type="script" releaseDate="20261116">
          <title>
-            TGScripts - Astro Bucket List 0.45.0
+            TGScripts - Astro Bucket List 0.46.0
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,25 +36,19 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.45.0 adds local catalog lookup, richer interactive finder charts and observing-window planning. Requires PixInsight 1.9.6 Lockhart build 1718 or later.
+               Astro Bucket List 0.46.0 adds saved observing-site profiles with independent coordinates, UTC offsets, observing limits and custom horizons. Existing site settings are preserved.
             </p>
             <p>
-               Look up targets in configured local catalogs and use bundled nebula outlines. SIMBAD remains available for missing objects and richer information, while manually edited metadata is preserved.
+               Edit horizon points or import Stellarium polygonal horizon files. Planning accounts for directional obstructions and displays the horizon along each target’s path.
             </p>
             <p>
-               Finder charts use the native chart engine with the Observing Atlas style and SVG/PDF export. Automatic projection, Milky Way shading and adjustable star density, size and color provide more control over chart appearance.
+               Export all results, usable targets or selected rows as CSV or printable PDF. Add planned targets to new or existing observing lists while retaining metadata and other memberships.
             </p>
             <p>
-               Inspect, select, edit or add objects from the chart; zoom, pan and navigate with Center selection, Back, Forward and Home. Save table views and named chart presets. Unified Configuration brings chart settings, details, catalogs and outlines together, with persistent preferences and consistent Apply/Cancel behavior.
+               Time labels now clearly identify local time. A midnight divider and calendar-date labels replace the “+1” suffix; PDF windows include explicit dates. Documentation and the README have been updated.
             </p>
             <p>
-               Plan the filtered targets for an observing site, evening date and fixed UTC offset. Compare altitude, darkness and optional Moon-separation limits, rank usable observing time and inspect target, Sun and Moon altitude curves. Calculations use local ephemerides, remain responsive and keep site preferences local.
-            </p>
-            <p>
-               Layout refinements keep collapsible sections from resizing the window, make controls more compact and replace intrusive chart tooltips with concise status hints. Deprecated ByteArray access has been replaced. Updated documentation and a shorter README cover the current features.
-            </p>
-            <p>
-               SIMBAD-derived object-type data now includes separate ODbL licensing, attribution and a reusable data copy. SIMBAD and DSS downloads use HTTPS and stricter size, content and decoding checks; DSS cache reuse verifies a SHA-256 digest.
+               This update also preserves stored observing-site data during unrelated configuration changes and failed saves, keeps empty row selections when ranking changes, allows horizons with long filenames to be saved, and draws horizon crossings of the minimum altitude correctly.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -63,4 +57,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-15T22:00:09.331Z" encoding="Base64">Nhw6rAwDHRvpL0xLEHL8UYsMUXcbUfAFomTEKbrBEAUnKBdBfRqB4nR/DR1/avH9xjeFqfBEmfTo7aF5SGquCg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-16T22:35:35.507Z" encoding="Base64">ZNtpvx7Ol+WrF2M0fdBkBKBruzdPVWqynr4X6iBydssLkPRhSaD8lVXWjgJBd9xPvdo0K3/ZZRpo4L/Nr2CuDQ==</Signature>
