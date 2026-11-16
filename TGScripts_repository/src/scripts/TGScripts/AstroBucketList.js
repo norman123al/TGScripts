@@ -3199,6 +3199,7 @@ function ablHorizonAltitude(points,az){
    let left=a[0],right=b[0];if(index===0)left-=360;if(index===points.length)right+=360;
    return a[1]+(b[1]-a[1])*(az-left)/(right-left);
 }
+function ablHorizonSource(value){return typeof value==='string'?value.replace(/[\x00-\x1f]/g,' ').slice(0,160):'';}
 function ablPlanningPreferences(value={}){
    let p={siteName:'Observing site',latitude:null,longitude:null,height:0,utcOffset:-new Date().getTimezoneOffset()/60,minAltitude:30,sunAltitude:-18,moonSeparation:0,horizonEnabled:false,horizonSource:'',horizonPoints:[]};
    if(!value||typeof value!=='object')return p;
@@ -3208,7 +3209,7 @@ function ablPlanningPreferences(value={}){
    if([0,-6,-12,-18].includes(value.sunAltitude))p.sunAltitude=value.sunAltitude;
    if(value.horizonPoints!==undefined)p.horizonPoints=ablHorizonPoints(value.horizonPoints);
    p.horizonEnabled=value.horizonEnabled===true;
-   if(typeof value.horizonSource==='string')p.horizonSource=value.horizonSource.replace(/[\x00-\x1f]/g,' ').slice(0,160);
+   p.horizonSource=ablHorizonSource(value.horizonSource);
    if(p.horizonEnabled&&!p.horizonPoints.length)throw Error('Load or enter a horizon before enabling it.');
    return p;
 }
@@ -3232,8 +3233,8 @@ function ablLoadObservingSites(text){
    try{
       if(text.length>1048576)throw Error('settings exceed 1 MiB');let value=JSON.parse(text);
       if(value?.version===2)return ablValidateObservingSites(value);
-      // Migrate the former single-site settings in memory. The first Apply
-      // persists the new structure; merely opening the manager writes nothing.
+      // Migrate the former single-site settings in memory. A profile edit
+      // persists the new structure; unrelated chart settings write nothing.
       if(!value||typeof value!=='object'||Array.isArray(value)||value.version!==undefined)throw Error('unrecognized settings format');
       let p=ablValidatePlanningPreferences(value);p.siteName=p.siteName||'Observing site';return {version:2,active:0,sites:[p]};
    }catch(e){let result=empty();result.warning='Observing profiles could not be loaded: '+String(e.message||e)+'. Configure a site before planning. Stored settings have not been overwritten.';return result;}
@@ -3246,13 +3247,25 @@ function ablLoadObservingSites(text){
 function ablPlanningHorizonSeries(night,azimuths,altitudes,separations){
    let p=night.preferences,points=p.horizonPoints,times=[],series=[[],[],[],[],[]],limits=[];
    for(let i=0;i<night.times.length-1;++i){
-      let az=azimuths[i],delta=((azimuths[i+1]-az+540)%360)-180,breaks=[0];
+      let az=azimuths[i],delta=((azimuths[i+1]-az+540)%360)-180,breaks=[0,1];
       if(p.horizonEnabled&&Math.abs(delta)>1e-10){let low=Math.min(az,az+delta),high=Math.max(az,az+delta);
          for(let turn=Math.floor(low/360);turn<=Math.floor(high/360);++turn){let shift=turn*360;
             for(let j=ablHorizonIndex(points,low-shift);j<points.length&&points[j][0]+shift<high;++j){let f=(points[j][0]+shift-az)/delta;if(f>1e-9&&f<1-1e-9)breaks.push(f);}
          }
       }
-      if(i===night.times.length-2)breaks.push(1);breaks.sort((a,b)=>a-b);
+      breaks.sort((a,b)=>a-b);
+      if(p.horizonEnabled){
+         // Each interval is linear after inserting the horizon vertices.
+         // Its crossing of the minimum altitude is a corner of the plotted
+         // maximum; joining only the endpoints would overstate the limit.
+         let crossings=[];
+         for(let j=1;j<breaks.length;++j){let a=breaks[j-1],b=breaks[j],ha=ablHorizonAltitude(points,az+a*delta),hb=ablHorizonAltitude(points,az+b*delta);
+            if(hb!==ha){let f=(p.minAltitude-ha)/(hb-ha);if(f>0&&f<1)crossings.push(a+f*(b-a));}
+         }
+         breaks.push(...crossings);breaks.sort((a,b)=>a-b);
+      }
+      // The next segment supplies this endpoint, except at the end of the night.
+      if(i<night.times.length-2)breaks.pop();
       for(let f of breaks){const at=v=>v[i]+f*(v[i+1]-v[i]);let altitude=at(altitudes),horizon=p.horizonEnabled?ablHorizonAltitude(points,az+f*delta):0;
          times.push(night.times[i]+f*night.step);limits.push(Math.max(p.minAltitude,horizon));
          series[0].push(altitude-p.minAltitude);series[1].push(at(night.darkness));series[2].push(at(night.moonAltitudes));series[3].push(at(separations)-p.moonSeparation);series[4].push(p.horizonEnabled?altitude-horizon:altitude-p.minAltitude);
@@ -3518,7 +3531,9 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    };
    this.selectCurrent=()=>{
       let node=this.nodes?.find(n=>n.result.record.id===this.selectedId)||this.nodes?.[0];
-      if(node){let selected=new Set(this.nodes.filter(n=>n.selected).map(n=>n.result.record.id));this.building=true;try{this.tree.currentNode=node;for(let n of this.nodes)n.selected=selected.size?selected.has(n.result.record.id):n===node;this.selectedId=node.result.record.id;}finally{this.building=false;}}
+      // TreeBox current-node assignment can select the focused row. Restore
+      // the exact export selection, including an explicitly empty selection.
+      if(node){let selected=new Set(this.nodes.filter(n=>n.selected).map(n=>n.result.record.id));this.building=true;try{this.tree.currentNode=node;for(let n of this.nodes)n.selected=selected.has(n.result.record.id);this.selectedId=node.result.record.id;}finally{this.building=false;}}
       this.updatePlot();
    };
    this.rebuild=()=>{
@@ -3787,7 +3802,7 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.importHorizon=path=>{
       let info=new FileInfo(path);if(!info.isFile||info.size>131072)throw Error('Choose a horizon point file of at most 128 KiB.');
       let points=ablParseHorizon(File.readTextFile(path),ABL_HORIZON_MODES[this.horizonMode.currentItem],this.horizonRotation.value);if(!points.length)throw Error('The selected file contains no horizon points.');
-      this.loadingSite=true;try{this.horizonText.text=ablHorizonText(points);this.horizonSource=File.extractName(path)+File.extractExtension(path);this.horizonEnabled.checked=true;}finally{this.loadingSite=false;}this.updateHorizon();
+      this.loadingSite=true;try{this.horizonText.text=ablHorizonText(points);this.horizonSource=ablHorizonSource(File.extractName(path)+File.extractExtension(path));this.horizonEnabled.checked=true;}finally{this.loadingSite=false;}this.updateHorizon();
    };
    this.importHorizonButton=ablButton(this.horizonGroup,'Import…',()=>manager.safe(()=>{
       let d=new OpenFileDialog;d.caption='Import Stellarium horizon point file';d.multipleSelections=false;d.filters=[['Horizon points','*.txt','*.dat','*.csv'],['All files','*']];if(manager.executeDialog(d))this.importHorizon(d.filePath);
@@ -4359,9 +4374,12 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.chartPresets=ablLoadChartPresets(this.persistPreferences?this.chartPresetStore.read():null);
    this.planningPreferenceStore=options.planningPreferenceStore||{
       read:()=>{let text=Settings.read('AstroBucketList/observingPreferences',DataType.String);return Settings.lastReadOK?text:null;},
-      write:text=>Settings.write('AstroBucketList/observingPreferences',DataType.String,text)
+      write:text=>{if(text===null)Settings.remove('AstroBucketList/observingPreferences');else Settings.write('AstroBucketList/observingPreferences',DataType.String,text);}
    };
-   this.observingSites=ablLoadObservingSites(this.persistPreferences?this.planningPreferenceStore.read():null);
+   // Keep the original text for rollback, including malformed recoverable
+   // data. The normalized fallback and its warning are only in-memory state.
+   this.observingSitesText=this.persistPreferences?(this.planningPreferenceStore.read()??null):null;
+   this.observingSites=ablLoadObservingSites(this.observingSitesText);
    this.planningPreferences=ABL.copy(this.observingSites.sites[this.observingSites.active]);
    this.contourPath=ablDefaultContourPath();
    if(this.persistPreferences){let saved=Settings.read('AstroBucketList/contourPath',DataType.String);if(Settings.lastReadOK)this.contourPath=saved;}
@@ -4592,7 +4610,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    this.applyConfiguration=value=>{
       let state=this.validateConfiguration(value),p=this.finderPage,q=this.dssPage,sites=ablValidateObservingSites(value.observingSites||this.observingSites);
       if(value.planning!==undefined)sites.sites[sites.active]=ablValidatePlanningPreferences(value.planning);
-      sites=ablValidateObservingSites(sites);let planning=sites.sites[sites.active];
+      sites=ablValidateObservingSites(sites);let planning=sites.sites[sites.active],sitesText=JSON.stringify(sites);
+      let sitesChanged=sitesText!==JSON.stringify(ablValidateObservingSites(this.observingSites));
       // Store preferred widths rather than the current target's fitted field.
       // Normalize property order so an unchanged Apply retains the preview.
       let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss,details:value.details||p.details}));
@@ -4606,7 +4625,9 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       if(presetText.length>1048576||!Array.isArray(presets)||presets.length>50)throw Error('Chart presets exceed the supported settings size.');
       let writes=[];const change=(write,before,after)=>{if(before!==after)writes.push({write,before,after});};
       if(this.persistPreferences){
-         change(text=>this.planningPreferenceStore.write(text),JSON.stringify(this.observingSites),JSON.stringify(sites));
+         // Warnings are not profile edits. Finder shortcuts and an unchanged
+         // Apply must leave invalid stored profiles available for recovery.
+         if(sitesChanged)change(text=>this.planningPreferenceStore.write(text),this.observingSitesText,sitesText);
          change(text=>this.previewPreferenceStore.write(text),JSON.stringify(this.previewPreferences),JSON.stringify(next));
          change(text=>this.chartPresetStore.write(text),previousPresets,presetText);
          change(path=>Settings.write('AstroBucketList/contourPath',DataType.String,path),this.contourPath,value.contourPath);
@@ -4620,7 +4641,8 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       try{for(let entry of writes){attempted.push(entry);entry.write(entry.after);}}
       catch(e){let failures=[];for(let entry of attempted.reverse())try{entry.write(entry.before);}catch(restore){failures.push(String(restore));}
          throw Error('Could not save Configuration: '+e+(failures.length?' Some previous preferences could not be restored: '+failures.join('; '):' Previous preferences were restored.')+' The current chart and collection are unchanged.');}
-      this.observingSites=ABL.copy(sites);this.planningPreferences=ABL.copy(planning);this.previewPreferences=next;this.chartPresets=ABL.copy(presets);this.rememberCollection=value.rememberCollection;
+      if(sitesChanged){this.observingSites=ABL.copy(sites);if(this.persistPreferences)this.observingSitesText=sitesText;}
+      this.planningPreferences=ABL.copy(planning);this.previewPreferences=next;this.chartPresets=ABL.copy(presets);this.rememberCollection=value.rememberCollection;
       this.contourPath=value.contourPath;this.contourState=state;this.outlineLevel=level;this.chartStyle=next.sky.style;
       p.settings=sky;p.details=details;q.settings=dss;
       if(value.activeChartPreset!==undefined)p.activeChartPreset=value.activeChartPreset;

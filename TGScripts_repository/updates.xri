@@ -6,7 +6,7 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="986fad8a1ef2aaa7793208ca332971f1f9352188" type="script" releaseDate="20261116">
+      <package fileName="TGScripts_repository.tar.gz" sha1="26965453712fa39e274290fdfcc33ed42bc15e0a" type="script" releaseDate="20261116">
          <title>
             TGScripts - Astro Bucket List 0.46.0
          </title>
@@ -48,10 +48,13 @@
                Time labels now clearly identify local time. A midnight divider and calendar-date labels replace the “+1” suffix; PDF windows include explicit dates. Documentation and the README have been updated.
             </p>
             <p>
+               This update also preserves stored observing-site data during unrelated configuration changes and failed saves, keeps empty row selections when ranking changes, allows horizons with long filenames to be saved, and draws horizon crossings of the minimum altitude correctly.
+            </p>
+            <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
             </p>
          </description>
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-16T22:03:40.066Z" encoding="Base64">V3lK23jJLdW5GgJCMJNCAAmQJf5mNSKZJE95/EkHSx+tV92hIwlQCkXsbMwt4GJ0gTQm8KlhBXOKxxRiTrkJBg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-16T22:35:35.507Z" encoding="Base64">ZNtpvx7Ol+WrF2M0fdBkBKBruzdPVWqynr4X6iBydssLkPRhSaD8lVXWjgJBd9xPvdo0K3/ZZRpo4L/Nr2CuDQ==</Signature>
