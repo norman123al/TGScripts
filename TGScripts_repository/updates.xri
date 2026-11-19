@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="26965453712fa39e274290fdfcc33ed42bc15e0a" type="script" releaseDate="20261116">
+      <package fileName="TGScripts_repository.tar.gz" sha1="69f0448f817b0dd70279c603645fe5a8b4ffc91d" type="script" releaseDate="20261119">
          <title>
-            TGScripts - Astro Bucket List 0.46.0
+            TGScripts - Astro Bucket List 0.47.0
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,19 +36,16 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.46.0 adds saved observing-site profiles with independent coordinates, UTC offsets, observing limits and custom horizons. Existing site settings are preserved.
+               Astro Bucket List 0.47.0 adds separate Moon-separation limits for broadband and narrowband targets. Each band can inherit the observing site’s default or use its own limit. New sites start with a minimum target altitude of 0°.
             </p>
             <p>
-               Edit horizon points or import Stellarium polygonal horizon files. Planning accounts for directional obstructions and displays the horizon along each target’s path.
+               Observing night now shows targets with at least 60 minutes of usable time by default. Set the minimum from 0 to 1440 minutes across all imaging windows for the night. Zero accepts any positive duration. The usable-target count, filter, exports and list actions use the same minimum.
             </p>
             <p>
-               Export all results, usable targets or selected rows as CSV or printable PDF. Add planned targets to new or existing observing lists while retaining metadata and other memberships.
+               Rank targets by two criteria, including the start and end of the longest usable window. The altitude chart defaults to one hour before dusk through one hour after dawn, with adjustable margins and a full-day option. A blue Sky strip marks site darkness, while green and muted red distinguish usable and blocked time for the selected target.
             </p>
             <p>
-               Time labels now clearly identify local time. A midnight divider and calendar-date labels replace the “+1” suffix; PDF windows include explicit dates. Documentation and the README have been updated.
-            </p>
-            <p>
-               This update also preserves stored observing-site data during unrelated configuration changes and failed saves, keeps empty row selections when ranking changes, allows horizons with long filenames to be saved, and draws horizon crossings of the minimum altitude correctly.
+               Observing controls now collapse together. A single message box below the chart combines the night summary, target details and hover readout.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -57,4 +54,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-16T22:35:35.507Z" encoding="Base64">ZNtpvx7Ol+WrF2M0fdBkBKBruzdPVWqynr4X6iBydssLkPRhSaD8lVXWjgJBd9xPvdo0K3/ZZRpo4L/Nr2CuDQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-19T22:49:19.470Z" encoding="Base64">cghDYdIr3hhToLiO2eLs1/74AFC2FGW5jWmPJIsY9LUAYatzDCQFQ1ObQ1OM6+FqwTAq4kIOpzzp9cJuFwcdBw==</Signature>

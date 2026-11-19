@@ -6,7 +6,7 @@
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.46.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.47.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.46.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.47.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.46.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.47.0 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.46.0', EXT = '_astroBucketList';
+   const VERSION = '0.47.0', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -1826,7 +1826,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.46.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.47.0 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1834,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.46.0"
+#define VERSION "0.47.0"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2410,7 +2410,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.46.0';
+const ABL_VERSION='0.47.0';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -3070,8 +3070,9 @@ class ABLMonthsDialog extends Dialog { constructor(parent){
 
 // Preferences describe all targets. Effective framing is derived separately
 // so fitting, missing sizes and survey limits never overwrite manual widths.
+const ABL_DEFAULT_USABLE_MINUTES=60;
 function ablLoadPreviewPreferences(text,style='modern-editorial'){
-   let defaults={sky:Object.assign({coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},ABL.chartAppearance()),dss:{coverage:30,fitObjectSize:true},details:ablChartDetailSettings()},saved;
+   let defaults={sky:Object.assign({coverage:45,fitObjectSize:false,style:ablChartStyle(style).key,labelDensity:'normal',inset:false,insetDegrees:2},ABL.chartAppearance()),dss:{coverage:30,fitObjectSize:true},details:ablChartDetailSettings(),planningUsableOnly:true,minimumUsableMinutes:ABL_DEFAULT_USABLE_MINUTES},saved;
    try{saved=JSON.parse(text);}catch(e){return defaults;}
    for(let key of ['sky','dss']){let value=saved?.[key],target=defaults[key];if(!value||typeof value!=='object')continue;
       if(Number.isFinite(value.coverage)&&value.coverage>=(key==='sky'?.1:5)&&value.coverage<=120)target.coverage=value.coverage;
@@ -3084,6 +3085,9 @@ function ablLoadPreviewPreferences(text,style='modern-editorial'){
          if(Number.isFinite(value.insetDegrees)&&value.insetDegrees>=.1&&value.insetDegrees<=120)target.insetDegrees=value.insetDegrees;
       }
    }
+   if(typeof saved?.planningUsableOnly==='boolean')defaults.planningUsableOnly=saved.planningUsableOnly;
+   if(Number.isInteger(saved?.minimumUsableMinutes)&&saved.minimumUsableMinutes>=0&&saved.minimumUsableMinutes<=1440)
+      defaults.minimumUsableMinutes=saved.minimumUsableMinutes;
    defaults.details=ablChartDetailSettings(saved?.details);
    return defaults;
 }
@@ -3201,12 +3205,17 @@ function ablHorizonAltitude(points,az){
 }
 function ablHorizonSource(value){return typeof value==='string'?value.replace(/[\x00-\x1f]/g,' ').slice(0,160):'';}
 function ablPlanningPreferences(value={}){
-   let p={siteName:'Observing site',latitude:null,longitude:null,height:0,utcOffset:-new Date().getTimezoneOffset()/60,minAltitude:30,sunAltitude:-18,moonSeparation:0,horizonEnabled:false,horizonSource:'',horizonPoints:[]};
+   let p={siteName:'Observing site',latitude:null,longitude:null,height:0,utcOffset:-new Date().getTimezoneOffset()/60,minAltitude:0,sunAltitude:-18,moonSeparation:0,
+      broadbandMoonSeparation:null,narrowbandMoonSeparation:null,plotRange:'night',beforeDuskHours:1,afterDawnHours:1,
+      horizonEnabled:false,horizonSource:'',horizonPoints:[]};
    if(!value||typeof value!=='object')return p;
    if(typeof value.siteName==='string')p.siteName=value.siteName.trim().slice(0,80);
-   for(let [key,min,max]of [['latitude',-90,90],['longitude',-180,180],['height',-500,10000],['utcOffset',-12,14],['minAltitude',0,90],['moonSeparation',0,180]])
+   for(let [key,min,max]of [['latitude',-90,90],['longitude',-180,180],['height',-500,10000],['utcOffset',-12,14],['minAltitude',0,90],['moonSeparation',0,180],['broadbandMoonSeparation',0,180],['narrowbandMoonSeparation',0,180]])
       if(Number.isFinite(value[key])&&value[key]>=min&&value[key]<=max)p[key]=value[key];
    if([0,-6,-12,-18].includes(value.sunAltitude))p.sunAltitude=value.sunAltitude;
+   if(value.plotRange==='full')p.plotRange='full';
+   for(const key of ['beforeDuskHours','afterDawnHours'])
+      if(Number.isFinite(value[key])&&value[key]>=0&&value[key]<=12)p[key]=value[key];
    if(value.horizonPoints!==undefined)p.horizonPoints=ablHorizonPoints(value.horizonPoints);
    p.horizonEnabled=value.horizonEnabled===true;
    p.horizonSource=ablHorizonSource(value.horizonSource);
@@ -3244,7 +3253,7 @@ function ablLoadObservingSites(text){
 // prevents a narrow obstruction from disappearing when both endpoints clear
 // it. Azimuth, altitude and solar/lunar constraints are interpolated over the
 // original two-minute segment; times remain approximate, not mount guidance.
-function ablPlanningHorizonSeries(night,azimuths,altitudes,separations){
+function ablPlanningHorizonSeries(night,azimuths,altitudes,separations,moonLimit=night.preferences.moonSeparation){
    let p=night.preferences,points=p.horizonPoints,times=[],series=[[],[],[],[],[]],limits=[];
    for(let i=0;i<night.times.length-1;++i){
       let az=azimuths[i],delta=((azimuths[i+1]-az+540)%360)-180,breaks=[0,1];
@@ -3268,7 +3277,7 @@ function ablPlanningHorizonSeries(night,azimuths,altitudes,separations){
       if(i<night.times.length-2)breaks.pop();
       for(let f of breaks){const at=v=>v[i]+f*(v[i+1]-v[i]);let altitude=at(altitudes),horizon=p.horizonEnabled?ablHorizonAltitude(points,az+f*delta):0;
          times.push(night.times[i]+f*night.step);limits.push(Math.max(p.minAltitude,horizon));
-         series[0].push(altitude-p.minAltitude);series[1].push(at(night.darkness));series[2].push(at(night.moonAltitudes));series[3].push(at(separations)-p.moonSeparation);series[4].push(p.horizonEnabled?altitude-horizon:altitude-p.minAltitude);
+         series[0].push(altitude-p.minAltitude);series[1].push(at(night.darkness));series[2].push(at(night.moonAltitudes));series[3].push(at(separations)-moonLimit);series[4].push(p.horizonEnabled?altitude-horizon:altitude-p.minAltitude);
       }
    }
    return {times,series,limits};
@@ -3283,8 +3292,8 @@ function ablPlanningCSV(night,rows){
    let p=night.preferences,period=night.period;
    const cell=value=>{if(typeof value==='number')return Number.isFinite(value)?String(value):'';
       let s=String(value??'');if(/^[\s\x00-\x1f]*[=+@-]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
-   let lines=[['Object','Display name','RA J2000 deg','Dec J2000 deg','Night','Site','Latitude deg N','Longitude deg E','Height m','UTC offset hours','Minimum altitude deg','Sun limit deg','Moon separation deg','Horizon enabled','Horizon source','Peak altitude deg','Peak local','Above minimum hours','Clear horizon hours','Dark hours','Usable hours','Best start local','Best end local','All usable windows local','All usable windows UTC','Moon minimum deg','Status'].map(cell).join(',')];
-   for(let r of rows){let c=ABL.position(r.record.object);lines.push([r.record.designation,r.record.name,c.ra,c.dec,period.date,p.siteName,p.latitude,p.longitude,p.height,p.utcOffset,p.minAltitude,p.sunAltitude,p.moonSeparation,p.horizonEnabled?'yes':'no',p.horizonSource,r.peak?.value??'',r.peak?ablPlanningTimestamp(r.peak.time,period):'',r.missing?'':r.above/3600000,r.missing?'':r.clear/3600000,r.missing?'':r.dark/3600000,r.missing?'':r.usable/3600000,r.best?ablPlanningTimestamp(r.best[0],period):'',r.best?ablPlanningTimestamp(r.best[1],period):'',r.windows.map(w=>w.map(t=>ablPlanningTimestamp(t,period)).join(' / ')).join('; '),r.windows.map(w=>w.map(t=>new Date(Math.round(t/60000)*60000).toISOString()).join(' / ')).join('; '),r.moonMinimum??'',r.status].map(cell).join(','));}
+   let lines=[['Object','Display name','RA J2000 deg','Dec J2000 deg','Night','Site','Latitude deg N','Longitude deg E','Height m','UTC offset hours','Minimum altitude deg','Sun limit deg','Moon separation deg','Horizon enabled','Horizon source','Peak altitude deg','Peak local','Above minimum hours','Clear horizon hours','Dark hours','Usable hours','Best start local','Best end local','All usable windows local','All usable windows UTC','Moon minimum deg','Status','Target band','Minimum usable minutes'].map(cell).join(',')];
+   for(let r of rows){let c=ABL.position(r.record.object);lines.push([r.record.designation,r.record.name,c.ra,c.dec,period.date,p.siteName,p.latitude,p.longitude,p.height,p.utcOffset,p.minAltitude,p.sunAltitude,r.moonLimit,p.horizonEnabled?'yes':'no',p.horizonSource,r.peak?.value??'',r.peak?ablPlanningTimestamp(r.peak.time,period):'',r.missing?'':r.above/3600000,r.missing?'':r.clear/3600000,r.missing?'':r.dark/3600000,r.missing?'':r.usable/3600000,r.best?ablPlanningTimestamp(r.best[0],period):'',r.best?ablPlanningTimestamp(r.best[1],period):'',r.windows.map(w=>w.map(t=>ablPlanningTimestamp(t,period)).join(' / ')).join('; '),r.windows.map(w=>w.map(t=>new Date(Math.round(t/60000)*60000).toISOString()).join(' / ')).join('; '),r.moonMinimum??'',r.status,ABL.BAND_LABELS[r.band],night.minimumUsableMinutes??ABL_DEFAULT_USABLE_MINUTES].map(cell).join(','));}
    return '\uFEFF'+lines.join('\r\n')+'\r\n';
 }
 function ablWritePlanPDF(night,rows,path,scope){
@@ -3307,7 +3316,7 @@ function ablWritePlanPDF(night,rows,path,scope){
          g.font=body;g.pen=new Pen(0xff465866);g.drawText(left,61,night.period.date+' / '+ablPlanningLocalISO(night.period.end,night.period).slice(0,10)+'  |  '+ablPlanningTimeContext(night.period)+'  |  '+rows.length+' targets  |  '+scope);
          let site=p.siteName+'  |  '+p.latitude.toFixed(4)+'°, '+p.longitude.toFixed(4)+'°  |  '+p.height+' m',headerY=76;
          for(let line of wrap(site,body)){g.drawText(left,headerY,line);headerY+=15;}
-         let limits='Altitude ≥ '+p.minAltitude+'°  |  Sun ≤ '+p.sunAltitude+'°  |  '+(p.moonSeparation?'Moon separation ≥ '+p.moonSeparation+'° when up':'No Moon-separation limit')+'  |  Horizon '+(p.horizonEnabled?'enabled: '+(p.horizonSource||'Manual profile'):'off');
+         let limits='Altitude ≥ '+p.minAltitude+'°  |  Sun ≤ '+p.sunAltitude+'°  |  '+ablSiteMoonLimitText(p)+'  |  Minimum usable '+ablMinimumTimeText(night.minimumUsableMinutes??ABL_DEFAULT_USABLE_MINUTES)+'  |  Horizon '+(p.horizonEnabled?'enabled: '+(p.horizonSource||'Manual profile'):'off');
          for(let line of wrap(limits,body)){g.drawText(left,headerY,line);headerY+=15;}
          g.pen=new Pen(0xffaab9c4);g.drawLine(left,headerY-3,right,headerY-3);g.font=body;g.pen=new Pen(0xff52606b);
          g.drawText(left,bottom+25,'Local times; dates identify midnight crossings. Approximate windows. Check daylight saving offset.');g.drawText(right-52,bottom+25,'Page '+page);y=headerY+16;
@@ -3317,7 +3326,7 @@ function ablWritePlanPDF(night,rows,path,scope){
          newPage();
          for(let r of rows){if(y+72>bottom)newPage();paragraph(ABL.objectHeading(r.record.designation,r.record.name),bold);
             let peak=r.peak?r.peak.value.toFixed(1)+'° at '+ablPlanningDateTime(r.peak.time,night.period):'not available';
-            paragraph(r.status+'  |  Peak in darkness: '+peak+'  |  Usable: '+(r.missing?'unknown':ablPlanningHours(r.usable))+'  |  Dark: '+(r.missing?'unknown':ablPlanningHours(r.dark)),body);
+            paragraph(r.status+'  |  '+ablTargetMoonLimitText(r)+'  |  Peak in darkness: '+peak+'  |  Usable: '+(r.missing?'unknown':ablPlanningHours(r.usable))+'  |  Dark: '+(r.missing?'unknown':ablPlanningHours(r.dark)),body);
             paragraph('Windows: '+(r.windows.length?r.windows.map(w=>ablPlanningRange(w,night.period,true)).join('; '):'none')+(r.moonMinimum===null?'':'  |  Minimum Moon separation: '+r.moonMinimum.toFixed(1)+'°'),body);
             g.pen=new Pen(0xffd6dfe5);g.drawLine(left,y+2,right,y+2);y+=22;
          }
@@ -3355,21 +3364,68 @@ function ablPlanningTimeContext(period){return 'Local time ('+ablPlanningOffset(
 
 // Separate calendar labels from HH:mm ticks. The midnight divider remains at
 // the selected site's midnight, including fractional offsets and year rollover.
-function ablDrawPlanningTimeAxis(g,period,plot,scale){
+function ablPlanningPlotRange(night,site){
+   const {period,darkIntervals}=night;
+   if(site.plotRange==='full'||!darkIntervals.length)return period;
+   // Use the same interpolated solar crossings as the plan, clipped to the sampled day.
+   return {start:Math.max(period.start,darkIntervals[0][0]-site.beforeDuskHours*3600000),
+           end:Math.min(period.end,darkIntervals[darkIntervals.length-1][1]+site.afterDawnHours*3600000)};
+}
+const ABL_NIGHT_SHADING={darkness:0xff526f98,unusable:0xff51353f,usable:0xff214739};
+function ablDrawPlanningBands(g,plot,darkIntervals,windows,scale){
+   const {left,top,width,height,range,x}=plot;
+   const stripTop=top-scale(18),stripBottom=top-scale(8);
+   const fillIntervals=(intervals,y0,y1,color)=>{
+      const brush=new Brush(color);
+      for(const [start,end] of intervals){
+         const a=Math.max(start,range.start),b=Math.min(end,range.end);
+         if(a<b)g.fillRect(x(a),y0,x(b),y1,brush);
+      }
+   };
+   g.pen=new Pen(0xffb2c5e1);g.drawText(scale(4),stripBottom,'Sky');
+   g.fillRect(left,stripTop,left+width,stripBottom,new Brush(0xff30343c));
+   fillIntervals(darkIntervals,stripTop,stripBottom,ABL_NIGHT_SHADING.darkness);
+   // The sky strip stays visible across every target window. The altitude
+   // plot distinguishes usable windows from the rest of the site's dark time.
+   fillIntervals(darkIntervals,top,top+height,ABL_NIGHT_SHADING.unusable);
+   fillIntervals(windows,top,top+height,ABL_NIGHT_SHADING.usable);
+}
+function ablDrawPlanningTimeAxis(g,period,plot,scale,range=period){
    let left=plot.left,right=left+plot.width,bottom=plot.top+plot.height;
-   const x=time=>left+(time-period.start)/86400000*plot.width;
+   const duration=range.end-range.start,x=time=>left+(time-range.start)/duration*plot.width;
    let midnight=period.day+86400000-period.offset*3600000,mid=x(midnight);
-   g.pen=new Pen(0xff71829b,1,PenStyle.Dash);g.drawLine(mid,plot.top,mid,bottom+scale(5));
+   const crosses=range.start<midnight&&midnight<=range.end;
+   if(crosses){g.pen=new Pen(0xff71829b,1,PenStyle.Dash);g.drawLine(mid,plot.top,mid,bottom+scale(5));}
    g.pen=new Pen(0xffaebaca);
-   for(let hour=0;hour<=24;hour+=4){let time=period.start+hour*3600000,label=ablPlanningTime(time,period);
-      g.drawText(Math.max(left,Math.min(right-g.font.width(label),x(time)-g.font.width(label)/2)),bottom+scale(18),label);
+   // Align ticks to the site's clock. Pick the label interval from the actual
+   // font and available width, keeping hour marks even when labels need more room.
+   const gap=scale(6),labelSpace=g.font.width('00:00')+gap;
+   const intervals=duration>=6*3600000?[60,120,180,240,360,720]:[1,5,10,15,30,60,120,180];
+   const labelStep=(intervals.find(m=>m*60000/duration*plot.width>=labelSpace)||intervals[intervals.length-1])*60000;
+   const tickStep=Math.min(labelStep,3600000),first=midnight+Math.ceil((range.start-midnight)/tickStep)*tickStep;
+   const labelLeft=(time,width)=>Math.max(left,Math.min(right-width,x(time)-width/2));
+   const midnightLeft=labelLeft(midnight,g.font.width('00:00'));
+   let previousRight=-Infinity;
+   for(let time=Math.min(first,range.end);time<=range.end;time+=tickStep){
+      g.drawLine(x(time),bottom,x(time),bottom+scale(4));
+      if((time-midnight)%labelStep!==0&&first<=range.end)continue;
+      const label=ablPlanningTime(time,period),width=g.font.width(label),start=labelLeft(time,width);
+      if(start<previousRight+gap||(crosses&&time<midnight&&start+width+gap>midnightLeft))continue;
+      g.drawText(start,bottom+scale(18),label);previousRight=start+width;
    }
-   let date=ablPlanningLocalISO(period.start,period).slice(0,10),nextDate=ablPlanningLocalISO(midnight,period).slice(0,10),context=ablPlanningTimeContext(period);
+   let date=new Date(range.start+period.offset*3600000).toISOString().slice(0,10),nextDate=ablPlanningLocalISO(midnight,period).slice(0,10),context=ablPlanningTimeContext(period);
    g.pen=new Pen(0xffcbd3dc);g.drawText(left,bottom+scale(38),date);
-   g.drawText(mid-g.font.width(nextDate)/2,bottom+scale(38),nextDate);
+   if(crosses){
+      const lo=left+g.font.width(date)+scale(8),hi=right-g.font.width(context)-g.font.width(nextDate)-scale(8);
+      g.drawText(Math.max(lo,Math.min(hi,mid-g.font.width(nextDate)/2)),bottom+scale(38),nextDate);
+   }
    g.pen=new Pen(0xffaebaca);g.drawText(right-g.font.width(context),bottom+scale(38),context);
 }
 function ablPlanningHours(ms){return ms>0&&ms<360000?' <0.1 h':(ms/3600000).toFixed(1)+' h';}
+// Eligibility uses the full unrounded nightly total, including disjoint windows.
+function ablHasUsableTime(result,minutes){return result.usable>0&&result.usable>=minutes*60000;}
+function ablMinimumTimeText(minutes){return minutes>0&&minutes%60===0?minutes/60+' h':minutes+' min';}
+function ablPositiveTimeStatus(result,minutes){return ablHasUsableTime(result,minutes)?'Available':'Under '+ablMinimumTimeText(minutes)+' usable';}
 function ablPlanningDuration(intervals){return intervals.reduce((sum,r)=>sum+r[1]-r[0],0);}
 function ablPlanningRange(range,period,dated=false){
    if(!dated)return ablPlanningTime(range[0],period)+'–'+ablPlanningTime(range[1],period);
@@ -3411,7 +3467,7 @@ function ablPlanningNight(date,preferences){
    if(period.start<ephemeris.startTime.getTime()+86400000||period.end>ephemeris.endTime.getTime()-86400000)throw Error('This night is outside the installed fundamental ephemeris date range.');
    return {preferences:p,period,step:120000,count:721,ephemeris,
       observer:new ObserverPosition(p.longitude,p.latitude,p.height),sun:new EphemerisHandle(ephemeris,'Sn','SSB'),moon:new EphemerisHandle(ephemeris,'Mn','Ea'),
-      times:[],positions:[],sunAltitudes:[],moonAltitudes:[],moonCoordinates:[],darkness:[],darkIntervals:[]};
+      minimumUsableMinutes:ABL_DEFAULT_USABLE_MINUTES,times:[],positions:[],sunAltitudes:[],moonAltitudes:[],moonCoordinates:[],darkness:[],darkIntervals:[]};
 }
 function ablPlanningSample(night){
    let time=night.period.start+night.times.length*night.step,position=new Position(new Date(time),'UTC');
@@ -3424,25 +3480,41 @@ function ablPlanningSample(night){
    night.darkness.push(night.preferences.sunAltitude-sunAltitude);
    if(night.times.length===night.count)night.darkIntervals=ablPlanningIntervals(night.times,[night.darkness],v=>v[0]>=0);
 }
+// Null inherits the site's default. An explicit zero disables the Moon limit.
+function ablPlanningMoonLimit(site,band){
+   if(band==='broadband')return site.broadbandMoonSeparation??site.moonSeparation;
+   if(band==='narrowband')return site.narrowbandMoonSeparation??site.moonSeparation;
+   return site.moonSeparation;
+}
+function ablTargetMoonLimitText(result){
+   const limit=result.moonLimit>0?result.moonLimit+'°':'off';
+   return ABL.BAND_LABELS[result.band]+' · Moon limit '+limit;
+}
+function ablSiteMoonLimitText(site){
+   if(site.broadbandMoonSeparation!=null||site.narrowbandMoonSeparation!=null)return 'Moon limits by target band';
+   return site.moonSeparation?'Moon separation ≥ '+site.moonSeparation+'° when up':'Moon separation unrestricted';
+}
 function ablPlanningTarget(night,record){
    let coordinates=ABL.position(record.object),p=night.preferences;
-   let result={record,missing:!Number.isFinite(coordinates.ra)||!Number.isFinite(coordinates.dec),above:0,clear:0,dark:0,usable:0,windows:[],peak:null,moonMinimum:null,moonUp:false};
+   const band=record.band??ABL.targetBand(record.object).value;
+   const moonLimit=ablPlanningMoonLimit(p,band);
+   let result={record,band,moonLimit,missing:!Number.isFinite(coordinates.ra)||!Number.isFinite(coordinates.dec),above:0,clear:0,dark:0,usable:0,windows:[],peak:null,moonMinimum:null,moonUp:false};
    if(result.missing){result.status='Missing coordinates';return result;}
    let star=new StarPosition(coordinates.ra,coordinates.dec),altitudes=[],azimuths=[],separations=[],altitudeLimit=[];
    for(let i=0;i<night.positions.length;++i){let position=night.positions[i],s=position.apparent(star).toSpherical2Pi(),m=night.moonCoordinates[i];
       let horizontal=position.equatorialToHorizontal(s),altitude=Math.deg(horizontal.y),cosine=Math.sin(s[1])*Math.sin(m[1])+Math.cos(s[1])*Math.cos(m[1])*Math.cos(s[0]-m[0]);
       let separation=Math.deg(Math.acos(Math.max(-1,Math.min(1,cosine))));altitudes.push(altitude);separations.push(separation);altitudeLimit.push(altitude-p.minAltitude);azimuths.push(Math.deg(horizontal.x));
    }
-   let above=ablPlanningIntervals(night.times,[altitudeLimit],v=>v[0]>=0),profile=ablPlanningHorizonSeries(night,azimuths,altitudes,separations);
+   let above=ablPlanningIntervals(night.times,[altitudeLimit],v=>v[0]>=0),profile=ablPlanningHorizonSeries(night,azimuths,altitudes,separations,moonLimit);
    let clear=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0);
    let base=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0);
    let moonUp=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0&&v[2]>0);
-   result.windows=p.moonSeparation?ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0&&(v[2]<=0||v[3]>=0)):base;
+   result.windows=moonLimit?ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0&&(v[2]<=0||v[3]>=0)):base;
    result.above=ablPlanningDuration(above);result.clear=ablPlanningDuration(clear);result.dark=ablPlanningDuration(base);result.usable=ablPlanningDuration(result.windows);
    result.best=result.windows.reduce((best,range)=>!best||range[1]-range[0]>best[1]-best[0]?range:best,null);
    result.peak=ablPlanningExtremum(altitudes,night.darkIntervals,night,true);result.moonUp=moonUp.length>0;
    result.moonMinimum=ablPlanningExtremum(separations,moonUp,night,false)?.value??null;
-   result.status=!night.darkIntervals.length?'No darkness':!result.above?'Below altitude limit':!result.clear?'Blocked by horizon':!result.dark?(p.horizonEnabled?'No dark horizon window':'No dark altitude window'):!result.usable?'Moon separation limit':'Available';
+   result.status=!night.darkIntervals.length?'No darkness':!result.above?'Below altitude limit':!result.clear?'Blocked by horizon':!result.dark?(p.horizonEnabled?'No dark horizon window':'No dark altitude window'):!result.usable?'Moon separation limit':ablPositiveTimeStatus(result,night.minimumUsableMinutes);
    // Curves are transient. The page retains only the selected row's curve,
    // not hundreds of samples for every collection object.
    result.curve={altitudes,separations,azimuths,horizonTimes:profile.times,horizonLimits:profile.limits};return result;
@@ -3453,63 +3525,129 @@ function ablPlanningTarget(night,record){
 class ABLPlanningPage extends Control { constructor(parent,manager){
    super(parent);this.manager=manager;this.disposed=false;this.pendingRedraw=false;this.job=null;this.night=null;this.results=[];this.selectedId='';this.inputSelection='';this.key='';this.completedKey='';this.plotResult=null;this.building=false;
    this.date=ablPlanningToday(manager.planningPreferences.utcOffset);
-   this.dateEdit=new Edit(this);this.dateEdit.text=this.date;this.dateEdit.setFixedWidth(this.logicalPixelsToPhysical(110));
+   this.message=new TextBox(this);this.message.readOnly=true;this.message.font=this.font;
+   this.message.setFixedHeight(5*this.font.height+this.logicalPixelsToPhysical(12));
+   const note='Times are local to the selected site · Fixed UTC offset: check daylight saving time · Custom horizon applies when enabled · Weather/refraction are not modeled.';
+   let planText='',targetText='',lastMessage='';
+   const showMessage=(detail=targetText)=>{
+      const text=[detail,planText,note].filter(Boolean).join('\n');
+      if(text!==lastMessage){this.message.text=ABL.html(text);this.message.home();lastMessage=text;}
+   };
+   const showPlanStatus=text=>{planText=text;targetText='';showMessage();};
+   this.controlsSection=new Control(this);
+   this.controlsBar=new SectionBar(this,'Observing controls');
+   ablStableSection(manager,this.controlsBar,this.controlsSection);
+   this.timeGroup=ablGroup(this.controlsSection,'Time and location');
+   this.rankGroup=ablGroup(this.controlsSection,'Ranking and results');
+   this.actionsGroup=ablGroup(this.controlsSection,'Actions');
+   this.dateEdit=new Edit(this.timeGroup);this.dateEdit.text=this.date;this.dateEdit.setFixedWidth(this.logicalPixelsToPhysical(110));
    this.dateEdit.toolTip='Evening date, YYYY-MM-DD. The plan covers local noon on this date through noon the following day. Times use the fixed UTC offset in Observing configuration, including any daylight saving adjustment.';
    this.changeDate=date=>{this.date=date;this.dateEdit.text=date;this.refreshInput();};
    this.dateEdit.onEditCompleted=()=>this.changeDate(this.dateEdit.text.trim());this.dateEdit.onKeyPress=key=>{if(key!==KeyCode.Return)return false;this.changeDate(this.dateEdit.text.trim());return true;};
-   this.dateButton=ablButton(this,'Choose…',()=>manager.safe(()=>{let d=new ABLImagingDateDialog(manager,this.date);d.windowTitle='Observing night';d.clearButton.hide();d.todayButton.onClick=()=>d.setDate(ablPlanningToday(manager.planningPreferences.utcOffset));if(manager.executeDialog(d)&&d.selectedDate)this.changeDate(d.selectedDate);}));
-   this.todayButton=ablButton(this,'Tonight',()=>this.changeDate(ablPlanningToday(manager.planningPreferences.utcOffset)));
-   this.settingsButton=ablButton(this,'Site and limits…',()=>manager.safe(()=>manager.openConfiguration(3)));
-   this.sort=new ComboBox(this);for(let name of ['Usable time','Peak in darkness','Object name'])this.sort.addItem(name);this.sort.adjustToContents();this.sort.setFixedWidth();this.sort.onItemSelected=()=>this.rebuild();
-   this.stopButton=ablButton(this,'Stop',()=>{this.redrawTimer.stop();this.job=null;this.pendingRedraw=false;this.info.text='Planning stopped. Recalculate to try again.';this.stopButton.visible=false;this.retryButton.visible=true;});this.stopButton.visible=false;
-   this.retryButton=ablButton(this,'Recalculate',()=>{this.key='';this.refreshInput();});this.retryButton.visible=false;
-   let controls=new HorizontalSizer;controls.spacing=6;let dateLabel=new Label(this);dateLabel.text='Night of:';let sortLabel=new Label(this);sortLabel.text='Rank by:';
-   controls.add(dateLabel);controls.add(this.dateEdit);controls.add(this.dateButton);controls.add(this.todayButton);controls.addSpacing(8);controls.add(this.settingsButton);controls.addSpacing(8);controls.add(sortLabel);controls.add(this.sort);controls.addStretch();controls.add(this.stopButton);controls.add(this.retryButton);
-   this.siteSelect=new ComboBox(this);this.siteSelect.setFixedWidth(this.logicalPixelsToPhysical(220));
+   this.dateButton=ablButton(this.timeGroup,'Choose…',()=>manager.safe(()=>{let d=new ABLImagingDateDialog(manager,this.date);d.windowTitle='Observing night';d.clearButton.hide();d.todayButton.onClick=()=>d.setDate(ablPlanningToday(manager.planningPreferences.utcOffset));if(manager.executeDialog(d)&&d.selectedDate)this.changeDate(d.selectedDate);}));
+   this.todayButton=ablButton(this.timeGroup,'Tonight',()=>this.changeDate(ablPlanningToday(manager.planningPreferences.utcOffset)));
+   // Endpoints use absolute instants so ranking remains chronological across midnight.
+   const numericRank=key=>(a,b)=>{
+      const first=key(a),second=key(b);
+      return first===second?0:first-second;
+   };
+   const byName=(a,b)=>a.record.designation.localeCompare(b.record.designation);
+   const rankings=[
+      ['Usable time',numericRank(r=>-r.usable)],
+      ['Peak in darkness',numericRank(r=>-(r.peak?.value??-Infinity))],
+      ['Object name',byName],
+      ['Observation start',numericRank(r=>r.best?.[0]??Infinity)],
+      ['Observation end',numericRank(r=>r.best?.[1]??Infinity)]
+   ];
+   this.sort=new ComboBox(this.rankGroup);
+   this.thenBy=new ComboBox(this.rankGroup);
+   for(const [label] of rankings)this.sort.addItem(label);
+   this.sort.adjustToContents();this.sort.setFixedWidth();this.thenBy.setFixedWidth(this.sort.width);
+   let primary=rankings[0],secondary=rankings[2],remaining=[];
+   const updateRanks=()=>{
+      const previous=primary;
+      primary=rankings[this.sort.currentItem];
+      if(secondary===primary)secondary=previous;
+      remaining=rankings.filter(rank=>rank!==primary);
+      this.thenBy.clear();
+      for(const [label] of remaining)this.thenBy.addItem(label);
+      this.thenBy.currentItem=remaining.indexOf(secondary);
+   };
+   updateRanks();
+   this.sort.onItemSelected=()=>{updateRanks();this.rebuild();};
+   this.thenBy.onItemSelected=()=>{secondary=remaining[this.thenBy.currentItem];this.rebuild();};
+   this.stopButton=ablButton(this.actionsGroup,'Stop',()=>{this.redrawTimer.stop();this.job=null;this.pendingRedraw=false;showPlanStatus('Planning stopped. Recalculate to try again.');this.stopButton.visible=false;this.retryButton.visible=true;});this.stopButton.visible=false;
+   this.retryButton=ablButton(this.actionsGroup,'Recalculate',()=>{this.key='';this.refreshInput();});this.retryButton.visible=false;
+   this.siteSelect=new ComboBox(this.timeGroup);this.siteSelect.setFixedWidth(this.logicalPixelsToPhysical(220));
    this.refreshSites=()=>{this.siteSelect.clear();for(let p of manager.observingSites.sites)this.siteSelect.addItem(p.siteName);this.siteSelect.currentItem=manager.observingSites.active;};
    this.siteSelect.onItemSelected=index=>manager.safe(()=>{try{let value=manager.currentConfiguration();value.observingSites.active=index;value.planning=ABL.copy(value.observingSites.sites[index]);manager.applyConfiguration(value);}finally{this.refreshSites();}});
-   this.exportScope=new ComboBox(this);for(let text of ['All results','Usable targets only','Selected rows'])this.exportScope.addItem(text);this.exportScope.adjustToContents();this.exportScope.setFixedWidth();
+   this.exportScope=new ComboBox(this.rankGroup);for(let text of ['All displayed rows','Usable rows','Selected rows'])this.exportScope.addItem(text);this.exportScope.adjustToContents();this.exportScope.setFixedWidth();
    this.exportScope.onItemSelected=()=>this.updateExport();
-   this.exportRows=()=>!this.night||this.completedKey!==this.key?[]:(this.nodes||[]).filter(n=>this.exportScope.currentItem===0||this.exportScope.currentItem===1&&n.result.usable>0||this.exportScope.currentItem===2&&n.selected).map(n=>n.result);
+   this.exportRows=()=>!this.night||this.completedKey!==this.key?[]:(this.nodes||[]).filter(n=>this.exportScope.currentItem===0||this.exportScope.currentItem===1&&ablHasUsableTime(n.result,this.night.minimumUsableMinutes)||this.exportScope.currentItem===2&&n.selected).map(n=>n.result);
    this.updateExport=()=>{let enabled=this.exportRows().length>0;if(this.exportButton)this.exportButton.enabled=enabled;if(this.planListButton)this.planListButton.enabled=enabled;};
    this.chooseExportPath=()=>{let d=new SaveFileDialog;d.caption='Export observing plan';d.filters=[['CSV table','*.csv'],['PDF document','*.pdf']];d.defaultExtension='csv';d.overwritePrompt=true;d.initialPath='Observing-plan-'+this.date+'.csv';return manager.executeDialog(d)?d.filePath:'';};
    this.exportPlan=()=>{
-      this.refreshInput();let rows=this.exportRows();if(!rows.length)return false;let night=this.night,key=this.completedKey,path=this.chooseExportPath();if(!path)return false;
-      this.refreshInput();if(this.completedKey!==key||this.night!==night)throw Error('The plan changed. Wait for recalculation before exporting.');
-      ablBusy(manager,'Exporting observing plan…',()=>ablExportPlan(night,rows,path,this.exportScope.itemText(this.exportScope.currentItem)),false);this.detail.text='Plan exported: '+path;return true;
+      this.refreshInput();let rows=this.exportRows();if(!rows.length)return false;let night=this.night,key=this.completedKey,minimum=night.minimumUsableMinutes,path=this.chooseExportPath();if(!path)return false;
+      this.refreshInput();if(this.completedKey!==key||this.night!==night||night.minimumUsableMinutes!==minimum)throw Error('The plan changed. Review the current results before exporting.');
+      ablBusy(manager,'Exporting observing plan…',()=>ablExportPlan(night,rows,path,this.exportScope.itemText(this.exportScope.currentItem)),false);showMessage('Plan exported: '+path);return true;
    };
-   this.exportButton=ablButton(this,'Export plan…',()=>manager.safe(()=>this.exportPlan()),'Export the chosen results in the visible ranking as CSV or a printable PDF. Exports include site coordinates, the night, limits and all usable windows. Ctrl/Shift-click planning rows for a selection.');this.exportButton.enabled=false;
+   this.exportButton=ablButton(this.actionsGroup,'Export plan…',()=>manager.safe(()=>this.exportPlan()),'Export the chosen results in the visible ranking as CSV or a printable PDF. Exports include site coordinates, the night, limits and all usable windows. Ctrl/Shift-click planning rows for a selection.');this.exportButton.enabled=false;
    this.addPlanToList=()=>{
       this.refreshInput();let ids=this.exportRows().map(r=>r.record.id);if(!ids.length)return false;
       let d=new ABLListTransferDialog(manager,'add',ids);d.destination.currentItem=1;d.destination.onItemSelected();d.nameEdit.text='Observing night '+this.date;
       if(!manager.executeDialog(d))return false;let result=d.transferResult;
       if(result.changed){manager.doc=result.doc;manager.changed();manager.refreshLists();}
-      this.detail.text='Targets added to '+manager.doc.observingLists[result.destinationId].name+'. Save the collection to retain the grouping.';return true;
+      showMessage('Targets added to '+manager.doc.observingLists[result.destinationId].name+'. Save the collection to retain the grouping.');return true;
    };
-   this.planListButton=ablButton(this,'Add to list…',()=>manager.safe(()=>this.addPlanToList()),'Add the chosen planning results to a new or existing observing list. Other memberships and metadata are retained. Save the collection to keep the grouping.');this.planListButton.enabled=false;
-   let siteActions=new HorizontalSizer;siteActions.spacing=8;let siteLabel=new Label(this);siteLabel.text='Site:';let scopeLabel=new Label(this);scopeLabel.text='Results:';siteActions.add(siteLabel);siteActions.add(this.siteSelect);siteActions.addSpacing(16);siteActions.add(scopeLabel);siteActions.add(this.exportScope);siteActions.add(this.exportButton);siteActions.add(this.planListButton);siteActions.addStretch();
-   this.info=new Label(this);this.info.wordWrapping=true;this.info.setFixedHeight(this.logicalPixelsToPhysical(60));
-   this.tree=new TreeBox(this);this.tree.headerVisible=true;this.tree.rootDecoration=false;this.tree.alternateRowColor=true;this.tree.numberOfColumns=8;this.tree.multipleSelection=true;this.tree.onNodeSelectionUpdated=()=>this.updateExport();this.tree.setMinHeight(this.logicalPixelsToPhysical(160));
-   for(let [i,label]of ['Object','Peak in dark','Above minimum','Dark time','Usable','Best window','Moon min','Status'].entries())this.tree.setHeaderText(i,label);
-   this.tree.toolTip='Plans every object currently shown in Table, respecting its list and filters. Usable time also applies the Moon-separation limit when the Moon is above the horizon. Double-click a row to open its Finder chart.';
+   this.planListButton=ablButton(this.actionsGroup,'Add to list…',()=>manager.safe(()=>this.addPlanToList()),'Add the chosen planning results to a new or existing observing list. Other memberships and metadata are retained. Save the collection to keep the grouping.');this.planListButton.enabled=false;
+   const addRow=(group,label,width,...controls)=>{
+      const row=new HorizontalSizer;row.spacing=6;
+      if(label){
+         const caption=new Label(group);caption.text=label;caption.setFixedWidth(width);
+         row.add(caption);
+      }
+      for(const control of controls)row.add(control);
+      row.addStretch();group.sizer.add(row);
+   };
+   const timeWidth=this.font.width('Night of:')+2;
+   const rankWidth=Math.max(...['Rank by:','Then by:','Results:'].map(s=>this.font.width(s)))+2;
+   addRow(this.timeGroup,'Night of:',timeWidth,this.dateEdit,this.dateButton,this.todayButton);
+   addRow(this.timeGroup,'Site:',timeWidth,this.siteSelect);
+   addRow(this.rankGroup,'Rank by:',rankWidth,this.sort);
+   addRow(this.rankGroup,'Then by:',rankWidth,this.thenBy);
+   addRow(this.rankGroup,'Results:',rankWidth,this.exportScope);
+   addRow(this.actionsGroup,'',0,this.exportButton,this.planListButton);
+   addRow(this.actionsGroup,'',0,this.stopButton,this.retryButton);
+   this.timeGroup.sizer.addStretch();this.actionsGroup.sizer.addStretch();
+   this.controlsSection.sizer=new HorizontalSizer;this.controlsSection.sizer.spacing=8;
+   for(const group of [this.timeGroup,this.rankGroup,this.actionsGroup])this.controlsSection.sizer.add(group);
+   this.controlsSection.sizer.addStretch();
+   this.tree=new TreeBox(this);this.tree.headerVisible=true;this.tree.rootDecoration=false;this.tree.alternateRowColor=true;this.tree.multipleSelection=true;this.tree.onNodeSelectionUpdated=()=>this.updateExport();this.tree.setMinHeight(this.logicalPixelsToPhysical(160));
+   const columns=['Object','Peak in dark','Above minimum','Dark time','Usable','Observation start','Observation end','Moon min','Status'];
+   this.tree.numberOfColumns=columns.length;
+   columns.forEach((label,i)=>this.tree.setHeaderText(i,label));
+   this.tree.toolTip='Double-click a row to open its Finder chart.';
    this.graph=new Control(this);this.graph.setMinSize(this.logicalPixelsToPhysical(620),this.logicalPixelsToPhysical(210));this.graph.mouseTracking=true;
-   this.detail=new Label(this);this.detail.wordWrapping=true;this.detail.setFixedHeight(this.logicalPixelsToPhysical(42));
-   this.note=new Label(this);this.note.wordWrapping=true;this.note.text='Times are local to the selected site · Fixed UTC offset: check daylight saving time · Custom horizon applies when enabled · Weather/refraction are not modeled.';
    this.tree.onCurrentNodeUpdated=node=>{if(!this.building){this.selectedId=node?.result?.record.id||'';this.updatePlot();}};
    this.tree.onNodeActivated=node=>{let id=node?.result?.record.id,n=manager.nodes.find(n=>n.record.id===id);if(n)manager.tree.onNodeActivated(n);};
    this.refreshInput=()=>{this.refreshSites();this.setRecords((manager.nodes||[]).map(n=>n.record),manager.selected?.()?.id||'');this.updateExport();};
    this.setRecords=(records,selection)=>{
       this.records=records;
       if(selection!==this.inputSelection){this.inputSelection=selection;this.selectedId=selection;}
-      let key=JSON.stringify([this.date,manager.planningPreferences,records.map(r=>[r.id,r.designation,r.name,ABL.position(r.object)])]);
+      // Changes to the plot range redraw the graph using the existing night.
+      const {plotRange,beforeDuskHours,afterDawnHours,...observingLimits}=manager.planningPreferences;
+      let key=JSON.stringify([this.date,observingLimits,records.map(r=>[r.id,r.designation,r.name,r.band,ABL.position(r.object)])]);
       if(key!==this.key){this.key=key;this.redrawTimer.stop();this.job=null;this.night=null;this.results=[];this.plotResult=null;this.completedKey='';
          this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
-         this.graph.update();this.detail.text='';this.exportButton.enabled=false;this.planListButton.enabled=false;this.retryButton.visible=false;this.stopButton.visible=false;
-         if(manager.planningPreferences.latitude===null||manager.planningPreferences.longitude===null){this.pendingRedraw=false;this.info.text=manager.observingSites.warning||'Set your observing site in Site and limits… to plan the objects shown in Table.';return;}
-         if(!ABL.validDate(this.date)){this.pendingRedraw=false;this.info.text='Enter the evening date as YYYY-MM-DD.';return;}
-         if(!records.length){this.pendingRedraw=false;this.info.text='No objects shown in Table. Adjust its list or filters to plan targets.';return;}
-         this.pendingRedraw=true;this.info.text='Ready to plan '+records.length+' objects shown in Table.';this.queueRedraw();
-      }else if(this.completedKey===this.key)this.selectCurrent();
+         this.graph.update();this.exportButton.enabled=false;this.planListButton.enabled=false;this.retryButton.visible=false;this.stopButton.visible=false;
+         if(manager.planningPreferences.latitude===null||manager.planningPreferences.longitude===null){this.pendingRedraw=false;showPlanStatus(manager.observingSites.warning||'Set your observing site in Configuration → Observing to plan the objects shown in Table.');return;}
+         if(!ABL.validDate(this.date)){this.pendingRedraw=false;showPlanStatus('Enter the evening date as YYYY-MM-DD.');return;}
+         if(!records.length){this.pendingRedraw=false;showPlanStatus('No objects shown in Table. Adjust its list or filters to plan targets.');return;}
+         this.pendingRedraw=true;showPlanStatus('Ready to plan '+records.length+' objects shown in Table.');this.queueRedraw();
+      }else if(this.completedKey===this.key){
+         if(this.displayedUsableOnly!==manager.previewPreferences.planningUsableOnly||this.night.minimumUsableMinutes!==manager.previewPreferences.minimumUsableMinutes)this.rebuild();
+         else this.selectCurrent();
+      }
    };
    this.queueRedraw=()=>{this.redrawTimer.stop();if(this.pendingRedraw&&!this.disposed&&manager.tabs.currentPageIndex===3&&manager.visible)this.redrawTimer.start();};
    this.activate=()=>{this.refreshInput();this.queueRedraw();};
@@ -3520,9 +3658,9 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
          let job=this.job,deadline=Date.now()+budget;this.stopButton.visible=true;
          while(job.night.times.length<job.night.count&&Date.now()<deadline)ablPlanningSample(job.night);
          while(job.night.times.length===job.night.count&&job.index<this.records.length&&Date.now()<deadline){let result=ablPlanningTarget(job.night,this.records[job.index++]);delete result.curve;job.results.push(result);}
-         this.info.text=job.night.times.length<job.night.count?'Calculating local Sun and Moon positions…':'Planning '+job.index+' / '+this.records.length+' objects…';
+         showPlanStatus(job.night.times.length<job.night.count?'Calculating local Sun and Moon positions…':'Planning '+job.index+' / '+this.records.length+' objects…');
          if(job.index===this.records.length){this.night=job.night;this.results=job.results;this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;this.rebuild();}
-      }catch(e){this.job=null;this.night=null;this.results=[];this.plotResult=null;this.tree.clear();this.graph.update();this.pendingRedraw=false;this.stopButton.visible=false;this.retryButton.visible=true;this.info.text='Planning unavailable: '+String(e.message||e);}
+      }catch(e){this.job=null;this.night=null;this.completedKey='';this.results=[];this.nodes=[];this.plotResult=null;this.tree.clear();this.graph.update();this.pendingRedraw=false;this.stopButton.visible=false;this.retryButton.visible=true;showPlanStatus('Planning unavailable: '+String(e.message||e));}
    };
    this.redrawTimer=new Timer(.03,false,this);this.redrawTimer.onTimeout=()=>{
       if(!this.pendingRedraw||this.disposed||!manager.visible||manager.tabs.currentPageIndex!==3)return;
@@ -3534,52 +3672,123 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
       // TreeBox current-node assignment can select the focused row. Restore
       // the exact export selection, including an explicitly empty selection.
       if(node){let selected=new Set(this.nodes.filter(n=>n.selected).map(n=>n.result.record.id));this.building=true;try{this.tree.currentNode=node;for(let n of this.nodes)n.selected=selected.has(n.result.record.id);this.selectedId=node.result.record.id;}finally{this.building=false;}}
+      if(!node)this.selectedId='';
       this.updatePlot();
    };
    this.rebuild=()=>{
-      if(!this.night)return;let p=this.night.preferences,period=this.night.period,rows=this.results.slice(),selected=new Set((this.nodes||[]).filter(n=>n.selected).map(n=>n.result.record.id));
-      rows.sort((a,b)=>(this.sort.currentItem===0?b.usable-a.usable:this.sort.currentItem===1?(b.peak?.value??-Infinity)-(a.peak?.value??-Infinity):0)||a.record.designation.localeCompare(b.record.designation));
+      if(!this.night)return;
+      const minimum=manager.previewPreferences.minimumUsableMinutes;
+      // A different nightly total reclassifies the cached rows, including
+      // those hidden by the filter, without recalculating their windows.
+      if(this.night.minimumUsableMinutes!==minimum){
+         this.night.minimumUsableMinutes=minimum;
+         for(const r of this.results)if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
+      }
+      const usable=this.results.filter(r=>ablHasUsableTime(r,minimum));
+      this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
+      let p=this.night.preferences,period=this.night.period,rows=this.displayedUsableOnly?usable:this.results.slice(),selected=new Set((this.nodes||[]).filter(n=>n.selected).map(n=>n.result.record.id));
+      rows.sort((a,b)=>primary[1](a,b)||secondary[1](a,b)||byName(a,b));
       this.building=true;try{this.tree.clear();this.nodes=[];
          this.tree.setHeaderText(2,p.horizonEnabled?'Clear horizon':'Above '+p.minAltitude+'°');
          for(let r of rows){let n=new TreeBoxNode(this.tree);n.result=r;n.selected=selected.has(r.record.id);
-            let text=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),r.best?ablPlanningRange(r.best,period):'—',r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
+            let text=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),
+               r.best?ablPlanningTime(r.best[0],period):'—',r.best?ablPlanningTime(r.best[1],period):'—',
+               r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
             for(let i=0;i<text.length;++i)n.setText(i,text[i]);
-            n.setToolTip(1,'Highest altitude during the selected darkness.'+(r.peak?' Peak: '+ablPlanningDateTime(r.peak.time,period)+' local time.':''));n.setToolTip(2,'Total clearing the minimum altitude and enabled custom horizon over noon–noon, including daylight.');n.setToolTip(3,'Time clearing the altitude limit and enabled horizon while the Sun is below '+p.sunAltitude+'°, before the Moon limit.');n.setToolTip(4,'Total time meeting altitude, custom horizon, darkness and the optional Moon-separation limit.');n.setToolTip(5,r.windows.map(w=>ablPlanningRange(w,period,true)+' local time').join('\n'));n.setToolTip(6,'Smallest Moon separation during dark time above the altitude limit while the Moon is up, before Moon filtering.');this.nodes.push(n);
+            this.nodes.push(n);
          }
-         for(let i=0;i<8;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
+         for(let i=0;i<columns.length;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
       }finally{this.building=false;}
-      let site=p.siteName||'Observing site',dark=ablPlanningDuration(this.night.darkIntervals),available=rows.filter(r=>r.usable>0).length;
-      this.info.text=site+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+available+' / '+rows.length+' targets usable · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+(p.moonSeparation?'Moon separation ≥ '+p.moonSeparation+'° when up':'Moon separation unrestricted');
+      let site=p.siteName||'Observing site',dark=ablPlanningDuration(this.night.darkIntervals);
+      planText=site+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+usable.length+' / '+this.results.length+' targets usable (minimum '+ablMinimumTimeText(minimum)+') · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+ablSiteMoonLimitText(p);
       this.selectCurrent();this.updateExport();
    };
    this.updatePlot=()=>{
       let row=this.results.find(r=>r.record.id===this.selectedId);
       this.plotResult=row&&!row.missing&&this.night?ablPlanningTarget(this.night,row.record):null;
-      this.detailText=row?row.missing?'Enter coordinates in Edit object to plan this target.':row.windows.length?'Usable (local): '+row.windows.map(w=>ablPlanningRange(w,this.night.period)).join(' · '):row.status+'. Try another night or adjust the observing limits.':'Select a planning row to inspect its altitude curve.';
-      this.detail.text=this.detailText;this.graph.update();
+      targetText=row?row.missing?'Enter coordinates in Edit object to plan this target.':row.windows.length?'Usable (local): '+row.windows.map(w=>ablPlanningRange(w,this.night.period,true)).join(' · '):row.status+'. Try another night or adjust the observing limits.':'Select a planning row to inspect its altitude curve.';
+      if(row)targetText=ablTargetMoonLimitText(row)+' · '+targetText;
+      else if(this.night&&manager.previewPreferences.planningUsableOnly&&!this.nodes.length){
+         const minimum=this.night.minimumUsableMinutes;
+         targetText=(minimum?'No target has at least '+ablMinimumTimeText(minimum)+' of usable time.':'No target has any usable time.')+' Clear “Usable targets only” in Configuration → Observing to see each target’s status.';
+      }
+      showMessage();this.graph.update();
    };
-   this.graph.onMouseMove=x=>{if(!this.plotResult||!this.night)return;let left=this.logicalPixelsToPhysical(48),width=this.graph.width-left-this.logicalPixelsToPhysical(16),index=Math.max(0,Math.min(this.night.count-1,Math.round((x-left)/width*(this.night.count-1))));
-      this.detail.text=ablPlanningDateTime(this.night.times[index],this.night.period)+' local · Target '+this.plotResult.curve.altitudes[index].toFixed(1)+'° · Moon '+this.night.moonAltitudes[index].toFixed(1)+'° · Sun '+this.night.sunAltitudes[index].toFixed(1)+'° · Moon separation '+this.plotResult.curve.separations[index].toFixed(1)+'°'+(this.night.preferences.horizonEnabled?' · Az '+this.plotResult.curve.azimuths[index].toFixed(1)+'° · Horizon '+ablHorizonAltitude(this.night.preferences.horizonPoints,this.plotResult.curve.azimuths[index]).toFixed(1)+'°':'');};
-   this.graph.onLeave=()=>{this.detail.text=this.detailText||'';};
+   const minAltitudeShown=-30,maxAltitudeShown=90;
+   this.plotFrame=()=>{
+      const scale=v=>this.logicalPixelsToPhysical(v),left=scale(48),top=scale(44);
+      const width=Math.max(1,this.graph.width-left-scale(16)),height=this.graph.height-top-scale(50);
+      const range=ablPlanningPlotRange(this.night,manager.planningPreferences),duration=range.end-range.start;
+      return {left,top,width,height,range,x:t=>left+(t-range.start)/duration*width,
+         y:alt=>top+(maxAltitudeShown-alt)/(maxAltitudeShown-minAltitudeShown)*height,
+         timeAt:px=>range.start+Math.max(0,Math.min(1,(px-left)/width))*duration};
+   };
+   this.graph.onMouseMove=px=>{
+      if(!this.plotResult||!this.night)return;
+      const night=this.night,curve=this.plotResult.curve,time=this.plotFrame().timeAt(px);
+      const degrees=values=>ablPlanningAt(values,time,night).toFixed(1)+'°';
+      const containsTime=([start,end])=>start<=time&&time<=end;
+      let status='Outside darkness';
+      if(night.darkIntervals.some(containsTime))
+         status=this.plotResult.windows.some(containsTime)?'Dark · target usable':'Dark · target unusable';
+      let detail=ablPlanningDateTime(time,night.period)+' local · '+status+' · Target '+degrees(curve.altitudes)+' · Moon '+degrees(night.moonAltitudes)+' · Sun '+degrees(night.sunAltitudes)+' · Moon separation '+degrees(curve.separations);
+      if(night.preferences.horizonEnabled){
+         const index=(time-night.period.start)/night.step,i=Math.floor(index),a=curve.azimuths[i],b=curve.azimuths[i+1]??a;
+         const az=(a+(index-i)*(((b-a+540)%360)-180)+360)%360;
+         detail+=' · Az '+az.toFixed(1)+'° · Horizon '+ablHorizonAltitude(night.preferences.horizonPoints,az).toFixed(1)+'°';
+      }
+      showMessage(detail);
+   };
+   this.graph.onLeave=()=>showMessage();
    this.graph.onPaint=()=>{
       let g=new Graphics(this.graph);try{
          g.fillRect(this.graph.boundsRect,new Brush(0xff171d25));g.font=this.font;g.pen=new Pen(0xffcbd3dc);
          if(!this.night||!this.plotResult){g.drawText(this.logicalPixelsToPhysical(18),this.logicalPixelsToPhysical(30),'Select a target with coordinates to display its night.');return;}
-         let night=this.night,r=this.plotResult,left=this.logicalPixelsToPhysical(48),top=this.logicalPixelsToPhysical(30),width=this.graph.width-left-this.logicalPixelsToPhysical(16),height=this.graph.height-top-this.logicalPixelsToPhysical(50);
-         const x=t=>left+(t-night.period.start)/86400000*width,y=alt=>top+(90-alt)/180*height;
-         for(let span of night.darkIntervals)g.fillRect(x(span[0]),top,x(span[1]),top+height,new Brush(0xff222f45));
-         for(let span of r.windows)g.fillRect(x(span[0]),top,x(span[1]),top+height,new Brush(0xff214739));
-         for(let altitude=-90;altitude<=90;altitude+=30){g.pen=new Pen(0xff405063);g.drawLine(left,y(altitude),left+width,y(altitude));g.pen=new Pen(0xffaebaca);g.drawText(this.logicalPixelsToPhysical(4),y(altitude)+4,altitude+'°');}
-         ablDrawPlanningTimeAxis(g,night.period,{left,top,width,height},v=>this.logicalPixelsToPhysical(v));
+         const night=this.night,r=this.plotResult,plot=this.plotFrame();
+         const {left,top,width,height,range,x,y}=plot,scale=v=>this.logicalPixelsToPhysical(v);
+         ablDrawPlanningBands(g,plot,night.darkIntervals,r.windows,scale);
+         for(let altitude=minAltitudeShown;altitude<=maxAltitudeShown;altitude+=30){g.pen=new Pen(0xff405063);g.drawLine(left,y(altitude),left+width,y(altitude));g.pen=new Pen(0xffaebaca);g.drawText(this.logicalPixelsToPhysical(4),y(altitude)+4,altitude+'°');}
+         ablDrawPlanningTimeAxis(g,night.period,plot,scale,range);
          g.pen=new Pen(0xff83b58d);for(let px=left;px<left+width;px+=12)g.drawLine(px,y(night.preferences.minAltitude),Math.min(left+width,px+6),y(night.preferences.minAltitude));
-         g.antialiasing=true;
-         if(night.preferences.horizonEnabled){g.pen=new Pen(0xffe6a861,2);for(let i=1;i<r.curve.horizonTimes.length;++i)g.drawLine(x(r.curve.horizonTimes[i-1]),y(r.curve.horizonLimits[i-1]),x(r.curve.horizonTimes[i]),y(r.curve.horizonLimits[i]));}
-         for(let [values,color]of [[night.sunAltitudes,0xffa7876b],[night.moonAltitudes,0xffe8c465],[r.curve.altitudes,0xff72c8ff]]){g.pen=new Pen(color,2);for(let i=1;i<values.length;++i)g.drawLine(x(night.times[i-1]),y(values[i-1]),x(night.times[i]),y(values[i]));}
-         let captions=(night.preferences.horizonEnabled?[['Horizon/min',0xffe6a861]]:[]).concat([['Target',0xff72c8ff],['Moon',0xffe8c465],['Sun',0xffa7876b],['Green: usable',0xff8ed4a2]]),px=left;
-         for(let [caption,color]of captions){g.pen=new Pen(color);g.drawText(px,this.logicalPixelsToPhysical(20),caption);px+=this.font.width(caption)+this.logicalPixelsToPhysical(20);}
+         g.pushState();
+         g.clipRect=new Rect(left,top,left+width+1,top+height+1);
+         g.clipping=true;g.antialiasing=true;
+         const drawCurve=(times,values,color)=>{
+            g.pen=new Pen(color,2);
+            for(let i=1;i<times.length;++i){
+               const t0=times[i-1],t1=times[i];
+               if(t1<=range.start)continue;
+               if(t0>=range.end)break;
+               if(t1<=t0)continue;
+               const a=Math.max(t0,range.start),b=Math.min(t1,range.end);
+               const slope=(values[i]-values[i-1])/(t1-t0);
+               g.drawLine(x(a),y(values[i-1]+(a-t0)*slope),x(b),y(values[i-1]+(b-t0)*slope));
+            }
+         };
+         if(night.preferences.horizonEnabled)drawCurve(r.curve.horizonTimes,r.curve.horizonLimits,0xffe6a861);
+         drawCurve(night.times,night.sunAltitudes,0xffa7876b);
+         drawCurve(night.times,night.moonAltitudes,0xffe8c465);
+         drawCurve(night.times,r.curve.altitudes,0xff72c8ff);
+         g.popState();
+         const captions=night.preferences.horizonEnabled?[['Horizon/min',0xffe6a861]]:[];
+         captions.push(['Target',0xff72c8ff],['Moon',0xffe8c465],['Sun',0xffa7876b],
+            ['Darkness (Sun ≤ '+night.preferences.sunAltitude+'°)',0xffb2c5e1,ABL_NIGHT_SHADING.darkness],
+            ['Unusable',0xffe2a8b9,ABL_NIGHT_SHADING.unusable],
+            ['Usable',0xff8ed4a2,ABL_NIGHT_SHADING.usable]);
+         const baseline=scale(20);
+         let px=left;
+         for(const [caption,color,fill] of captions){
+            if(fill!==undefined){
+               g.fillRect(px,baseline-scale(10),px+scale(12),baseline,new Brush(color));
+               g.fillRect(px+scale(1),baseline-scale(9),px+scale(11),baseline-scale(1),new Brush(fill));
+               px+=scale(17);
+            }
+            g.pen=new Pen(color);g.drawText(px,baseline,caption);
+            px+=this.font.width(caption)+scale(16);
+         }
       }finally{g.end();}
    };
-   this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(controls);this.sizer.add(siteActions);this.sizer.add(this.info);this.sizer.add(this.tree,50);this.sizer.add(this.graph,50);this.sizer.add(this.detail);this.sizer.add(this.note);
+   this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(this.controlsBar);this.sizer.add(this.controlsSection);this.sizer.add(this.tree,50);this.sizer.add(this.graph,50);this.sizer.add(this.message);
    this.dispose=()=>{this.disposed=true;this.pendingRedraw=false;this.redrawTimer.stop();this.job=null;this.night=null;this.results=[];this.plotResult=null;};
 }}
 
@@ -3749,6 +3958,16 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    for(let control of [this.skyCoverage,this.insetField,this.milkyWayStrength,this.starSize])control.onValueUpdated=()=>this.syncChartPreset();
    for(let control of [this.styleSelect,this.labelDensity,this.projection,this.starDensity,this.outlineLevel])control.onItemSelected=()=>this.syncChartPreset();
    this.refreshChartPresets();this.updateFraming();
+   this.usableOnly=new CheckBox(this.observingTab);
+   this.usableOnly.text='Usable targets only';
+   this.usableOnly.toolTip='Show targets that meet Minimum usable time. This filter applies to all observing sites and collections.';
+   this.usableOnly.checked=manager.previewPreferences.planningUsableOnly;
+   const minimumLabel=new Label(this.observingTab);minimumLabel.text='Minimum usable time (min):';
+   this.minimumUsableTime=new SpinBox(this.observingTab);this.minimumUsableTime.setRange(0,1440);
+   this.minimumUsableTime.value=manager.previewPreferences.minimumUsableMinutes;
+   this.minimumUsableTime.setFixedWidth(this.logicalPixelsToPhysical(75));
+   minimumLabel.toolTip=this.minimumUsableTime.toolTip='Total usable minutes across all windows for one target in one night. Zero accepts any positive duration. Applies to the usable count, filter and Usable rows actions.';
+   const usableSettings=new HorizontalSizer;usableSettings.spacing=6;usableSettings.add(this.usableOnly);usableSettings.addSpacing(12);usableSettings.add(minimumLabel);usableSettings.add(this.minimumUsableTime);usableSettings.addStretch();
    this.observingSites=ABL.copy(manager.observingSites);delete this.observingSites.warning;
    this.activeSite=this.observingSites.active;this.loadingSite=false;
    const observing=this.observingSites.sites[this.activeSite];
@@ -3764,9 +3983,11 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.siteHeight.toolTip='Geodetic height above the reference ellipsoid. Zero is sufficient for ordinary planning if unknown.';
    this.utcOffset=number(this.siteGroup,'UTC offset (hours):',-12,14,0,2);
    this.utcOffset.toolTip='Fixed offset for the selected night, including daylight saving time. No automatic timezone or daylight-saving conversion is performed.';
-   this.minimumAltitude=number(this.limitGroup,'Minimum altitude (°):',0,90,30,1);
-   this.minimumMoon=number(this.limitGroup,'Moon separation (°):',0,180,0,1);
-   this.minimumMoon.toolTip='Zero disables this restriction. It applies while the Moon is above the geometric horizon, even if a local obstruction hides it: obstructions do not remove moonlight from the sky.';
+   this.minimumAltitude=number(this.limitGroup,'Minimum altitude (°):',0,90,observing.minAltitude,1);
+   this.minimumAltitude.toolTip='Minimum height of the target’s center above the geometric horizon (0° at the horizon, 90° overhead). Imaging time counts only while the target clears this angle and any higher custom horizon in its direction.';
+   this.minimumAltitude.label.toolTip=this.minimumAltitude.edit.toolTip=this.minimumAltitude.toolTip;
+   this.minimumMoon=number(this.limitGroup,'Default Moon limit (°):',0,180,0,1);
+   this.minimumMoon.toolTip='Minimum target-to-Moon separation while the Moon is above the geometric horizon. Unclassified targets always use this value. Zero disables the restriction.';
    this.darkness=new ComboBox(this.limitGroup);this.darkness.values=[-18,-12,-6,0];
    for(let name of ['Astronomical · Sun below −18°','Nautical · Sun below −12°','Civil · Sun below −6°','Sun below horizon'])this.darkness.addItem(name);
    this.darkness.adjustToContents();this.darkness.setFixedWidth();
@@ -3774,7 +3995,42 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    compact(this.siteGroup,'Name:',this.siteName);
    let coordinates=new HorizontalSizer;coordinates.spacing=6;coordinates.add(this.latitude);let lonLabel=new Label(this.siteGroup);lonLabel.text='Longitude (°E):';coordinates.add(lonLabel);coordinates.add(this.longitude);coordinates.addStretch();this.siteGroup.sizer.add(ablRow(this.siteGroup,'Latitude (°N):',coordinates));
    this.siteGroup.sizer.add(this.siteHeight);this.siteGroup.sizer.add(this.utcOffset);
-   this.limitGroup.sizer.add(this.minimumAltitude);compact(this.limitGroup,'Darkness:',this.darkness);this.limitGroup.sizer.add(this.minimumMoon);this.limitGroup.sizer.addStretch();
+   this.limitGroup.sizer.add(this.minimumAltitude);compact(this.limitGroup,'Darkness:',this.darkness);this.limitGroup.sizer.add(this.minimumMoon);
+   this.moonBandControls={};
+   for(const band of ['broadband','narrowband']){
+      const edit=number(this.limitGroup,ABL.BAND_LABELS[band]+' (°):',0,180,0,1);
+      const inherit=new CheckBox(this.limitGroup);
+      inherit.text='Use default';
+      inherit.toolTip='Use this site’s default Moon limit. Clear to set a separate angle for '+band+' targets, including zero to disable the limit.';
+      edit.toolTip=inherit.toolTip;
+      const update=()=>{
+         edit.edit.enabled=!inherit.checked;
+         if(inherit.checked)edit.setValue(this.minimumMoon.value);
+      };
+      inherit.onCheck=update;
+      this.moonBandControls[band]={edit,inherit,update};
+      const row=new HorizontalSizer;
+      row.spacing=6;row.add(edit);row.add(inherit);row.addStretch();this.limitGroup.sizer.add(row);
+   }
+   this.minimumMoon.onValueUpdated=()=>{for(const control of Object.values(this.moonBandControls))control.update();};
+   this.limitGroup.sizer.addStretch();
+   this.plotRangeGroup=ablGroup(this.observingTab,'Observing plot');
+   this.plotRange=new ComboBox(this.plotRangeGroup);
+   this.plotRange.addItem('Dusk to dawn');this.plotRange.addItem('Full day (noon to noon)');
+   this.plotRange.adjustToContents();this.plotRange.setFixedWidth();
+   this.plotRange.toolTip='Dusk and dawn use the Darkness limit above. The full day is shown when there is no darkness or darkness lasts all day.';
+   this.beforeDusk=number(this.plotRangeGroup,'Before dusk (h):',0,12,1,2);
+   this.afterDawn=number(this.plotRangeGroup,'After dawn (h):',0,12,1,2);
+   this.updatePlotMargins=()=>{
+      this.beforeDusk.enabled=this.afterDawn.enabled=this.plotRange.currentItem===0;
+   };
+   this.plotRange.onItemSelected=this.updatePlotMargins;
+   let plotControls=new HorizontalSizer;plotControls.spacing=8;plotControls.add(this.plotRange);
+   for(const edit of [this.beforeDusk,this.afterDawn]){
+      edit.label.setFixedWidth(this.logicalPixelsToPhysical(105));
+      edit.edit.setFixedWidth(this.logicalPixelsToPhysical(55));plotControls.add(edit);
+   }
+   plotControls.addStretch();this.plotRangeGroup.sizer.add(plotControls);
    this.horizonGroup=ablGroup(this.observingTab,'Custom horizon');this.horizonEnabled=new CheckBox(this.horizonGroup);this.horizonEnabled.text='Use this site’s horizon';
    this.horizonEnabled.toolTip='The target must clear both this profile and Minimum altitude. The profile wraps through north; it does not alter twilight or Moon-up calculations.';
    this.horizonText=new TextBox(this.horizonGroup);this.horizonText.readOnly=false;this.horizonText.setFixedSize(this.logicalPixelsToPhysical(330),this.logicalPixelsToPhysical(130));
@@ -3812,11 +4068,22 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    let importControls=new HorizontalSizer;importControls.spacing=8;let formatLabel=new Label(this.horizonGroup);formatLabel.text='Import format:';importControls.add(formatLabel);importControls.add(this.horizonMode);importControls.add(this.horizonRotation);importControls.add(this.importHorizonButton);importControls.addStretch();
    let horizonEditor=new HorizontalSizer;horizonEditor.spacing=10;horizonEditor.add(this.horizonText);horizonEditor.add(this.horizonGraph);horizonEditor.addStretch();
    this.horizonGroup.sizer.add(horizonControls);this.horizonGroup.sizer.add(importControls);this.horizonGroup.sizer.add(horizonEditor);this.horizonGroup.sizer.add(this.horizonStatus);
-   this.planningValues=()=>ablValidatePlanningPreferences({siteName:this.siteName.text.trim(),latitude:this.latitude.text.trim()?Number(this.latitude.text):null,longitude:this.longitude.text.trim()?Number(this.longitude.text):null,height:this.siteHeight.value,utcOffset:this.utcOffset.value,minAltitude:this.minimumAltitude.value,sunAltitude:this.darkness.values[this.darkness.currentItem],moonSeparation:this.minimumMoon.value,horizonEnabled:this.horizonEnabled.checked,horizonSource:this.horizonSource,horizonPoints:ablParseHorizon(this.horizonText.text)});
+   const bandValue=band=>{const {edit,inherit}=this.moonBandControls[band];return inherit.checked?null:edit.value;};
+   this.planningValues=()=>ablValidatePlanningPreferences({siteName:this.siteName.text.trim(),latitude:this.latitude.text.trim()?Number(this.latitude.text):null,longitude:this.longitude.text.trim()?Number(this.longitude.text):null,height:this.siteHeight.value,utcOffset:this.utcOffset.value,minAltitude:this.minimumAltitude.value,sunAltitude:this.darkness.values[this.darkness.currentItem],moonSeparation:this.minimumMoon.value,
+      broadbandMoonSeparation:bandValue('broadband'),narrowbandMoonSeparation:bandValue('narrowband'),
+      plotRange:this.plotRange.currentItem===1?'full':'night',beforeDuskHours:this.beforeDusk.value,afterDawnHours:this.afterDawn.value,
+      horizonEnabled:this.horizonEnabled.checked,horizonSource:this.horizonSource,horizonPoints:ablParseHorizon(this.horizonText.text)});
    this.commitSiteDraft=()=>{let draft=ABL.copy(this.observingSites);draft.sites[this.activeSite]=this.planningValues();draft.active=this.activeSite;this.observingSites=ablValidateObservingSites(draft);};
    this.refreshSites=()=>{this.siteSelect.clear();for(let site of this.observingSites.sites)this.siteSelect.addItem(site.siteName);this.siteSelect.currentItem=this.activeSite;this.deleteSiteButton.enabled=this.observingSites.sites.length>1;};
    this.loadSite=index=>{this.activeSite=index;this.observingSites.active=index;let p=this.observingSites.sites[index];this.loadingSite=true;try{
       this.siteName.text=p.siteName;this.latitude.text=p.latitude===null?'':String(p.latitude);this.longitude.text=p.longitude===null?'':String(p.longitude);this.siteHeight.setValue(p.height);this.utcOffset.setValue(p.utcOffset);this.minimumAltitude.setValue(p.minAltitude);this.minimumMoon.setValue(p.moonSeparation);this.darkness.currentItem=this.darkness.values.indexOf(p.sunAltitude);
+      for(const [band,control] of Object.entries(this.moonBandControls)){
+         control.inherit.checked=p[band+'MoonSeparation']==null;
+         control.edit.setValue(ablPlanningMoonLimit(p,band));
+         control.update();
+      }
+      this.plotRange.currentItem=p.plotRange==='full'?1:0;
+      this.beforeDusk.setValue(p.beforeDuskHours);this.afterDawn.setValue(p.afterDawnHours);this.updatePlotMargins();
       this.horizonText.text=ablHorizonText(p.horizonPoints);this.horizonEnabled.checked=p.horizonEnabled;this.horizonSource=p.horizonSource;
    }finally{this.loadingSite=false;}this.refreshSites();this.updateHorizon();};
    this.siteSelect.onItemSelected=index=>{if(this.loadingSite||index===this.activeSite)return;try{this.commitSiteDraft();this.loadSite(index);}catch(e){this.siteSelect.currentItem=this.activeSite;manager.error(e);}};
@@ -3837,7 +4104,7 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.observingHint.text=manager.observingSites.warning||'Apply saves all site profiles and selects the displayed site. Cancel discards changes to every profile. Horizons are stored as points, so the imported file is not needed afterwards. Check the fixed UTC offset for daylight saving time; weather and refraction are not modeled.';
    this.loadSite(this.activeSite);
 
-   this.values=()=>{this.commitSiteDraft();return Object.assign(this.previewValues(),{observingSites:ABL.copy(this.observingSites),planning:this.planningValues(),details:this.detailsEditor.values(),chartPresets:ABL.copy(this.chartPresets),activeChartPreset:this.activeChartPreset,
+   this.values=()=>{this.commitSiteDraft();return Object.assign(this.previewValues(),{planningUsableOnly:this.usableOnly.checked,minimumUsableMinutes:this.minimumUsableTime.value,observingSites:ABL.copy(this.observingSites),planning:this.planningValues(),details:this.detailsEditor.values(),chartPresets:ABL.copy(this.chartPresets),activeChartPreset:this.activeChartPreset,
       rememberCollection:this.rememberCollection.checked,contourPath:this.outlinePath,outlineLevel:this.outlineLevel.currentItem,constellationMonths:ABL.copy(ABL.config(this.doc).constellationMonths)});};
    this.applyButton=ablButton(this,'Apply',()=>{try{manager.validateConfiguration(this.values());this.ok();}catch(e){manager.error(e);}});this.applyButton.defaultButton=true;
    this.cancelButton=ablButton(this,'Cancel',()=>this.cancel());
@@ -3846,7 +4113,7 @@ class ABLConfigurationDialog extends Dialog { constructor(manager){
    this.finderTab.sizer.add(presets);this.finderTab.sizer.add(this.presetHint);this.finderTab.sizer.add(this.finderGroup);this.finderTab.sizer.add(this.detailsEditor);this.finderTab.sizer.add(this.outlineGroup);this.finderTab.sizer.addStretch();
    this.dssTab.sizer.add(this.dssGroup);this.dssTab.sizer.add(this.coverageHint);this.dssTab.sizer.addStretch();
    let months=new HorizontalSizer;months.add(this.monthsButton);months.addStretch();this.monthsGroup.sizer.add(months);this.generalTab.sizer.add(this.startupGroup);this.generalTab.sizer.add(this.monthsGroup);this.generalTab.sizer.addStretch();
-   this.observingTab.sizer.add(sites);this.observingTab.sizer.add(siteSettings);this.observingTab.sizer.add(this.horizonGroup);this.observingTab.sizer.add(this.observingHint);this.observingTab.sizer.addStretch();
+   this.observingTab.sizer.add(usableSettings);this.observingTab.sizer.add(sites);this.observingTab.sizer.add(siteSettings);this.observingTab.sizer.add(this.plotRangeGroup);this.observingTab.sizer.add(this.horizonGroup);this.observingTab.sizer.add(this.observingHint);this.observingTab.sizer.addStretch();
    this.tabs.currentPageIndex=manager.tabs.currentPageIndex===3?3:manager.tabs.currentPageIndex===2?1:0;
    this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=10;this.sizer.add(this.tabs);this.sizer.add(buttons);this.adjustToContents();
 }}
@@ -4548,8 +4815,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
    // row; no constellation parents or expand/collapse controls are created.
    this.tree=new TreeBox(this.tablePage);this.tree.numberOfColumns=12;this.tree.headerVisible=true;this.tree.alternateRowColor=true;this.tree.rootDecoration=false;this.tree.multipleSelection=true;
    for(let [i,t]of ['Select / object','Constellation','Name','Object type','Target band','Apparent size','Filters','Comments','Month','RA (J2000)','Dec (J2000)','Imaging status'].entries())this.tree.setHeaderText(i,t);
-   this.tree.toolTip='Use Ctrl-click to select individual rows or Shift-click to select a range, then Check selected to check those objects for export. Check shown checks every filtered row. Edit object works on the current row and records imaging status and date. Export checks survive filter changes.';
-   this.tree.toolTip+=' Click the sole highlighted row again to deselect it. Double-click still opens its Finder chart. Clicking a checkbox changes only its export check.';
+   this.tree.toolTip='Double-click a row to open its Finder chart.';
    // Leave room for the third sort row and the optional no-results notice
    // at the normal dialog height; the table expands into all spare space.
    this.tree.setMinHeight(210);this.nodes=[];
@@ -4614,7 +4880,7 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
       let sitesChanged=sitesText!==JSON.stringify(ablValidateObservingSites(this.observingSites));
       // Store preferred widths rather than the current target's fitted field.
       // Normalize property order so an unchanged Apply retains the preview.
-      let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss,details:value.details||p.details}));
+      let next=ablLoadPreviewPreferences(JSON.stringify({sky:value.sky,dss:value.dss,details:value.details||p.details,planningUsableOnly:value.planningUsableOnly??this.previewPreferences.planningUsableOnly,minimumUsableMinutes:value.minimumUsableMinutes??this.previewPreferences.minimumUsableMinutes}));
       let sky=p.effectiveSettings(next.sky),dss=q.effectiveSettings(next.dss),details=ABL.copy(next.details);
       for(let entry of p.catalogEntries)details.catalogs[entry.key].enabled=entry.available&&details.catalogs[entry.key].enabled;
       details.contours=details.contours&&ablContoursAvailable(state);
@@ -4993,6 +5259,14 @@ class ABLDialog extends Dialog { constructor(doc,path='',options={}){
                page.info.position.y+page.info.height+gutter-page.chart.position.y);
             if(shortfall<=0)break;
             this.setMinHeight(this.height+shortfall);this.ensureLayoutUpdated();
+         }
+         else if(this.tabs.currentPageIndex===3){
+            // Reserve room for the two expandable controls and their shared footer.
+            const page=this.planningPage;
+            const needed=page.tree.position.y+page.tree.minHeight+page.graph.minHeight+
+               page.message.height+2*page.sizer.spacing+page.sizer.margin;
+            this.setMinHeight(Math.max(this.minHeight,this.height-page.height+needed));
+            this.ensureLayoutUpdated();
          }
       }finally{this.updatingMinimumSize=false;}
    };
