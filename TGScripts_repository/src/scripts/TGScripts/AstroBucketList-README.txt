@@ -2,7 +2,7 @@ Astro Bucket List 0.47.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
-PixInsight 1.9.6 build 1718 or later with V8 and its standard SkyChartGenerator and
+PixInsight 1.9.6 build 1719 or later with V8 and its standard SkyChartGenerator and
 AnnotateImage libraries. Use the documentation button for the full guide.
 
 OBSERVING NIGHT

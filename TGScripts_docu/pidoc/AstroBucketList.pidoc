@@ -4,11 +4,11 @@
 \brief{Maintain astronomical imaging lists by constellation and month, with persistent imaging status, local-catalog sky charts, observing-site profiles, custom horizons and observing-plan export. User guide for version 0.47.0.}
 
 \description{
-Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.6 build 1718 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
+Astro Bucket List maintains Stellarium observing lists inside PixInsight 1.9.6 build 1719 or later using the V8 JavaScript runtime. It displays objects in a flat table with their IAU constellation, uses configurable planning months, and records which objects you have imaged. You create your own lists or open and import Stellarium collections.
 }
 
 \section{Start and use the script}{
-Choose Script > TG Scripts > Astro Bucket List. The script requires PixInsight 1.9.6 build 1718 or later with the V8 runtime and its standard SkyChartGenerator and AnnotateImage libraries. The documentation button in the lower-right corner opens this guide.
+Choose Script > TG Scripts > Astro Bucket List. The script requires PixInsight 1.9.6 build 1719 or later with the V8 runtime and its standard SkyChartGenerator and AnnotateImage libraries. The documentation button in the lower-right corner opens this guide.
 
 By default, a normal launch opens an empty list. No predefined bucket list is loaded. Use Add object to enter targets, New list to create additional lists, Open to load a collection, Import list to bring one saved list into a chosen destination, or Merge lists to retain the list structure of imported files. Open offers to save any unsaved changes before replacing the current collection.
 

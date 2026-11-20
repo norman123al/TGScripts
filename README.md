@@ -37,7 +37,7 @@ To try a newly added script before the next updater release, download or clone t
 
 ### Requirements
 
-- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**; **Subframe Quality Review requires 1.9.6 or later with ImageAnalysis installed**; **Astro Bucket List requires 1.9.6 build 1718 or later**.
+- **PixInsight:** version **1.9.5 or later with the V8 scripting engine**; **Subframe Quality Review requires 1.9.6 or later with ImageAnalysis installed**; **Astro Bucket List requires 1.9.6 build 1719 or later**.
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
