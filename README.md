@@ -131,35 +131,35 @@ Organize imaging targets, explore the sky, and plan **when and what to image**.
 
 Screenshots show **0.47.0**, captured from the running script on **2026-11-20**.
 
-**Target management — filtered Taurus targets**
+**Target management — lists, filters, and imaging records**
 
 ![Astro Bucket List target table with list management, saved views, search, filters, multi-level sorting, and imaging records](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_main_screen.jpg)
 
 **Object details — catalog lookup and imaging records**
 
-![Astro Bucket List object editor for NGC 1555 with catalog lookup, list membership, coordinates, target band, filters, notes, and imaging status](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_object_details.jpg)
+![Astro Bucket List object editor with catalog lookup, list membership, coordinates, target band, filters, notes, and imaging status](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_object_details.jpg)
 
-**Interactive finder chart — NGC 1555 and its surroundings**
+**Interactive finder chart — target surroundings and close-up**
 
-![Astro Bucket List finder chart with a target close-up, Gaia stars, nebula outlines, constellation boundaries, Milky Way shading, and the selected M45 catalog object](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_finder_chart.jpg)
+![Astro Bucket List finder chart with a target close-up, Gaia stars, nebula outlines, constellation boundaries, Milky Way shading, and catalog-object selection](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_finder_chart.jpg)
 
-**Constellation overview — all filtered Taurus targets**
+**Constellation overview — filtered targets**
 
-![Astro Bucket List finder chart with eleven numbered Taurus targets and a matching target key](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_filtered_chart.jpg)
+![Astro Bucket List finder chart with numbered targets and a matching target key](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_filtered_chart.jpg)
 
 **Chart configuration — presets, styles, and catalog layers**
 
 ![Astro Bucket List finder-chart configuration with saved presets, sky coverage, close-up size, projection, chart style, annotations, catalog layers, and nebula outlines](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_chart_configuration.jpg)
 
-**DSS survey — NGC 1555**
+**DSS survey — target preview**
 
-![Astro Bucket List DSS2 Red survey preview of NGC 1555 with a five-arcminute field and target crosshair](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
+![Astro Bucket List DSS2 Red survey preview with adjustable field size and a target crosshair](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
 
-DSS2 Red survey cutout of NGC 1555, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=65.48783333&d=19.53516667&e=J2000&h=5&w=5&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+DSS2 Red survey cutout, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=65.48783333&d=19.53516667&e=J2000&h=5&w=5&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
 
 **Observing night — ranked targets and usable windows**
 
-![Astro Bucket List observing-night planner with ranked targets, usable observing intervals, and target, Sun, Moon, and horizon curves for NGC 1555](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_observing_night.jpg)
+![Astro Bucket List observing-night planner with ranked targets, usable observing intervals, and target, Sun, Moon, and horizon curves](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_observing_night.jpg)
 
 **Observing configuration — sites, horizons, and Moon limits**
 
