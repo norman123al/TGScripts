@@ -1,13 +1,13 @@
-Astro Bucket List 0.46.0
+Astro Bucket List 0.47.0
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
-PixInsight 1.9.6 build 1718 or later with V8 and its standard SkyChartGenerator and
+PixInsight 1.9.6 build 1719 or later with V8 and its standard SkyChartGenerator and
 AnnotateImage libraries. Use the documentation button for the full guide.
 
 OBSERVING NIGHT
-Open Observing night to plan all targets currently shown in Table. Site and
-limits opens Configuration > Observing. Enter latitude (north positive),
+Open Observing night to plan all targets currently shown in Table. Open the
+Configuration gear and select Observing to set up a site. Enter latitude (north positive),
 longitude (east positive), optional height and a fixed UTC offset for the night,
 including daylight saving time. No site is assumed and no location is sent online.
 Named profiles retain independent sites, limits and horizons. New creates a blank
@@ -15,21 +15,43 @@ site; Duplicate copies it; Delete asks for confirmation. Apply saves all profile
 changes; Cancel discards every proposal. The Observing night Site selector
 switches applied profiles and recalculates. Profiles remain local.
 Choose an evening date; the plan covers noon to next noon in the selected site's
-local time. HH:mm axis ticks have no day suffix. The axis labels the evening
-date and the new date at midnight, with a vertical midnight divider. Local time
-and its UTC offset are stated explicitly. Hover and table tooltips show dates.
+local time. The plot defaults to one hour before dusk through one hour after
+dawn, using the site's Darkness setting. Under Configuration > Observing >
+Observing plot, adjust each margin (0–12 h) or choose Full day (noon to noon).
+With no darkness or continuous darkness the plot shows the full day. Local time
+and its UTC offset are stated explicitly. The graph readout shows dates.
 Tonight uses today's date at the configured offset. The offset does not change
 automatically with the date or during a daylight-saving transition night.
-Default limits are altitude >= 30 degrees and Sun <= -18 degrees. Optional Moon
-separation is off at zero and applies only while the Moon is above the horizon.
+New sites start with a minimum target altitude of 0 degrees (the geometric
+horizon) and a darkness limit of Sun <= -18 degrees. Optional Moon
+separation applies while the Moon is above the geometric horizon. Unclassified
+targets use the site default. Broadband and Narrowband inherit it unless you
+clear Use default for that band. A limit of zero disables its Moon restriction.
 Results show peak altitude in darkness, time clearing the altitude threshold and enabled custom horizon,
-dark time before Moon filtering, total usable time, the longest window and the
+dark time before Moon filtering, total usable time, Observation start and
+Observation end for the longest continuous window, and the
 minimum Moon separation while the Moon is up during dark altitude windows.
-Rank by usable time, peak in darkness or name. Select a result for target,
-Sun and Moon altitude curves; green bands show usable intervals. Hover the
-graph for concise values in the bottom message. Double-click a result for Finder.
-Missing coordinates and targets without usable windows remain visible with a
-reason. Date/site/filter changes discard stale results; inactive tabs pause.
+Dark time and Usable match whenever the Moon limit excludes no time for the
+target. The default Moon limit is zero, so both totals initially agree.
+Expand Observing controls for Time and location, Ranking and results, and
+Actions. Rank by usable time, peak in darkness, name, observation start or
+observation end. Then by breaks ties using any of the remaining criteria.
+Time rankings use the longest window, earliest first across midnight.
+The altitude plot spans -30 to +90 degrees and labels local hours as space
+permits. The blue Sky strip above the plot marks the site's dark hours.
+In the plot below, green marks usable time for the selected target. Muted red
+marks dark time lost to altitude, horizon or Moon limits. An unshaded plot
+means the Sun is above the site's darkness limit. The message box below the
+graph combines the night summary with the selected target's usable windows.
+Hover over the graph to read the status and altitudes at a given time.
+Double-click a result to open its Finder chart.
+In Configuration > Observing, Minimum usable time defaults to 60 minutes
+and accepts 0–1440 minutes. All usable windows for a target count toward
+the nightly minimum before rounding. Zero accepts any positive duration.
+The usable count, Usable targets only filter and Usable rows scope for
+export and Add to list share this setting across sites and collections.
+Clear the filter to see all candidates and their status.
+Date/site changes discard stale results; inactive tabs pause.
 Stop cancels an unfinished calculation; Recalculate retries it.
 The planner uses PixInsight's local fundamental ephemerides and documented
 position APIs. Two-minute samples and interpolated threshold crossings provide
@@ -62,12 +84,13 @@ the target center; allow room for large targets near obstructions. Obstructions
 do not change twilight or Moon-up calculations.
 
 EXPORT OBSERVING PLANS
-Export plan offers CSV and A4 landscape PDF. Choose All results, Usable targets
-only or Selected rows. Ctrl/Shift-click planning rows for multiple selection;
+Export plan offers CSV and A4 landscape PDF. Choose All displayed rows, Usable
+rows or Selected rows. Ctrl/Shift-click planning rows for multiple selection;
 Table checkboxes are independent. Export follows the current ranking and stays
 disabled until the plan is complete and its chosen scope is nonempty.
 Reports include site coordinates, evening date, fixed UTC offset, limits,
-horizon state, target names, peak altitude, durations and every usable window.
+horizon state, target names and bands, applied Moon limits, peak altitude,
+durations and every usable window.
 CSV adds J2000 coordinates, horizon source, local ISO timestamps and UTC times.
 It uses UTF-8 and protects formula-like labels for spreadsheet use. PDF wraps
 text and repeats context on each page; the limit is 200 pages. PDF times are
@@ -602,7 +625,7 @@ the CPD interpretation for these live responses requires PTeam clarification.
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.46.0.
+Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.47.0.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
 
 This product is based on software from the PixInsight project, developed

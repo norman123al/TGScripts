@@ -5,10 +5,10 @@
         TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="26965453712fa39e274290fdfcc33ed42bc15e0a" type="script" releaseDate="20261116">
+   <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="abc720c64df2ebf4d68513973050919a9fc05255" type="script" releaseDate="20261120">
          <title>
-            TGScripts - Astro Bucket List 0.46.0
+            TGScripts - Script signatures for PixInsight 1.9.6 build 1719
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,19 +36,7 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.46.0 adds saved observing-site profiles with independent coordinates, UTC offsets, observing limits and custom horizons. Existing site settings are preserved.
-            </p>
-            <p>
-               Edit horizon points or import Stellarium polygonal horizon files. Planning accounts for directional obstructions and displays the horizon along each target’s path.
-            </p>
-            <p>
-               Export all results, usable targets or selected rows as CSV or printable PDF. Add planned targets to new or existing observing lists while retaining metadata and other memberships.
-            </p>
-            <p>
-               Time labels now clearly identify local time. A midnight divider and calendar-date labels replace the “+1” suffix; PDF windows include explicit dates. Documentation and the README have been updated.
-            </p>
-            <p>
-               This update also preserves stored observing-site data during unrelated configuration changes and failed saves, keeps empty row selections when ranking changes, allows horizons with long filenames to be saved, and draws horizon crossings of the minimum altitude correctly.
+               Astro Bucket List 0.47.0 and Subframe Quality Review 0.55.3 have been re-signed for PixInsight 1.9.6 build 1719. The new signatures allow PixInsight to verify both scripts against its updated libraries. The Astro Bucket List installation guide and README now specify PixInsight 1.9.6 build 1719 or later.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -57,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-16T22:35:35.507Z" encoding="Base64">ZNtpvx7Ol+WrF2M0fdBkBKBruzdPVWqynr4X6iBydssLkPRhSaD8lVXWjgJBd9xPvdo0K3/ZZRpo4L/Nr2CuDQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-20T17:27:11.915Z" encoding="Base64">0sQS3cPjlF/4NN9iMWvNIk3iRkgZGii+3wTcoStLU6rSq6Tp9sPrNdlLgfPCrsU0oUYJFCieb25zgQ4PPmW5AA==</Signature>
