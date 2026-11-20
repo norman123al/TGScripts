@@ -5,10 +5,10 @@
         TGScripts - PixInsight scripts provided by Thorsten Glebe.
      </p>
    </description>
-   <platform os="all" arch="noarch" version="1.9.6.1718:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="69f0448f817b0dd70279c603645fe5a8b4ffc91d" type="script" releaseDate="20261119">
+   <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
+      <package fileName="TGScripts_repository.tar.gz" sha1="776c7ca537d3fd5c84e9f877f71376a53b2539a9" type="script" releaseDate="20261120">
          <title>
-            TGScripts - Astro Bucket List 0.47.0
+            TGScripts - Script signatures for PixInsight 1.9.6 build 1719
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,16 +36,7 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.47.0 adds separate Moon-separation limits for broadband and narrowband targets. Each band can inherit the observing site’s default or use its own limit. New sites start with a minimum target altitude of 0°.
-            </p>
-            <p>
-               Observing night now shows targets with at least 60 minutes of usable time by default. Set the minimum from 0 to 1440 minutes across all imaging windows for the night. Zero accepts any positive duration. The usable-target count, filter, exports and list actions use the same minimum.
-            </p>
-            <p>
-               Rank targets by two criteria, including the start and end of the longest usable window. The altitude chart defaults to one hour before dusk through one hour after dawn, with adjustable margins and a full-day option. A blue Sky strip marks site darkness, while green and muted red distinguish usable and blocked time for the selected target.
-            </p>
-            <p>
-               Observing controls now collapse together. A single message box below the chart combines the night summary, target details and hover readout.
+               Astro Bucket List 0.47.0 and Subframe Quality Review 0.55.3 have been re-signed for PixInsight 1.9.6 build 1719. The new signatures allow PixInsight to verify both scripts against its updated libraries.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -54,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-19T22:49:19.470Z" encoding="Base64">cghDYdIr3hhToLiO2eLs1/74AFC2FGW5jWmPJIsY9LUAYatzDCQFQ1ObQ1OM6+FqwTAq4kIOpzzp9cJuFwcdBw==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-20T16:55:02.291Z" encoding="Base64">urdxjR1/Br9nE5jzwhlxGMSYDqwYclz/DoWmyG8db9rL8chqFBP3VYMRpsuGdrCzFwdJRz75ruO/gdDmHilwAA==</Signature>
