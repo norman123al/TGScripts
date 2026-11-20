@@ -61,7 +61,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [TG Field Mosaic](#tg-field-mosaic) | 2.3.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;11&#8209;10 |
 | Compare corners | [TG Corner Mosaic](#tg-corner-mosaic) | 2.3.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;11&#8209;10 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.47.0 | Organizes Stellarium target lists, tracks imaging status, and displays finder charts and DSS images. | 2026&#8209;11&#8209;19 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.47.0 | Organizes Stellarium lists and imaging records, displays finder charts and DSS previews, and plans observing windows with site, horizon, and Moon constraints. | 2026&#8209;11&#8209;19 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [TG Hue Range Mask](#tg-hue-range-mask) | 2.3.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;11&#8209;10 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -82,7 +82,7 @@ Dates use **YYYY-MM-DD** and reflect the latest Git commit touching each script�
 
 ## Script gallery
 
-Short descriptions below cover each script’s purpose and main features; follow the guide links for usage and parameter details. Expand an entry to view its interface. Astro Bucket List screenshots show **0.33.2**, captured on **2026-11-01**; some other examples show earlier releases.
+Short descriptions below cover each script’s purpose and main features; follow the guide links for usage and parameter details. Expand an entry to view its interface. Some screenshots show earlier releases; the Astro Bucket List gallery shows version **0.47.0**.
 
 ### TG Field Mosaic
 
@@ -118,26 +118,52 @@ Combines the **four image corners and an optional center crop** into one inspect
 
 **Version:** 0.47.0 · **Last update:** 2026-11-19
 
-Manage **Stellarium-compatible observing lists**, track imaging status and notes, and find targets with flexible filters and sorting. Look up objects in local catalogs or SIMBAD, explore interactive finder charts and DSS previews, and export charts as SVG/PDF. Plan observing windows with saved sites, custom horizons and Moon limits by target band, and export plans as CSV/PDF.
+Organize imaging targets, explore the sky, and plan **when and what to image**.
+
+- **Target management:** import, merge, and export Stellarium lists; record imaging dates, filters, and notes; look up objects in local catalogs or SIMBAD; find targets with filters, multi-level sorting, and saved views.
+- **Sky exploration:** interactive finder charts with local catalogs, Gaia stars, close-ups, navigation history, chart presets, nebula outlines, and Milky Way shading. Chart individual or filtered targets, preview DSS images, and export charts as SVG/PDF.
+- **Night planning:** saved sites, custom horizons, darkness and altitude limits, and broadband/narrowband Moon limits. Rank observing windows, filter by usable time, create target lists, and export plans as CSV/PDF.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/AstroBucketList.js) · [Guide](TGScripts_repository/doc/scripts/AstroBucketList/AstroBucketList.html) · [PiDoc source](TGScripts_docu/pidoc/AstroBucketList.pidoc)
 
 <details>
-<summary>View Astro Bucket List interface</summary>
+<summary>View Astro Bucket List interfaces</summary>
 
-**Target table**
+Screenshots show **0.47.0**, captured from the running script on **2026-11-20**.
 
-![Astro Bucket List with Andromeda targets, search and filters, multi-level sorting, and imaging notes](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_main_screen.jpg)
+**Target management — filtered Taurus targets**
 
-**Finder chart — filtered targets in Andromeda**
+![Astro Bucket List target table with list management, saved views, search, filters, multi-level sorting, and imaging records](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_main_screen.jpg)
 
-![Astro Bucket List finder chart with numbered targets, constellation outlines, and a target key](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_finder_chart.jpg)
+**Object details — catalog lookup and imaging records**
 
-**DSS survey — NGC 7640**
+![Astro Bucket List object editor for NGC 1555 with catalog lookup, list membership, coordinates, target band, filters, notes, and imaging status](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_object_details.jpg)
 
-![Astro Bucket List DSS2 Red survey preview of NGC 7640](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
+**Interactive finder chart — NGC 1555 and its surroundings**
 
-Survey cutout from DSS2 Red, POSS-II plate A0AM, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=350.527375&d=40.84530556&e=J2000&h=13.68&w=13.68&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+![Astro Bucket List finder chart with a target close-up, Gaia stars, nebula outlines, constellation boundaries, Milky Way shading, and the selected M45 catalog object](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_finder_chart.jpg)
+
+**Constellation overview — all filtered Taurus targets**
+
+![Astro Bucket List finder chart with eleven numbered Taurus targets and a matching target key](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_filtered_chart.jpg)
+
+**Chart configuration — presets, styles, and catalog layers**
+
+![Astro Bucket List finder-chart configuration with saved presets, sky coverage, close-up size, projection, chart style, annotations, catalog layers, and nebula outlines](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_chart_configuration.jpg)
+
+**DSS survey — NGC 1555**
+
+![Astro Bucket List DSS2 Red survey preview of NGC 1555 with a five-arcminute field and target crosshair](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_dss_survey.jpg)
+
+DSS2 Red survey cutout of NGC 1555, digitized and served by STScI/MAST. Copyright © 1993–2003 California Institute of Technology. Astro Bucket List adds the crosshair overlay. The survey cutout is licensed under CC BY-NC-SA 4.0. [Source image](https://archive.stsci.edu/cgi-bin/dss_search?v=poss2ukstu_red&r=65.48783333&d=19.53516667&e=J2000&h=5&w=5&f=gif&c=none) · [MAST data-use policy](https://archive.stsci.edu/publishing/data-use) · [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+**Observing night — ranked targets and usable windows**
+
+![Astro Bucket List observing-night planner with ranked targets, usable observing intervals, and target, Sun, Moon, and horizon curves for NGC 1555](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_observing_night.jpg)
+
+**Observing configuration — sites, horizons, and Moon limits**
+
+![Astro Bucket List observing configuration with saved sites, minimum usable time, altitude and darkness limits, broadband and narrowband Moon limits, and an imported custom horizon](TGScripts_repository/doc/scripts/AstroBucketList/images/AstroBucketList_observing_configuration.jpg)
 
 </details>
 
