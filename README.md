@@ -354,33 +354,11 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 **Version:** 0.59.9 · **Last update:** 2026-11-21
 
-After a completed WeightedBatchPreprocessing (WBPP) run, compare registered lights by filter and exposure, inspect suspect frames against a reference, and test how many to keep before rerunning WBPP. Open **Script → TG Scripts → Subframe Quality Review**. Use FITS or XISF lights from a completed run and a matching uncropped, undrizzled linear master for each filter where available.
+Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run.
 
-#### Set up and measure
-
-- **Load the run.** Choose the WBPP output and original-light folders, or import enabled lights from a loaded WBPP process icon or saved `.xpsm`. The first field or corner measurement prepares the list automatically. **Refresh file list** rechecks it on demand. The script checks camera consistency, matches originals and filter masters, and reads the image scale from master metadata. **New Instance** saves the setup and evaluation settings for reuse. Measurements and pending decisions belong to the open review.
-- **Measure the field and corners.** PixInsight ImageAnalysis measures PSF signal weight, star count, FWHM and eccentricity across the common usable field of the lights and master. Optional center and four-corner measurements reveal uneven sharpness or elongated stars. Set the edge guard, region size and minimum star count. Corner processing adapts to available CPU and memory. You can switch corner scoring on or off and adjust weights using existing measurements.
-- **Compare sky and guiding conditions.** Inspect sky brightness, relative transparency from stellar extinction, cloud extinction in magnitudes when airmass is available, and **Sky quality**, which combines transparency with sky brightness. Choose one of Sky quality (the default), Transparency or Sky brightness for scoring. Cloud extinction is available for comparison. A timed SQM reading calibrates the nearest exposure and sets its Bortle class. Without an SQM reading, choose a Bortle class and use local Gaia photometry on the best default-scoring reference frame. Compatible red and blue groups use the green calibration. Autorun logs supply an autofocus report and event markers. PHD2 logs give the minimum, average and maximum guide error per exposure in arcseconds, plus a combined guiding-quality indicator. Log times are matched to UTC using an inferred or manual offset. Guiding can use available data, require it, or be omitted from scoring.
-
-#### Read the scores and ranks
-
-Score ranges from 0 to 1, with higher values better. Rank 1 is the worst subframe in its group. The master supplies comparison measurements and receives no score or rank.
-
-| Rank | What it compares |
-| --- | --- |
-| R1 | Field quality using your manual weights. |
-| R2 | Field and corner quality using your manual weights. |
-| R3 | Equally weighted indicators with an absolute Pearson correlation of at least 0.70 to PSF signal weight. The reference indicator itself is excluded. If none qualify, R3 is unavailable and selecting it retains the manual Score. |
-| R4 | The average of the available normalized R1, R2 and R3 ranks. |
-
-Sort the Review table in either direction or show only **REVIEW** candidates, including the configured worst fraction and frames with insufficient measurements. Row tooltips explain the main issue and the reason for a REVIEW flag. **Below-mean Quality** reports the percentage of assessed indicators worse than their group mean.
-
-#### Inspect frames and decide what to keep
-
-- **Explore the plots.** Order indicators by value or acquisition time, inspect the group mean and master where applicable, and click a bar to select its frame. Time-ordered image-quality plots can show autofocus events. Grading bands show eccentricity, guiding error against the imaging pixel scale, FWHM for the selected telescope and conditions, and calibrated Bortle sky brightness. FWHM grading supports aperture presets, target altitude, filter wavelength and optional seeing. The correlation plot compares any two available KPIs across subframes and shows Pearson’s coefficient, strength and direction. Swap axes, hover for values, or select a point to locate its Review row. The information buttons explain plot colors, limits and measurements.
-- **Blink and inspect.** Compare a subframe with the filter master or best-scoring eligible light. Inspect the usable field, center or any corner, blink four corners together in a 2 × 2 mosaic, or rotate through subframes in the current Review order, excluding the master. Regions can also rotate on one image or during a reference comparison. Adjust playback speed, step manually, apply a display STF or align preview brightness. Zoom and pan persist across frames and filters, and playback resumes when you return to Blink. The pointer reports coordinates and pixel value. Mark keep/reject in Blink, use the Review checkbox, or press **Space** on a selected row.
-- **Test a rejection cutoff.** **Recommend rejection** builds trial stacks after removing the lowest Review scores first. It proposes the highest mean retained Score among tested counts that meet both limits. Defaults are 95% of the best tested SNR and at least 20 retained frames. Select a PixInsight preview or enter ROI coordinates to measure object SNR for a galaxy or nebula. Without an ROI, the test uses stellar SNR. The other image KPIs use the common field. Switch the comparison curve among Score, FWHM, PSF signal weight, PSF SNR, stars, eccentricity, noise, exposure or effective frame count. Reopen cached results while the review is open, optionally reconsider marked frames, and apply the proposed keep/reject decisions when satisfied. Applying the proposal completes REVIEW for the group. Changes to the measurements or scoring settings require a fresh analysis.
-- **Act on decisions.** A REVIEW flag asks for inspection. To move files, mark specific originals and confirm the move plan. The move verifies each original, preserves its folder structure and writes a journal for selective Undo, including after reopening the script. Select the same rejection folder after a refresh or reopen to keep moved originals out of recommendations. Undo makes restored frames eligible again. With an imported WBPP setup, export a separate reviewed `.xpsm` with rejected lights excluded and calibration frames and processing settings preserved. Moving the originals is optional.
+- **Rank subframes** by sharpness, star shape, sky quality and guiding. Compare four rankings (R1–R4) and explore correlations between measurements.
+- **Blink suspect frames** against the filter master or best-scoring subframe. Inspect the usable field or compare all four corners in a 2 × 2 mosaic.
+- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Select an object ROI to measure its SNR. Move or restore rejected originals and export a reviewed copy of an imported WBPP setup.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [User guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
@@ -408,7 +386,7 @@ Expanded input and evaluation sections show the folder and log settings, observi
 
 ![Expanded WBPP inputs, telescope aperture, seeing, timed SQM reading, manual score weights and guiding settings](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_setup.jpg)
 
-The Review table puts ranks, rejection marks and main issues beside the field measurements. The selected-image panel gives the measurements for each region.
+The Review table shows ranks, rejection marks and main issues. R4 averages the available normalized ranks and includes R2 only when corner scoring is enabled.
 
 ![Subframe Quality Review table with R1–R4 columns, Score, REVIEW flags, issues and selected-image measurements](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_main_screen.jpg)
 
@@ -463,7 +441,7 @@ Score and PSF signal weight show a strong positive correlation in this group (Pe
 <details>
 <summary>Export a reviewed WBPP setup</summary>
 
-The export preview totals the decisions across all imported groups and offers to move the rejected originals.
+Export keeps calibration frames and processing settings. WBPP can choose a new registration or Local Normalization reference if the previous one was rejected. Moving the originals is optional.
 
 ![Reviewed WBPP export preview showing 36 retained and 15 rejected lights across the imported groups](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_export.jpg)
 
