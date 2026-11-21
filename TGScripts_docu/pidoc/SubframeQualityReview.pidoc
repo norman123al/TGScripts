@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.3.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.8.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -16,10 +16,10 @@ With TGScripts installed through the standard PixInsight script installation, ch
 
 \list[ordered,spaced]{
    {Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.}
-   {Choose one input method: leave WBPP output empty and click Import WBPP, or select the WBPP output and original-light folders manually and click Scan files. Both buttons are in Input files and observing conditions, immediately left of the Autofocus times clock symbol. Enter the telescope aperture for FWHM grading, a destination for rejected originals if needed, and an optional acquisition-log folder.}
-   {Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.}
+   {Select the WBPP output and original-light folders, or use Import WBPP to load a saved setup. Enter the telescope aperture for FWHM grading, a destination for rejected originals if needed, and an optional acquisition-log folder.}
    {Set Review worst (\%) and the quality weights as needed.}
-   {Click the magnifier button at the bottom for a field measurement. To include the center and four corners, click the adjacent Measure corners grid button. It reuses existing field results; if these are missing, it measures the field first. Both actions cover all discovered groups and their matched masters.}
+   {Click the magnifier to measure the field, or the adjacent grid to include the center and four corners. The first measurement prepares the file list automatically. An imported setup supplies its selected lights. Both buttons reuse available measurements across all groups and their matched masters.}
+   {Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.}
    {Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.}
    {Optionally click Recommend rejection to compare retained Score and SNR for the selected group. Choose a minimum retained count and, if desired, an object ROI. Analyze does not mark frames; inspect its results before applying the recommendation.}
    {Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.}
@@ -33,7 +33,7 @@ Measurements and pending rejection decisions remain in memory while the dialog i
 }
 
 \section{Import a WBPP setup}{
-With WBPP output empty, click Import WBPP beside Scan files in Input files and observing conditions. Loaded WBPP process icons appear automatically in the WBPP instance selector. Click Open .xpsm to add setups from a saved process-icon file to the same selector. You can open more than one file; loaded icons and entries from other files remain available. Entries identify their source, and hovering over the selector shows the full source path. Opening the same file again refreshes its entries without adding duplicates. Choose the setup for the completed run, check the output folder and number of enabled lights, then click Import.
+With WBPP output empty, click Import WBPP in Input files and observing conditions. Loaded WBPP process icons appear automatically in the WBPP instance selector. Click Open .xpsm to add setups from a saved process-icon file to the same selector. You can open more than one file; loaded icons and entries from other files remain available. Entries identify their source, and hovering over the selector shows the full source path. Opening the same file again refreshes its entries without adding duplicates. Choose the setup for the completed run, check the output folder and number of enabled lights, then click Import.
 
 Import fills WBPP output and Original-light root and populates the review list automatically. It includes only enabled original light frames from the saved setup. Duplicate entries in WBPP groups are counted once. Calibration frames and disabled lights are excluded. The original-light root is the common parent folder of the imported lights.
 
@@ -41,7 +41,7 @@ An instance saved after processing can provide exact registered-image and master
 
 Import replaces the current review, measurements and rejection selections after the files have been checked successfully. Canceling the selector, an invalid setup, or an aborted file check leaves the existing review intact. Aperture, seeing, SQM, log folder, rejection destination and scoring settings are retained. Selected guiding and autofocus logs are refreshed against the imported images, including their inferred UTC offsets. Image measurements are still made with the magnifier and Measure corners buttons.
 
-Scan files is disabled while an imported WBPP list is selected. Import WBPP remains available: choose Saved WBPP setup to recheck that list, or select a loaded icon or .xpsm file to import an updated setup. New Instance retains the imported list with the folder settings; Saved WBPP setup is also available after reopening those settings. Editing WBPP output or Original-light root, or choosing either folder with its folder button, clears the imported list and selects folder scanning. Choosing the same folder also switches to scanning; leaving an unchanged text field does not. When a WBPP output folder has been entered manually, Import WBPP is disabled; clear WBPP output to make Import WBPP available again.
+Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing either image folder or choosing it with its folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
 
 WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.
 }
@@ -61,13 +61,15 @@ The new instance is a snapshot of the decisions when it was created. If you late
 }
 
 \section{Input files and observing conditions}{
-Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. The Autofocus times clock symbol remains aligned with the right edge of the path text fields, with Scan files and Import WBPP immediately to its left. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. The available input action is highlighted when the review list needs to be populated. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.
+Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. The Autofocus times clock symbol remains aligned with the right edge of the path text fields, with Refresh file list and Import WBPP immediately to its left. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.
 
 The Filter / group label aligns with the folder labels, with its selector immediately beside it. The SQM time Choose button shares the right edge of Autofocus times and the path text fields. In Guiding, the threshold message sits directly below Weight, aligned with the text of Guiding in Score.
 
 Click the Input files and observing conditions bar to collapse or expand the telescope, folder, and log controls. It opens expanded by default. The window keeps its size; collapsing a section reduces scrolling or gives the active tab more room. Collapsing it retains the selected paths, settings, measurements, and rejection choices. Saved process instances remember its expanded or collapsed state.
 
-Telescope aperture is at the bottom of this section, aligned with the folder controls. The aperture, seeing, Session SQM, and reading time have evenly spaced control groups; the reading time moves to a second row only when the controls no longer fit together. Enter the imaging telescope's aperture diameter in whole millimeters. It is required for FWHM grading and is initially unset; it is not needed to measure or review the images.
+For FWHM grading, enter the imaging telescope's diameter in whole millimeters in Telescope aperture, or choose a saved diameter from Presets. The field shows the active aperture. Leave it at zero to review images without FWHM grading bands.
+
+To configure your telescopes, open Presets and choose Edit list. Enter the diameters separated by commas, for example 80, 160, 250, then click Save. The sorted list is stored in your PixInsight settings and is available in future reviews. Editing the list keeps the active aperture. A saved process instance remembers the aperture selected for that review.
 
 Zenith seeing is beside Aperture. Enter an optional seeing estimate in arcseconds at the zenith and a reference wavelength of 550 nm. A positive value enables grading relative to the expected FWHM for those conditions. Leave it at zero to use the fixed Good and Medium seeing limits. A forecast is an estimate, not a measurement of the actual conditions; check its reference conditions before entering it. If it already includes the target altitude correction, convert it to zenith seeing first.
 
@@ -91,17 +93,17 @@ XISF and FITS light images are supported. Groups follow the WBPP registered-imag
 
 The master is selected automatically from the master subfolder. Its masterLight filename must identify the group's filter. When several masters share that filter, the script looks for the corresponding WBPP group name. A missing or ambiguous match is reported instead of choosing an arbitrary master. The best scoring subframe remains available as a reference when no master is matched.
 
-The bottom message area shows one shared pixel scale in arcseconds per pixel and the camera name, independent of the selected filter. The scale comes from the master metadata's focal length and effective pixel size; X and Y values appear separately when they differ. Hover over the scale to see the master filenames and calculation inputs. Scan again after changing a master file.
+The bottom message area shows one shared pixel scale in arcseconds per pixel and the camera name, independent of the selected filter. The scale comes from the master metadata's focal length and effective pixel size; X and Y values appear separately when they differ. Hover over the scale to see the master filenames and calculation inputs. Use Refresh file list after changing a master file.
 
 The registered images, their associated originals, and matched masters must identify the same camera. A scan stops if different cameras are found. Missing camera names are reported as not fully verified. The same camera can still have a different pixel scale with different focal lengths or binning. Conflicting master scales or different master and registered-image dimensions are reported instead of assuming one shared scale. If no usable master scale metadata is available, the scale is shown as unavailable.
 
 Original matching uses the source filename and acquisition metadata, including observation time, camera, and exposure. An ambiguous match, missing required metadata, or an original associated with more than one processed image prevents that original from being moved. The Original association column and row details explain the result. Master rows are for comparison and can never be rejected.
 
-Changing the WBPP output or original-light root invalidates the current review; scan and measure the new selection.
+Changing the WBPP output or original-light root clears the current review. Either measurement button loads the new selection and continues with the requested measurement.
 
-Scan files and Import WBPP are alternative input methods. Scan files becomes available when both manual image folders are specified; Import WBPP is available when WBPP output is empty or an imported setup is selected. The available action is highlighted in slate gray, retaining the standard pushbutton appearance, when the review list needs to be populated. The highlight clears after a successful scan or import. Hover over either button for guidance on switching methods. The clock symbol opens Autofocus times; it is available when a log folder is selected. The magnifier, Measure corners and Undo moved originals buttons are enabled only after a successful scan or import. Changing measurement or display settings does not require another file scan.
+Use the Refresh file list arrow beside Import WBPP to inspect matches before measuring or to pick up files added to the same folders. A successful refresh starts a new review, clearing the previous measurements and rejection marks. If the scan fails or is cancelled, the existing review is retained. An imported setup keeps its selected light list. Repeating measurements or changing scoring settings reuses the current list.
 
-The green Move checkmark and blue Undo arrow also require a Rejected originals folder. Both remain disabled while this field is blank. Their tooltips explain what is required. Entering or clearing the folder updates the buttons immediately; no rescan is needed. Move additionally requires at least one manually rejected original. Scanning and measuring remain available with the rejection folder blank.
+The green Move checkmark and blue Undo arrow require a Rejected originals folder. Move also requires a marked original. Undo can prepare the file list and open a move journal before any image measurements have been made.
 }
 
 \section{Quality evaluation controls}{
@@ -149,7 +151,7 @@ Measurements describe the processed, registered images. Their PSF signal weights
 }
 
 \section{Rejection recommendation}{
-After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. This compares trial stacks to suggest how many of the remaining frames to retain. Existing rejected or moved frames and the integrated master are excluded. Each filter and exposure group is evaluated separately. It uses the current Review Score without changing Score, R1–R4 or their weights.
+After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. By default, trial stacks use only subframes without a rejection mark. Select Include rejected subframes to reconsider marked frames alongside the others. The integrated master and frames whose originals have already been moved are always excluded. After refreshing the file list or reopening a WBPP setup, use the same Rejected originals folder. Its move journals identify moved frames and keep them available for Undo. Restoring an original makes its frame eligible again. Each filter and exposure group uses its current Review Score.
 
 Preserve SNR (\%) defaults to 95. The recommendation must retain at least this percentage of the highest SNR measured among the tested stacks. Increase it to favour depth, or decrease it to allow more loss of depth in exchange for a higher mean retained Score. Minimum retained defaults to 20 frames; choose a larger value when you want more statistical support. Seven is the lowest permitted value for the trial's pixel rejection, not a guarantee of reliable rejection under every condition. If too few frames remain, the script does not make a recommendation.
 
@@ -175,7 +177,9 @@ Object SNR is a background-limited aperture estimate above the surrounding sky, 
 
 Trial stacks use fixed PSF signal weights, global photometric normalization, and Winsorized pixel rejection. The test rejection limits are 4 sigma low and 3 sigma high. RGB comparisons use green. Local normalization and drizzle are not reproduced; different integration settings can change the eventual outcome. Temporary crops are reused across tests and removed afterwards. All tests integrate the common usable field, including when Object ROI is enabled. Analyze can take time for large images; Stop cancels it without marking frames.
 
-Mark recommended rejects adds rejection marks for the proposed frames and completes REVIEW for the analyzed group. Its retained frames no longer remain on the REVIEW shortlist. Marking all proposed rejects manually has the same effect. When the recommendation retains every frame, Complete review accepts that decision without rejecting any. Inputs and settings are checked again before applying; if they have changed since Analyze, no decisions are changed and a fresh analysis is required. Existing rejection decisions, measurements and scores are preserved; no files are moved. Inspect the marked frames in Review or Blink; the usual green checkmark opens the separate move plan. Closing without applying leaves decisions unchanged.
+Analyze leaves existing marks in place. Mark recommended rejects adds the proposed rejection marks. If you selected Include rejected subframes and the recommendation keeps a marked frame, the summary shows how many marks would be cleared. Choose Apply keep/reject decisions to clear those marks and add any new rejections in one step. Close the dialog to leave the marks as they are.
+
+Applying the recommendation completes REVIEW for the group. Making all proposed changes manually also completes REVIEW. If all frames are already marked as recommended and the proposal keeps every frame, choose Complete review to confirm it. If inputs or settings change after Analyze, run the analysis again before applying. You can inspect the decisions in Review or Blink and move rejected originals separately with the green checkmark.
 
 Review completion remains valid for the analyzed settings and measurements. Running Analyze again with unchanged inputs creates a new proposal without undoing a completed review. Changing settings, measurements or other keep/reject decisions reopens review; keeping a proposed rejected frame again also reopens it. Moving an already rejected original does not reopen review. The REVIEW-only filter is empty when review is complete.
 
@@ -183,7 +187,7 @@ Closing the recommendation window retains its results and settings for each grou
 
 Results are cleared when their analysis settings or inputs change: for example, the SNR limit, minimum retained count, active ROI, relevant measurement settings, scores, scoring weights or mode, corner/guiding participation, selected sky indicator, measurements, source files, or manual rejection decisions. Plot selection, Review sorting and display settings retain the native results. Coordinates of a disabled ROI do not affect them. Each group keeps its own recommendation settings, so visiting another group does not discard its results.
 
-Closing the main review window or scanning a new session discards the measured session and its cached recommendations. Saved script settings retain the last SNR limit, minimum count, optional ROI and plot selection; they do not save trial results or rejection marks.
+Closing the main review window or scanning a new session discards the measured session and its cached recommendations. Saved script settings retain the SNR limit, minimum count, Include rejected subframes setting, optional ROI and plot selection. Trial results and rejection marks last only for the current session.
 }
 
 \section{Sky brightness}{
@@ -251,13 +255,15 @@ Higher Score means better relative quality. Scores range from 0 to 1 and are dis
    {{Component} {Poor-quality direction} {Default weight}}
    {{PSF signal weight} {Lower} {40}}
    {{Star count} {Lower} {15}}
-   {{Field FWHM} {Higher} {25}}
-   {{Field eccentricity} {Higher} {20}}
+   {{Field FWHM} {Higher} {40}}
+   {{Field eccentricity} {Higher} {40}}
    {{Corner quality} {Higher penalty; included when enabled} {20}}
    {{Selected Sky KPI} {Lower Sky quality or Transparency; higher Sky brightness} {20}}
    {{Guiding quality} {Larger combined guiding error relative to image pixel scale} {25}}
    {{Below-mean Quality} {Higher fraction of indicators worse than their mean} {20}}
 }
+
+Field FWHM, Field eccentricity and PSF signal weight all default to 40, giving star size and roundness the same individual weight as PSF signal in the manual score. Weights are relative, not percentages. Saved process instances retain their chosen weights; Reset defaults restores the values in this table.
 
 For each image-based field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2\% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.
 
@@ -387,7 +393,7 @@ The coordinate strip shows Zoom, X, Y, and Value under the mouse pointer. Value 
 
 Choose Rotate subframes (Review order) to cycle through the subframes currently visible in Review and measurements. Rotation follows its sorting criterion, direction, and REVIEW candidates only filter. The master is always excluded. It starts from the selected subframe, or the first visible subframe if none is selected, and wraps from the last to the first. The filename and position in the sequence identify the displayed subframe. Keep and Reject apply to that subframe. At least two visible subframes are needed for automatic rotation.
 
-In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master. Changing tabs pauses rotation.
+In rotation mode, the first displayed subframe supplies the common preview stretch and brightness alignment. Press Play to start, Stop to pause, or Step to pause and advance one subframe. Previous and Next follow the same sequence and skip the master.
 
 With Rotate regions set to Off and Filter master or Best scoring subframe selected, press the play symbol to start alternating the selected image and reference. While playing, the button shows a stop symbol; press it to pause. Step pauses automatic blinking and switches to the other image.
 
@@ -406,9 +412,9 @@ Region rotation and subframe rotation are alternatives. Enabling region rotation
 
 Interval (s) sets how long each displayed view remains visible, for reference blinking, subframe rotation, and region rotation. Choose 0.10 to 10 seconds; smaller values give faster playback. The default is 0.75 seconds. Regional blinking displays the image for one interval and the reference for another before advancing. You can change the interval while playing without losing your zoom or pan position. In subframe rotation mode, loading the next image adds time depending on image size and storage speed. The interval is saved with New Instance settings.
 
-Blink mode, Rotate regions, the region selector, Interval and playback buttons, Previous/Next arrows, and the Keep/Reject toggle stay on one row. Interval and Play/Step are centered between the region selector and the navigation controls on the right, with the toggle immediately to the right of Next. Display STF and Align preview brightness are on the row below. The arrows select Previous and Next images in the current visible review list, preserving zoom, pan position, and whether blinking is active. Hover over either button for help. Changing the reference also preserves those states. Switching between Usable field, Center, and the four corners retains the zoom and blink status. The pan position stays within the selected region's bounds. Use Zoom to Fit to fit the current region to the preview.
+Display STF and Align preview brightness are above the image, immediately to the right of the zoom controls. Below the image, Blink mode, Rotate regions, the region selector, playback and navigation share one row. Interval and Play/Step are centered between the region selector and the navigation arrows, with Keep/Reject immediately to the right of Next. The arrows select the previous or next image in the visible review list, preserving zoom, pan and playback. Changing the reference also preserves those settings. Switching between Usable field, Center and the four corners retains the zoom and blink status. The pan position stays within the region's bounds. Use Zoom to Fit to fit the current region to the preview.
 
-Switching to another tab and returning to Blink frame / reference retains the zoom and pan position. Selecting another image in Review or through either plot also preserves this view when its preview loads. The position is limited to the new image or region's bounds. The first preview is fitted automatically; use Zoom to Fit whenever you want to refit it. Switching tabs pauses playback; press Play to resume.
+Switching tabs preserves zoom, pan and the playback setting. Active blinking or rotation pauses while you use another tab and resumes automatically when you return to Blink frame / reference. If you pressed Stop or Step, playback stays paused. Switching filter groups or selecting another image in Review or through either plot keeps the current zoom and pan. If a group has no preview, the next available preview uses that zoom. The pan position is limited to the new image or region's bounds. The first preview is fitted automatically. Use Zoom to Fit whenever you want to refit it.
 
 The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. The frame caption does not repeat the Keep/Reject decision; it retains the image name and any master or already-moved notice. The toggle stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.
 
@@ -420,7 +426,7 @@ The Quality indicators tab shows one selected indicator at a time, with Score se
 
 The note beside the selected indicator shows whether higher or lower values are preferable and whether it is included in Score under the current settings. A zero weight, disabled corner scoring, or excluded guiding is identified. In correlation mode, each corner FWHM and eccentricity reports its own inclusion or exclusion. In manual mode these measurements contribute through Corner quality; Center FWHM is used in corner/center ratios. Guide minimum, average, and maximum contribute through combined guiding quality when coverage is usable. Score itself is the combined result. Plotted measurements remain available even when their scoring contribution is disabled.
 
-The blue information symbol button opens the selected histogram’s explanation, including its definition and relevant measurement or calibration details. Reading the plot uses labeled rows for inspecting bars, ordering and the vertical axis. A color-and-marker legend separates image bars, reference lines and quality shading, with a sample and written meaning for each. SQM and autofocus markers appear only when relevant to that plot. These explanations are kept in the information window, without repeating them in plot headings or tooltips. The direction of quality and current Score inclusion remain visible beside the selector. The footer shows only the frame count and order. Hover over individual bars for their image-specific values.
+The blue information symbol button opens the selected histogram’s explanation, including its definition and relevant measurement or calibration details. Reading the plot uses labeled rows for inspecting bars, ordering and the vertical axis. The color-and-marker legend identifies bars, reference lines and grading bands. A dark teal border and tint mark the full column of the selected histogram bar. The bar is cyan and can also carry a rejection or REVIEW outline. Graphs without visible grading bands use a uniform pale-green plotting area, including the Correlation and Rejection recommendation plots. Grades appear only when the histogram has grading thresholds. On those histograms the bands are drawn over white. Green marks Good, yellow marks Medium and red marks Bad, each at 25\% opacity. The swatches show the tints as they appear against the plot background. SQM and autofocus markers appear only when relevant to that plot. These explanations are kept in the information window, without repeating them in plot headings or tooltips. The direction of quality and current Score inclusion remain visible beside the selector. The footer shows only the frame count and order. Hover over individual bars for their image-specific values.
 
 Choose Order by: KPI value for ascending values, or Acquisition time for the acquisition sequence. The plot order is independent of the review table. In chronological plots the master is first, dated subframes run from earliest to latest, and undated subframes follow. Bar spacing is uniform; the horizontal axis is an image sequence, not a proportional elapsed-time axis.
 
@@ -441,9 +447,9 @@ Except for the category plots described below, the vertical range follows the su
 
 Field, center, and corner FWHM plots can show Good, Medium, and Bad background bands using your telescope and reference observing conditions. The FWHM grading settings icon is shown only for Field, Center and corner FWHM plots. Open it to configure the limits. The FWHM grading section below explains the parameters and calculation.
 
-Field, center, and corner eccentricity plots follow the plotted values, including the master, with about 10\% headroom and a small lower margin, bounded by zero and one. Green, amber, and red background bands are clipped to the visible range. Good eccentricity is at or below 0.42; Medium is above 0.42 and at or below 0.60; Bad is above 0.60. The legend and dotted lines mark these boundaries in both KPI-value and acquisition-time order. Hover over a bar to see its category. Eccentricity is dimensionless: zero is round and values approaching one indicate increasingly elongated stars. These ranges are practical inspection guidelines. Score continues to compare eccentricity within the group; the bands do not change scoring or automatically reject an image.
+Field, center, and corner eccentricity plots follow the plotted values, including the master, with about 10\% headroom and a small lower margin, bounded by zero and one. Green, yellow, and red background bands are clipped to the visible range. Good eccentricity is at or below 0.42; Medium is above 0.42 and at or below 0.60; Bad is above 0.60. The legend and dotted lines mark these boundaries in both KPI-value and acquisition-time order. Hover over a bar to see its category. Eccentricity is dimensionless: zero is round and values approaching one indicate increasingly elongated stars. These ranges are practical inspection guidelines. Score continues to compare eccentricity within the group; the bands do not change scoring or automatically reject an image.
 
-For Guide minimum, Guide average, and Guide maximum, green, amber, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. Guide minimum and Guide average follow their measured values with a small margin above and below, like Guiding quality. Only the portions of the bands within that range are shaded. Guide maximum includes zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.
+For Guide minimum, Guide average, and Guide maximum, green, yellow, and red background bands mark Good, Medium, and Bad guiding. The legend gives the boundaries in arcseconds, and dotted lines separate the bands. Guide minimum and Guide average follow their measured values with a small margin above and below, like Guiding quality. Only the portions of the bands within that range are shaded. Guide maximum includes zero and all three categories, as well as the measured values. These bands appear in both KPI-value and acquisition-time order when the imaging scale is available. The bar colors still identify selection, review, and rejection status. No category boundaries are drawn when the imaging scale is unavailable.
 
 The Guiding quality plot shows the combined indicator without category bands. Its information window gives the definition: G = (minimum + 2 times average + maximum) / 4, in arcseconds. The average contributes 50 percent, and the minimum and maximum each contribute 25 percent. Lower values are better. The displayed minimum, average, and maximum categories help inspect individual guiding measurements; the combined value G determines the guiding penalty used in Score.
 
@@ -478,7 +484,7 @@ The plot is shaded automatically when calibration and a Bortle class are availab
 \table[header]{
    {{Category} {Meaning}}
    {{Good, green} {Darker background corresponding to lower Bortle classes.}}
-   {{Medium, amber} {Background within the selected or inferred class's approximate brightness range.}}
+   {{Medium, yellow} {Background within the selected or inferred class's approximate brightness range.}}
    {{Bad, red} {Brighter background corresponding to higher Bortle classes.}}
 }
 
@@ -487,6 +493,8 @@ For example, class 6 uses approximately 18.94–19.50 mag/arcsec² for Medium. C
 Hover a subframe bar to see its estimated brightness and category. The integrated master is a comparison image and receives no brightness estimate. The SQM line and Bortle shading do not change Score, REVIEW or rejection decisions.
 
 Use linear, calibrated WBPP registered frames. Luminance, green and V filters support direct calibration; RGB uses the green channel. Separate red and blue groups use green as described above. A shared calibration within each group requires matching exposure, camera, gain, binning, filter, pedestal and image dimensions. The green-to-colour transfer requires the same camera, gain, binning, image dimensions and target metadata. Other filters remain uncalibrated. Without SQM, the direct reference also needs sky-coordinate information and a local Gaia DR3/SP, DR3 or EDR3 catalog configured in PixInsight. Unreliable coordinates are rebuilt on a temporary image if necessary; source files stay unchanged.
+
+Gaia calibration uses the measured brightness of isolated stars that match the local catalog. It needs at least 20 reliable colour matches after outlier rejection and a scatter of at most 0.35 mag. If the reference frame fails these checks, the plot reports the reason and leaves the shading unavailable.
 
 The SQM reading should represent the sky in the target's direction near the matched exposure. An SQM-anchored plot is a relative estimate, not an independent check of the meter reading. Stars, nebulosity, gradients and changing transparency can affect the measured image background. Gaia gives a V-equivalent estimate, which differs from an SQM meter's passband. Bortle ranges are approximate.
 
@@ -547,7 +555,7 @@ The model calculates angular limits internally. Each displayed limit is converte
 \table[header]{
    {{Category} {Measured FWHM}}
    {{Good, green} {At or below the calculated Good limit.}}
-   {{Medium, amber} {Above the Good limit and at or below the Medium limit.}}
+   {{Medium, yellow} {Above the Good limit and at or below the Medium limit.}}
    {{Bad, red} {Above the Medium limit.}}
 }
 
@@ -559,7 +567,7 @@ Background: \xref{https://www.eso.org/observing/etc/doc/helperis.html}{ESO image
 }
 
 \section{Correlation plot}{
-Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.
+Open the Correlation plot tab and choose any two quality indicators with X axis and Y axis. The plot and Pearson correlation coefficient update immediately. The Correlation plot and Quality indicators tabs use the same plot margins as you resize the window. Extra legend lines and longer axis labels have room when needed. Swap axes exchanges the selections without changing the correlation. The initial pair is Field FWHM on X and PSF signal weight on Y.
 
 Regional KPIs appear in both selectors only when corresponding subframe measurements are available in the current group. Click Measure corners to measure missing regions and add these choices. If a selected KPI becomes unavailable after changing groups or clearing measurements, that axis returns to its initial selection; the other axis is retained when available.
 
@@ -567,7 +575,7 @@ Each point represents one subframe with both measurements available. The plot an
 
 Hover over a point to see its filename and both values. Click it to select the image in Review and measurements. If necessary, the REVIEW-only filter is cleared to reveal that image. Cyan identifies the selected image, purple a REVIEW candidate, blue another kept frame, and red a rejected frame. Plot selection does not change rejection decisions. Identical measurements can overlap; keyboard focus and Enter also select points.
 
-The highlighted banner above the plot displays Correlation (Pearson) to four decimal places and its interpretation. Hover over the banner to see the full precision value. Strength and direction use the unrounded coefficient. The coefficient r describes the strength and direction of the linear relationship between the two KPI values. Positive means both increase together; negative means Y tends to decrease as X increases. Direction refers to the values, not whether image quality improves. The display gives r and its meaning using these continuous bands:
+The title at the top of the chart shows Correlation (Pearson) to four decimal places, with strength and direction on the line below. Hover over the heading for the unrounded value used to determine strength and direction. A positive r means the two KPI values tend to rise together. A negative r means that as one rises, the other tends to fall. The sign describes how the measurements vary, regardless of whether a higher KPI value indicates better image quality.
 
 \table[header]{
    {{Absolute r value} {Strength}}
@@ -646,7 +654,7 @@ A move journal named SQR-moves followed by a timestamp and a .json extension is 
 
 To restore a moved original, select its row and click the Undo arrow beside the green checkmark. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.
 
-Undo also works after rescanning or reopening the script. Scan files or import WBPP, and specify the Rejected originals folder to enable the Undo arrow, then choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files; Clear selection lets you start with none. You do not need to measure the images again to restore them.
+After reopening the script, select the WBPP output, original-light root and Rejected originals folder, or reuse a saved WBPP setup and its rejection folder. Click Undo to load the file list if needed. Choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files. Clear selection lets you choose individual files. Undo runs independently of image measurements.
 
 Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.
 
@@ -681,6 +689,8 @@ On Windows, file protection runs the operating system utility mountvol.exe from 
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 
 Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.
+
+When Gaia calibration needs to recover a frame's sky coordinates, PixInsight's ImageSolver uses the operating system temporary directory for its star-coordinate lists. The recovered solution is used in memory.
 
 Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.
 

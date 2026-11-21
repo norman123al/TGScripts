@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="abc720c64df2ebf4d68513973050919a9fc05255" type="script" releaseDate="20261120">
+      <package fileName="TGScripts_repository.tar.gz" sha1="c2c63fbfce06c2c629b4691671e5f7b88d926dc0" type="script" releaseDate="20261121174458">
          <title>
-            TGScripts - Script signatures for PixInsight 1.9.6 build 1719
+            TGScripts - SubframeQualityReview 0.59.8
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.47.0 and Subframe Quality Review 0.55.3 have been re-signed for PixInsight 1.9.6 build 1719. The new signatures allow PixInsight to verify both scripts against its updated libraries. The Astro Bucket List installation guide and README now specify PixInsight 1.9.6 build 1719 or later.
+               SubframeQualityReview 0.59.8 keeps moved originals out of rejection recommendations after you refresh the file list or reopen a WBPP setup with the same Rejected originals folder. Undo makes restored frames eligible again.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-20T17:27:11.915Z" encoding="Base64">0sQS3cPjlF/4NN9iMWvNIk3iRkgZGii+3wTcoStLU6rSq6Tp9sPrNdlLgfPCrsU0oUYJFCieb25zgQ4PPmW5AA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-21T17:49:44.826Z" encoding="Base64">g7E9n4QtrzC2bdhG4pjXi3C3FXVi6WT4cMSl06Vqpm/0vqeR9cAZ2yx9C+hz9G+CuD9Gt9mHVloeB80BfpsfBQ==</Signature>
