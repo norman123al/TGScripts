@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.59.7 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.59.8 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.59.7';
+const SQR_VERSION='0.59.8';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -1972,12 +1972,13 @@ function sqrScan(o,notify){
    let savedMasters=imported?o.wbppImport.masters.filter(p=>sqrUnder(p,wbpp+'/master')&&File.exists(p)):[];
    let masterFiles=imported?null:discoverMasters();
    let rawFiles=imported?imported.originals:sqrWalk(rawRoot,[wbpp,o.destination? sqrPath(o.destination):'']).filter(p=>!/^master/i.test(sqrBase(p)));
-   let raws=[],warnings=[];
+   let raws=[],warnings=[],missingOriginals=[];
+   const moved=sqrScanMovedOriginals(o,registered,imported,warnings,notify);
    for(let i=0;i<rawFiles.length;++i){
       sqrTick(notify,'Reading original headers '+(i+1)+' / '+rawFiles.length);
       // A saved WBPP list can still name an original already moved by this
       // review. Keep its registered row available for journal-based Undo.
-      if(imported&&!File.exists(rawFiles[i])){warnings.push('Imported original is missing: '+rawFiles[i]);continue;}
+      if(imported&&!File.exists(rawFiles[i])){missingOriginals.push(rawFiles[i]);continue;}
       try{let m=sqrMetadata(rawFiles[i]);if(sqrIsLight(m))raws.push(m);}catch(e){warnings.push(rawFiles[i]+': '+String(e));}
    }
    let groups=[],byGroup={},originalIndex=sqrIndexOriginals(raws),originalByPath=new Map(raws.map(r=>[sqrKey(r.path),r])),verifiedLinks=new Set,fallbackNames=null,skipped=0;
@@ -1985,13 +1986,15 @@ function sqrScan(o,notify){
       sqrTick(notify,'Matching registered lights '+(i+1)+' / '+registered.length);
       let linked=imported?.links.get(sqrKey(registered[i]));
       let m=sqrMetadata(registered[i]);if(!sqrIsLight(m))continue;
-      let found=linked?sqrFindOriginal(m,[originalByPath.get(sqrKey(linked))].filter(Boolean)):sqrFindOriginal(m,raws,originalIndex);
+      let move=moved.get(sqrKey(m.path));
+      if(move&&!sqrCompatible(m,move.original))move=null;
+      let found=move?{raw:move.original,state:'Verified'}:linked?sqrFindOriginal(m,[originalByPath.get(sqrKey(linked))].filter(Boolean)):sqrFindOriginal(m,raws,originalIndex);
       if(linked&&found.raw)verifiedLinks.add(sqrKey(found.raw.path));
       // Renamed or channel-separated outputs can still have a unique header
       // match. Fallback must not add stale copies of an already verified link.
       // Keep the full original index for matching so exclusion cannot turn an
       // ambiguous header match into a falsely unique association.
-      if(imported&&!linked){
+      if(imported&&!linked&&!move){
          fallbackNames??=new Set(rawFiles.filter(p=>!verifiedLinks.has(sqrKey(p))).map(p=>sqrBase(p).toLowerCase()));
          if((found.raw&&verifiedLinks.has(sqrKey(found.raw.path)))||(!found.raw&&!fallbackNames.has(sqrSourceStem(registered[i])))){++skipped;continue;}
       }
@@ -2000,7 +2003,9 @@ function sqrScan(o,notify){
          label:directoryName,width:m.width,height:m.height,channels:m.channels,exposure:m.exposure,
          filter:m.filter||sqrFilterFromName(directoryName),
          master:'',rows:[],roi:null,regions:null};groups.push(g);byGroup[key]=g;}
-      g.rows.push({registered:m,original:found.raw,match:found.state,reject:false,moved:false,candidate:false,metrics:{}});
+      const row={registered:m,original:found.raw,match:found.state,reject:!!move,moved:!!move,candidate:false,metrics:{}};
+      if(move){row.movedTo=move.target;row.moveJournal=move.journal;}
+      g.rows.push(row);
    }
    if(!groups.length)throw new Error('No registered light images found. Supported formats: XISF and FITS.');
    for(let g of groups){g.master=sqrMasterFor(g,savedMasters);
@@ -2012,8 +2017,9 @@ function sqrScan(o,notify){
       if(!g.master)warnings.push('No unique integrated master for filter '+(g.filter||'(unknown)')+' in master/: '+g.directoryName);}
    // A source exposure must not be moved once for several processed products.
    let occurrences={};for(let g of groups)for(let r of g.rows)if(r.original){let k=sqrKey(r.original.path);(occurrences[k]??=[]).push(r);}
-   for(let k of Object.keys(occurrences))if(occurrences[k].length>1)for(let r of occurrences[k]){r.match='Original used more than once';r.original=null;}
+   for(let k of Object.keys(occurrences))if(occurrences[k].length>1)for(let r of occurrences[k])if(!r.moved){r.match='Original used more than once';r.original=null;}
    if(imported){let matched=new Set(groups.flatMap(g=>g.rows).filter(r=>r.original).map(r=>sqrKey(r.original.path)));
+      for(let path of missingOriginals)if(!matched.has(sqrKey(path)))warnings.push('Imported original is missing: '+path);
       let missing=imported.originals.filter(p=>!matched.has(sqrKey(p)));
       if(missing.length)warnings.push(missing.length+' imported light(s) have no verified registered match: '+missing.join('\n'));
       if(skipped)warnings.push(skipped+' registered file(s) outside the imported selection were excluded.');}
@@ -2973,10 +2979,11 @@ function sqrRestoreAvailability(entry){
 /** A journal is data, not an instruction to move arbitrary files. Require the
  * exact preserved relative path and reject duplicate/overlapping destinations.
  * Older journals without wbpp remain usable; image identity is checked below. */
-function sqrReadMoveJournal(path){
+function sqrReadMoveJournal(path,scan=null){
    path=sqrPath(path);let journal=JSON.parse(File.readTextFile(path));
    if(journal.schema!==1||!Array.isArray(journal.moves)||!journal.moves.length)throw new Error('Choose an SQR-moves journal containing original-light moves.');
    let root=sqrRestorePath(journal.originals),dest=sqrRestorePath(journal.destination),wbpp=journal.wbpp?sqrRestorePath(journal.wbpp):'',seen=new Set;
+   if(scan&&(sqrKey(root)!==sqrKey(scan.originals)||sqrKey(dest)!==sqrKey(scan.destination)||(wbpp&&sqrKey(wbpp)!==sqrKey(scan.wbpp))))return null;
    TGFileProtection.assertOutsideInstallation(root,'Restore destination folder');
    TGFileProtection.assertOutsideInstallation(dest,'Rejected-originals folder');
    if(sqrKey(root)===sqrKey(dest)||sqrKey(sqrPath(sqrDir(path)))!==sqrKey(dest))throw new Error('The move journal must be in its recorded rejection folder.');
@@ -2990,6 +2997,50 @@ function sqrReadMoveJournal(path){
       let entry={...move,source,target,index};entry.problem=sqrRestoreAvailability(entry);return entry;
    });
    return {path,root,dest,entries};
+}
+/** Recover only moves backed by a live journal entry and an exact registered
+ * path or saved WBPP association. Undo's availability check also handles a
+ * move interrupted before the journal's final write, and ignores restorations. */
+function sqrScanMovedOriginals(o,registered,imported,warnings,notify){
+   const moves=new Map;
+   if(!o.destination||!File.directoryExists(o.destination))return moves;
+   const paths=[],dest=sqrPath(o.destination),find=new FileFind;
+   const scope={originals:sqrPath(o.originals),destination:dest,wbpp:sqrPath(o.wbpp)};
+   if(find.begin(dest+'/SQR-moves-*.json'))try{do{
+      if(find.isFile&&!find.isSymbolicLink)paths.push(dest+'/'+find.name);
+   }while(find.next());}finally{find.end();}
+   if(!paths.length)return moves;
+   const selected=new Set(registered.map(sqrKey)),sources=imported?new Set(imported.originals.map(sqrKey)):null,links=new Map;
+   if(imported)for(const [reg,source] of imported.links){
+      const key=sqrKey(source);
+      if(!links.has(key))links.set(key,[]);
+      links.get(key).push(reg);
+   }
+   // Prefer the most recent journal after Undo followed by another move.
+   for(const path of paths.sort().reverse()){
+      sqrTick(notify,'Checking moved originals: '+sqrFileName(path));
+      try{
+         sqrNoLinkedPath(path);
+         const record=sqrReadMoveJournal(path,scope);
+         for(const entry of record?.entries||[]){
+            if(entry.problem)continue;
+            const source=sqrKey(entry.source),reg=sqrKey(entry.registered||'');
+            if(sources&&!sources.has(source))continue;
+            const keys=new Set(links.get(source)||[]);
+            if(selected.has(reg)&&!imported?.links.has(reg))keys.add(reg);
+            if(!keys.size)continue;
+            let original;
+            try{original={...sqrMetadata(entry.target),path:entry.source,fingerprint:entry.fingerprint};}
+            catch(e){warnings.push(entry.target+': '+String(e));continue;}
+            if(!sqrIsLight(original))continue;
+            for(const key of keys){
+               if(!moves.has(key))moves.set(key,{original,target:entry.target,journal:path});
+               else if(sqrKey(moves.get(key)?.original.path||'')!==source)moves.set(key,null);
+            }
+         }
+      }catch(e){warnings.push('Could not read moved originals from '+path+': '+String(e));}
+   }
+   return moves;
 }
 /** Validate every selected file before restoring any. A changed file, occupied
  * original path or non-light image blocks the selected plan without data loss. */

@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.7.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.8.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -151,7 +151,7 @@ Measurements describe the processed, registered images. Their PSF signal weights
 }
 
 \section{Rejection recommendation}{
-After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. By default, trial stacks use only subframes without a rejection mark. Select Include rejected subframes to reconsider marked frames alongside the others. The integrated master and frames whose originals have already been moved are always excluded. Each filter and exposure group uses its current Review Score.
+After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. By default, trial stacks use only subframes without a rejection mark. Select Include rejected subframes to reconsider marked frames alongside the others. The integrated master and frames whose originals have already been moved are always excluded. After refreshing the file list or reopening a WBPP setup, use the same Rejected originals folder. Its move journals identify moved frames and keep them available for Undo. Restoring an original makes its frame eligible again. Each filter and exposure group uses its current Review Score.
 
 Preserve SNR (\%) defaults to 95. The recommendation must retain at least this percentage of the highest SNR measured among the tested stacks. Increase it to favour depth, or decrease it to allow more loss of depth in exchange for a higher mean retained Score. Minimum retained defaults to 20 frames; choose a larger value when you want more statistical support. Seven is the lowest permitted value for the trial's pixel rejection, not a guarantee of reliable rejection under every condition. If too few frames remain, the script does not make a recommendation.
 

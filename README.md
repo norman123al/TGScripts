@@ -41,7 +41,7 @@ To try a newly added script before the next updater release, download or clone t
 - **LRGB Deconvolution Match:** requires an installed, licensed **BlurXTerminator** with its AI model.
 - **BBStarReduction:** [StarXTerminator](https://www.rc-astro.com/resources/StarXTerminator/) for automatic star removal, or an existing matching starless image.
 
-The packaged updater release may lag behind the repository source. For manual execution, keep each script with its bundled helpers and the `lib` folder. The updater package requires PixInsight 1.9.6 or later because it includes Subframe Quality Review.
+The packaged updater release may lag behind the repository source. For manual execution, keep each script with its bundled helpers and the `lib` folder. The updater package requires PixInsight 1.9.6 build 1719 or later.
 
 ### Renamed scripts
 
@@ -73,7 +73,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.55.3 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;11 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.59.8 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;21 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -352,9 +352,9 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.55.3 · **Last update:** 2026-11-11
+**Version:** 0.59.8 · **Last update:** 2026-11-21
 
-Helps select **WBPP subframes to keep or reject** with four quality rankings, field/corner measurements, sky and guiding indicators, quality plots, and mosaic blink comparisons. Recommends rejections by testing trial stacks against a chosen SNR preservation limit, with optional object ROI measurements. Imports WBPP setups, exports reviewed setups excluding rejected lights, and supports confirmed, reversible moves of rejected originals.
+Helps select **WBPP subframes to keep or reject** with four quality rankings, field/corner measurements, sky and guiding indicators, quality plots, and mosaic blink comparisons. Recommends rejections by testing trial stacks against a chosen SNR preservation limit, with optional object ROI measurements. Imports WBPP setups, exports reviewed setups excluding rejected lights, and supports confirmed, reversible moves of rejected originals. Select the same **Rejected originals** folder when refreshing the file list or reopening a WBPP setup to keep moved frames out of recommendations. Undo makes a restored frame eligible again.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 

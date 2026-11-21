@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="eebaf16418cd5b72b0a8cc7b3d2bcc1e3cfa75b4" type="script" releaseDate="20261121160436">
+      <package fileName="TGScripts_repository.tar.gz" sha1="c2c63fbfce06c2c629b4691671e5f7b88d926dc0" type="script" releaseDate="20261121174458">
          <title>
-            TGScripts - SubframeQualityReview 0.59.7
+            TGScripts - SubframeQualityReview 0.59.8
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,10 +36,7 @@
          </remove>
          <description>
             <p>
-               SubframeQualityReview 0.59.7 prepares the file list on first measurement or Undo, reuses imported WBPP lights, and keeps manual refresh available. Telescope aperture presets simplify FWHM grading. Rejection recommendations fix trial-stack preparation and can now reconsider marked frames, clearing marks on frames recommended to keep.
-            </p>
-            <p>
-               Blink resumes when you return to its tab and preserves zoom and pan across filter groups. STF and brightness controls are beside zoom. KPI and correlation plots switch without flicker and share responsive margins, with clearer grading bands, selected bars, and an integrated Pearson correlation heading.
+               SubframeQualityReview 0.59.8 keeps moved originals out of rejection recommendations after you refresh the file list or reopen a WBPP setup with the same Rejected originals folder. Undo makes restored frames eligible again.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -48,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-21T17:13:45.278Z" encoding="Base64">aoEyL4tlywPXuwTPudEJ2p8OPCnjDWs8u/hfx7XwbqgaOcLq/GoOGPLSrTmO/p7YIhFSyMjmR92F/84LCrKODA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-21T17:49:44.826Z" encoding="Base64">g7E9n4QtrzC2bdhG4pjXi3C3FXVi6WT4cMSl06Vqpm/0vqeR9cAZ2yx9C+hz9G+CuD9Gt9mHVloeB80BfpsfBQ==</Signature>
