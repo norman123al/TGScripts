@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="c2c63fbfce06c2c629b4691671e5f7b88d926dc0" type="script" releaseDate="20261121174458">
+      <package fileName="TGScripts_repository.tar.gz" sha1="28da08fc13896b88a0771380f20cc3499745e49c" type="script" releaseDate="20261121184429">
          <title>
-            TGScripts - SubframeQualityReview 0.59.8
+            TGScripts - SubframeQualityReview 0.59.9
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               SubframeQualityReview 0.59.8 keeps moved originals out of rejection recommendations after you refresh the file list or reopen a WBPP setup with the same Rejected originals folder. Undo makes restored frames eligible again.
+               SubframeQualityReview 0.59.9 resizes the rejection recommendation plot to use the available window width and height while keeping both axes readable. The repository README now covers the full review workflow and includes 14 screenshots from PixInsight.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-21T17:49:44.826Z" encoding="Base64">g7E9n4QtrzC2bdhG4pjXi3C3FXVi6WT4cMSl06Vqpm/0vqeR9cAZ2yx9C+hz9G+CuD9Gt9mHVloeB80BfpsfBQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-21T18:47:25.184Z" encoding="Base64">Hx8xV3Q7081r4hqlP9eMuujCo4nmoH/kJaCZH2GCLbxB86GRxU47ZClLMNiID4uqlSUgXdtdsoW5fYrFKnGZAQ==</Signature>

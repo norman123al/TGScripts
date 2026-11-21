@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.8." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.9." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.8. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.9. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -316,7 +316,7 @@
 <p>Without Use object ROI, the script evaluates the common usable field. SNR is a stellar proxy and may not represent the faint structures of your target. With Use object ROI, enter X, Y, Width and Height in registered-image pixels, or select an existing PixInsight preview on an aligned image of the same dimensions. The ROI must lie within the common usable field and have enough surrounding sky. It must be at least 32 × 32 pixels.</p>
 <p>Include the target structures whose signal you want to preserve. A galaxy's faint outskirts may favour a different selection from its bright core. Avoid unrelated bright stars inside the rectangle: all aperture content contributes to its signal. Leave clean sky outside it for background estimation. A guard band separates the sky samples from the target, and bright stars in the surrounding sky are masked. The same object aperture and sky mask are used throughout the comparison. If surrounding sky is insufficient, make the ROI smaller or reposition it. PSF measurements require enough stars in the common usable field, independently of the object ROI. A saved ROI is reset when the selected group has different image dimensions.</p>
 <p>Click Analyze to prepare and test the candidate stacks. The current Review Score orders the remaining frames from best to worst, independently of the table sort. Each trial removes frames from the lowest-scoring end. The chosen R1, R2, R3 or R4 score mode applies; select R3 in Review if you want its strongly correlated KPI score. Every remaining frame needs a valid field measurement and Score. Scores and their ordering stay fixed throughout the comparison. Equal scores are ordered by filename.</p>
-<p>The plot shows retained frame count on the horizontal axis and preserved SNR in blue. Use Plot KPI to choose the orange curve: Score (retained mean) is the default. Other choices are FWHM, PSF signal weight, PSF SNR, Stars, Eccentricity, Noise (sigma), Retained exposure, and Effective frame count. A previously saved plot selection is restored. The selected KPI also appears in the table. Changing this selection redraws the existing measurements immediately; it does not run new integrations or change the recommended cutoff. The recommendation always uses mean retained Score, regardless of the plotted KPI.</p>
+<p>The plot shows retained frame count on the horizontal axis and preserved SNR in blue. Resize the window to give the curves more room in either direction. Use Plot KPI to choose the orange curve: Score (retained mean) is the default. Other choices are FWHM, PSF signal weight, PSF SNR, Stars, Eccentricity, Noise (sigma), Retained exposure, and Effective frame count. A previously saved plot selection is restored. The selected KPI also appears in the table. Changing this selection redraws the existing measurements immediately; it does not run new integrations or change the recommended cutoff. The recommendation always uses mean retained Score, regardless of the plotted KPI.</p>
 <p>Score (retained mean) is the arithmetic mean of the retained subframes' Review scores at analysis time. It does not assign a Score to the integrated image. Changing scores, weights or the scoring mode requires new analysis because it can change the candidate ordering and recommended cutoff. PSF signal weight, PSF SNR, Stars, Eccentricity and Noise are measured on each trial stack. PSF SNR is shown as an amplitude ratio. Exposure and effective frame count describe the retained set. Hover over the selector for the selected indicator's definition.</p>
 <p>The object ROI affects only Object SNR. Its background is estimated from nearby sky outside the aperture. FWHM, PSF signal weight, PSF SNR, Stars, Eccentricity and Noise always use the common usable field. Trial-stack normalization also uses this field, independently of the ROI. For the same retained frames, changing the ROI therefore leaves those image KPIs unchanged. It can change which counts meet the SNR limit and which additional counts are tested. The area is identified beside Plot KPI. Score, exposure and effective count describe the retained frames, independently of the ROI.</p>
 <p>Stars counts detections made independently in each trial stack; it does not track a fixed list of matched stars. Changes in noise, star profiles and pixel rejection can move marginal detections across the detector's acceptance criteria. Counts can therefore rise or fall between neighbouring trial counts, especially in a small field. This does not mean that the measurement area changed, and a larger count alone does not establish a better stack.</p>
@@ -1309,7 +1309,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-21 17:35:51 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-21 18:09:36 UTC</p>
 </div>
 <br/>
 <br/>

@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.59.8 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.59.9 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.59.8';
+const SQR_VERSION='0.59.9';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -3448,22 +3448,43 @@ function sqrRecommendationHTML(result,kpi=SQR_RECOMMENDATION_KPIS.find(k=>k.key=
    let values=measured.map(p=>p.value),low=values.length?Math.min(...values):0,high=values.length?Math.max(...values):1;
    let pad=(high-low||Math.abs(high)*.1||.1)*.08;low=Math.max(0,low-pad);high+=pad;
    if(kpi.unitInterval){low=Math.max(0,low);high=Math.min(1,high);}if(high<=low)high=low+1;
-   let x=n=>65+665*(n-first)/Math.max(1,last-first),ys=n=>275-235*n/1.08,yk=n=>275-235*(n-low)/(high-low);
-   let svg=['<svg viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg">'];
-   svg.push('<rect x="65" y="40" width="665" height="235" fill="'+SQR_UNGRADED_PLOT.background+'"/>');
-   for(let i=0;i<=4;++i){let y=275-235*i/4;svg.push('<path d="M65 '+y+'H730" stroke="'+SQR_UNGRADED_PLOT.grid+'"/><text x="58" y="'+(y+4)+'" text-anchor="end" fill="#89b4fa">'+Math.round(108*i/4)+'%</text><text x="738" y="'+(y+4)+'" fill="#fab387">'+(measured.length?sqrRecommendationFormat(low+(high-low)*i/4,kpi):'—')+'</text>');}
-   svg.push('<path d="M65 '+ys(result.options.snrPercent/100)+'H730" stroke="#2d6cb5" stroke-dasharray="5,5"/>');
-   svg.push('<path d="M'+x(result.best.keep)+' 40V275" stroke="'+SQR_UNGRADED_PLOT.mean+'" stroke-width="2"/>');
+   // Place data in percentages of the available field. Keep labels, strokes and
+   // markers in screen units so resizing either dimension preserves their shape.
+   const x=n=>last===first?50:100*(n-first)/(last-first),
+      ys=n=>100*(1-n/1.08),yk=n=>100*(high-n)/(high-low);
+   let svg=['<rect width="100%" height="100%" fill="'+SQR_UNGRADED_PLOT.background+'"/>'];
+   let rightTickChars=0;
+   for(let i=0;i<=4;++i){
+      const y=(100-25*i)+'%',tick=measured.length?sqrRecommendationFormat(low+(high-low)*i/4,kpi):'—';
+      rightTickChars=Math.max(rightTickChars,tick.length);
+      svg.push(`<line x2="100%" y1="${y}" y2="${y}" stroke="${SQR_UNGRADED_PLOT.grid}"/>
+         <text y="${y}" dx="-.55em" dy=".35em" text-anchor="end" fill="#89b4fa">${Math.round(108*i/4)}%</text>
+         <text x="100%" y="${y}" dx=".55em" dy=".35em" fill="#fab387">${tick}</text>`);
+   }
+   const limitY=ys(result.options.snrPercent/100)+'%',bestX=x(result.best.keep)+'%';
+   svg.push(`<line x2="100%" y1="${limitY}" y2="${limitY}" stroke="#2d6cb5" stroke-dasharray="5,5"/>
+      <line x1="${bestX}" x2="${bestX}" y2="100%" stroke="${SQR_UNGRADED_PLOT.mean}" stroke-width="2"/>`);
    for(let series of [{points:valid.map(point=>({point,value:point.snr/result.peak})),y:ys,color:'#2d6cb5'},
       {points:measured,y:yk,color:SQR_UNGRADED_PLOT.focus}]){
-      svg.push('<polyline fill="none" stroke="'+series.color+'" stroke-width="2" points="'+series.points.map(p=>x(p.point.keep)+','+series.y(p.value)).join(' ')+'"/>');
+      const points=series.points.map(p=>x(p.point.keep)+','+series.y(p.value)).join(' ');
+      svg.push(`<svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline fill="none" stroke="${series.color}" stroke-width="2" vector-effect="non-scaling-stroke" points="${points}"/></svg>`);
       for(let {point:p,value} of series.points){let selected=sqrRecommendationPlotValue(result,p,kpi);
-         svg.push('<circle cx="'+x(p.keep)+'" cy="'+series.y(value)+'" r="4" fill="'+series.color+'"><title>Keep '+p.keep+'; SNR '+(100*p.snr/result.peak).toFixed(2)+'%; '+label+': '+(selected===null?'unavailable':String(selected))+'; FWHM '+p.fwhm.toFixed(4)+' px; exposure '+(p.exposure/3600).toFixed(2)+' h</title></circle>');}
+         svg.push('<circle cx="'+x(p.keep)+'%" cy="'+series.y(value)+'%" r="4" fill="'+series.color+'"><title>Keep '+p.keep+'; SNR '+(100*p.snr/result.peak).toFixed(2)+'%; '+label+': '+(selected===null?'unavailable':String(selected))+'; FWHM '+p.fwhm.toFixed(4)+' px; exposure '+(p.exposure/3600).toFixed(2)+' h</title></circle>');}
    }
-   for(let i=0;i<=4;++i){let n=Math.round(first+(last-first)*i/4);svg.push('<text x="'+x(n)+'" y="297" text-anchor="middle" fill="#cdd6f4">'+n+'</text>');}
-   if(!measured.length)svg.push('<text x="397" y="150" text-anchor="middle" fill="'+SQR_UNGRADED_PLOT.focus+'">Selected KPI unavailable</text>');
-   svg.push('<text x="397" y="328" text-anchor="middle" fill="#cdd6f4">Retained frames</text><text x="65" y="22" fill="#89b4fa">SNR (% of best tested)</text><text x="730" y="22" text-anchor="end" fill="#fab387">'+label+'</text></svg>');
-   return '<html><body style="margin:0;background:#252536;font:13px sans-serif">'+svg.join('')+'</body></html>';
+   const intervals=Math.min(4,last-first);
+   for(let i=0;i<=intervals;++i){
+      const n=first+Math.round((last-first)*i/Math.max(1,intervals));
+      svg.push(`<text x="${x(n)}%" y="100%" dy="1.4em" text-anchor="middle" fill="#cdd6f4">${n}</text>`);
+   }
+   if(!measured.length)svg.push('<text x="50%" y="50%" text-anchor="middle" fill="'+SQR_UNGRADED_PLOT.focus+'">Selected KPI unavailable</text>');
+   svg.push(`<text x="50%" y="100%" dy="2.9em" text-anchor="middle" fill="#cdd6f4">Retained frames</text>
+      <text dy="-.95em" fill="#89b4fa">SNR (% of best tested)</text>
+      <text x="100%" dy="-.95em" text-anchor="end" fill="#fab387">${label}</text>`);
+   return `<!doctype html><html><head><meta charset="utf-8"><style>
+      body{margin:0;background:#252536;font:clamp(13px,1.55vw,18px) sans-serif}
+      main{position:absolute;inset:2.35em calc(${rightTickChars}ch + 1.6em) 3.65em calc(4ch + 1.6em)}
+      main>svg{display:block;width:100%;height:100%;overflow:visible}
+      </style></head><body><main><svg xmlns="http://www.w3.org/2000/svg">${svg.join('')}</svg></main></body></html>`;
 }
 
 class SQRRecommendationDialog extends Dialog {
