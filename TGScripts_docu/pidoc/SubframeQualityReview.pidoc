@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.0.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.1.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -490,6 +490,8 @@ Hover a subframe bar to see its estimated brightness and category. The integrate
 
 Use linear, calibrated WBPP registered frames. Luminance, green and V filters support direct calibration; RGB uses the green channel. Separate red and blue groups use green as described above. A shared calibration within each group requires matching exposure, camera, gain, binning, filter, pedestal and image dimensions. The green-to-colour transfer requires the same camera, gain, binning, image dimensions and target metadata. Other filters remain uncalibrated. Without SQM, the direct reference also needs sky-coordinate information and a local Gaia DR3/SP, DR3 or EDR3 catalog configured in PixInsight. Unreliable coordinates are rebuilt on a temporary image if necessary; source files stay unchanged.
 
+Gaia calibration uses the measured brightness of isolated stars that match the local catalog. It needs at least 20 reliable colour matches after outlier rejection and a scatter of at most 0.35 mag. If the reference frame fails these checks, the plot reports the reason and leaves the shading unavailable.
+
 The SQM reading should represent the sky in the target's direction near the matched exposure. An SQM-anchored plot is a relative estimate, not an independent check of the meter reading. Stars, nebulosity, gradients and changing transparency can affect the measured image background. Gaia gives a V-equivalent estimate, which differs from an SQM meter's passband. Bortle ranges are approximate.
 
 Process icons save the reading, its local date/time and the manual Bortle choice. They do not save measurements or calibration; closing the script discards the measured session.
@@ -683,6 +685,8 @@ On Windows, file protection runs the operating system utility mountvol.exe from 
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 
 Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.
+
+When Gaia calibration needs to recover a frame's sky coordinates, PixInsight's ImageSolver uses the operating system temporary directory for its star-coordinate lists. The recovered solution is used in memory.
 
 Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.
 

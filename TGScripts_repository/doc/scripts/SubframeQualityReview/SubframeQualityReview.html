@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.1." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.1. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -855,6 +855,7 @@
 <p>For example, class 6 uses approximately 18.94–19.50 mag/arcsec² for Medium. Class 1 has no lower-class Good band. Classes 8 and 9 share a brightness range below 18.38 mag/arcsec². An SQM reading in that range is reported as Bortle 8–9; it cannot distinguish the two visual classes. The manual selector retains separate choices for 8 and 9.</p>
 <p>Hover a subframe bar to see its estimated brightness and category. The integrated master is a comparison image and receives no brightness estimate. The SQM line and Bortle shading do not change Score, REVIEW or rejection decisions.</p>
 <p>Use linear, calibrated WBPP registered frames. Luminance, green and V filters support direct calibration; RGB uses the green channel. Separate red and blue groups use green as described above. A shared calibration within each group requires matching exposure, camera, gain, binning, filter, pedestal and image dimensions. The green-to-colour transfer requires the same camera, gain, binning, image dimensions and target metadata. Other filters remain uncalibrated. Without SQM, the direct reference also needs sky-coordinate information and a local Gaia DR3/SP, DR3 or EDR3 catalog configured in PixInsight. Unreliable coordinates are rebuilt on a temporary image if necessary; source files stay unchanged.</p>
+<p>Gaia calibration uses the measured brightness of isolated stars that match the local catalog. It needs at least 20 reliable colour matches after outlier rejection and a scatter of at most 0.35 mag. If the reference frame fails these checks, the plot reports the reason and leaves the shading unavailable.</p>
 <p>The SQM reading should represent the sky in the target's direction near the matched exposure. An SQM-anchored plot is a relative estimate, not an independent check of the meter reading. Stars, nebulosity, gradients and changing transparency can affect the measured image background. Gaia gives a V-equivalent estimate, which differs from an SQM meter's passband. Bortle ranges are approximate.</p>
 <p>Process icons save the reading, its local date/time and the manual Bortle choice. They do not save measurements or calibration; closing the script discards the measured session.</p>
 <p>See the <a href="https://www.handprint.com/ASTRO/bortle.html" title="https://www.handprint.com/ASTRO/bortle.html">approximate Bortle comparison table</a> and <a href="https://www.aanda.org/articles/aa/pdf/2021/05/aa39587-20.pdf" title="https://www.aanda.org/articles/aa/pdf/2021/05/aa39587-20.pdf">Gaia photometric transformations</a>.</p>
@@ -1297,6 +1298,7 @@
 <p>On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.</p>
 <p>Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.</p>
 <p>Corner measurements write temporary XISF files in uniquely named .sqr-work directories under the operating system temporary directory. Rejection recommendation trials use .sqr-recommendation directories there. The script removes this scratch data when these operations finish.</p>
+<p>When Gaia calibration needs to recover a frame's sky coordinates, PixInsight's ImageSolver uses the operating system temporary directory for its star-coordinate lists. The recovered solution is used in memory.</p>
 <p>Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.</p>
 <p>Analysis uses local images, acquisition logs, and configured local Gaia data. The script makes no network connections. The external executable launch used to load an exported WBPP icon is described in Create a reviewed WBPP instance.</p>
    </div>
@@ -1305,7 +1307,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-21 09:27:16 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-21 09:51:28 UTC</p>
 </div>
 <br/>
 <br/>

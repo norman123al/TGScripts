@@ -7,8 +7,13 @@
 #ifdef VERSION
 #undef VERSION
 #endif
+#ifgteq __PI_BUILD__ 1719
+#define VERSION "3.0.0"
+#define SETTINGS_VERSION 3
+#else
 #define VERSION "2.2.0"
 #define SETTINGS_VERSION 2
+#endif
 #define SETTINGS_MODULE "SQRPhotometry"
 #define SOLVER_SETTINGS_MODULE "SQRPhotometrySolver"
 #include <pjsr/controls/ImageView.js>
@@ -22,7 +27,11 @@
 #include <../src/scripts/AperturePhotometry/AperturePhotometryConfig.js>
 #include <../src/scripts/AperturePhotometry/AperturePhotometryEngine.js>
 #undef VERSION
+#ifgteq __PI_BUILD__ 1719
+#define VERSION "6.6.1"
+#else
 #define VERSION "6.5.0"
+#endif
 #include <../src/scripts/ImageSolver/ImageSolverEngine.js>
 #endif
 #undef VERSION
@@ -31,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.56.0 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.56.1 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -55,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.56.0';
+const SQR_VERSION='0.56.1';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -393,27 +402,95 @@ function sqrSkyMeasurementImage(window){let source=window.mainView.image;if(sour
  * Re-solve only the engine-owned reference window, using the local catalogue
  * that just answered the query. ImageSolver updates in-memory metadata only;
  * no save operation or diagnostic output is enabled. Keep measured fluxes. */
-function sqrSkyRecoverCoordinates(engine,target,catalogId){
+function sqrSkySolveCoordinates(window,catalogId){
    console.writeln('Rebuilding reference sky coordinates with the configured local Gaia catalog...');
-   let solver=new ImageSolver,window=engine.currentWindow;
+   let solver=new ImageSolver;
    solver.metadata.ExtractMetadata(window);solver.metadata.ensureValidReferenceSystemForSolution();
    let cfg=solver.solverCfg;cfg.catalogMode=CatalogMode.LocalXPSDServer;cfg.catalog=catalogId;cfg.autoMagnitude=false;cfg.magnitude=18;
    cfg.maxIterations=20;cfg.showStars=cfg.showStarMatches=cfg.showSimplifiedSurfaces=cfg.showDistortion=false;
    cfg.generateDistortModel=cfg.generateErrorImg=false;
    solver.solveImage(window);
-   target.metadata=solver.metadata;target.skyAstrometryRebuilt=true;
-   // Clear accidental old associations before matching the same fluxes again.
-   for(let star of target.stars){star.catalogMagnitude=null;star.catalogMagnitudes=null;star.flags|=StarFlag.Unmatched;}
+   return solver.metadata;
+}
+// A detection can contribute only when exactly one catalogue source lies
+// within the matching radius and that source has exactly one candidate.
+function sqrSkyMatchedStars(stars,records,metadata,radius){
+   let cells=new Map, matches=new Map;
+   for(let star of stars){
+      let key=Math.floor(star.pos.x/radius)+','+Math.floor(star.pos.y/radius);
+      if(!cells.has(key))cells.set(key,[]);
+      cells.get(key).push(star);
+   }
+   for(let record of records){
+      if(!record?.posRD)continue;
+      let p=metadata.Convert_RD_I(record.posRD);
+      if(!p||!Number.isFinite(p.x)||!Number.isFinite(p.y))continue;
+      let x=Math.floor(p.x/radius),y=Math.floor(p.y/radius),near=[];
+      for(let dx=-1;dx<=1;++dx)for(let dy=-1;dy<=1;++dy){
+         let bucket=cells.get((x+dx)+','+(y+dy));
+         if(bucket)for(let star of bucket)
+            if((star.pos.x-p.x)**2+(star.pos.y-p.y)**2<=radius*radius)near.push(star);
+      }
+      for(let star of near)matches.set(star,near.length===1&&!matches.has(star)?record:null);
+   }
+   return stars.filter(s=>matches.get(s)).map(s=>({valid:true,flags:0,flux:s.flux,catalogMagnitudes:matches.get(s)}));
+}
+function sqrSkyPhotometryConfig(){
+   let config=new PhotometryConfiguration('SQRPhotometry');
+   config.maxStars=500;config.normalizeByExposure=false;config.backgroundMode=BackgroundMode.Annulus;
+   config.photometryMode=PhotometryMode.AutoAperture;config.apertureFWHM=5;
+   config.annulusInner=2.5;config.annulusOuter=4;config.detection.minSNR=20;config.detection.upperLimit=.95;
+   return config;
+}
+// AperturePhotometry 3 separates source detection and aperture flux
+// measurement. Only one image is needed here. Query configured XPSD
+// catalogues directly so a fallback can never start an online search.
+function sqrSkyMeasureGaia(job){
+   let config=sqrSkyPhotometryConfig();
+   let catalogs=[new GaiaDR3SPXPSDCatalog,new GaiaDR3XPSDCatalog,new GaiaEDR3XPSDCatalog].filter(c=>{
+      let server=c.newXPSDServer();server.command='get-info';server.verbosity=0;server.executeGlobal();return server.isValid;
+   });
+   if(!catalogs.length)throw new Error('Configure a local Gaia DR3/SP, DR3 or EDR3 database in PixInsight to calibrate sky brightness.');
+   let window=AperturePhotometryEngine.OpenImage(job.path),image=null;
+   try{
+      let engine=new AperturePhotometryEngine(config),target=new PhotometryTarget(job.path,window);
+      image=sqrSkyMeasurementImage(window);target.width=image.width;target.height=image.height;target.exposure=job.exposure;
+      let metadata=new AstrometricMetadata;metadata.ExtractMetadata(window);
+      let solved=false;
+      if(!metadata.projection||!metadata.ref_I_G){metadata=sqrSkySolveCoordinates(window,catalogs[0].name);solved=true;}
+      target.metadata=metadata;
+      let stars=engine.DetectStars(image,target);engine.MeasureDetectedStars(image,target,stars);
+      stars=stars.filter(s=>s.valid&&s.flags===0&&s.flux>0).sort((a,b)=>b.flux-a.flux);
+      if(stars.length<20)throw new Error('Fewer than 20 usable stars were measured on the Gaia reference frame.');
+      let radius=Math.max(2,Math.min(5,target.robustFWHM||2));
+      for(;;){
+         let errors=[],queried=null;
+         for(let catalog of catalogs){
+            if(console.abortRequested)throw new Error('Operation aborted.');
+            try{
+               catalog.Load(metadata);queried=catalog;
+               let matched=sqrSkyMatchedStars(stars,catalog.objects,metadata,radius);
+               let calibration=sqrSkyZeroPoint(matched.slice(0,config.maxStars));
+               return {...calibration,valid:true,pixelArea:sqrSkyPixelArea(metadata,image.width,image.height),
+                  pedestal:job.pedestal,path:job.path,fingerprint:job.fingerprint,catalog:catalog.name,channel:job.channels===3?'Green':'Mono',
+                  astrometryRebuilt:solved,date:new Date().toISOString()};
+            }catch(e){if(console.abortRequested)throw e;errors.push(catalog.name+': '+(e.message||String(e)));}
+         }
+         if(solved||!queried)throw new Error(errors.join('\n'));
+         metadata=sqrSkySolveCoordinates(window,queried.name);solved=true;
+      }
+   }finally{if(image&&window.mainView.image.numberOfNominalChannels>=3)image.free();window.forceClose();}
 }
 /** Reuse the installed official AperturePhotometry engine. Query only local
  * configured Gaia databases; catalogue fallbacks reuse the measured stars.
  * The engine owns and closes its temporary image. Source files stay unchanged. */
 function sqrSkyWorker(job){let result={valid:false},originalMeasurement=AperturePhotometryEngine.MeasurementImage;
+   if(typeof AperturePhotometryEngine.prototype.MeasureDetectedStars==='function'){
+      try{return sqrSkyMeasureGaia(job);}catch(e){return {valid:false,error:e.message||String(e)};}
+   }
    try{
-      let config=new PhotometryConfiguration('SQRPhotometry');config.starSource=StarSource.Catalog;config.calibrateMagnitudes=true;
-      config.catalogId='GaiaDR3_XPSD';config.catalogBand='G';config.maxStars=500;config.normalizeByExposure=false;
-      config.backgroundMode=BackgroundMode.Annulus;config.photometryMode=PhotometryMode.AutoAperture;config.apertureFWHM=5;
-      config.annulusInner=2.5;config.annulusOuter=4;config.detection.minSNR=20;config.detection.upperLimit=.95;
+      let config=sqrSkyPhotometryConfig();config.starSource=StarSource.Catalog;config.calibrateMagnitudes=true;
+      config.catalogId='GaiaDR3_XPSD';config.catalogBand='G';
       // Photometry and the plotted background both use G for an RGB image.
       AperturePhotometryEngine.MeasurementImage=sqrSkyMeasurementImage;
       let engine=new AperturePhotometryEngine(config),catalogSources=engine.CatalogSources.bind(engine),catalogName='Gaia DR3 (local)',catalogId='GaiaDR3_XPSD';
@@ -425,7 +502,9 @@ function sqrSkyWorker(job){let result={valid:false},originalMeasurement=Aperture
       engine.Identify=function(target){identify(target);
          if(!Number.isFinite(target.catalogMatched))throw new Error(engine.catalogErrors?.join('\n')||'The configured local Gaia databases returned no catalog matches.');
          if(target.catalogMatched<20&&target.stars.filter(s=>s.valid).length>=20){
-            sqrSkyRecoverCoordinates(engine,target,catalogId);identify(target);
+            target.metadata=sqrSkySolveCoordinates(engine.currentWindow,catalogId);target.skyAstrometryRebuilt=true;
+            for(let star of target.stars){star.catalogMagnitude=null;star.catalogMagnitudes=null;star.flags|=StarFlag.Unmatched;}
+            identify(target);
          }
       };
       engine.SetTargetFiles([job.path]);

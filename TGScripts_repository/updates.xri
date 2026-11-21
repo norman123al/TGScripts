@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="abc720c64df2ebf4d68513973050919a9fc05255" type="script" releaseDate="20261120">
+      <package fileName="TGScripts_repository.tar.gz" sha1="924758cd7fee9d89d7f0eb7f5c8f517f3b7db793" type="script" releaseDate="20261121">
          <title>
-            TGScripts - Script signatures for PixInsight 1.9.6 build 1719
+            TGScripts - SubframeQualityReview 0.56.1
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.47.0 and Subframe Quality Review 0.55.3 have been re-signed for PixInsight 1.9.6 build 1719. The new signatures allow PixInsight to verify both scripts against its updated libraries. The Astro Bucket List installation guide and README now specify PixInsight 1.9.6 build 1719 or later.
+               SubframeQualityReview 0.56.1 restores sky-brightness calibration and Bortle plot shading with local Gaia catalogs on PixInsight 1.9.6 build 1719.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-20T17:27:11.915Z" encoding="Base64">0sQS3cPjlF/4NN9iMWvNIk3iRkgZGii+3wTcoStLU6rSq6Tp9sPrNdlLgfPCrsU0oUYJFCieb25zgQ4PPmW5AA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-21T10:13:01.206Z" encoding="Base64">dk+0k1LmQtymL5K553ZfEqIN02200SkNY8x3ilivFtKOn2sD8fjjsQ1RH8W0oo07cNzi5BpTr1HmfAyTTPiNCg==</Signature>
