@@ -367,24 +367,7 @@ Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run.
 The screenshots below show **0.59.9** reviewing NGC 7814. The selected red-filter group contains **33 exposures of 180 seconds**.
 
 <details>
-<summary>Rejection recommendation</summary>
-
-The green line marks 29 retained frames. This trial keeps 95.5% of the best tested object SNR, above the 95% limit, and proposes rejecting four frames.
-
-![Rejection recommendation with object ROI, SNR and Score curves, and a table of tested counts](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_rejection_recommendation.jpg)
-
-</details>
-
-<details>
-<summary>Inputs, scoring and review</summary>
-
-Import checks the output folder and enabled-light count for the selected WBPP setup.
-
-![WBPP import dialog showing a saved setup with 51 enabled lights](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_import.jpg)
-
-Expanded input and evaluation sections show the folder and log settings, observing conditions, score modes, weights and guiding policy.
-
-![Expanded WBPP inputs, telescope aperture, seeing, timed SQM reading, manual score weights and guiding settings](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_setup.jpg)
+<summary>Review and measurements</summary>
 
 The Review table shows ranks, rejection marks and main issues. R4 averages the available normalized ranks and includes R2 only when corner scoring is enabled.
 
@@ -393,7 +376,7 @@ The Review table shows ranks, rejection marks and main issues. R4 averages the a
 </details>
 
 <details>
-<summary>Blink and four-corner comparison</summary>
+<summary>Blink frame / reference</summary>
 
 The center preview shows NGC 7814 at 1:1 with the best-scoring subframe as the blink reference.
 
@@ -406,7 +389,7 @@ Blink the four corners together against the matching corners of the reference. T
 </details>
 
 <details>
-<summary>Quality indicators, grading and correlation</summary>
+<summary>Quality indicators</summary>
 
 Score in value order highlights the selected subframe and shows the mean of the kept subframes.
 
@@ -432,6 +415,11 @@ The red-filter sky brightness is calibrated relative to green. This acquisition-
 
 ![Red-filter sky brightness over the session with a timed SQM reference and autofocus markers](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_sky_background.jpg)
 
+</details>
+
+<details>
+<summary>Correlation plot</summary>
+
 Score and PSF signal weight show a strong positive correlation in this group (Pearson r = +0.7306).
 
 ![Correlation plot of Score and PSF signal weight for the red-filter subframes](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_correlation_plot.jpg)
@@ -439,7 +427,19 @@ Score and PSF signal weight show a strong positive correlation in this group (Pe
 </details>
 
 <details>
-<summary>Export a reviewed WBPP setup</summary>
+<summary>WBPP setup, rejection recommendation and export</summary>
+
+Import checks the output folder and enabled-light count for the selected WBPP setup.
+
+![WBPP import dialog showing a saved setup with 51 enabled lights](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_import.jpg)
+
+Expanded input and evaluation sections show the folder and log settings, observing conditions, score modes, weights and guiding policy.
+
+![Expanded WBPP inputs, telescope aperture, seeing, timed SQM reading, manual score weights and guiding settings](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_setup.jpg)
+
+The green line marks 29 retained frames. This trial keeps 95.5% of the best tested object SNR, above the 95% limit, and proposes rejecting four frames.
+
+![Rejection recommendation with object ROI, SNR and Score curves, and a table of tested counts](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_rejection_recommendation.jpg)
 
 Export keeps calibration frames and processing settings. WBPP can choose a new registration or Local Normalization reference if the previous one was rejected. Moving the originals is optional.
 
