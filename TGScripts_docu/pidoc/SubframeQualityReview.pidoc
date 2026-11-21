@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.55.3.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.56.0.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -251,13 +251,15 @@ Higher Score means better relative quality. Scores range from 0 to 1 and are dis
    {{Component} {Poor-quality direction} {Default weight}}
    {{PSF signal weight} {Lower} {40}}
    {{Star count} {Lower} {15}}
-   {{Field FWHM} {Higher} {25}}
-   {{Field eccentricity} {Higher} {20}}
+   {{Field FWHM} {Higher} {40}}
+   {{Field eccentricity} {Higher} {40}}
    {{Corner quality} {Higher penalty; included when enabled} {20}}
    {{Selected Sky KPI} {Lower Sky quality or Transparency; higher Sky brightness} {20}}
    {{Guiding quality} {Larger combined guiding error relative to image pixel scale} {25}}
    {{Below-mean Quality} {Higher fraction of indicators worse than their mean} {20}}
 }
+
+Field FWHM, Field eccentricity and PSF signal weight all default to 40, giving star size and roundness the same individual weight as PSF signal in the manual score. Weights are relative, not percentages. Saved process instances retain their chosen weights; Reset defaults restores the values in this table.
 
 For each image-based field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2\% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.
 
