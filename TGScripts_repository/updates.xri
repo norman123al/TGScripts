@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="924758cd7fee9d89d7f0eb7f5c8f517f3b7db793" type="script" releaseDate="20261121">
+      <package fileName="TGScripts_repository.tar.gz" sha1="eebaf16418cd5b72b0a8cc7b3d2bcc1e3cfa75b4" type="script" releaseDate="20261121160436">
          <title>
-            TGScripts - SubframeQualityReview 0.56.1
+            TGScripts - SubframeQualityReview 0.59.7
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,10 @@
          </remove>
          <description>
             <p>
-               SubframeQualityReview 0.56.1 restores sky-brightness calibration and Bortle plot shading with local Gaia catalogs on PixInsight 1.9.6 build 1719.
+               SubframeQualityReview 0.59.7 prepares the file list on first measurement or Undo, reuses imported WBPP lights, and keeps manual refresh available. Telescope aperture presets simplify FWHM grading. Rejection recommendations fix trial-stack preparation and can now reconsider marked frames, clearing marks on frames recommended to keep.
+            </p>
+            <p>
+               Blink resumes when you return to its tab and preserves zoom and pan across filter groups. STF and brightness controls are beside zoom. KPI and correlation plots switch without flicker and share responsive margins, with clearer grading bands, selected bars, and an integrated Pearson correlation heading.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +48,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-21T10:13:01.206Z" encoding="Base64">dk+0k1LmQtymL5K553ZfEqIN02200SkNY8x3ilivFtKOn2sD8fjjsQ1RH8W0oo07cNzi5BpTr1HmfAyTTPiNCg==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-21T17:13:45.278Z" encoding="Base64">aoEyL4tlywPXuwTPudEJ2p8OPCnjDWs8u/hfx7XwbqgaOcLq/GoOGPLSrTmO/p7YIhFSyMjmR92F/84LCrKODA==</Signature>

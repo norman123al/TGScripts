@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.56.1 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.59.7 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.56.1';
+const SQR_VERSION='0.59.7';
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
 const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
@@ -75,7 +75,7 @@ function sqrDefaults(){return {wbpp:'',originals:'',destination:'',wbppImport:nu
    patch:22,margin:2,minStars:10,signalWeight:40,starsWeight:15,fwhmWeight:40,eccentricityWeight:40,cornerWeight:20,backgroundWeight:20,skyScoreKPI:'skyQuality',belowMeanWeight:20,guideWeight:25,correlationOnly:false,rankOfRanks:false,
    maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'available',qualityCollapsed:false,inputsCollapsed:false,reviewInfoCollapsed:false,messagesCollapsed:false,
    fwhmEnabled:true,fwhmAperture:0,fwhmSeeing:0,fwhmGoodPercent:115,fwhmMediumPercent:135,fwhmSeeingGood:1.5,fwhmSeeingMedium:2.5,fwhmAltitude:45,fwhmOptics:0,fwhmWavelengths:{},
-   bortleClass:6,sqmReading:0,sqmTime:'',sqmTimeFromLog:false,recommendation:{snrPercent:95,minFrames:20,useROI:false,roi:null,geometry:null,plotKPI:'score'}};}
+   bortleClass:6,sqmReading:0,sqmTime:'',sqmTimeFromLog:false,recommendation:{snrPercent:95,minFrames:20,includeRejected:false,useROI:false,roi:null,geometry:null,plotKPI:'score'}};}
 
 // Approximate visual-class / surface-brightness correspondence, in mag/arcsec²:
 // https://www.handprint.com/ASTRO/bortle.html . The end classes are open-ended.
@@ -307,14 +307,45 @@ function sqrSkyPlotDetails(m){
       'Reading: '+new Date(c.measurementTime).toISOString()+' (UTC)\nExposure midpoint: '+new Date(c.referenceMidpoint).toISOString()+' (UTC)\nTime difference: '+(Math.abs(c.referenceMidpoint-c.measurementTime)/60000).toFixed(1)+' min\nBackground: '+sqrFmt(c.anchorBackground,6)+' image units ('+c.backgroundBasis+')':
       c.stars+' local Gaia stars\nCalibration scatter: '+c.scatter.toFixed(3)+' mag\nChannel: '+c.channel+(c.astrometryRebuilt?'\nSky coordinates rebuilt':''));
 }
+const SQR_GRADE_COLORS={Good:'#63b66a',Medium:'#f2cd40',Bad:'#e56b70'};
+const SQR_GRADE_TEXT={Good:'#a6e3a1',Medium:'#f9e2af',Bad:'#f38ba8'};
+const SQR_GRADE_OPACITY=0.25;
+const SQR_PLOT_SURROUND='#1e1e2e';
+const SQR_PLOT_TEXT='#cdd6f4';
+const SQR_PLOT_LABEL_SIZE='clamp(16px,1.36vw,21px)';
+// Reserve the same two heading rows and axis gutters on both tabs. A longer
+// legend or tick label can claim extra room without squeezing the other labels.
+const SQR_CHART_CSS='*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:'+SQR_PLOT_SURROUND+';color:'+SQR_PLOT_TEXT+';font-family:"Segoe UI",system-ui,sans-serif}'+
+   '.container{height:100%;display:flex;flex-direction:column}header{flex:none;display:grid;grid-template-rows:auto minmax(1.2em,auto);row-gap:3px;text-align:center;padding:clamp(8px,1.6vh,16px) 12px 6px;font-size:clamp(14px,1.2vw,18px)}'+
+   '.title{margin:0;font-weight:600;font-size:clamp(20px,1.9vw,26px);line-height:1.2}'+
+   '.category-legend,.bortle-legend,.interpretation{line-height:1.2}'+
+   '.plot-region{flex:1;min-height:0;position:relative;display:flex;font-size:'+SQR_PLOT_LABEL_SIZE+';--side-gap:clamp(12px,2.8vw,54px)}'+
+   '.plot-field{position:absolute;top:clamp(1.95em,4.6vh,2.5em);bottom:calc(3.2em + clamp(10px,3.3vh,34px));'+
+      'left:calc(var(--side-gap) + max(7ch,var(--y-ticks,0ch)) + 2.5em);right:calc(var(--side-gap) + max(3ch,var(--x-end,0ch)) + .5em)}'+
+   '.plot-field svg{width:100%;height:100%;display:block;overflow:visible}.empty{margin:auto;padding:24px;text-align:center}';
+const SQR_SHADED_PLOT={background:'#ffffff',grid:'#adb3b6',mean:'#25693c',sqm:'#94316d',focus:'#955010',hover:'#303842'};
+const SQR_UNGRADED_PLOT={...SQR_SHADED_PLOT,background:sqrGradeSwatch(SQR_GRADE_COLORS.Good)};
+const SQR_SELECTED_BAR='#35b5cf';
+function sqrPlotBands(data){return data.skyBands||data.guideBands||data.eccentricityBands||data.fwhmBands||[];}
+function sqrPlotPalette(data,bands){
+   // A white base belongs only to the data rectangle with visible grading bands.
+   return bands.some(b=>Math.min(data.high,b.high??data.high)>Math.max(data.low,b.low??data.low))?SQR_SHADED_PLOT:SQR_UNGRADED_PLOT;
+}
+// Native legend cells are opaque. Composite their samples on the same white base as the bands.
+function sqrGradeSwatch(color){
+   return '#'+[1,3,5].map(i=>{
+      let ink=parseInt(color.slice(i,i+2),16);
+      return Math.round(255+(ink-255)*SQR_GRADE_OPACITY).toString(16).padStart(2,'0');
+   }).join('');
+}
 // Describe only the bands the plot can shade. Classes 8 and 9 share an
 // interval, including when either class is selected manually.
 function sqrBortleShading(model){
    if(!model?.valid)return [];
    let first=Math.min(8,model.bortleClass),last=first===8?9:first;
-   return [{label:'Good',first:1,last:first-1,color:'#a6e3a1'},
-      {label:'Medium',first,last,color:'#f9e2af'},
-      {label:'Bad',first:last+1,last:9,color:'#f38ba8'}].filter(b=>b.first<=b.last);
+   return [{label:'Good',first:1,last:first-1,low:null,high:model.goodValue,color:SQR_GRADE_COLORS.Good},
+      {label:'Medium',first,last,low:model.goodValue,high:model.mediumValue,color:SQR_GRADE_COLORS.Medium},
+      {label:'Bad',first:last+1,last:9,low:model.mediumValue,high:null,color:SQR_GRADE_COLORS.Bad}].filter(b=>b.first<=b.last);
 }
 /** Explain the exact automatic lookup from the same static limits that drive
  * calibration and shading. Reuse the plot's validated calibration, including
@@ -332,7 +363,7 @@ function sqrBortleRangeInformation(model=null){
             imageRange=low===null?'sky ≤ '+value(high):high===null?'sky > '+value(low):value(low)+' < sky ≤ '+value(high);
       }
       let band=shading.find(b=>i>=b.first&&i<=b.last),shade=band?
-         '<td width="76" align="center" bgcolor="'+band.color+'"><font color="#263746">'+band.label+'</font></td>':'<td width="76" align="center">—</td>';
+         '<td width="76" align="center" bgcolor="'+sqrGradeSwatch(band.color)+'"><font color="#263746">'+band.label+'</font></td>':'<td width="76" align="center">—</td>';
       rows.push('<tr><td>'+sqrHTML(i===8?'8–9':String(i))+'</td><td>'+sqrHTML(range)+'</td><td>'+sqrHTML(imageRange)+'</td>'+shade+'</tr>');}
    return '<h3>SQM-to-Bortle ranges</h3><p>Ranges used by this script, in mag/arcsec². Higher SQM values mean darker skies.</p>'+
       '<table width="100%" cellspacing="6" cellpadding="3"><tr><th align="left">Bortle class</th><th align="left">SQM reading</th><th align="left">Sky brightness<br/>(image units)</th><th width="76" align="center">Shading</th></tr>'+rows.join('')+'</table>'+
@@ -354,22 +385,23 @@ function sqrPlotReadingGuide(data){
    let html='<h3>Reading the plot</h3><table width="100%" cellspacing="3" cellpadding="4">'+tips.map(([name,text])=>'<tr><td width="94" valign="top"><b>'+name+'</b></td><td>'+sqrHTML(text)+'</td></tr>').join('')+'</table>';
    html+='<h4>Colors and markers</h4><table width="100%" cellspacing="4" cellpadding="5"><tr><th width="56" align="left">Sample</th><th width="140" align="left">Marker</th><th align="left">Meaning</th></tr>';
    const group=label=>'<tr><td colspan="3" bgcolor="#e8edf2"><font color="#263746"><b>'+label+'</b></font></td></tr>';
-   const item=(color,label,meaning,line=false)=>'<tr><td width="56" align="center" bgcolor="'+(line?'#252536':color)+'">'+(line?'<font color="'+color+'"><b>━ ━ ━</b></font>':'&nbsp;')+'</td><td width="140"><b>'+sqrHTML(label)+'</b></td><td>'+sqrHTML(meaning)+'</td></tr>';
+   let bands=sqrPlotBands(data),palette=sqrPlotPalette(data,bands);
+   const item=(color,label,meaning,line=false)=>'<tr><td width="56" align="center" bgcolor="'+(line?palette.background:color)+'">'+(line?'<font color="'+color+'"><b>━ ━ ━</b></font>':'&nbsp;')+'</td><td width="140"><b>'+sqrHTML(label)+'</b></td><td>'+sqrHTML(meaning)+'</td></tr>';
    html+=group('Image bars')+[
-      ['#89dceb','Cyan bar','Selected image'],['#cba6f7','Purple bar','REVIEW candidate'],['#2d6cb5','Blue bar','Other kept subframe'],['#e57373','Red bar','Rejected or moved original']
+      [SQR_SELECTED_BAR,'Cyan bar','Selected image. A dark teal border marks its full column.'],['#cba6f7','Purple bar','REVIEW candidate'],['#2d6cb5','Blue bar','Other kept subframe'],['#e57373','Red bar','Rejected or moved original']
    ].map(row=>item(...row)).join('')+(data.hasMaster?item('#f9a825','Gold bar','Comparison master'):'');
-   html+=group('Reference lines')+item('#a6e3a1','Green dashed','Mean of measured, unrejected subframes; excludes the master.',true);
-   if(sky&&data.skyModel?.valid&&data.skyModel.sqmValue!==null)html+=item('#f5c2e7','Pink dashed','Session SQM: below the line is darker; above is brighter.',true);
-   if(data.showAutofocus&&data.autofocus?.length)html+=item('#fab387','Orange / AF','Autofocus start; AF shows the final focus position when known. Hover over a tag for details. '+data.autofocus.length+' starts in range.',true);
-   let shaded=!!(data.skyBands||data.guideBands||data.eccentricityBands||data.fwhmBands)?.length;
-   if(shaded){
+   html+=group('Reference lines')+item(palette.mean,'Green dashed','Mean of measured, unrejected subframes; excludes the master.',true);
+   if(sky&&data.skyModel?.valid&&data.skyModel.sqmValue!==null)html+=item(palette.sqm,'Pink dashed','Session SQM: below the line is darker; above is brighter.',true);
+   if(data.showAutofocus&&data.autofocus?.length)html+=item(palette.focus,'Orange / AF','Autofocus start; AF shows the final focus position when known. Hover over a tag for details. '+data.autofocus.length+' starts in range.',true);
+   if(bands.length){
       html+=group('Background shading');
-      if(sky)for(let band of sqrBortleShading(data.skyModel)){
-         let classes=band.first===band.last?String(band.first):band.first+'–'+band.last;
-         html+=item(band.color,(band.label==='Good'?'Green':band.label==='Medium'?'Amber':'Red')+' shading',band.label+' · Bortle '+classes);
-      }else html+=item('#a6e3a1','Green shading','Good')+item('#f9e2af','Amber shading','Medium')+item('#f38ba8','Red shading','Bad');
+      for(let band of bands){
+         let meaning=band.label;
+         if(sky)meaning+=' · Bortle '+(band.first===band.last?String(band.first):band.first+'–'+band.last);
+         html+=item(sqrGradeSwatch(band.color),(band.label==='Good'?'Green':band.label==='Medium'?'Yellow':'Red')+' shading',meaning);
+      }
    }
-   return html+'</table><p><i>Selection overrides the bar color with cyan. A status outline may remain visible.'+(shaded?' Background shading grades the measurement; it does not indicate selection or rejection.':'')+'</i></p>';
+   return html+'</table><p><i>Selection overrides the bar color with cyan. A status outline may remain visible.'+(palette===SQR_UNGRADED_PLOT?' Pale green is the default background when no grading bands are visible.':' Background shading grades the measurement; it does not indicate selection or rejection.')+'</i></p>';
 }
 function sqrPlotInformation(data){
    if(!data?.kpi)return null;let k=data.kpi,sky=k.key==='skyBackground',parts=[];
@@ -525,7 +557,7 @@ function sqrCalibrateSky(session,group,notify){
    if(sqrSkyColorTransfer(group)){
       let plan=sqrSkyTransferPlan(session,group);if(!plan.valid)throw new Error(plan.reason);
       let source=sqrCalibrateSky(session,plan.greenGroup,notify);
-      for(let row of [plan.colour.row,plan.green.row])if(sqrFingerprint(row.registered.path)!==row.registered.fingerprint)throw new Error('A sky-transfer reference file has changed. Scan and measure again.');
+      for(let row of [plan.colour.row,plan.green.row])if(sqrFingerprint(row.registered.path)!==row.registered.fingerprint)throw new Error('A sky-transfer reference file has changed. Refresh the file list and measure again.');
       let result=sqrSkyTransferCalibration(session,plan,source);if(!result)throw new Error('The green-to-colour background conversion is outside the usable numeric range.');
       group.skyCalibration=result;delete group.skyCalibrationError;return result;
    }
@@ -534,7 +566,7 @@ function sqrCalibrateSky(session,group,notify){
    let row=sqrSkyReference(session,group);if(!row)throw new Error(sqm?'No eligible measured frame has a valid exposure time and background for SQM calibration.':'Measure the group first; no eligible reference has a valid default field score and background.');
    if(!group.rows.every(r=>sqrSkyComparable(row.registered,r.registered)))throw new Error('A shared sky calibration requires the same camera, filter, gain, exposure, binning, pedestal and image dimensions.');
    let path=row.registered.path,fingerprint=sqrFingerprint(path);
-   if(fingerprint!==row.registered.fingerprint)throw new Error('The reference file has changed. Scan and measure again.');
+   if(fingerprint!==row.registered.fingerprint)throw new Error('The reference file has changed. Refresh the file list and measure again.');
    let current=sqrCurrentSkyCalibration(session,group);
    if(current){delete group.skyCalibrationError;group.skyCalibration=current;return current;}
    let job={...row.registered,path,fingerprint,pedestal:sqrSkyPedestal(row.registered)};
@@ -586,6 +618,17 @@ function sqrSkyCalibrationText(c){if(c.transfer)return 'Sky calibrated: '+c.chan
 
 
 const SQR_FWHM_KEYS=['fwhmEnabled','fwhmAperture','fwhmSeeing','fwhmGoodPercent','fwhmMediumPercent','fwhmSeeingGood','fwhmSeeingMedium','fwhmAltitude','fwhmOptics','fwhmWavelengths'];
+// Share the telescope list across reviews. Each process instance keeps its own active diameter.
+const SQR_APERTURE_PRESETS_KEY='TGScripts/SubframeQualityReview/aperturePresets';
+function sqrParseAperturePresets(text){
+   let tokens=text.trim().split(/[,;\s]+/).filter(Boolean);
+   if(tokens.some(token=>!/^\d+$/.test(token)||Number(token)<1||Number(token)>50000))return null;
+   return [...new Set(tokens.map(Number))].sort((a,b)=>a-b);
+}
+function sqrReadAperturePresets(){
+   let text=Settings.read(SQR_APERTURE_PRESETS_KEY,DataType.String);
+   return Settings.lastReadOK?(sqrParseAperturePresets(text)||[]):[];
+}
 function sqrFWHMOptions(o={}){let defaults=sqrDefaults(),result=Object.fromEntries(SQR_FWHM_KEYS.map(key=>[key,o[key]??defaults[key]]));
    // Draft edits and process instances must not share a mutable override map.
    result.fwhmWavelengths=o.fwhmWavelengths&&typeof o.fwhmWavelengths==='object'&&!Array.isArray(o.fwhmWavelengths)?{...o.fwhmWavelengths}:{};return result;}
@@ -659,8 +702,8 @@ function sqrFWHMModelInformation(m){
    if(m?.valid){
       html+='<p>'+(m.mode==='relative'?'<b>Expected FWHM: '+sqrFmt(m.expected,1)+' px</b><br/>Limits are '+sqrFmt(m.goodPercent,1)+'% and '+sqrFmt(m.mediumPercent,1)+'% of the expected width.':'Limits use the chosen Good and Medium seeing conditions.')+'</p>';
       html+='<table width="100%" cellspacing="3" cellpadding="5"><tr><th align="left" width="210">Grade</th><th align="left">Measured FWHM</th></tr>'+[
-         ['Good','#e0f0e4','≤ '+sqrFmt(m.good,1)+' px'],['Medium','#fff0cd','> '+sqrFmt(m.good,1)+' to '+sqrFmt(m.medium,1)+' px'],['Bad','#f9dfe2','> '+sqrFmt(m.medium,1)+' px']
-      ].map(([label,color,value])=>'<tr><td bgcolor="'+color+'"><font color="#263746"><b>'+label+'</b></font></td><td>'+sqrHTML(value)+'</td></tr>').join('')+'</table>';
+         ['Good','≤ '+sqrFmt(m.good,1)+' px'],['Medium','> '+sqrFmt(m.good,1)+' to '+sqrFmt(m.medium,1)+' px'],['Bad','> '+sqrFmt(m.medium,1)+' px']
+      ].map(([label,value])=>'<tr><td bgcolor="'+sqrGradeSwatch(SQR_GRADE_COLORS[label])+'"><font color="#263746"><b>'+label+'</b></font></td><td>'+sqrHTML(value)+'</td></tr>').join('')+'</table>';
       html+='<h3>Reference conditions</h3>'+table([
          ['Telescope aperture',sqrFmt(m.aperture,0)+' mm'],['Target altitude',sqrFmt(m.altitude,1)+'° · airmass '+sqrFmt(m.airmass,2)],
          ['Filter and wavelength',(m.filter.filter||'Not selected')+' · '+m.filter.name+' · '+sqrFmt(m.wavelength,1)+' nm'+(m.customWavelength?' (custom)':'')],
@@ -1396,7 +1439,7 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
    if(kpi.key==='relativeTransparency')data.detail=group?.transparencySummary||'Measure the subframes to establish a transparency reference.';
    if(kpi.key==='cloudExtinction')data.detail=group?.cloudExtinctionSummary||'Measure at least five subframes with observation metadata to estimate cloud extinction.';
    if(kpi.key==='skyQuality')data.detail=group?.skyQualitySummary||'Measure sky background and relative transparency to calculate Sky quality.';
-   if(!group){data.message='Scan files and measure a group to view its quality indicators.';return data;}
+   if(!group){data.message='Measure a group to view its quality indicators.';return data;}
    // WBPP's metric plots use one slot per frame, ascending metric order and
    // 10% vertical padding. They do not aggregate values into frequency bins.
    // Score and Below-mean Quality describe subframe comparisons only: remove the master
@@ -1423,9 +1466,9 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
       // Maximum errors retain the overview of all three guiding categories.
       if(kpi.key==='guideMax'){data.low=0;data.high=Math.max(data.high,2*guideScale);}
       data.guideBands=[
-         {label:'Good',low:0,high:guideScale,color:'#a6e3a1'},
-         {label:'Medium',low:guideScale,high:1.75*guideScale,color:'#f9e2af'},
-         {label:'Bad',low:1.75*guideScale,high:null,color:'#f38ba8'}];
+         {label:'Good',low:0,high:guideScale,color:SQR_GRADE_COLORS.Good},
+         {label:'Medium',low:guideScale,high:1.75*guideScale,color:SQR_GRADE_COLORS.Medium},
+         {label:'Bad',low:1.75*guideScale,high:null,color:SQR_GRADE_COLORS.Bad}];
    }
    // Fit all eccentricity regions to the actual bars, including the master. Keep
    // category thresholds fixed; off-axis bands are clipped by the renderer.
@@ -1433,18 +1476,18 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
       let plotted=valid.map(item=>item.value),bottom=Math.min(...plotted),top=Math.max(...plotted),pad=(top-bottom||top*.1||.01)*.1;
       data.low=Math.max(0,bottom-pad);data.high=Math.min(1,top+pad);
       data.eccentricityBands=[
-         {label:'Good',low:0,high:SQR_ECCENTRICITY_LIMITS.good,color:'#a6e3a1'},
-         {label:'Medium',low:SQR_ECCENTRICITY_LIMITS.good,high:SQR_ECCENTRICITY_LIMITS.medium,color:'#f9e2af'},
-         {label:'Bad',low:SQR_ECCENTRICITY_LIMITS.medium,high:1,color:'#f38ba8'}];
+         {label:'Good',low:0,high:SQR_ECCENTRICITY_LIMITS.good,color:SQR_GRADE_COLORS.Good},
+         {label:'Medium',low:SQR_ECCENTRICITY_LIMITS.good,high:SQR_ECCENTRICITY_LIMITS.medium,color:SQR_GRADE_COLORS.Medium},
+         {label:'Bad',low:SQR_ECCENTRICITY_LIMITS.medium,high:1,color:SQR_GRADE_COLORS.Bad}];
    }
    // All FWHM regions use the same reference model. The bands never alter
    // measurements, score penalties, rejection choices or the REVIEW quota.
    if(kpi.metric==='fwhm'&&fwhmModel?.valid&&fwhmModel.enabled){
       data.low=0;data.high=Math.max(data.high,1.15*fwhmModel.medium);
       data.fwhmBands=[
-         {label:'Good',low:0,high:fwhmModel.good,color:'#a6e3a1'},
-         {label:'Medium',low:fwhmModel.good,high:fwhmModel.medium,color:'#f9e2af'},
-         {label:'Bad',low:fwhmModel.medium,high:data.high,color:'#f38ba8'}];
+         {label:'Good',low:0,high:fwhmModel.good,color:SQR_GRADE_COLORS.Good},
+         {label:'Medium',low:fwhmModel.good,high:fwhmModel.medium,color:SQR_GRADE_COLORS.Medium},
+         {label:'Bad',low:fwhmModel.medium,high:data.high,color:SQR_GRADE_COLORS.Bad}];
    }
    if(kpi.metric==='fwhm'){
       data.low=Math.floor(data.low*10)/10;data.high=Math.ceil(data.high*10)/10;if(data.high<=data.low)data.high=data.low+.1;
@@ -1457,14 +1500,8 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
       data.low=bottom-pad;if(bottom>=0)data.low=Math.max(0,data.low);data.high=top+pad;
       if(!(data.high>data.low))data.high=data.low+.000001;
    }
-   if(kpi.key==='skyBackground'&&skyModel?.valid){
-      if(skyModel.bortleClass){
-         data.skyBands=[];
-         if(skyModel.goodValue!==null)data.skyBands.push({label:'Good',low:null,high:skyModel.goodValue,color:'#a6e3a1'});
-         data.skyBands.push({label:'Medium',low:skyModel.goodValue,high:skyModel.mediumValue,color:'#f9e2af'});
-         if(skyModel.mediumValue!==null)data.skyBands.push({label:'Bad',low:skyModel.mediumValue,high:null,color:'#f38ba8'});
-      }
-   }
+   if(kpi.key==='skyBackground'&&skyModel?.valid&&skyModel.bortleClass)
+      data.skyBands=sqrBortleShading(skyModel);
    data.masterClipped=data.master===null?'':data.master>data.high?'above':data.master<data.low?'below':'';
    let kept=valid.filter(item=>!item.master&&!item.rejected);
    if(kept.length)data.average=kept.reduce((sum,item)=>sum+item.value,0)/kept.length;
@@ -1525,7 +1562,7 @@ function sqrCorrelationText(correlation){
 function sqrScatterPlot(group,xKPI,yKPI,selectedRow=null){
    let rows=(group?.rows||[]).filter(row=>!row.isMaster);
    let data={xKPI,yKPI,items:[],count:0,missing:0,total:rows.length,correlation:sqrPearson([]),message:''};
-   if(!group){data.message='Scan files and measure a group to compare two quality indicators.';return data;}
+   if(!group){data.message='Measure a group to compare two quality indicators.';return data;}
    for(let row of rows){
       let x=sqrKPIValue(row,xKPI),y=sqrKPIValue(row,yKPI),paired=x!==null&&y!==null;
       if(paired)++data.count;else ++data.missing;
@@ -1541,18 +1578,31 @@ function sqrScatterNumber(value,kpi){return kpi.metric==='fwhm'?sqrFmt(value,1):
 /** Scatter coordinates remain numeric and unmodified, including overlapping
  * measurements. Draw the selected point last; all points support keyboard
  * focus and tooltips. Click messages use the same generation guard as bars. */
-function sqrScatterHTML(data,generation=0){
+function sqrScatterContent(data,generation=0){
    let body='';
    if(data.message)body='<div class="empty">'+sqrHTML(data.message)+'</div>';
    else{
-      let svg=[],left=88,right=932,top=20,bottom=300;
-      let x=value=>left+(value-data.xAxis.low)/(data.xAxis.high-data.xAxis.low)*(right-left),y=value=>bottom-(value-data.yAxis.low)/(data.yAxis.high-data.yAxis.low)*(bottom-top);
-      svg.push('<rect x="'+left+'" y="'+top+'" width="'+(right-left)+'" height="'+(bottom-top)+'" rx="3" fill="#252536"/>');
-      for(let i=0;i<=5;++i){
-         let xv=data.xAxis.low+(data.xAxis.high-data.xAxis.low)*i/5,yv=data.yAxis.low+(data.yAxis.high-data.yAxis.low)*i/5,px=x(xv),py=y(yv);
-         svg.push('<path d="M'+px+' '+top+'V'+bottom+' M'+left+' '+py+'H'+right+'" stroke="#45475a" stroke-width=".7" stroke-dasharray="3,3"/>');
-         svg.push('<text x="'+px+'" y="322" text-anchor="middle">'+sqrScatterNumber(xv,data.xKPI)+'</text><text x="78" y="'+(py+4)+'" text-anchor="end">'+sqrScatterNumber(yv,data.yKPI)+'</text>');
+      let svg=[],labels=[],yTickChars=0,lastXChars=0;
+      // Percentage positions use the data rectangle as their viewport. Text,
+      // circles and click targets use font units and stay legible at any aspect.
+      function label(x,y,value,attributes){
+         labels.push('<text x="'+x+'" y="'+y+'" '+attributes+'>'+sqrHTML(value)+'</text>');
       }
+      const x=value=>100*(value-data.xAxis.low)/(data.xAxis.high-data.xAxis.low)+'%';
+      const y=value=>100*(data.yAxis.high-value)/(data.yAxis.high-data.yAxis.low)+'%';
+      svg.push('<rect width="100%" height="100%" rx="3" fill="'+SQR_UNGRADED_PLOT.background+'"/>',
+         '<g stroke="'+SQR_UNGRADED_PLOT.grid+'" stroke-dasharray="4 4">');
+      for(let i=0;i<=5;++i){
+         const px=(i*20)+'%',py=(100-i*20)+'%';
+         const xt=sqrScatterNumber(data.xAxis.low+(data.xAxis.high-data.xAxis.low)*i/5,data.xKPI);
+         const yt=sqrScatterNumber(data.yAxis.low+(data.yAxis.high-data.yAxis.low)*i/5,data.yKPI);
+         yTickChars=Math.max(yTickChars,yt.length);
+         if(i===5)lastXChars=xt.length;
+         svg.push('<line x1="'+px+'" x2="'+px+'" y2="100%"/><line y1="'+py+'" y2="'+py+'" x2="100%"/>');
+         label(px,'100%',xt,'text-anchor="middle" dy="1.35em"');
+         label('0',py,yt,'text-anchor="end" dx="-.55em" dy=".35em"');
+      }
+      svg.push('</g><g stroke="#9399b2" pointer-events="none"><line y2="100%"/><line y1="100%" x2="100%" y2="100%"/></g>');
       // Preserve model indices for asynchronous selection despite drawing order.
       data.items.map((item,index)=>({item,index})).sort((a,b)=>Number(a.item.selected)-Number(b.item.selected)).forEach(({item,index})=>{
          let color=item.selected?'#89dceb':item.rejected?'#e57373':item.review?'#cba6f7':'#2d6cb5';
@@ -1560,36 +1610,57 @@ function sqrScatterHTML(data,generation=0){
          if((data.xKPI.guiding||data.yKPI.guiding)&&item.row.guiding&&!item.row.guiding.scorable)tip+='\nPartial guiding data: '+item.row.guiding.reason;
          tip+='\nClick to select in Review and measurements';
          svg.push('<g class="point" data-index="'+index+'" tabindex="0" role="button" aria-label="'+sqrHTML(tip)+'"><title>'+sqrHTML(tip)+'</title>');
-         svg.push('<circle cx="'+x(item.x)+'" cy="'+y(item.y)+'" r="8" fill="transparent" pointer-events="all"/>');
-         svg.push('<circle data-point="'+index+'" cx="'+x(item.x)+'" cy="'+y(item.y)+'" r="'+(item.selected?5:4)+'" fill="'+color+'" stroke="'+(item.rejected?'#e57373':item.selected?'#cdd6f4':'#1e1e2e')+'" stroke-width="'+(item.selected?2:1)+'"/></g>');
+         svg.push('<circle cx="'+x(item.x)+'" cy="'+y(item.y)+'" r=".65em" fill="transparent" pointer-events="all"/>');
+         svg.push('<circle data-point="'+index+'" cx="'+x(item.x)+'" cy="'+y(item.y)+'" r="'+(item.selected?'.43em':'.34em')+'" fill="'+color+'" stroke="'+(item.rejected?'#e57373':item.selected?'#00566e':'#1e1e2e')+'" stroke-width="'+(item.selected?2:1)+'"/></g>');
       });
-      svg.push('<path d="M'+left+' '+top+'V'+bottom+'H'+right+'" fill="none" stroke="#9399b2"/><text x="510" y="351" text-anchor="middle" class="axis">'+sqrHTML(data.xKPI.label)+'</text><text transform="translate(20 160) rotate(-90)" text-anchor="middle" class="axis">'+sqrHTML(data.yKPI.label)+'</text>');
-      body='<svg viewBox="0 0 960 365" role="img" aria-label="'+sqrHTML(data.yKPI.label+' versus '+data.xKPI.label)+'">'+svg.join('')+'</svg>';
+      label('50%','100%',data.xKPI.label,'class="axis" text-anchor="middle" dy="2.85em"');
+      labels.push('<g class="y-title">');
+      label('0','50%',data.yKPI.label,'class="axis vertical" text-anchor="middle" dominant-baseline="central"');
+      labels.push('</g>');
+      body='<div class="plot-field" style="--y-ticks:'+yTickChars+'ch;--x-end:'+(lastXChars/2)+'ch"><svg class="scatter-chart" role="img" aria-label="'+sqrHTML(data.yKPI.label+' versus '+data.xKPI.label)+'">'+svg.join('')+'<g pointer-events="none">'+labels.join('')+'</g></svg></div>';
    }
-   let script='window.sqrSelection=null;document.querySelectorAll(".point").forEach(function(el){function select(){window.sqrSelection={generation:'+generation+',index:Number(el.dataset.index)};}el.addEventListener("click",select);el.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();select();}});});';
-   return '<!doctype html><html><head><meta charset="UTF-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1e1e2e;color:#cdd6f4;font-family:"Segoe UI",system-ui,sans-serif}body{display:flex;align-items:center;justify-content:center}svg{width:100%;height:100%}text{fill:#bac2de;font-size:12px}.axis{fill:#cdd6f4;font-size:14px}.point{cursor:pointer}.point:hover>[data-point],.point:focus>[data-point]{stroke:#fff;stroke-width:2}.empty{padding:24px;text-align:center;color:#bac2de}</style></head><body>'+body+'<script>'+script+'</script></body></html>';
+   const [title,...details]=sqrCorrelationText(data.correlation).split(' · ');
+   const tip=data.correlation.r===null?'':' title="Unrounded r = '+data.correlation.r+'"';
+   const header='<header'+tip+'><h1 class="title">'+sqrHTML(title)+'</h1><div class="interpretation">'+sqrHTML(details.join(' · '))+'</div></header>';
+   let style=SQR_CHART_CSS+'.scatter-chart{fill:currentColor}.axis{font-weight:600}.y-title{transform:translateX(calc(0px - var(--y-ticks) - 1.55em))}.vertical{transform-box:fill-box;transform-origin:center;transform:rotate(-90deg)}.point{cursor:pointer}.point:hover>[data-point],.point:focus>[data-point]{stroke:'+SQR_UNGRADED_PLOT.hover+';stroke-width:2}';
+   return {body:'<div class="container">'+header+'<div class="plot-region">'+body+'</div></div>',style,generation};
 }
 /** Render the model as SVG inside a WebView. Escape image names and labels.
  * Clicks carry a plot-generation id so delayed browser callbacks cannot select
  * a row from an outdated group or indicator after the plot has been rebuilt. */
-function sqrPlotHTML(data,generation=0){
-   // Independent SVG renderer matching WBPP 3.1.2 metric-plot geometry/palette.
-   let body='',message=data?.message||'',title=data?.kpi.label||'Quality indicators';
+function sqrHistogramContent(data,generation=0){
+   // SVG renderer for the per-image KPI measurements.
+   let body='',legend='',message=data?.message||'',title=data?.kpi.label||'Quality indicators',palette=SQR_UNGRADED_PLOT;
    if(message)body='<div class="empty">'+sqrHTML(message)+'</div>';
    else if(data){
       let svg=[],y=value=>175-(value-data.low)/(data.high-data.low)*140,number=value=>sqrKPIPlotNumber(value,data.kpi);
-      let bands=data.skyBands||data.guideBands||data.eccentricityBands||data.fwhmBands||[],bandClass=data.skyBands?'sky':data.guideBands?'guide':data.fwhmBands?'fwhm':'eccentricity';
-      svg.push('<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".4"/></filter></defs><rect x="55" y="35" width="330" height="140" rx="3" fill="#252536"/>');
+      // Map the bar coordinates (55..385, 35..175) onto the shared data field.
+      // Text follows the same anchors in an unscaled layer, including on resize.
+      let labels=[],yTickChars=0;
+      function addLabel(x,y,value,attributes){
+         labels.push('<text x="'+((x-55)/330*100)+'%" y="'+((y-35)/140*100)+'%" '+attributes+'>'+sqrHTML(value)+'</text>');
+      }
+      let bands=sqrPlotBands(data),bandClass=data.skyBands?'sky':data.guideBands?'guide':data.fwhmBands?'fwhm':'eccentricity';
+      palette=sqrPlotPalette(data,bands);
+      svg.push('<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".2"/></filter></defs><rect x="55" y="35" width="330" height="140" rx="3" fill="'+palette.background+'"/>');
       
       // Clip overlays to the data axis. A class can be wholly outside the
       // visible range; do not draw reversed rectangles or rescale the data.
       for(let band of bands){let low=Math.max(data.low,band.low??data.low),high=Math.min(data.high,band.high??data.high);
-         if(high>low)svg.push('<rect class="'+bandClass+'-band" data-category="'+band.label+'" x="55" y="'+y(high)+'" width="330" height="'+(y(low)-y(high))+'" fill="'+band.color+'" fill-opacity=".18" pointer-events="none"/>');}
-      for(let value of sqrHistogramTicks(data)){let py=y(value);
-         svg.push('<path d="M50 '+py+'H55" stroke="#585b70"/><path d="M55 '+py+'H385" stroke="#3a3a4a" stroke-width=".5" stroke-dasharray="3,3"/><text x="47" y="'+(py+3)+'" text-anchor="end" fill="#6c7086" font-size="9">'+number(value)+'</text>');}
-      let spacing=330/data.items.length,width=Math.max(2,spacing-1);
+         if(high>low)svg.push('<rect class="'+bandClass+'-band" data-category="'+band.label+'" x="55" y="'+y(high)+'" width="330" height="'+(y(low)-y(high))+'" fill="'+band.color+'" fill-opacity="'+SQR_GRADE_OPACITY+'" pointer-events="none"/>');}
+      for(let value of sqrHistogramTicks(data)){let py=y(value),tick=number(value);
+         yTickChars=Math.max(yTickChars,tick.length);
+         svg.push('<path d="M55 '+py+'H385" stroke="'+palette.grid+'" stroke-width=".5" stroke-dasharray="3,3"/>');
+         const tickY=((py-35)/140*100)+'%';
+         labels.push('<line x1="-.45em" x2="0" y1="'+tickY+'" y2="'+tickY+'" stroke="#585b70" stroke-width="2"/>');
+         addLabel(55,py,tick,'class="tick" text-anchor="end" dx="-.65em" dy=".35em" fill="currentColor"');}
+      let spacing=330/data.items.length,width=Math.min(spacing,Math.max(2,spacing-1));
+      // Mark the whole slot, even for zero or missing measurements. Draw below
+      // the bars so a selected frame can still show its own status outline.
+      let selectedIndex=data.items.findIndex(item=>item.selected);
+      if(selectedIndex>=0)svg.push('<rect class="selected-bin" x="'+(55+selectedIndex*spacing)+'" y="35" width="'+spacing+'" height="140" fill="#00566e" fill-opacity=".22" stroke="#00566e" stroke-width="2" vector-effect="non-scaling-stroke" pointer-events="none"/>');
       data.items.forEach((item,i)=>{if(item.value===null)return;let x=55+i*spacing+(spacing-width)/2,py=y(Math.max(data.low,Math.min(data.high,item.value))),cx=x+width/2;
-         let color=item.selected?'#89dceb':item.master?'#f9a825':item.rejected?'#e57373':item.review?'#cba6f7':'#2d6cb5';
+         let color=item.selected?SQR_SELECTED_BAR:item.master?'#f9a825':item.rejected?'#e57373':item.review?'#cba6f7':'#2d6cb5';
          let outline=item.selected&&item.rejected?'#e57373':item.review?'#cba6f7':item.selected&&item.master?'#f9a825':'';
          let tip=(item.selected?'SELECTED · ':'')+(item.master?'MASTER: ':item.review?'REVIEW: ':'')+(item.rejected?'REJECTED · ':'')+sqrFileName(item.row.registered.path)+' — '+title+': '+number(item.value)+(data.kpi.key==='belowMeanFraction'?' ('+item.row.belowMeanCount+' worse; '+item.row.belowMeanAvailable+' assessed of '+item.row.belowMeanTotal+' enabled'+(item.row.belowMeanComplete?'':'; incomplete')+')':'')+(item.master&&data.masterClipped?' (clipped '+data.masterClipped+' axis range)':'')+(item.master?'':' — '+sqrAcquisitionLabel(item.row));
          if(data.skyModel?.valid&&!item.master){let m=data.skyModel,mu=sqrImageToSky(item.value,m.calibration);
@@ -1597,9 +1668,9 @@ function sqrPlotHTML(data,generation=0){
                (m.sqmValue!==null?' — '+(item.value<m.sqmValue?'Darker than':item.value>m.sqmValue?'Brighter than':'Equal to')+' session SQM':'');}
          if(data.eccentricityBands)tip+=' — '+sqrEccentricityCategory(item.value)+' eccentricity';
          if(data.fwhmBands)tip+=' — '+sqrFWHMCategory(item.value,data.fwhmModel)+' FWHM';
-         svg.push('<g class="frame" data-index="'+i+'" tabindex="0" role="button" aria-label="'+sqrHTML(tip)+'"><title>'+sqrHTML(tip)+'</title>');
+         svg.push('<g class="frame" data-index="'+i+'" tabindex="0" role="button"'+(item.selected?' aria-current="true"':'')+' aria-label="'+sqrHTML(tip)+'"><title>'+sqrHTML(tip)+'</title>');
          // A full-height hit area also makes zero-valued bars selectable.
-         svg.push('<rect x="'+(55+i*spacing)+'" y="35" width="'+spacing+'" height="140" fill="'+(item.selected?'#89dceb':'transparent')+'" fill-opacity=".12" pointer-events="all"/>');
+         svg.push('<rect x="'+(55+i*spacing)+'" y="35" width="'+spacing+'" height="140" fill="transparent" pointer-events="all"/>');
          svg.push('<rect data-frame="'+i+'" x="'+x.toFixed(1)+'" y="'+py.toFixed(1)+'" width="'+width.toFixed(1)+'" height="'+(175-py).toFixed(1)+'" rx="3" fill="'+color+'" opacity="'+(item.rejected&&!item.selected ? .6 : 1)+'"'+(outline?' stroke="'+outline+'" stroke-width=".8"':'')+' filter="url(#shadow)"/>');
          if(item.selected)svg.push('<path data-selected="true" d="M'+(cx-3)+' 183L'+cx+' 178L'+(cx+3)+' 183Z" fill="#89dceb"/>');
          if(item.master){
@@ -1610,32 +1681,88 @@ function sqrPlotHTML(data,generation=0){
          svg.push('</g>');});
       for(let band of bands.slice(0,2))if(band.high!==null&&band.high>=data.low&&band.high<=data.high)
          svg.push('<path class="'+bandClass+'-limit" d="M55 '+y(band.high)+'H385" stroke="'+band.color+'" stroke-width="1" stroke-dasharray="2,3" pointer-events="none"/>');
-      if(data.average!==null){let py=y(data.average);svg.push('<g pointer-events="none"><path d="M55 '+py+'H385" stroke="#a6e3a1" stroke-width="1.5" stroke-dasharray="5,3"/><text x="60" y="'+(py-4)+'" fill="#a6e3a1" font-size="9" font-weight="bold">'+number(data.average)+'</text></g>');}
+      if(data.average!==null){let py=y(data.average);
+         svg.push('<path class="mean-reference" pointer-events="none" d="M55 '+py+'H385" stroke="'+palette.mean+'" stroke-width="1.5" stroke-dasharray="5,3"/>');
+         addLabel(60,py,number(data.average),'class="mean-value" dy="-.4em" fill="'+palette.mean+'" font-weight="bold"');}
       if(data.skyModel?.valid&&data.skyModel.sqmValue!==null&&data.skyModel.sqmValue>=data.low&&data.skyModel.sqmValue<=data.high){let m=data.skyModel,py=y(m.sqmValue);
-         svg.push('<g class="sqm-reference" pointer-events="none"><path d="M55 '+py+'H385" stroke="#f5c2e7" stroke-width="2" stroke-dasharray="7,3"/><text x="382" y="'+Math.max(44,py-4)+'" text-anchor="end" fill="#f5c2e7" font-size="10">SQM '+m.sqmReading.toFixed(2)+'</text></g>');}
+         svg.push('<path class="sqm-reference" pointer-events="none" d="M55 '+py+'H385" stroke="'+palette.sqm+'" stroke-width="2" stroke-dasharray="7,3"/>');
+         addLabel(382,Math.max(48,py),'SQM '+m.sqmReading.toFixed(2),'class="sqm-value" text-anchor="end" dy="-.4em" fill="'+palette.sqm+'"');}
       for(let run of data.autofocus||[]){
          let start=55+run.startSlot*spacing;
-         let label='AF'+(run.focusPosition==null?'':' '+run.focusPosition),tagWidth=label.length*5+6;
-         // Widen the tag for the position and keep it inside the SVG viewport.
-         // The dashed line stays at the exact start slot even near an edge.
-         let tagX=Math.max(tagWidth/2+2,Math.min(398-tagWidth/2,start));
+         let label='AF'+(run.focusPosition==null?'':' '+run.focusPosition);
          let tip='Autofocus start: '+run.startText+' (log time)\nUTC: '+new Date(run.start).toISOString()+'\nFocus position: '+sqrFocusPositionText(run)+'\n'+run.reason+(run.sourcePaths?.length?'\nLogs: '+run.sourcePaths.map(sqrFileName).join(', '):'');
-         svg.push('<g class="autofocus" pointer-events="none"><path d="M'+start+' 35V175" stroke="#fab387" stroke-width="1" stroke-dasharray="2,2"/></g>');
+         svg.push('<g class="autofocus" pointer-events="none"><path d="M'+start+' 35V175" stroke="'+palette.focus+'" stroke-width="1" stroke-dasharray="2,2"/></g>');
          // Hover the AF tag below the axis; overlays leave all frame bars clickable.
-         svg.push('<g class="af-tag"><title>'+sqrHTML(tip)+'</title><rect x="'+(tagX-tagWidth/2)+'" y="185" width="'+tagWidth+'" height="14" rx="2" fill="#252536"/><text x="'+tagX+'" y="195" text-anchor="middle" fill="#fab387" font-size="8" font-weight="bold">'+sqrHTML(label)+'</text></g>');
+         labels.push('<g class="af-tag" pointer-events="bounding-box"><title>'+sqrHTML(tip)+'</title>');
+         addLabel(start,175,label,'class="af-value" text-anchor="middle" dy="2.9em" fill="#fab387" font-weight="bold"');
+         labels.push('</g>');
       }
-      svg.push('<path d="M55 35V175H385" fill="none" stroke="#585b70"/>'+(data.master!==null?'<text x="385" y="17" text-anchor="end" fill="#f9a825" font-size="9">Master: '+number(data.master)+(data.masterClipped?' '+(data.masterClipped==='above'?'↑':'↓')+' clipped':'')+'</text>':''));
+      svg.push('<path d="M55 35V175H385" fill="none" stroke="#585b70"/>');
+      if(data.master!==null)addLabel(385,35,'Master: '+number(data.master)+(data.masterClipped?' '+(data.masterClipped==='above'?'↑':'↓')+' clipped':''),'class="master-value" text-anchor="end" dy="-.65em" fill="#f9a825"');
       let limit=value=>data.eccentricityBands?value.toFixed(2):number(value),unit=data.guideBands?'″':data.fwhmBands?' px':'';
-      let legend=bands.length?'<div class="category-legend" style="text-align:center;font-size:12px;flex-shrink:0;padding:0 8px 4px">'+bands.map((band,i)=>{
+      legend=bands.length?'<div class="category-legend">'+bands.map((band,i)=>{
          let range=data.skyBands?(band.label==='Good'?'< '+limit(band.high):band.label==='Bad'?'> '+limit(band.low):band.low===null?'≤ '+limit(band.high):band.high===null?'≥ '+limit(band.low):limit(band.low)+'–'+limit(band.high)):
             i===0?'≤ '+limit(band.high):i===1?'> '+limit(band.low)+' to '+limit(band.high):'> '+limit(band.low);
-         return '<span style="color:'+band.color+'">'+band.label+' '+range+unit+'</span>';}).join(' &nbsp;·&nbsp; ')+'</div>':'';
+         let swatch='<i aria-hidden="true" style="display:inline-block;width:.85em;height:.85em;background:'+sqrGradeSwatch(band.color)+';border:1px solid #4e5862"></i>';
+         return '<span style="color:'+SQR_GRADE_TEXT[band.label]+'">'+swatch+' '+band.label+' '+range+unit+'</span>';}).join(' &nbsp;·&nbsp; ')+'</div>':'';
       if(data.skyModel?.valid){let m=data.skyModel;
-         legend+='<div class="bortle-legend'+(m.sqmValue!==null?' sqm-legend':'')+'" style="text-align:center;font-size:12px;padding:0 8px 4px">Bortle '+sqrSkyBortleLabel(m)+' · '+(m.sqmValue!==null?'SQM '+m.sqmReading.toFixed(2)+' mag/arcsec²':'Gaia calibration')+(m.calibration.transfer?' · relative to green':'')+'</div>';}
-      body=legend+'<div class="chart"><svg viewBox="0 0 400 200" preserveAspectRatio="none">'+svg.join('')+'</svg></div>';
+         legend+='<div class="bortle-legend'+(m.sqmValue!==null?' sqm-legend':'')+'">Bortle '+sqrSkyBortleLabel(m)+' · '+(m.sqmValue!==null?'SQM '+m.sqmReading.toFixed(2)+' mag/arcsec²':'Gaia calibration')+(m.calibration.transfer?' · relative to green':'')+'</div>';}
+      body='<div class="plot-field" style="--y-ticks:'+yTickChars+'ch"><svg><svg viewBox="55 35 330 140" preserveAspectRatio="none">'+svg.join('')+'</svg><g class="plot-labels" pointer-events="none">'+labels.join('')+'</g></svg></div>';
    }
-   let script='window.sqrSelection=null;document.querySelectorAll(".frame").forEach(function(el){function select(){window.sqrSelection={generation:'+generation+',index:Number(el.dataset.index)};}el.addEventListener("click",select);el.addEventListener("keydown",function(e){if(e.key==="Enter"||e.key===" "){e.preventDefault();select();}});});';
-   return '<!doctype html><html><head><meta charset="UTF-8"><style>*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#1e1e2e;color:#cdd6f4;font-family:"Segoe UI",system-ui,sans-serif}.container{height:100%;display:flex;flex-direction:column}.title{height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;letter-spacing:.5px}.chart{flex:1;min-height:0;padding:0 5px 5px}svg{width:100%;height:100%}.frame{cursor:pointer}.frame:hover>[data-frame],.frame:focus>[data-frame]{stroke:#cdd6f4;stroke-width:1.2}.empty{margin:auto;padding:24px;text-align:center;color:#6c7086}</style></head><body><div class="container"><div class="title">'+sqrHTML(title)+'</div>'+body+'</div><script>'+script+'</script></body></html>';
+   let style=SQR_CHART_CSS+'.category-legend span{white-space:nowrap}.af-value{font-size:.95em}'+
+      '.tick{fill:#a6adc8}.mean-value,.sqm-value{paint-order:stroke;stroke:'+palette.background+';stroke-width:2;stroke-linejoin:round}.frame{cursor:pointer}.frame:not([aria-current]):hover>[data-frame],.frame:not([aria-current]):focus>[data-frame]{stroke:'+palette.hover+';stroke-width:1.2}';
+   return {body:'<div class="container"><header><h1 class="title">'+sqrHTML(title)+'</h1>'+legend+'</header><div class="plot-region">'+body+'</div></div>',style,generation};
+}
+function sqrChartDocument(plot){
+   // The document and its listeners outlive individual charts. Replace the
+   // markup in one browser task so the previous plot stays painted until then.
+   const script=`
+      window.sqrSelection=null;
+      function select(event){
+         const item=event.target.closest('[data-index]');
+         if(!item)return;
+         if(event.type==='keydown'){
+            if(event.key!=='Enter'&&event.key!==' ')return;
+            event.preventDefault();
+         }
+         window.sqrSelection={generation:Number(document.body.dataset.generation),index:Number(item.dataset.index)};
+      }
+      document.addEventListener('click',select);
+      document.addEventListener('keydown',select);
+      window.sqrReplacePlot=function(plot){
+         const sheet=document.querySelector('style');
+         if(sheet.textContent!==plot.style)sheet.textContent=plot.style;
+         document.body.innerHTML=plot.body;
+         document.body.dataset.generation=plot.generation;
+         window.sqrSelection=null;
+         return 'drawn:'+plot.generation;
+      };`;
+   return '<!doctype html><html><head><meta charset="UTF-8"><style>'+plot.style+'</style><script>'+script+'</script></head><body data-generation="'+plot.generation+'">'+plot.body+'</body></html>';
+}
+// Standalone documents are also used by the native plot inspection tools.
+function sqrPlotHTML(data,generation=0){return sqrChartDocument(sqrHistogramContent(data,generation));}
+function sqrScatterHTML(data,generation=0){return sqrChartDocument(sqrScatterContent(data,generation));}
+class SQRChartView extends WebView {
+   constructor(parent,ready,polled){
+      super(parent);this.documentLoaded=false;this.drawing=null;this.queuedPlot=null;
+      const finish=generation=>{
+         this.drawing=null;
+         if(this.queuedPlot){let next=this.queuedPlot;this.queuedPlot=null;this.displayPlot(next);}
+         else ready(generation);
+      };
+      this.onLoadFinished=ok=>{this.documentLoaded=ok;finish(ok?this.drawing:-1);};
+      this.onScriptResultAvailable=value=>{
+         if(typeof value==='string'&&value.startsWith('drawn:'))finish(Number(value.slice(6)));
+         else polled(value);
+      };
+   }
+   displayPlot(plot){
+      // While the first page or a replacement is pending, keep the latest request.
+      if(this.drawing!==null){this.queuedPlot=plot;return;}
+      this.drawing=plot.generation;
+      if(this.documentLoaded)this.evaluateScript('window.sqrReplacePlot('+JSON.stringify(plot)+')');
+      else this.setHTML(sqrChartDocument(plot));
+   }
 }
 /** Build an in-memory session from header reads. Group registered lights by
  * WBPP directory, exposure and geometry, then attach uniquely verified originals
@@ -1848,6 +1975,9 @@ function sqrScan(o,notify){
    let raws=[],warnings=[];
    for(let i=0;i<rawFiles.length;++i){
       sqrTick(notify,'Reading original headers '+(i+1)+' / '+rawFiles.length);
+      // A saved WBPP list can still name an original already moved by this
+      // review. Keep its registered row available for journal-based Undo.
+      if(imported&&!File.exists(rawFiles[i])){warnings.push('Imported original is missing: '+rawFiles[i]);continue;}
       try{let m=sqrMetadata(rawFiles[i]);if(sqrIsLight(m))raws.push(m);}catch(e){warnings.push(rawFiles[i]+': '+String(e));}
    }
    let groups=[],byGroup={},originalIndex=sqrIndexOriginals(raws),originalByPath=new Map(raws.map(r=>[sqrKey(r.path),r])),verifiedLinks=new Set,fallbackNames=null,skipped=0;
@@ -2920,7 +3050,7 @@ function sqrRecommendationOptions(o={}){
    let v=o.recommendation||{};
    return {snrPercent:Number.isFinite(v.snrPercent)?Math.max(50,Math.min(100,v.snrPercent)):95,
       minFrames:Number.isInteger(v.minFrames)?Math.max(7,Math.min(100000,v.minFrames)):20,
-      useROI:!!v.useROI,roi:Array.isArray(v.roi)&&v.roi.length===4?v.roi.slice():null,
+      includeRejected:v.includeRejected===true,useROI:!!v.useROI,roi:Array.isArray(v.roi)&&v.roi.length===4?v.roi.slice():null,
       geometry:Array.isArray(v.geometry)?v.geometry.slice():null,
       plotKPI:SQR_RECOMMENDATION_KPIS.some(k=>k.key===v.plotKPI)?v.plotKPI:'score'};
 }
@@ -2938,17 +3068,19 @@ const SQR_RECOMMENDATION_KPIS=[
 /** Display choices do not affect the result. Scores and scoring settings do:
  * they determine the candidate ordering and recommended cutoff. Fingerprints
  * catch changed files without reading image pixels. */
-function sqrRecommendationKey(group,o,config,guideAvailable,fingerprint=sqrFingerprint){
+function sqrRecommendationKey(group,o,config,guideAvailable,fingerprint=sqrFingerprint,acceptedRejects=null){
    let guides=!!guideAvailable&&o.guidingMode!=='ignore',sky=sqrSkyScoreChoice(o).key;
    let rows=group.rows.filter(r=>!r.isMaster).map(r=>{
       let file;try{file=fingerprint(r.registered.path);}catch(e){file='unavailable';}
       let field=r.metrics[0]||{},regions=o.measureCorners?[2,3,4,5].map(i=>r.metrics[i]||null):null;
-      // A move preserves the excluded set and does not change registered pixels.
-      return [r.registered.path,file,!!(r.reject||r.moved),r.score,field.valid,field.fwhm,field.eccentricity,field.signal,field.stars,field.psfCount,
+      // Moving a marked frame changes its eligibility when reconsidering it.
+      // Moving a reject after accepting that result preserves its history.
+      let decision=config.includeRejected&&r.moved&&!acceptedRejects?.has(r)?'moved':!!(r.reject||r.moved);
+      return [r.registered.path,file,decision,r.score,field.valid,field.fwhm,field.eccentricity,field.signal,field.stars,field.psfCount,
          regions,r.relativeTransparency,sqrExposure(r),r[sky],guides?[r.guiding?.scorable,r.guideQuality]:null];
    }).sort((a,b)=>a[0].localeCompare(b[0]));
    return JSON.stringify([SQR_VERSION,group.width,group.height,group.channels,group.roi,
-      config.snrPercent,config.minFrames,config.useROI?config.roi:null,
+      config.snrPercent,config.minFrames,!!config.includeRejected,config.useROI?config.roi:null,
       o.minStars,o.maxFits,o.margin,o.measureCorners?o.patch:null,!!o.measureCorners,guides,sky,
       !!o.correlationOnly,!!o.rankOfRanks,[...SQR_SCORE_COMPONENTS,...SQR_CORNER_COMPONENTS].map(c=>o[c.weight]),rows]);
 }
@@ -2959,9 +3091,9 @@ function sqrRecommendationPlotValue(result,point,kpi){
 function sqrRecommendationFormat(value,kpi){return !Number.isFinite(value)?'—':value!==0&&Math.abs(value)<.0001?value.toExponential(2):value.toFixed(kpi.digits);}
 /** Use the same score the user chose in Review, independent of table sorting.
  * R3 provides strongly correlated KPI selection when that score is selected. */
-function sqrRecommendationRanking(group,o){
-   let rows=group.rows.filter(r=>!r.reject&&!r.moved&&!r.isMaster);
-   if(rows.some(r=>!r.metrics[0]?.valid))throw Error('Measure all remaining subframes first. Resolve or manually reject frames without valid field measurements.');
+function sqrRecommendationRanking(group,o,includeRejected=false){
+   let rows=group.rows.filter(r=>!r.isMaster&&!r.moved&&(includeRejected||!r.reject));
+   if(rows.some(r=>!r.metrics[0]?.valid))throw Error(includeRejected?'Every included subframe needs a valid field measurement. Measure the frames again or turn off Include rejected subframes to exclude marked frames.':'Measure all remaining subframes first. Resolve or manually reject frames without valid field measurements.');
    if(rows.some(r=>!Number.isFinite(r.score)||r.score<0||r.score>1))throw Error('Every remaining subframe needs a valid Review Score. Check the score settings and measurements.');
    rows.sort((a,b)=>b.score-a.score||a.registered.path.localeCompare(b.registered.path));
    let scoreMode=o.rankOfRanks?'R4':o.correlationOnly&&group.correlationScoring?.available?'R3':o.measureCorners?'R2':'R1';
@@ -3111,7 +3243,7 @@ function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
          // policies may alter them on read. Encode each crop reversibly first;
          // the second pass converts it to ONE common affine scale for all sets.
          crop.apply(minimum,ImageOp_Sub);crop.apply(.9/range,ImageOp_Mul);crop.apply(.05,ImageOp_Add);
-         let weight=row.metrics[0].signal,path=scratch+'/input-'+i+'.xisf';
+         let weight=row.metrics[0].signal,path=scratch+'/crop-'+i+'.xisf';
          sqrRecommendationWrite(path,crop,weight);
          frames.push({row,path,weight,variance:(stats?stats.variance:sigma*sigma)/(scale*scale),
             signal:stats?stats.signal/scale:1,score:row.score,fwhm:row.metrics[0].fwhm,exposure:sqrExposure(row),normalizedLow,normalizedRange:range/scale});
@@ -3122,9 +3254,18 @@ function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
    // must survive this display-safe range conversion unchanged.
    if(!Number.isFinite(low)||!(high>low))throw Error('Invalid pixel range in recommendation images.');
    let range=high-low;
-   for(let i=0;i<frames.length;++i){sqrTick(notify,'Normalizing test crop '+(i+1)+' / '+frames.length);let im=sqrReadImage(frames[i].path);
-      try{let f=frames[i],gain=f.normalizedRange/range,offset=.05+.9*(f.normalizedLow-low)/range-.05*gain;
-         im.apply(gain,ImageOp_Mul);im.apply(offset,ImageOp_Add);sqrRecommendationWrite(f.path,im,f.weight);}finally{im.free();}}
+   for(let i=0;i<frames.length;++i){
+      sqrTick(notify,'Normalizing test crop '+(i+1)+' / '+frames.length);
+      let f=frames[i],cropPath=f.path,inputPath=scratch+'/input-'+i+'.xisf',im=sqrReadImage(cropPath);
+      try{
+         let gain=f.normalizedRange/range,offset=.05+.9*(f.normalizedLow-low)/range-.05*gain;
+         im.apply(gain,ImageOp_Mul);im.apply(offset,ImageOp_Add);
+         sqrRecommendationWrite(inputPath,im,f.weight);
+      }finally{im.free();}
+      // Integration reads the common-scale input. Release this frame's
+      // first-pass crop as soon as that input has been written successfully.
+      f.path=inputPath;TGFileProtection.removeFile(cropPath,'Temporary recommendation crop');
+   }
    return frames;
 }
 /** Cumulative estimates are O(N), with signal fixed across cutoffs to avoid
@@ -3181,7 +3322,7 @@ function sqrRecommendationTrial(frames,keep,geometry,scratch,o){
    }finally{if(window&&!window.isNull)window.forceClose();if(File.exists(path))TGFileProtection.removeFile(path,"Temporary image");}
 }
 function sqrRecommendationAnalyze(group,o,options,guideAvailable,notify){
-   let ranking=sqrRecommendationRanking(group,o),geometry=sqrRecommendationGeometry(group,options);
+   let ranking=sqrRecommendationRanking(group,o,options.includeRejected),geometry=sqrRecommendationGeometry(group,options);
    if(ranking.rows.length<options.minFrames)throw Error('Only '+ranking.rows.length+' eligible frames remain; the minimum is '+options.minFrames+'.');
    let scratch=sqrPath(File.systemTempDirectory)+'/.sqr-recommendation-'+sqrStamp();
    TGFileProtection.assertOutsideInstallation(scratch,'Temporary recommendations');
@@ -3205,7 +3346,8 @@ function sqrRecommendationAnalyze(group,o,options,guideAvailable,notify){
       let peak=Math.max(...trials.filter(p=>!p.error).map(p=>p.snr));
       return {options:{...options},geometry:{crop:geometry.crop,photometryCrop:geometry.photometryCrop,aperture:geometry.aperture},rows:ranking.rows,scoreMode:ranking.scoreMode,
          curve,trials:trials.sort((a,b)=>a.keep-b.keep),best,peak,baseline:trials.find(p=>p.keep===frames.length),
-         rejected:ranking.rows.slice(best.keep),created:new Date().toISOString(),incomplete:trials.some(p=>p.error)};
+         rejected:ranking.rows.slice(best.keep),reinstate:ranking.rows.slice(0,best.keep).filter(r=>r.reject),
+         created:new Date().toISOString(),incomplete:trials.some(p=>p.error)};
    }finally{
       // Only files in this unique, script-owned directory are removed.
       let find=new FileFind;if(find.begin(scratch+'/*'))do{if(find.isFile)TGFileProtection.removeFile(scratch+'/'+find.name,'Temporary recommendation image');}while(find.next());
@@ -3213,22 +3355,23 @@ function sqrRecommendationAnalyze(group,o,options,guideAvailable,notify){
    }
 }
 function sqrRecommendationApply(result){
-   // Results refer to the modal dialog's frozen group. Never clear existing
-   // manual decisions, mark a master, or touch an original file.
+   // Only explicitly applying an inclusive result can clear earlier marks.
    let count=0;for(let row of result.rejected)if(!row.isMaster&&!row.moved&&!row.reject){row.reject=true;++count;}
+   if(result.options?.includeRejected)for(let row of result.reinstate)if(!row.isMaster&&!row.moved)row.reject=false;
    return count;
 }
 /** Review completion belongs to this analyzed group and these decisions.
  * Compare cached values only: rebuilding the table must not read image files.
  * Moving an already rejected original preserves completion; keeping it again
  * reopens review. Proposed rejects are normalized while a plan is in progress. */
-function sqrRecommendationReviewKey(group,o,config,guideAvailable,rejected){
-   let proposed=new Set(rejected),rows=group.rows.map(r=>({...r,reject:proposed.has(r)||r.reject||r.moved,moved:false}));
+function sqrRecommendationReviewKey(group,o,config,guideAvailable,rejected,reinstate){
+   let proposed=new Set(rejected),kept=new Set(reinstate);
+   let rows=group.rows.map(r=>proposed.has(r)?{...r,reject:true,moved:false}:kept.has(r)?{...r,reject:false}:r);
    return sqrRecommendationKey({...group,rows},o,config,guideAvailable,()=>null);
 }
 function sqrRecommendationPlanReview(group,o,result,guideAvailable,accept=false){
-   let plan={options:result.options,rejected:result.rejected,confirmed:false,
-      key:sqrRecommendationReviewKey(group,o,result.options,guideAvailable,result.rejected)};
+   let plan={options:result.options,rejected:result.rejected,reinstate:result.reinstate||[],confirmed:false,
+      key:sqrRecommendationReviewKey(group,o,result.options,guideAvailable,result.rejected,result.reinstate)};
    // A fresh calculation is a proposal, not a reversal of an accepted review.
    // Keep a pending plan as well so manually accepting its rejects still works.
    if(!accept&&sqrRecommendationReviewComplete(group,o,guideAvailable)){group.recommendationPendingReview=plan;return;}
@@ -3237,8 +3380,8 @@ function sqrRecommendationPlanReview(group,o,result,guideAvailable,accept=false)
 }
 function sqrRecommendationReviewComplete(group,o,guideAvailable){
    group.reviewComplete=false;let plan=group.recommendationReview,pending=group.recommendationPendingReview;
-   const valid=p=>p&&p.key===sqrRecommendationReviewKey(group,o,group.recommendationSettings||p.options,guideAvailable,p.rejected);
-   const complete=p=>(p.confirmed||p.rejected.length>0)&&p.rejected.every(r=>r.reject||r.moved);
+   const valid=p=>p&&p.key===sqrRecommendationReviewKey(group,o,group.recommendationSettings||p.options,guideAvailable,p.rejected,p.reinstate);
+   const complete=p=>(p.confirmed||p.rejected.length>0||p.reinstate.length>0)&&p.rejected.every(r=>r.reject||r.moved)&&p.reinstate.every(r=>!r.reject&&!r.moved);
    if(!valid(plan)){delete group.recommendationReview;plan=null;}
    if(!valid(pending)){delete group.recommendationPendingReview;pending=null;}
    if(pending&&(!plan||complete(pending))){group.recommendationReview=plan=pending;delete group.recommendationPendingReview;}
@@ -3256,18 +3399,18 @@ function sqrRecommendationHTML(result,kpi=SQR_RECOMMENDATION_KPIS.find(k=>k.key=
    if(kpi.unitInterval){low=Math.max(0,low);high=Math.min(1,high);}if(high<=low)high=low+1;
    let x=n=>65+665*(n-first)/Math.max(1,last-first),ys=n=>275-235*n/1.08,yk=n=>275-235*(n-low)/(high-low);
    let svg=['<svg viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg">'];
-   svg.push('<rect width="820" height="340" fill="#252536"/>');
-   for(let i=0;i<=4;++i){let y=275-235*i/4;svg.push('<path d="M65 '+y+'H730" stroke="#45475a"/><text x="58" y="'+(y+4)+'" text-anchor="end" fill="#89b4fa">'+Math.round(108*i/4)+'%</text><text x="738" y="'+(y+4)+'" fill="#fab387">'+(measured.length?sqrRecommendationFormat(low+(high-low)*i/4,kpi):'—')+'</text>');}
-   svg.push('<path d="M65 '+ys(result.options.snrPercent/100)+'H730" stroke="#89b4fa" stroke-dasharray="5,5"/>');
-   svg.push('<path d="M'+x(result.best.keep)+' 32V280" stroke="#a6e3a1" stroke-width="2"/>');
-   for(let series of [{points:valid.map(point=>({point,value:point.snr/result.peak})),y:ys,color:'#89b4fa'},
-      {points:measured,y:yk,color:'#fab387'}]){
+   svg.push('<rect x="65" y="40" width="665" height="235" fill="'+SQR_UNGRADED_PLOT.background+'"/>');
+   for(let i=0;i<=4;++i){let y=275-235*i/4;svg.push('<path d="M65 '+y+'H730" stroke="'+SQR_UNGRADED_PLOT.grid+'"/><text x="58" y="'+(y+4)+'" text-anchor="end" fill="#89b4fa">'+Math.round(108*i/4)+'%</text><text x="738" y="'+(y+4)+'" fill="#fab387">'+(measured.length?sqrRecommendationFormat(low+(high-low)*i/4,kpi):'—')+'</text>');}
+   svg.push('<path d="M65 '+ys(result.options.snrPercent/100)+'H730" stroke="#2d6cb5" stroke-dasharray="5,5"/>');
+   svg.push('<path d="M'+x(result.best.keep)+' 40V275" stroke="'+SQR_UNGRADED_PLOT.mean+'" stroke-width="2"/>');
+   for(let series of [{points:valid.map(point=>({point,value:point.snr/result.peak})),y:ys,color:'#2d6cb5'},
+      {points:measured,y:yk,color:SQR_UNGRADED_PLOT.focus}]){
       svg.push('<polyline fill="none" stroke="'+series.color+'" stroke-width="2" points="'+series.points.map(p=>x(p.point.keep)+','+series.y(p.value)).join(' ')+'"/>');
       for(let {point:p,value} of series.points){let selected=sqrRecommendationPlotValue(result,p,kpi);
          svg.push('<circle cx="'+x(p.keep)+'" cy="'+series.y(value)+'" r="4" fill="'+series.color+'"><title>Keep '+p.keep+'; SNR '+(100*p.snr/result.peak).toFixed(2)+'%; '+label+': '+(selected===null?'unavailable':String(selected))+'; FWHM '+p.fwhm.toFixed(4)+' px; exposure '+(p.exposure/3600).toFixed(2)+' h</title></circle>');}
    }
    for(let i=0;i<=4;++i){let n=Math.round(first+(last-first)*i/4);svg.push('<text x="'+x(n)+'" y="297" text-anchor="middle" fill="#cdd6f4">'+n+'</text>');}
-   if(!measured.length)svg.push('<text x="397" y="150" text-anchor="middle" fill="#fab387">Selected KPI unavailable</text>');
+   if(!measured.length)svg.push('<text x="397" y="150" text-anchor="middle" fill="'+SQR_UNGRADED_PLOT.focus+'">Selected KPI unavailable</text>');
    svg.push('<text x="397" y="328" text-anchor="middle" fill="#cdd6f4">Retained frames</text><text x="65" y="22" fill="#89b4fa">SNR (% of best tested)</text><text x="730" y="22" text-anchor="end" fill="#fab387">'+label+'</text></svg>');
    return '<html><body style="margin:0;background:#252536;font:13px sans-serif">'+svg.join('')+'</body></html>';
 }
@@ -3280,6 +3423,9 @@ class SQRRecommendationDialog extends Dialog {
       this.snr=sqrNumber(this,'Preserve SNR (%):',config.snrPercent,50,100,1);this.minimum=sqrNumber(this,'Minimum retained:',config.minFrames,7,100000,0);
       this.snr.toolTip='At least this percentage of the best measured SNR among the tested stacks. Default 95%. The estimate is specific to the test integration.';
       this.minimum.toolTip='Never recommend keeping fewer than this many frames in this group. At least seven are required for the test’s Winsorized pixel rejection. Default 20.';
+      this.includeRejected=new CheckBox(this);this.includeRejected.text='Include rejected subframes';this.includeRejected.checked=config.includeRejected;
+      this.includeRejected.toolTip='Analyze marked subframes alongside the others. Applying the recommendation clears the marks on frames it keeps. Originals already moved remain excluded.';
+      this.includeRejected.onCheck=()=>this.changed();
       this.useROI=new CheckBox(this);this.useROI.text='Use object ROI';this.useROI.checked=config.useROI&&geometryMatches;
       this.preview=new ViewList(this);this.preview.getPreviews();this.preview.setScaledMinWidth(200);
       this.preview.toolTip='Optional: copy coordinates from a preview on an aligned image with the same dimensions. All ROI content contributes to aperture signal; avoid unrelated bright stars and leave clean sky outside.';
@@ -3301,17 +3447,20 @@ class SQRRecommendationDialog extends Dialog {
       this.analyzeButton=sqrButton(this,'Analyze',()=>this.analyze());this.applyButton=sqrButton(this,'Mark recommended rejects',()=>this.applyRecommendation());this.applyButton.enabled=false;
       this.cancelButton=sqrButton(this,'Close',()=>{if(this.running){this.abortRequested=true;this.status.text='Stopping after the current operation…';}else this.cancel();});this.cancelButton.escapeButton=true;
       this.cancelButton.toolTip='During analysis, request cancellation after the current native operation. The PixInsight console can also abort a running process.';
-      this.infoButton=sqrTool(this,':/process-interface/browse-documentation.png','How the recommendation is measured',()=>new SQRPlotInfoDialog({title:'Rejection recommendation',html:"<p>Frames are ordered by the current Review Score, highest first. The selected R1, R2, R3 or R4 mode and its weights apply. Select R3 in Review to use its strongly correlated KPI score. Scores and their order stay fixed during analysis; table sorting has no effect.</p><p>Test integrations verify several retained counts and the adjacent counts around the best one. The highest mean retained Score meeting your SNR limit and minimum count is recommended. Equal means prefer more frames. FWHM and the other plotted image KPIs are comparisons, not separate decision criteria. This is the best tested cutoff, not a guaranteed global optimum.</p><p>With an object ROI, only Object SNR uses the selected aperture and a surrounding-sky margin. Its background-limited estimate includes short-range pixel covariance and background-fit uncertainty. It does not model source shot noise, shared calibration errors or longer-range correlated noise. Avoid unrelated bright stars in the aperture and leave clean surrounding sky. Without an ROI, native PSF SNR is a stellar proxy.</p><p>Every trial stack and all other image KPIs use the same common usable field, independent of the ROI. Tests use fixed PSF signal integration weights, field-based global normalization and Winsorized rejection (low 4, high 3); RGB uses green. They do not reproduce local normalization or drizzle. The default minimum is 20; seven is a statistical floor, not a guarantee.</p><p>Plot KPI changes only the graph and table. Score is the arithmetic mean of retained subframes’ Review scores at analysis time, not a score for the integrated image. Closing this dialog keeps results per group while the main review stays open. Changes to scores, scoring settings, calculation settings, measurements or inputs require new analysis; display changes reuse results.</p><p>Analyze never marks frames. Mark recommended rejects accepts the proposal and completes REVIEW for this group. If no rejection is recommended, use Complete review. Manually marking all proposed rejects also completes REVIEW. Changing relevant settings, measurements or decisions reopens it. File movement remains a separate action.</p>"}).execute());
-      let top=new HorizontalSizer;top.spacing=14;top.add(this.snr);top.add(this.minimum);top.addStretch();top.add(this.infoButton);
+      this.infoButton=sqrTool(this,':/process-interface/browse-documentation.png','How the recommendation is measured',()=>new SQRPlotInfoDialog({title:'Rejection recommendation',html:"<p>Frames are ordered by the current Review Score, highest first. The selected R1, R2, R3 or R4 mode and its weights apply. Select R3 in Review to use its strongly correlated KPI score. Scores and their order stay fixed during analysis; table sorting has no effect.</p><p>Test integrations verify several retained counts and the adjacent counts around the best one. The highest mean retained Score meeting your SNR limit and minimum count is recommended. Equal means prefer more frames. FWHM and the other plotted image KPIs are comparisons, not separate decision criteria. This is the best tested cutoff, not a guaranteed global optimum.</p><p>With an object ROI, only Object SNR uses the selected aperture and a surrounding-sky margin. Its background-limited estimate includes short-range pixel covariance and background-fit uncertainty. It does not model source shot noise, shared calibration errors or longer-range correlated noise. Avoid unrelated bright stars in the aperture and leave clean surrounding sky. Without an ROI, native PSF SNR is a stellar proxy.</p><p>Every trial stack and all other image KPIs use the same common usable field, independent of the ROI. Tests use fixed PSF signal integration weights, field-based global normalization and Winsorized rejection (low 4, high 3); RGB uses green. They do not reproduce local normalization or drizzle. The default minimum is 20; seven is a statistical floor, not a guarantee.</p><p>Plot KPI changes only the graph and table. Score is the arithmetic mean of retained subframes’ Review scores at analysis time, not a score for the integrated image. Closing this dialog keeps results per group while the main review stays open. Changes to scores, scoring settings, calculation settings, measurements or inputs require new analysis; display changes reuse results.</p><p>Include rejected subframes also tests marked frames whose originals are still in place. Analyze leaves marks untouched. Applying the proposal marks new rejects and clears any rejection marks on frames the inclusive analysis keeps. The summary shows how many marks would be cleared. Applying or manually matching the proposed decisions completes REVIEW. Use Complete review to confirm a keep-all result with no changes. Changing relevant settings, measurements or decisions reopens it. File movement remains a separate action.</p>"}).execute());
+      let top=new HorizontalSizer;top.spacing=14;top.add(this.snr);top.add(this.minimum);top.add(this.includeRejected);top.addStretch();top.add(this.infoButton);
       let roiRow=new HorizontalSizer;roiRow.spacing=10;roiRow.add(this.useROI);roiRow.add(this.preview,100);
       let coordinates=new HorizontalSizer;coordinates.spacing=14;for(let c of this.coords)coordinates.add(c);coordinates.addStretch();
       let buttons=new HorizontalSizer;buttons.spacing=10;buttons.add(this.analyzeButton);buttons.add(this.applyButton);buttons.addStretch();buttons.add(this.cancelButton);
       this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=10;for(let c of [top,roiRow,coordinates,this.note,plotRow,this.plot,this.table,this.status,buttons])this.sizer.add(c,c===this.plot?100:0);
       this.onClose=()=>!this.running;this.changed(false);this.refreshResult();this.restoreResult();this.adjustToContents();
    }
-   options(){let [x,y,w,h]=this.coords.map(c=>Math.round(c.value));return {snrPercent:this.snr.value,minFrames:Math.round(this.minimum.value),useROI:this.useROI.checked,roi:[x,y,x+w,y+h],geometry:[this.group.width,this.group.height],plotKPI:this.selectedKPI().key};}
+   options(){let [x,y,w,h]=this.coords.map(c=>Math.round(c.value));return {snrPercent:this.snr.value,minFrames:Math.round(this.minimum.value),includeRejected:this.includeRejected.checked,useROI:this.useROI.checked,roi:[x,y,x+w,y+h],geometry:[this.group.width,this.group.height],plotKPI:this.selectedKPI().key};}
    selectedKPI(){return SQR_RECOMMENDATION_KPIS[this.plotKPI.currentItem]||SQR_RECOMMENDATION_KPIS.find(k=>k.key==='score');}
-   key(fingerprint=sqrFingerprint){return sqrRecommendationKey(this.group,this.o,this.options(),this.guideAvailable,fingerprint);}
+   key(fingerprint=sqrFingerprint,result=this.recommendation){
+      let accepted=result?.applied&&result.options.includeRejected?new Set(result.rejected):null;
+      return sqrRecommendationKey(this.group,this.o,this.options(),this.guideAvailable,fingerprint,accepted);
+   }
    storeResult(key=this.key()){
       this.group.recommendationSettings=this.options();
       if(this.recommendation){this.analysisKey=key;this.group.recommendationCache={key:this.analysisKey,result:this.recommendation};}
@@ -3334,7 +3483,7 @@ class SQRRecommendationDialog extends Dialog {
       this.storeResult(this.key(path=>fingerprints.get(path)));this.ok();
    }
    restoreResult(){
-      this.analysisKey=this.key();let cache=this.group.recommendationCache;
+      let cache=this.group.recommendationCache;this.analysisKey=this.key(sqrFingerprint,cache?.result);
       if(cache?.key===this.analysisKey){this.recommendation=cache.result;this.refreshResult();}
       else if(cache){delete this.group.recommendationCache;this.status.text='Inputs, measurements or analysis settings changed. Analyze again to refresh the recommendation.';}
    }
@@ -3355,21 +3504,22 @@ class SQRRecommendationDialog extends Dialog {
          for(let i=0;i<6;++i)node.setToolTip(i,detail);node.setToolTip(3,p.error||kpi.description+'\nValue: '+(value===null?'unavailable':String(value)));}
       for(let i=0;i<6;++i)this.table.adjustColumnWidthToContents(i);
       this.status.text='Keep '+r.best.keep+' / '+r.rows.length+'; reject '+r.rejected.length+'. Mean Score '+r.best.score.toFixed(3)+' ('+r.scoreMode+'; all frames '+r.baseline.score.toFixed(3)+'). SNR '+(100*r.best.snr/r.peak).toFixed(1)+'% of best tested. '+(r.options.useROI?'Background-limited object aperture estimate.':'Stellar SNR proxy.')+
+         (r.options.includeRejected&&r.reinstate.length?' '+(r.applied?'Cleared':'Applying clears')+' '+r.reinstate.length+' existing rejection '+(r.reinstate.length===1?'mark.':'marks.'):'')+
          (r.applied?' Recommendation applied; REVIEW complete for this analyzed set.':'')+(r.incomplete?' Some trials failed; inspect their tooltips.':'');
-      this.applyButton.text=r.rejected.length?'Mark recommended rejects':'Complete review';
+      this.applyButton.text=r.options.includeRejected&&r.reinstate.length?'Apply keep/reject decisions':r.rejected.length?'Mark recommended rejects':'Complete review';
       this.applyButton.enabled=!this.running&&!r.applied;
    }
    analyze(){
-      if(this.running)return;this.changed();let previous=this.recommendation,startKey=this.key();this.applyButton.enabled=false;this.running=true;this.abortRequested=false;
-      for(let c of [this.snr,this.minimum,this.useROI,this.preview,...this.coords,this.plotKPI,this.analyzeButton,this.infoButton])c.enabled=false;
+      if(this.running)return;this.changed();let previous=this.recommendation,startKey=this.key(sqrFingerprint,null);this.applyButton.enabled=false;this.running=true;this.abortRequested=false;
+      for(let c of [this.snr,this.minimum,this.includeRejected,this.useROI,this.preview,...this.coords,this.plotKPI,this.analyzeButton,this.infoButton])c.enabled=false;
       this.cancelButton.text='Stop';let abort=console.abortEnabled;console.abortEnabled=true;console.show();
       try{
          let result=sqrRecommendationAnalyze(this.group,this.o,this.options(),this.guideAvailable,text=>{if(this.abortRequested)throw Error('Operation aborted.');this.status.text=text;});
          if(this.abortRequested)throw Error('Operation aborted.');
-         if(this.key()!==startKey){previous=null;delete this.group.recommendationCache;throw Error('Inputs changed during analysis. Measure the group again.');}
+         if(this.key(sqrFingerprint,null)!==startKey){previous=null;delete this.group.recommendationCache;throw Error('Inputs changed during analysis. Measure the group again.');}
          this.recommendation=result;sqrRecommendationPlanReview(this.group,this.o,result,this.guideAvailable);this.storeResult();this.refreshResult();
       }catch(e){this.recommendation=previous;this.refreshResult();this.status.text=(e.message||String(e))+(previous?' Previous results retained.':'');}
-      finally{console.abortEnabled=abort;this.running=false;for(let c of [this.snr,this.minimum,this.useROI,this.plotKPI,this.analyzeButton,this.infoButton])c.enabled=true;
+      finally{console.abortEnabled=abort;this.running=false;for(let c of [this.snr,this.minimum,this.includeRejected,this.useROI,this.plotKPI,this.analyzeButton,this.infoButton])c.enabled=true;
          this.applyButton.enabled=!!this.recommendation&&!this.recommendation.applied;this.cancelButton.text='Close';this.changed(false);}
    }
 
@@ -3395,6 +3545,25 @@ function sqrRejectIcon(parent,checked){
 }
 function sqrGroup(parent,title){let g=new GroupBox(parent);g.title=title;g.sizer=new VerticalSizer;g.sizer.margin=10;g.sizer.spacing=8;return g;}
 function sqrNumber(parent,label,value,low,high,precision=0){let n=new NumericEdit(parent);n.label.text=label;n.setRange(low,high);n.setPrecision(precision);n.setValue(value);return n;}
+class SQRAperturePresetsDialog extends Dialog {
+   constructor(presets){
+      super();this.windowTitle='Telescope aperture presets';
+      let prompt=new Label(this);prompt.text='Enter telescope diameters in millimeters, separated by commas.';
+      this.list=new Edit(this);this.list.text=presets.join(', ');
+      this.hint=new Label(this);
+      this.saveButton=sqrButton(this,'Save',()=>this.ok());this.saveButton.defaultButton=true;
+      this.cancelButton=sqrButton(this,'Cancel',()=>this.cancel());this.cancelButton.escapeButton=true;
+      this.list.onTextUpdated=()=>this.validate();this.validate();
+      let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(this.saveButton);buttons.add(this.cancelButton);
+      this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=8;
+      this.sizer.add(prompt);this.sizer.add(this.list);this.sizer.add(this.hint);this.sizer.add(buttons);this.adjustToContents();
+   }
+   validate(){
+      this.values=sqrParseAperturePresets(this.list.text);
+      this.saveButton.enabled=this.values!==null;
+      this.hint.text=this.saveButton.enabled?'Example: 80, 160, 250. Clear the list to remove all presets.':'Use whole numbers from 1 to 50000 mm.';
+   }
+}
 /** Edit a draft only. Cancel leaves the main dialog, scores and plots intact.
  * Physical assumptions can be saved before a pixel scale becomes available. */
 /** Use PixInsight's native date/time selector, but read its numeric fields as
@@ -3769,23 +3938,28 @@ class SQRDialog extends Dialog {
    constructor(o,session=null){
       super();o={...sqrDefaults(),...o,logFolder:sqrLogFolderOption(o)};this.windowTitle='Subframe Quality Review '+SQR_VERSION;
       this.fwhmOptions=sqrFWHMOptions(o);this.wbppImport=o.wbppImport||null;this.recommendationOptions=sqrRecommendationOptions(o);
-      this.session=session;this.scanRequired=!session;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;this.qualityCollapsed=!!o.qualityCollapsed;this.inputsCollapsed=!!o.inputsCollapsed;this.reviewInfoCollapsed=!!o.reviewInfoCollapsed;this.messagesCollapsed=!!o.messagesCollapsed;this.fitPreviewOnShow=false;
-      this.referenceDisplay={};
+      this.session=session;this.scannedInputs=session?.options;this.running=false;this.frames=null;this.blinking=false;this.frame=0;this.current=null;this.selectionCleared=false;this.qualityCollapsed=!!o.qualityCollapsed;this.inputsCollapsed=!!o.inputsCollapsed;this.reviewInfoCollapsed=!!o.reviewInfoCollapsed;this.messagesCollapsed=!!o.messagesCollapsed;this.fitPreviewOnShow=false;
+      this.resumeBlinkOnReturn=false;this.referenceDisplay={};
       this.responsiveLayouts=[];
       this.layoutTimer=new Timer(.01,false,this);this.layoutTimer.onTimeout=()=>this.layoutBody();
       const responsive=(parent,wide,compact,breakpoint,spacing=8)=>{this.responsiveLayouts.push(sqrResponsiveRows(parent,wide,compact,breakpoint,spacing));return parent;};
       this.useCornerMeasurements=sqrHasCornerMeasurements(session)&&session.options.measureCorners!==false;
-      this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running)this.advancePlayback();};
+      this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running&&this.tabs.currentPageIndex===1)this.advancePlayback();};
       this.inputs=new Control(this);this.inputs.sizer=new VerticalSizer;this.inputs.sizer.margin=10;this.inputs.sizer.spacing=8;
       this.inputsBar=new SectionBar(this,'Input files and observing conditions');this.inputsBar.setSection(this.inputs);
       this.inputsBar.toolTip='Click to collapse or expand input folders, log controls, telescope aperture, seeing, Session SQM and its reading time. Your paths, settings and measurements are retained.';
       this.inputsBar.toggleSection=()=>this.setInputsCollapsed(!this.inputsCollapsed);
       let apertureLabel=new Label(this.inputs);apertureLabel.text='Telescope aperture:';apertureLabel.setScaledFixedWidth(135);
-      this.aperture=sqrNumber(this.inputs,'',this.fwhmOptions.fwhmAperture,0,50000,0);this.aperture.setReal(false);this.aperture.label.hide();this.aperture.edit.setScaledFixedWidth(80);
+      this.aperture=sqrNumber(this.inputs,'',this.fwhmOptions.fwhmAperture,0,50000,0);this.aperture.setReal(false);this.aperture.label.hide();this.aperture.edit.setScaledFixedWidth(54);
       this.fwhmOptions.fwhmAperture=this.aperture.value;
       let apertureUnit=new Label(this.inputs);apertureUnit.text='mm';
       this.aperture.toolTip='Enter the imaging telescope aperture diameter. Required for the FWHM grading bands; zero means not configured. This does not repeat image measurements or change scores.';
-      this.aperture.onValueUpdated=()=>{this.fwhmOptions.fwhmAperture=this.aperture.value;this.syncOptions();if(this.histogram)this.updateHistogram();};
+      this.aperture.onValueUpdated=()=>{if(this.fwhmOptions.fwhmAperture===this.aperture.value)return;
+         this.fwhmOptions.fwhmAperture=this.aperture.value;this.syncOptions();if(this.histogram)this.updateHistogram();};
+      this.apertureMenu=new ComboBox(this.inputs);this.apertureMenu.setScaledFixedWidth(84);
+      this.apertureMenu.toolTip='Choose a saved telescope aperture, or edit the preset list for all reviews.';
+      this.fillApertureMenu(sqrReadAperturePresets());
+      this.apertureMenu.onItemSelected=index=>this.chooseAperturePreset(index);
       this.seeing=sqrNumber(this.inputs,'Zenith seeing (″):',this.fwhmOptions.fwhmSeeing,0,20,2);this.seeing.enableFixedPrecision(true);this.seeing.sizer.spacing=8;this.seeing.edit.setScaledFixedWidth(68);
       this.seeing.toolTip='Optional seeing estimate at zenith and a reference wavelength of 550 nm, in arcseconds. Zero keeps fixed seeing limits. A positive value grades FWHM relative to expected blur; adjust the Good/Medium percentages in FWHM grading. Forecasts are approximate; a value already corrected for target altitude must first be converted to zenith.';
       this.seeing.onValueUpdated=()=>{this.fwhmOptions.fwhmSeeing=this.seeing.value;this.syncOptions();if(this.histogram)this.updateHistogram();};
@@ -3803,25 +3977,25 @@ class SQRDialog extends Dialog {
       // remain stable when the SQM reading time wraps onto a second row.
       const conditionField=controls=>{let field=new Control(this.inputs);field.sizer=new HorizontalSizer;field.sizer.spacing=8;
          for(let control of controls){control.parent=field;control.show();field.sizer.add(control,control===this.sqmTime?100:0);}return field;};
-      this.conditionFields=[conditionField([apertureLabel,this.aperture,apertureUnit]),conditionField([this.seeing]),
+      this.conditionFields=[conditionField([apertureLabel,this.aperture,apertureUnit,this.apertureMenu]),conditionField([this.seeing]),
          conditionField([this.sqm,sqmUnit]),conditionField([sqmTimeLabel,this.sqmTime,this.sqmTimePicker])];
       this.conditions=responsive(new Control(this.inputs),
-         [[this.conditionFields[0],24,this.conditionFields[1],24,this.conditionFields[2],24,[this.conditionFields[3],100]]],
-         [[this.conditionFields[0],24,this.conditionFields[1],24,this.conditionFields[2],null],[[this.conditionFields[3],100]]],
-         ()=>this.conditionFields.reduce((width,field)=>width+field.smartMinWidth,3*24*this.displayPixelRatio),0);
+         [[this.conditionFields[0],12,this.conditionFields[1],12,this.conditionFields[2],12,[this.conditionFields[3],100]]],
+         [[this.conditionFields[0],12,this.conditionFields[1],12,this.conditionFields[2],null],[[this.conditionFields[3],100]]],
+         ()=>this.conditionFields.reduce((width,field)=>width+field.smartMinWidth,3*12*this.displayPixelRatio),0);
       // Share the right edge of the path field and Autofocus times button.
       // The date editor takes the remaining space while retaining room for seconds.
       this.conditions.setScaledFixedWidth(135+8+950);
       this.folders={};for(let [key,label] of [['wbpp','WBPP output:'],['originals','Original-light root:']])
          this.folders[key]=sqrFolderRow(this.inputs,label,o[key],(value,chosen)=>this.inputFolderChanged(key,value,chosen));
-      for(let key of ['wbpp','originals'])this.folders[key].edit.onTextUpdated=()=>{if(this.scanButton)this.updateScanButton();};
-      this.inputControls=[this.aperture,this.seeing,this.sqm,this.sqmTime,this.sqmTimePicker,...Object.values(this.folders).flatMap(x=>[x.edit,x.browse])];
+      for(let key of ['wbpp','originals'])this.folders[key].edit.onTextUpdated=()=>{if(this.undoMoveButton)this.updateButtons();};
+      this.inputControls=[this.aperture,this.apertureMenu,this.seeing,this.sqm,this.sqmTime,this.sqmTimePicker,...Object.values(this.folders).flatMap(x=>[x.edit,x.browse])];
       this.autofocusRuns=[];this.autorunFiles=[];this.autorunImagingStart=null;this.guideFiles=[];this.parsedGuideLog={sections:[],invalid:0,errors:0};this.loadedLogFolder='';
       this.logFolder=sqrFolderRow(this.inputs,'Log folder (optional):',o.logFolder,()=>this.loadAutorun());
       this.logFolder.edit.toolTip='Read all Autorun_log and PHD2_GuideLog files directly in this folder, excluding _CHN translations. Logs use acquisition-computer local time. Select the folder again to refresh. Clear it to remove autofocus and guiding results; image measurements are retained.';
       this.folders.destination=sqrFolderRow(this.inputs,'Rejected originals:',o.destination,()=>{this.syncOptions();this.updateButtons();});
       this.folders.destination.edit.onTextUpdated=()=>this.updateButtons();
-      this.folders.destination.edit.toolTip='Choose the folder for rejected originals to enable Move and Undo after scanning. Leave it blank to review and measure without moving files.';
+      this.folders.destination.edit.toolTip='Choose the folder for rejected originals to enable Undo. Move also requires a marked original. Leave it blank to review and measure without moving files.';
       this.inputControls.push(this.folders.destination.edit,this.folders.destination.browse);
       let logLabel=new Label(this.inputs);logLabel.text='Log timestamps:';logLabel.setScaledFixedWidth(135);
       this.logTimeZone=new ComboBox(this.inputs);for(let name of ['Infer from image timestamps','Custom UTC offset'])this.logTimeZone.addItem(name);
@@ -3837,7 +4011,7 @@ class SQRDialog extends Dialog {
       this.logUTCOffset.setFixedWidth(logOffsetLabelWidth+66*this.displayPixelRatio);
       this.logUTCOffset.toolTip='Log time minus UTC: for example, +2 for UTC+02:00, or +5.5 for UTC+05:30.';this.logUTCOffset.enabled=this.logTimeZone.currentItem===1;
       this.autorunStatus=new Label(this.inputs);this.autorunStatus.text='No log folder selected.';this.autorunStatus.wordWrapping=true;this.autorunStatus.setScaledFixedWidth(150);
-      this.scanButton=sqrButton(this.inputs,'Scan files',()=>this.scan());this.scanButton.setScaledFixedSize(116,26);
+      this.refreshFilesButton=sqrTool(this.inputs,':/icons/reload.png','Refresh file list',()=>this.refreshFileList());
       this.importWBPPButton=sqrButton(this.inputs,'Import WBPP…',()=>this.chooseWBPPImport());this.importWBPPButton.setScaledFixedSize(116,26);
       this.autorunTimes=sqrTool(this.inputs,':/icons/clock-info.png','Autofocus times: show all extracted autofocus start times, as written in the log and converted to UTC, with their final focus positions.',()=>this.showAutofocusTimes());
       this.logTimeZone.onItemSelected=()=>{this.parseAutorun();if(this.sqm.value>0)this.bortleChanged();};
@@ -3846,12 +4020,12 @@ class SQRDialog extends Dialog {
       // Match the fixed path text field's right edge. The summary takes
       // the remaining space, keeping Autofocus times at the same right edge.
       this.logTools.setScaledFixedWidth(135+8+950);
-      for(let control of [logLabel,this.logTimeZone,this.logUTCOffset,this.autorunStatus,this.scanButton,this.importWBPPButton,this.autorunTimes]){
+      for(let control of [logLabel,this.logTimeZone,this.logUTCOffset,this.autorunStatus,this.refreshFilesButton,this.importWBPPButton,this.autorunTimes]){
          control.parent=this.logTools;control.show();this.logTools.sizer.add(control,0,Alignment.Center);
       }
-      this.logFixedControls=[logLabel,this.logTimeZone,this.logUTCOffset,this.scanButton,this.importWBPPButton,this.autorunTimes];
+      this.logFixedControls=[logLabel,this.logTimeZone,this.logUTCOffset,this.refreshFilesButton,this.importWBPPButton,this.autorunTimes];
       this.inputs.sizer.add(this.logTools);
-      this.inputControls.push(this.logFolder.edit,this.logFolder.browse,this.logTimeZone,this.logUTCOffset,this.scanButton,this.importWBPPButton,this.autorunTimes);
+      this.inputControls.push(this.logFolder.edit,this.logFolder.browse,this.logTimeZone,this.logUTCOffset,this.refreshFilesButton,this.importWBPPButton,this.autorunTimes);
       this.updateLogOffsetControls();
       this.inputs.sizer.add(this.conditions);
       // One native collapsible section, with measurement controls separated
@@ -3958,7 +4132,7 @@ class SQRDialog extends Dialog {
       this.minStars.onValueUpdated=()=>{this.rerank();if(this.session)this.status.text='Minimum stars changed. Existing measurements re-evaluated; no images remeasured.';};
       this.groupRow=new HorizontalSizer;this.groupRow.spacing=0;
       let groupLabel=new Label(this);groupLabel.text='Filter / group:';
-      this.groupSelect=new ComboBox(this);this.groupSelect.setScaledFixedWidth(240);this.groupSelect.onItemSelected=()=>{this.clearFrames();this.current=null;this.selectionCleared=false;this.populateRows();};
+      this.groupSelect=new ComboBox(this);this.groupSelect.setScaledFixedWidth(240);this.groupSelect.onItemSelected=()=>{this.clearPreviewKeepingView();this.current=null;this.selectionCleared=false;this.populateRows();};
       // Match the input section's left inset, but let this shorter label use
       // its natural width so the selector follows it with the standard gap.
       this.groupRow.addSpacing(10);
@@ -3981,7 +4155,7 @@ class SQRDialog extends Dialog {
       this.table.onKeyPress=key=>{if(key===Key_Space){if(this.current)this.decide(!this.current.reject);return true;}
          this.keyboardNavigation=true;if(this.table.currentNode?.row)this.selectRow(this.table.currentNode.row);return false;};
       this.table.onKeyRelease=key=>{this.keyboardNavigation=false;if(key!==Key_Space&&this.table.currentNode?.row)this.selectRow(this.table.currentNode.row);return false;};
-      this.table.onNodeDoubleClicked=(node,column)=>{if(node?.row&&column!==4){this.selectRow(node.row);this.populating=true;this.table.currentNode=node;node.selected=true;this.populating=false;this.inspect();}};
+      this.table.onNodeDoubleClicked=(node,column)=>{if(node?.row&&column!==4){this.selectRow(node.row);this.populating=true;this.table.currentNode=node;node.selected=true;this.populating=false;this.inspect();this.resumeTabPlayback();}};
       this.reviewTop=new Control(this.reviewPage);this.reviewTop.sizer=new HorizontalSizer;this.reviewTop.sizer.spacing=8;
       this.reviewOptions=sqrGroup(this.reviewTop,'Sort and filter');this.reviewOptions.setScaledFixedWidth(390);
       let reviewTools=new HorizontalSizer;reviewTools.spacing=8;
@@ -4040,6 +4214,7 @@ class SQRDialog extends Dialog {
       this.displaySTF=new CheckBox(this.blinkPage);this.displaySTF.text='Display STF';this.displaySTF.checked=o.displaySTF;
       this.alignBrightness=new CheckBox(this.blinkPage);this.alignBrightness.text='Align preview brightness';this.alignBrightness.checked=o.alignBrightness;
       this.alignBrightness.toolTip='Display-only background and contrast alignment. Turn off to compare transparency differences. Source pixels and quality measurements are unchanged.';
+      this.viewer.appendTopControl(this.displaySTF);this.viewer.appendTopControl(this.alignBrightness);
       this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe','Rotate subframes (Review order)','Corner mosaic / master','Corner mosaic / best subframe'])this.reference.addItem(n);this.reference.currentItem=Math.max(0,SQR_BLINK_MODES.indexOf(o.reference));
       this.reference.toolTip='Compare with the filter master or best scoring kept subframe, or rotate through visible subframes in Review order. Corner mosaic joins Top left / Top right above Bottom left / Bottom right and blinks against the same corners of the master or best subframe. It uses Corner size and Edge guard; numerical corner measurements are not required. Subframe rotation follows the current sort direction and REVIEW-only filter and skips the master.';
       this.reference.onItemSelected=()=>{if(this.running)return;if(this.reference.currentItem>=2)this.regionRotation.currentItem=0;this.updateButtons();this.reloadBlink(true);this.syncOptions();};
@@ -4067,12 +4242,10 @@ class SQRDialog extends Dialog {
       this.decisionToggle.checkable=true;
       // Keep playback controls together at every window width. Equal stretches
       // center interval/playback between the region and right-hand navigation.
-      this.blinkTools=new Control(this.blinkPage);this.blinkTools.sizer=new VerticalSizer;this.blinkTools.sizer.spacing=8;
-      for(let items of [[referenceLabel,this.reference,rotationLabel,this.regionRotation,this.region,null,this.blinkInterval,this.play,this.step,null,this.previous,this.next,this.decisionToggle],
-                       [this.displaySTF,this.alignBrightness,null]]){
-         let row=new HorizontalSizer;row.spacing=8;
-         for(let control of items)if(control){control.parent=this.blinkTools;control.show();row.add(control,0,Alignment.Center);}else row.addStretch();
-         this.blinkTools.sizer.add(row);
+      this.blinkTools=new Control(this.blinkPage);this.blinkTools.sizer=new HorizontalSizer;this.blinkTools.sizer.spacing=8;
+      for(let control of [referenceLabel,this.reference,rotationLabel,this.regionRotation,this.region,null,this.blinkInterval,this.play,this.step,null,this.previous,this.next,this.decisionToggle]){
+         if(control){control.parent=this.blinkTools;control.show();this.blinkTools.sizer.add(control,0,Alignment.Center);}
+         else this.blinkTools.sizer.addStretch();
       }
       this.blinkPage.sizer=new VerticalSizer;this.blinkPage.sizer.margin=6;this.blinkPage.sizer.spacing=8;
       this.blinkPage.sizer.add(this.viewer,100);this.blinkPage.sizer.add(this.blinkTools);this.blinkPage.sizer.add(this.frameLabel);
@@ -4096,7 +4269,10 @@ class SQRDialog extends Dialog {
       this.histogramOrder.onItemSelected=()=>this.updateHistogram();
       this.histogramTools=responsive(new Control(this.histogramPage),[[kpiLabel,this.kpiSelect,[this.kpiDirection,100],this.bortleControls,this.calibrateSkyButton,this.fwhmSettings,this.plotInfoButton,plotOrderLabel,this.histogramOrder]],
          [[kpiLabel,this.kpiSelect,[this.kpiDirection,100]],[this.bortleControls,this.calibrateSkyButton,this.fwhmSettings,this.plotInfoButton,null,plotOrderLabel,this.histogramOrder]],1300);
-      this.histogram=new WebView(this.histogramPage);this.histogram.setScaledMinSize(800,320);
+      this.histogram=new SQRChartView(this.histogramPage,
+         generation=>{this.plotReady=generation===this.plotGeneration&&!this.plotDirty;},
+         value=>{this.plotRequestPending=false;if(typeof value==='string'){try{this.selectPlotImage(JSON.parse(value));}catch(e){this.error(e);}}});
+      this.histogram.setScaledMinSize(800,320);
       this.histogram.toolTip='';
       this.plotGeneration=0;this.plotReady=false;this.plotDirty=false;this.plotRequestPending=false;
       this.plotTimer=new Timer(.15,true,this);
@@ -4105,9 +4281,6 @@ class SQRDialog extends Dialog {
          if(scatter?(!this.scatterReady||this.scatterRequestPending):(!this.plotReady||this.plotRequestPending))return;
          if(scatter)this.scatterRequestPending=true;else this.plotRequestPending=true;
          (scatter?this.scatter:this.histogram).evaluateScript('(function(){var selection=window.sqrSelection;window.sqrSelection=null;return selection?JSON.stringify(selection):null;})()');};
-      this.histogram.onLoadFinished=ok=>{this.plotReady=ok&&!this.plotDirty;};
-      this.histogram.onScriptResultAvailable=value=>{this.plotRequestPending=false;if(typeof value!=='string')return;
-         try{this.selectPlotImage(JSON.parse(value));}catch(e){this.error(e);}};
       this.histogram.onShow=()=>this.plotTimer.start();this.histogram.onHide=()=>this.plotTimer.stop();
       this.histogramSummary=new Label(this.histogramPage);this.histogramSummary.wordWrapping=true;this.histogramSummary.minHeight=2*this.font.height;
       this.histogramPage.sizer=new VerticalSizer;this.histogramPage.sizer.margin=6;this.histogramPage.sizer.spacing=10;
@@ -4124,22 +4297,18 @@ class SQRDialog extends Dialog {
       this.scatterSwap.onClick=()=>{let x=this.scatterX.currentItem;this.scatterX.currentItem=this.scatterY.currentItem;this.scatterY.currentItem=x;this.updateScatter();this.syncOptions();};
       scatterTools.add(this.scatterSwap);scatterTools.addStretch();
       this.setScatterOptions(o);
-      this.correlationSummary=new Label(this.scatterPage);this.correlationSummary.wordWrapping=true;
-      this.correlationSummary.setScaledMinHeight(48);
-      this.correlationSummary.styleSheet=this.correlationSummary.scaledStyleSheet('QLabel { font-size: '+(this.font.pointSize*1.35).toFixed(2)+'pt; font-weight: bold; background-color: #252536; color: #e8eaf6; border: 1px solid #585b70; border-left: 4px solid #89dceb; border-radius: 4px; padding: 8px 12px; }');
-      this.scatter=new WebView(this.scatterPage);this.scatter.setScaledMinSize(800,320);
-      this.scatter.toolTip='Hover over a point for its image name and values. Click to select it in Review and measurements. Each point uses two measurements from the same image.';
+      this.scatter=new SQRChartView(this.scatterPage,
+         generation=>{this.scatterReady=generation===this.scatterGeneration&&!this.scatterDirty;},
+         value=>{this.scatterRequestPending=false;if(typeof value==='string'){try{this.selectPlotImage(JSON.parse(value),true);}catch(e){this.error(e);}}});
+      this.scatter.setScaledMinSize(800,320);
       this.scatterGeneration=0;this.scatterReady=false;this.scatterDirty=false;this.scatterRequestPending=false;
-      this.scatter.onLoadFinished=ok=>{this.scatterReady=ok&&!this.scatterDirty;};
-      this.scatter.onScriptResultAvailable=value=>{this.scatterRequestPending=false;if(typeof value!=='string')return;
-         try{this.selectPlotImage(JSON.parse(value),true);}catch(e){this.error(e);}};
       this.scatter.onShow=()=>this.plotTimer.start();this.scatter.onHide=()=>this.plotTimer.stop();
       this.scatterSummary=new Label(this.scatterPage);this.scatterSummary.wordWrapping=true;this.scatterSummary.minHeight=2*this.font.height;
       this.scatterPage.sizer=new VerticalSizer;this.scatterPage.sizer.margin=6;this.scatterPage.sizer.spacing=10;
-      this.scatterPage.sizer.add(scatterTools);this.scatterPage.sizer.add(this.correlationSummary);this.scatterPage.sizer.add(this.scatter,100);this.scatterPage.sizer.add(this.scatterSummary);
+      this.scatterPage.sizer.add(scatterTools);this.scatterPage.sizer.add(this.scatter,100);this.scatterPage.sizer.add(this.scatterSummary);
       this.tabs.addPage(this.reviewPage,'Review and measurements');this.tabs.addPage(this.blinkPage,'Blink frame / reference');this.tabs.addPage(this.histogramPage,'Quality indicators');this.tabs.addPage(this.scatterPage,'Correlation plot');
       this.status=new Label(this);this.status.wordWrapping=true;this.status.minHeight=this.font.height;
-      this.status.text='Choose manual folders and Scan files, or Import WBPP, in Input files and observing conditions. Then use the magnifier to rank subframes; corners are optional. Blink against the master or best subframe. The green checkmark moves only manually rejected originals.';
+      this.status.text='Choose the WBPP output and original-light folders or import a WBPP setup. Click the magnifier to measure, or the grid to include corners. Blink against the master or best subframe. The green checkmark moves only manually rejected originals.';
       this.reviewSummary=new Label(this);this.reviewSummary.wordWrapping=true;this.reviewSummary.minHeight=this.font.height;
       this.scoreInclusionStatus=new Label(this);this.scoreInclusionStatus.wordWrapping=true;this.scoreInclusionStatus.minHeight=2*this.font.height;
       this.pixelScaleStatus=new Label(this);this.pixelScaleStatus.wordWrapping=true;this.pixelScaleStatus.minHeight=this.font.height;
@@ -4150,8 +4319,8 @@ class SQRDialog extends Dialog {
       this.messagesBar.toggleSection=()=>this.setMessagesCollapsed(!this.messagesCollapsed);
       this.instance=sqrTool(this,':/process-interface/new-instance.png','Drag to save folder and evaluation settings as a process icon.');
       this.instance.onMousePress=()=>{Parameters.clear();Parameters.set('configJSON',JSON.stringify(this.savedOptions()));this.newInstance();};
-      this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates.',()=>this.analyze());
-      this.measureCornersButton=sqrTool(this,':/icons/grid.png','Measure corners: measure the center and four corners for all groups and matched masters. Reuse existing full-image and regional results; measure the full image only when its results are missing or invalidated.',()=>this.measureCornerRegions());
+      this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates. Loads the file list on first use.',()=>this.analyze());
+      this.measureCornersButton=sqrTool(this,':/icons/grid.png','Measure corners: measure the center and four corners for all groups and matched masters. Loads the file list on first use and reuses existing field and regional measurements.',()=>this.analyze(true));
       this.recommendButton=sqrButton(this,'Recommend rejection…',()=>this.recommendRejection());
       this.recommendButton.toolTip='Compare SNR and sharpness for the selected group before marking recommended rejects. Optional object ROI; adjustable SNR preservation and minimum retained count.';
       this.reset=sqrTool(this,':/process-interface/reset.png','Reset evaluation and display settings. Folder paths are retained.',()=>this.resetSettings());
@@ -4176,8 +4345,17 @@ class SQRDialog extends Dialog {
       this.bodyScroll.onHorizontalScrollPosUpdated=()=>this.positionBody();this.bodyScroll.onVerticalScrollPosUpdated=()=>this.positionBody();
       this.onShow=()=>{this.layoutBody();this.layoutTimer.start();};
       this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
-      this.onHide=()=>{this.layoutTimer.stop();this.plotTimer.stop();this.stopBlink();};
-      this.tabs.onPageSelected=()=>{this.stopBlink();this.plotTimer.stop();if(this.tabs.currentPageIndex===2)this.updateHistogram();else if(this.tabs.currentPageIndex===3)this.updateScatter();if(this.tabs.currentPageIndex===2||this.tabs.currentPageIndex===3)this.plotTimer.start();this.ensurePreview();this.layoutBody();this.layoutTimer.start();};this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.updateButtons();
+      this.onHide=()=>{this.layoutTimer.stop();this.plotTimer.stop();this.resumeBlinkOnReturn=false;this.stopBlink();};
+      this.tabs.onPageSelected=()=>{
+         let page=this.tabs.currentPageIndex;
+         if(page!==1&&this.blinking){this.resumeBlinkOnReturn=true;this.stopBlink();}
+         this.plotTimer.stop();
+         if(page===2)this.updateHistogram();else if(page===3)this.updateScatter();
+         if(page===2||page===3)this.plotTimer.start();
+         if(page===1){this.ensurePreview();this.resumeTabPlayback();}
+         this.layoutBody();this.layoutTimer.start();
+      };
+      this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.updateButtons();
       this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);this.setReviewInfoCollapsed(o.reviewInfoCollapsed);this.setMessagesCollapsed(o.messagesCollapsed);
       let available=this.availableScreenRect,scale=this.displayPixelRatio;
       // Hidden controls can report a zero smart minimum before first show.
@@ -4237,11 +4415,30 @@ class SQRDialog extends Dialog {
       if(this.running||!this.session||this.scanRequired||!this.group())return;
       this.stopBlink();this.syncOptions();sqrRank(this.session);let dialog=new SQRRecommendationDialog(this.group(),this.session.options,!!this.session.guiding?.enabled);
       dialog.execute();this.recommendationOptions=dialog.options();this.syncOptions();sqrRank(this.session);
-      if(dialog.reviewApplied){this.clearFrames();this.status.text='REVIEW complete for '+(this.group().filter||'the selected group')+'. Marked '+dialog.applied+' recommended rejects. No originals moved.';}
+      if(dialog.reviewApplied){this.clearFrames();let reinstated=dialog.recommendation.reinstate.length;
+         this.status.text='REVIEW complete for '+(this.group().filter||'the selected group')+'. New rejection marks: '+dialog.applied+'.'+(reinstated?' Rejection marks cleared: '+reinstated+'.':'')+' No originals moved.';}
       this.populateRows(false);
       this.updateButtons();
    }
    showPlotInformation(){if(this.running)return;let info=this.plotInformation;if(info)(new SQRPlotInfoDialog(info)).execute();}
+   fillApertureMenu(presets){
+      this.aperturePresets=presets;this.apertureMenu.clear();this.apertureMenu.addItem('Presets');
+      for(let diameter of presets)this.apertureMenu.addItem(diameter+' mm');
+      this.apertureMenu.addItem('Edit list…');this.apertureMenu.currentItem=0;
+   }
+   chooseAperturePreset(index){
+      this.apertureMenu.currentItem=0;
+      if(this.running||index<=0)return;
+      if(index<=this.aperturePresets.length){
+         this.aperture.setValue(this.aperturePresets[index-1]);this.aperture.onValueUpdated();
+      }else{
+         let dialog=new SQRAperturePresetsDialog(sqrReadAperturePresets());
+         if(dialog.execute()){
+            Settings.write(SQR_APERTURE_PRESETS_KEY,DataType.String,dialog.values.join(','));
+            this.fillApertureMenu(dialog.values);
+         }
+      }
+   }
    editSQMTime(){if(this.running||!this.sqm.value)return;let dialog=new SQRSQMTimeDialog(this.sqmTime.text,sqrSQMTimeSeed(this.session,this.current,this.autorunImagingStart));
       if(dialog.execute()){this.sqmTime.text=dialog.value();this.sqmTimeChanged();}}
    // Mark invalid input without replacing it or trapping focus. The user can
@@ -4301,10 +4498,6 @@ class SQRDialog extends Dialog {
       this.updateCornerControls();this.rerank();
       this.status.text=this.useCornerMeasurements?'Corner measurements included in Score. Existing results reused.':'Field-only scoring active. Corner measurements retained; no remeasurement.';
    }
-   measureCornerRegions(){
-      if(this.running||!this.session||this.scanRequired)return;
-      this.analyze(true);
-   }
    // Keep saved manual values independent of the displayed effective 0/1 weights.
    toggleCorrelationScoring(){
       if(this.correlationOnly.checked){this.rankScoring.checked=false;for(let k of Object.keys(this.weights))this.manualWeights[k]=this.weights[k].value;}
@@ -4354,7 +4547,7 @@ class SQRDialog extends Dialog {
          'Scale (arcsec/pixel) = 206.264806 × pixel size (µm) / focal length (mm).\n'+
          s.masters.map(m=>'Master: '+m.path+'\nFocal length: '+sqrFmt(m.focalLength,3)+' mm · Pixel size X/Y: '+sqrFmt(m.pixelSizeX,3)+' / '+sqrFmt(m.pixelSizeY,3)+' µm'+(m.error?'\n'+m.error:'')).join('\n')+
          (s.missingCamera.length?'\nMissing camera identity in '+s.missingCamera.length+' image(s):\n'+s.missingCamera.slice(0,10).join('\n')+(s.missingCamera.length>10?'\n…':''):'')+
-         '\nScan files again to refresh the metadata and camera check.';}
+         '\nUse Refresh file list to update the metadata and camera check.';}
    // sqrTick pumps events once after notifying us, retaining progress and abort
    // handling without a second redraw/event dispatch for every status change.
    setStatus(s){if(this.status.text!==s)this.status.text=s;}
@@ -4398,6 +4591,13 @@ class SQRDialog extends Dialog {
       if(this.frames){this.blinking=true;this.updateBlinkButton();this.timer.start();}
    }
    stopBlink(){this.blinking=false;this.timer.stop();this.updateBlinkButton();}
+   // A Review double-click opens Blink programmatically, without firing
+   // onPageSelected. Both entry paths resume after the preview is ready.
+   resumeTabPlayback(){
+      if(!this.resumeBlinkOnReturn||this.running||this.tabs.currentPageIndex!==1)return;
+      this.resumeBlinkOnReturn=false;
+      if(this.frames)this.startBlink();
+   }
    // Stop the timer before releasing its bitmaps. Navigation can retain the
    // ImageView transform while replacing pixels by passing resetView=false.
    // Preview reloads can pause only the timer, keeping the Stop icon steady.
@@ -4418,6 +4618,9 @@ class SQRDialog extends Dialog {
    previewTransform(){if(!this.viewer.isValid)return this.savedPreviewView||null;
       let scale=this.viewer.imageToViewport(1,0).x-this.viewer.imageToViewport(0,0).x;
       return {zoom:scale>=1?Math.round(scale):-Math.round(1/scale),x:this.viewer.scrollbox.horizontalScrollPosition,y:this.viewer.scrollbox.verticalScrollPosition,fitOnShow:this.fitPreviewOnShow};}
+   // Release the old group's pixels and reference even if the next group has
+   // no preview. The next successful load restores the saved zoom and pan.
+   clearPreviewKeepingView(){let view=this.previewTransform();this.clearFrames();this.savedPreviewView=view;}
    setPreviewImage(bitmap,keepView){
       if(keepView&&this.viewer.isValid)this.viewer.regenerate(bitmap);
       else{this.viewer.setImage(bitmap);let saved=keepView?this.savedPreviewView:null;
@@ -4429,7 +4632,7 @@ class SQRDialog extends Dialog {
    // the old frame cache; the next load replaces its pixels at the same zoom/pan.
    selectRow(row){let changed=this.current!==row;if(changed)this.clearFrames(false);this.current=row;this.selectionCleared=false;
       this.updateDetails();this.updateButtons();if(changed&&this.histogram)this.updatePlots();if(changed)this.ensurePreview();}
-   clearSelection(){let view=this.previewTransform();this.clearFrames();this.savedPreviewView=view;this.current=null;this.selectionCleared=true;this.populating=true;
+   clearSelection(){this.clearPreviewKeepingView();this.current=null;this.selectionCleared=true;this.populating=true;
       this.table.deselectAllNodes();this.populating=false;this.updateDetails();this.updateButtons();this.updatePlots();}
    ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))this.inspect(false);}
    // Compare the data behind an existing preview before/after measurement.
@@ -4515,7 +4718,7 @@ class SQRDialog extends Dialog {
       let close=sqrButton(dialog,'Close',()=>dialog.ok()),buttons=new HorizontalSizer;buttons.addStretch();buttons.add(close);
       dialog.sizer=new VerticalSizer;dialog.sizer.margin=10;dialog.sizer.spacing=8;dialog.sizer.add(text,100);dialog.sizer.add(buttons);dialog.adjustToContents();dialog.execute();
    }
-   inputFolderChanged(key,value,chosen=false){if(this.running)return;let previous=this.session?.options||this.wbppImport;
+   inputFolderChanged(key,value,chosen=false){if(this.running)return;let previous=this.scannedInputs||this.wbppImport;
       // Explicit folder selection switches methods even when the chosen path
       // equals an imported one; simply focusing/leaving an edit does not.
       if((chosen&&this.wbppImport)||(previous&&sqrKey(value.trim())!==sqrKey(previous[key]||'')))this.invalidate();else this.updateButtons();}
@@ -4524,7 +4727,11 @@ class SQRDialog extends Dialog {
    inputMode(){let wbpp=this.folders.wbpp.edit.text.trim(),originals=this.folders.originals.edit.text.trim();
       if(this.wbppImport&&sqrKey(wbpp)===sqrKey(this.wbppImport.wbpp)&&sqrKey(originals)===sqrKey(this.wbppImport.originals))return 'import';
       return wbpp?'manual':'choose';}
-   invalidate(){if(this.running)return;this.wbppImport=null;this.session=null;this.scanRequired=true;this.useCornerMeasurements=false;this.current=null;this.clearFrames();this.updateCornerControls();this.parseAutorun(false);this.populateGroups();this.status.text=this.inputMode()==='manual'?'Folder selection changed. Scan files to populate the review list.':'Choose Import WBPP, or select the WBPP output and original-light folders for Scan files.';}
+   // Keep the folders used to build the list separate from editable session options.
+   get scanRequired(){return !this.session||['wbpp','originals'].some(key=>
+      sqrKey(this.folders[key].edit.text.trim())!==sqrKey(this.scannedInputs[key]||''));}
+   hasInputFolders(){return !!(this.folders.wbpp.edit.text.trim()&&this.folders.originals.edit.text.trim());}
+   invalidate(){if(this.running)return;this.wbppImport=null;this.session=null;this.scannedInputs=null;this.useCornerMeasurements=false;this.current=null;this.clearFrames();this.updateCornerControls();this.parseAutorun(false);this.populateGroups();this.status.text=this.inputMode()==='manual'?'Folder selection changed. Choose a measurement button, or use Refresh file list to inspect the matches.':'Import a WBPP setup or select the WBPP output and original-light folders.';}
    // Geometry/measurement changes invalidate metrics and derived scores, but
    // keep original associations and the user's manual rejection decisions.
    invalidateMeasurements(){
@@ -4538,20 +4745,19 @@ class SQRDialog extends Dialog {
    busy(value){this.running=value;for(let c of [...this.inputControls,this.inputsBar,this.qualityBar,this.settings,this.groupSelect,this.tabs,this.instance,this.calculate,this.measureCornersButton,this.reset,this.moveButton,this.undoMoveButton,this.closeButton,this.helpButton])c.enabled=!value;this.updateLogOffsetControls();this.autorunTimes.enabled=!value&&!!this.loadedLogFolder;this.updateButtons();}
    // Override only the face color. PixInsight supplies the standard border,
    // font and interactive states; clearing the style restores its normal face.
-   updateScanButton(){
-      let needed=this.scanRequired||!this.session,mode=this.inputMode();
-      this.scanButton.enabled=!this.running&&mode==='manual'&&!!this.folders.originals.edit.text.trim();
+   updateFileButtons(){
+      let mode=this.inputMode(),available=!this.running&&this.hasInputFolders();
+      this.refreshFilesButton.enabled=this.calculate.enabled=this.measureCornersButton.enabled=available;
+      this.refreshFilesButton.toolTip='Refresh file list: '+(mode==='import'?'recheck the lights in the imported WBPP setup.':'read the selected folders and match registered lights to their originals.')+
+         ' A successful refresh starts a new review and clears its measurements and rejection marks.';
       this.importWBPPButton.enabled=!this.running&&mode!=='manual';
-      for(let [control,key] of [[this.scanButton,'scanHighlighted'],[this.importWBPPButton,'importHighlighted']]){
-         let highlight=needed&&control.enabled;if(this[key]!==highlight){this[key]=highlight;control.styleSheet=highlight?'QPushButton { background-color: #b9c6d0; }':'';}}
-      this.scanButton.toolTip=mode==='import'?'WBPP import already supplies the light list. To scan folders instead, choose WBPP output or Original-light root with its folder button, or edit either path.':
-         !this.scanButton.enabled?'Select the WBPP output and original-light root to enable Scan files.':needed?'Scan the selected folders to populate the review list.':'Refresh the file list and original associations from the selected folders.';
+      let highlight=mode==='choose'&&this.importWBPPButton.enabled;
+      if(this.importHighlighted!==highlight){this.importHighlighted=highlight;this.importWBPPButton.styleSheet=highlight?'QPushButton { background-color: #b9c6d0; }':'';}
       this.importWBPPButton.toolTip=mode==='manual'?'Manual folder input is selected. Clear WBPP output to enable Import WBPP instead.':
          'Import from a loaded WBPP icon or saved .xpsm file and populate Review automatically.'+(this.wbppImport?' Choose Saved WBPP setup to recheck the imported list, or select another source.':'');
    }
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
-      this.updateScanButton();
-      this.calculate.enabled=this.measureCornersButton.enabled=ready&&!this.scanRequired;
+      this.updateFileButtons();
       this.recommendButton.enabled=ready&&!this.scanRequired&&!!this.group()?.roi&&this.group().rows.some(r=>r.metrics[0]?.valid);
       if(this.plotInfoButton)this.plotInfoButton.enabled=!this.running&&!!this.plotInformation;
       if(this.sqmTime){this.sqmTime.enabled=this.sqmTimePicker.enabled=!this.running&&this.sqm.value>0;this.validateSQMTime();}
@@ -4564,7 +4770,7 @@ class SQRDialog extends Dialog {
       let destinationSet=!!this.folders.destination.edit.text.trim(),scanned=!!this.session&&!this.scanRequired;
       let pending=!!this.session?.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
       this.moveButton.enabled=!this.running&&scanned&&destinationSet&&pending;
-      this.undoMoveButton.enabled=!this.running&&scanned&&destinationSet;
+      this.undoMoveButton.enabled=!this.running&&this.hasInputFolders()&&destinationSet;
       let imported=this.inputMode()==='import'&&!!this.wbppImport?.template?.parameters,
          decided=!!this.session?.groups.some(g=>g.rows.some(r=>!r.isMaster&&(r.reject||r.moved)));
       this.exportWBPPButton.enabled=!this.running&&scanned&&imported&&decided;
@@ -4572,9 +4778,9 @@ class SQRDialog extends Dialog {
          !scanned?'Import WBPP successfully before creating a reviewed instance.':!decided?'Mark at least one original as rejected. REVIEW flags alone do not exclude lights.':
          'Create a new WBPP instance without rejected or already moved lights, across all imported groups. Optionally move rejected originals too. The original WBPP setup is preserved.';
       let unavailable=!destinationSet?'Choose a folder in Rejected originals under Input files and observing conditions.':
-         !scanned?'Scan files or import WBPP successfully first.':this.running?'Wait for the current operation to finish.':'';
-      this.moveButton.toolTip=unavailable?'Move rejected originals: '+unavailable:!pending?'Mark at least one original as rejected, then click here to review the move plan.':'Review the move plan, then move only manually rejected original lights to the Rejected originals folder.';
-      this.undoMoveButton.toolTip=unavailable?'Undo moved originals: '+unavailable:'Undo moved originals. Select a moved row to restore that file, or choose a move journal to restore several files, including after reopening the script.';
+         !this.hasInputFolders()?'Select both image folders or import WBPP.':this.running?'Wait for the current operation to finish.':'';
+      this.moveButton.toolTip=unavailable?'Move rejected originals: '+unavailable:!scanned?'Load the file list and mark an original to move.':!pending?'Mark at least one original as rejected, then click here to review the move plan.':'Review the move plan, then move only manually rejected original lights to the Rejected originals folder.';
+      this.undoMoveButton.toolTip=unavailable?'Undo moved originals: '+unavailable:'Undo moved originals. Loads the file list if needed. Select a moved row to restore that file, or choose a move journal to restore several files, including after reopening the script.';
       let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
       this.play.enabled=rotation?canRotate&&count>1:!!this.frames&&!this.running;
       this.step.enabled=rotation?canRotate&&count>0:!!this.frames&&!this.running;
@@ -4701,10 +4907,8 @@ class SQRDialog extends Dialog {
       let xKPI=this.scatterKPIs[this.scatterX.currentItem],yKPI=this.scatterKPIs[this.scatterY.currentItem];
       for(let [control,kpi] of [[this.scatterX,xKPI],[this.scatterY,yKPI]])control.toolTip=kpi.direction+(kpi.corners?' · Requires regional measurements; stored values remain available with corner scoring off.':kpi.guiding?' · Requires guiding logs matched to the exposure.':'');
       let data=this.scatterData=sqrScatterPlot(this.group(),xKPI,yKPI,this.current);
-      this.correlationSummary.text=sqrCorrelationText(data.correlation);
-      this.correlationSummary.toolTip=(data.correlation.r===null?'':'Correlation (full precision): '+String(data.correlation.r)+'\nThe displayed coefficient is rounded to four decimal places. Strength and direction use the unrounded value.\n')+'Pearson correlation uses the '+data.count+' plotted subframe pairs, including rejected frames. The master is excluded.\nStrength by |r|: 0 = none; above 0 and below 0.3 = weak; 0.3 to below 0.7 = moderate; 0.7 to below 1 = strong; 1 = perfect.\nPositive: both values increase together. Negative: as X increases, Y decreases. Direction refers to KPI values, not whether image quality improves. Zero means no linear relationship.\nAt least two paired subframes and variation in both KPIs are required.';
       this.scatterSummary.text=data.count+' of '+data.total+' subframes plotted'+(data.missing?' · '+data.missing+' missing one or both measurements':'')+'. Hover for values; click a point to select its image.\nCyan: selected · purple: REVIEW · blue: other kept · red: rejected.';
-      this.scatterReady=false;++this.scatterGeneration;this.scatter.setHTML(sqrScatterHTML(data,this.scatterGeneration));
+      this.scatterReady=false;this.scatter.displayPlot(sqrScatterContent(data,++this.scatterGeneration));
    }
    // Reconcile available KPI choices, then publish a new plot generation.
    // Separate chart ordering and filtering from the table's visible row list.
@@ -4738,7 +4942,7 @@ class SQRDialog extends Dialog {
       this.kpiDirection.toolTip='';
       this.histogramSummary.text=data.message?'':data.count+' subframes'+(data.missing?' · '+data.missing+' unavailable':'')+(data.hasMaster?' · master included':'')+' · '+(data.order==='time'?'acquisition order':'value order');
       this.histogramSummary.toolTip='';
-      this.plotReady=false;++this.plotGeneration;this.histogram.setHTML(sqrPlotHTML(data,this.plotGeneration));
+      this.plotReady=false;this.histogram.displayPlot(sqrHistogramContent(data,++this.plotGeneration));
    }
    // Validate asynchronous WebView messages against the current generation.
    // Reveal a hidden row before selecting it; this action never changes rejection.
@@ -4766,21 +4970,33 @@ class SQRDialog extends Dialog {
       // after a successful replacement, using the new image timestamps/scale.
       if(imported)try{this.loadAutorun(false);this.populateRows(false);this.scanSummary();}catch(e){this.error(e);}}
    scanSummary(){let rows=this.session.groups.flatMap(g=>g.rows),masters=this.session.groups.filter(g=>g.master).length;
-      this.status.text=(this.session.importSummary?this.session.importSummary+'\n':'')+rows.length+' registered lights · '+rows.filter(r=>r.original).length+' verified originals · '+this.session.groups.length+' groups · '+masters+' masters matched by filter. Use the magnifier to measure.'+(this.session.warnings.length?'\n'+this.session.warnings.join('\n'):'');}
-   scan(){if(this.running||this.inputMode()!=='manual'||!this.folders.originals.edit.text.trim())return;this.stopBlink();this.scanRequired=true;this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
-      try{this.clearFrames();let options=this.options();options.measureCorners=false;this.session=sqrScan(options,s=>this.setStatus(s));this.useCornerMeasurements=false;this.current=null;this.updateCornerControls();this.parseAutorun(false);this.populateGroups();
-         this.scanSummary();
-         this.scanRequired=false;
-      }catch(e){this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}}
-   // Restore abort/UI state in finally, then prepare the initial comparison
-   // without switching away from the user's review tab after measurement.
+      this.status.text=(this.session.importSummary?this.session.importSummary+'\n':'')+rows.length+' registered lights · '+rows.filter(r=>r.original).length+' verified originals · '+this.session.groups.length+' groups · '+masters+' masters matched by filter.'+(this.session.warnings.length?'\n'+this.session.warnings.join('\n'):'');}
+   // A saved WBPP instance supplies its own light list. Only replace the
+   // active review after discovery and header validation have succeeded.
+   readFileList(){
+      let options=this.options();options.measureCorners=false;
+      if(this.inputMode()!=='import')options.wbppImport=null;
+      let session=sqrScan(options,s=>this.setStatus(s));
+      this.clearFrames();this.session=session;this.scannedInputs=session.options;this.wbppImport=options.wbppImport;
+      this.useCornerMeasurements=false;this.current=null;this.updateCornerControls();
+      this.parseAutorun(false);this.populateGroups();this.scanSummary();
+   }
+   refreshFileList(){
+      if(this.running||!this.hasInputFolders())return false;
+      this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;
+      try{this.readFileList();return true;}
+      catch(e){this.error(e);return false;}finally{console.abortEnabled=abort;this.busy(false);}
+   }
    analyze(withCorners=this.useCornerMeasurements){
-      if(this.running||!this.session||this.scanRequired)return;
-      let hadCorners=sqrHasCornerMeasurements(this.session),useCorners=this.useCornerMeasurements,previewSignature=this.measurementPreviewSignature(true);
-      this.syncOptions();
-      this.session.options.measureCorners=withCorners;
-      this.stopBlink();this.busy(true);let abort=console.abortEnabled,measured=false,skyResult=null,calibrationError='';console.abortEnabled=true;console.show();
-      try{sqrAnalyze(this.session,s=>this.setStatus(s));
+      if(this.running||!this.hasInputFolders())return;
+      this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;console.show();
+      let started=false,measured=false,hadCorners,useCorners,previewSignature,skyResult=null,calibrationError='';
+      try{
+         if(this.scanRequired)this.readFileList();
+         hadCorners=sqrHasCornerMeasurements(this.session);useCorners=this.useCornerMeasurements;
+         previewSignature=this.measurementPreviewSignature(true);
+         this.syncOptions();this.session.options.measureCorners=withCorners;started=true;
+         sqrAnalyze(this.session,s=>this.setStatus(s));
          measured=true;
          skyResult=sqrAutoCalibrateSky(this.session,s=>this.setStatus(s));
       }catch(e){
@@ -4788,12 +5004,14 @@ class SQRDialog extends Dialog {
          // selection so the report cannot retain an obsolete corner decision.
          if(measured)calibrationError=e.message||String(e);this.error(e);
       }finally{
-         // First regional measurement activates corner scoring. Later runs
-         // preserve an explicit exclusion, even when filling missing regions.
-         this.useCornerMeasurements=sqrHasCornerMeasurements(this.session)&&(hadCorners?useCorners:withCorners);this.syncOptions();
-         if(!measured||withCorners!==this.useCornerMeasurements)try{sqrRank(this.session);}catch(rankError){for(let g of this.session.groups)g.correlationScoring=null;}
-         this.updateCornerControls();this.populateRows(false);
-         if(previewSignature!==this.measurementPreviewSignature())this.clearFrames(false);
+         if(started){
+            // First regional measurement activates corner scoring. Later runs
+            // preserve an explicit exclusion, even when filling missing regions.
+            this.useCornerMeasurements=sqrHasCornerMeasurements(this.session)&&(hadCorners?useCorners:withCorners);this.syncOptions();
+            if(!measured||withCorners!==this.useCornerMeasurements)try{sqrRank(this.session);}catch(rankError){for(let g of this.session.groups)g.correlationScoring=null;}
+            this.updateCornerControls();this.populateRows(false);
+            if(previewSignature!==this.measurementPreviewSignature())this.clearFrames(false);
+         }
          console.abortEnabled=abort;this.busy(false);
       }
       if(measured){let n=this.session.groups.reduce((s,g)=>s+g.rows.filter(r=>r.candidate).length,0);
@@ -4812,8 +5030,8 @@ class SQRDialog extends Dialog {
       let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView);
       this.running=true;try{
          this.clearFrames(!keepView,false,preservePlayback);let reference=sqrReference(g,this.options().reference);
-         if(!reference.path){this.clearFrames();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1||this.reference.currentItem===4?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
-         if(!g.regions){this.clearFrames();this.status.text='Measure this group before using the registered comparison regions.';return false;}
+         if(!reference.path){this.clearPreviewKeepingView();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1||this.reference.currentItem===4?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
+         if(!g.regions){this.clearPreviewKeepingView();this.status.text='Measure this group before using the registered comparison regions.';return false;}
          let rect=this.isCornerMosaic()?g.regions.slice(2,6):g.regions[this.region.currentItem];
          this.frames=sqrFrames(r.registered.path,reference.path,this.options(),rect,!!r.isMaster,this.referenceDisplay);this.loadedReference=reference;this.frame=0;
          // ImageView.regenerate replaces pixels while retaining its native zoom and
@@ -4823,7 +5041,7 @@ class SQRDialog extends Dialog {
          this.viewer.setStatusMessage((this.isCornerMosaic()?'Corner mosaic · ':'')+'Blink against '+reference.label.toLowerCase()+': '+sqrFileName(reference.path));
          this.status.text=sqrKey(reference.path)===sqrKey(r.registered.path)?'This image is also the selected blink reference.':r.isMaster?'Integrated master compared with the selected reference. The master cannot be rejected.':'Blink uses identical coordinates and zoom. Mark Keep or Reject, then review the next frame.';
          return true;
-      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}}
+      }catch(e){this.clearPreviewKeepingView();this.error(e);return false;}finally{this.running=false;this.updateButtons();}}
    // Synchronize selection without rebuilding the table or hidden quality plot
    // on every timer tick. The plot is refreshed when its tab is opened.
    selectBlinkRow(row){
@@ -4836,9 +5054,9 @@ class SQRDialog extends Dialog {
       let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView);this.running=true;
       try{
          this.clearFrames(!keepView,false,preservePlayback,true);
-         if(!g.regions){this.clearFrames();this.status.text='Measure this group before rotating its preview regions.';return false;}
+         if(!g.regions){this.clearPreviewKeepingView();this.status.text='Measure this group before rotating its preview regions.';return false;}
          let reference=this.regionRotation.currentItem===2?sqrReference(g,this.options().reference):null;
-         if(reference&&!reference.path){this.clearFrames();this.status.text='No matching reference is available. Choose another reference or Rotate regions: Image only.';return false;}
+         if(reference&&!reference.path){this.clearPreviewKeepingView();this.status.text='No matching reference is available. Choose another reference or Rotate regions: Image only.';return false;}
          let o=this.options(),key=JSON.stringify([r.registered.path,!!r.isMaster,reference?.path||'',g.regions,o.displaySTF,o.alignBrightness]);
          if(this.regionFramesKey!==key){this.clearRegionFrames();this.regionFrames=sqrRegionFrames(r.registered.path,reference?.path||'',o,g.regions,!!r.isMaster);this.regionFramesKey=key;}
          this.frames=this.regionFrames[this.region.currentItem];this.framesFromRegions=true;this.loadedReference=reference;this.frame=0;
@@ -4846,12 +5064,12 @@ class SQRDialog extends Dialog {
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
          this.viewer.refreshPixelReadout();this.updateDetails();this.viewer.setStatusMessage('Rotate regions · '+(reference?'blink against '+reference.label.toLowerCase():'selected image only'));
          this.status.text='Region rotation keeps the selected image and zoom. '+(reference?'Image and reference are shown in each region before advancing.':'Each interval advances to the next region.');return true;
-      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
+      }catch(e){this.clearPreviewKeepingView();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
    }
    inspectRotation(openBlink=true,preserveView=true,preservePlayback=false){
       if(this.running)return false;
       let rows=this.rotationRows(),g=this.group();
-      if(!rows.length||!g?.regions){this.clearFrames();this.updateDetails();this.updateButtons();this.status.text=rows.length?'Measure this group before rotating subframes.':'No subframes are visible in the Review list.';return false;}
+      if(!rows.length||!g?.regions){this.clearPreviewKeepingView();this.updateDetails();this.updateButtons();this.status.text=rows.length?'Measure this group before rotating subframes.':'No subframes are visible in the Review list.';return false;}
       let r=rows.includes(this.current)?this.current:rows[0];this.selectBlinkRow(r);
       let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView),o=this.options(),rect=g.regions[this.region.currentItem];
       let key=JSON.stringify([g.directoryName,g.rows[0]?.registered.path,rect,o.displaySTF,o.alignBrightness]);
@@ -4867,7 +5085,7 @@ class SQRDialog extends Dialog {
          this.viewer.refreshPixelReadout();this.updateDetails();this.viewer.setStatusMessage('Subframes in Review order · master excluded');
          this.status.text='Subframe '+(rows.indexOf(r)+1)+' / '+rows.length+' in Review order. Keep and Reject apply to the displayed subframe.';
          return true;
-      }catch(e){this.clearFrames();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
+      }catch(e){this.clearPreviewKeepingView();this.error(e);return false;}finally{this.running=false;this.updateButtons();}
    }
    showFrame(index){if(!this.frames||!this.frames[index])return;this.frame=index;this.viewer.regenerate(this.frames[index]);this.viewer.refreshPixelReadout();this.updateDetails();}
    // Save blink status before loading the next visible row, then resume only
@@ -4892,7 +5110,7 @@ class SQRDialog extends Dialog {
       node.setIcon(4,this.rejectIcons[reject?1:0]);
       node.setToolTip(4,'Click to '+(reject?'keep':'reject')+' this original, or select the row and press Space.');
       this.updateDetails();this.updateButtons();this.updatePlots();this.ensurePreview();}
-   setSession(s){this.clearFrames();this.session=s;this.scanRequired=false;this.useCornerMeasurements=sqrHasCornerMeasurements(s)&&s.options.measureCorners!==false;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
+   setSession(s){this.clearFrames();this.session=s;this.scannedInputs=s.options;this.useCornerMeasurements=sqrHasCornerMeasurements(s)&&s.options.measureCorners!==false;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
       this.wbppImport=o.wbppImport||null;
       this.fwhmOptions=sqrFWHMOptions(o);this.recommendationOptions=sqrRecommendationOptions(o);
       this.aperture.setValue(this.fwhmOptions.fwhmAperture);this.fwhmOptions.fwhmAperture=this.aperture.value;
@@ -4955,7 +5173,9 @@ class SQRDialog extends Dialog {
          this.populateRows();this.status.text='Moved '+result.count+' original lights. Journal: '+result.journal;return result;
       }catch(e){this.populateRows();if(rethrow)throw e;this.error(e);}finally{this.lastMoveJournal=this.session?.lastMoveJournal||this.lastMoveJournal;this.busy(false);}}
    restoreRejected(){
-      if(this.running||!this.session||this.scanRequired||!this.folders.destination.edit.text.trim())return;this.stopBlink();let abort=console.abortEnabled;
+      if(this.running||!this.hasInputFolders()||!this.folders.destination.edit.text.trim())return;
+      if(this.scanRequired&&!this.refreshFileList())return;
+      this.syncOptions();this.stopBlink();let abort=console.abortEnabled;
       try{
          let path=this.current?.moveJournal||this.session?.lastMoveJournal||this.lastMoveJournal||'';
          let dialog=new SQRRestoreDialog(path&&File.exists(path)?path:'',this.current?.moved?this.current.original?.path||'':'',this.folders.destination.edit.text);
