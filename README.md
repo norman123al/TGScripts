@@ -73,7 +73,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.59.8 | Ranks and blinks WBPP subframes, recommends rejections with an SNR limit, and exports reviewed WBPP setups. | 2026&#8209;11&#8209;21 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.59.9 | Ranks WBPP lights, blinks frames and corner mosaics, tests SNR-limited rejection, and exports reviewed setups. | 2026&#8209;11&#8209;21 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -352,52 +352,98 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.59.8 · **Last update:** 2026-11-21
+**Version:** 0.59.9 · **Last update:** 2026-11-21
 
-Helps select **WBPP subframes to keep or reject** with four quality rankings, field/corner measurements, sky and guiding indicators, quality plots, and mosaic blink comparisons. Recommends rejections by testing trial stacks against a chosen SNR preservation limit, with optional object ROI measurements. Imports WBPP setups, exports reviewed setups excluding rejected lights, and supports confirmed, reversible moves of rejected originals. Select the same **Rejected originals** folder when refreshing the file list or reopening a WBPP setup to keep moved frames out of recommendations. Undo makes a restored frame eligible again.
+Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run.
 
-[Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [Guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
+- **Rank subframes** by sharpness, star shape, sky quality and guiding. Compare four rankings (R1–R4) and explore correlations between measurements.
+- **Blink suspect frames** against the filter master or best-scoring subframe. Inspect the usable field or compare all four corners in a 2 × 2 mosaic.
+- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Select an object ROI to measure its SNR. Move or restore rejected originals and export a reviewed copy of an imported WBPP setup.
+
+[Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [User guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
+
+#### Interface examples
+
+The screenshots below show **0.59.9** reviewing NGC 7814. The selected red-filter group contains **33 exposures of 180 seconds**.
 
 <details>
-<summary>View Subframe Quality Review interface</summary>
+<summary>Review and measurements</summary>
 
-Captured from **0.45.14** on **2026-11-07**, reviewing 40 blue-filter, 180-second subframes of **NGC 7814**. These examples predate the current controls for WBPP import/export, rejection recommendations, and corner mosaic blinking.
+The Review table shows ranks, rejection marks and main issues. R4 averages the available normalized ranks and includes R2 only when corner scoring is enabled.
 
-**Review and measurements**
+![Subframe Quality Review table with R1–R4 columns, Score, REVIEW flags, issues and selected-image measurements](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_main_screen.jpg)
 
-![Subframe Quality Review 0.45.14 with R1–R4 rankings, review candidates, and field and corner measurements](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_main_screen.jpg)
+</details>
 
-**Blink frame / reference**
+<details>
+<summary>Blink frame / reference</summary>
 
-![Subframe Quality Review 0.45.14 NGC 7814 blink preview with a best-subframe reference, region controls, and display stretching](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_blink_preview.jpg)
+The center preview shows NGC 7814 at 1:1 with the best-scoring subframe as the blink reference.
 
-**Score plot**
+![Blink tab showing the center of NGC 7814 with display STF and preview brightness alignment](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_blink_preview.jpg)
 
-![Subframe Quality Review 0.45.14 Score plot with 40 subframes in value order, review candidates, selected frame, and mean](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_quality_indicators.jpg)
+Blink the four corners together against the matching corners of the reference. The upper row shows top left and top right.
 
-**Sky brightness**
+![Four-corner mosaic in the blink preview with the best subframe as reference](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_corner_mosaic.jpg)
 
-![Subframe Quality Review 0.45.14 sky-brightness plot with SQM 19.10 reference, Bortle 6 quality bands, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_sky_background.jpg)
+</details>
 
-**Field FWHM — quality bands**
+<details>
+<summary>Quality indicators</summary>
 
-![Subframe Quality Review 0.45.14 field-FWHM plot with quality bands, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_indicators.jpg)
+Score in value order highlights the selected subframe and shows the mean of the kept subframes.
 
-**FWHM grading settings**
+![Score plot with a highlighted subframe and mean of 0.982](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_quality_indicators.jpg)
 
-![Subframe Quality Review 0.45.14 FWHM grading with telescope and observing conditions, relative thresholds, and calculated pixel limits](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_grading.jpg)
+Field FWHM compares star size in pixels and marks the filter master.
 
-**Field eccentricity**
+![Field FWHM chart with the master value and Good, Medium and Bad bands](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_indicators.jpg)
 
-![Subframe Quality Review 0.45.14 field-eccentricity plot with quality bands, review candidates, mean, and master comparison](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_eccentricity.jpg)
+The grading dialog converts aperture, seeing, altitude and wavelength into FWHM limits in pixels.
 
-**Guiding indicators — average error**
+![FWHM grading settings for a 160 mm telescope, red filter and 1.40 arcsecond zenith seeing](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_fwhm_grading.jpg)
 
-![Subframe Quality Review 0.45.14 guide-average error in arcseconds for 40 subframes, with quality bands and mean](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_guiding_indicators.jpg)
+Eccentricity bands help distinguish round stars from elongated ones.
 
-**Correlation plot**
+![Field eccentricity plotted against the Good, Medium and Bad thresholds](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_eccentricity.jpg)
 
-![Subframe Quality Review 0.45.14 field FWHM versus PSF signal weight, with Pearson correlation and highlighted review candidates](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_correlation_plot.jpg)
+Mean guide error is shown in arcseconds against the camera-dependent guiding limits.
+
+![Guide average plot with observed subframes and the good-guiding threshold](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_guiding_indicators.jpg)
+
+The red-filter sky brightness is calibrated relative to green. This acquisition-order view shows the SQM 18.90 reference, Bortle 7 grading and autofocus events.
+
+![Red-filter sky brightness over the session with a timed SQM reference and autofocus markers](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_sky_background.jpg)
+
+</details>
+
+<details>
+<summary>Correlation plot</summary>
+
+Score and PSF signal weight show a strong positive correlation in this group (Pearson r = +0.7306).
+
+![Correlation plot of Score and PSF signal weight for the red-filter subframes](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_correlation_plot.jpg)
+
+</details>
+
+<details>
+<summary>WBPP setup, rejection recommendation and export</summary>
+
+Import checks the output folder and enabled-light count for the selected WBPP setup.
+
+![WBPP import dialog showing a saved setup with 51 enabled lights](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_import.jpg)
+
+Expanded input and evaluation sections show the folder and log settings, observing conditions, score modes, weights and guiding policy.
+
+![Expanded WBPP inputs, telescope aperture, seeing, timed SQM reading, manual score weights and guiding settings](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_setup.jpg)
+
+The green line marks 29 retained frames. This trial keeps 95.5% of the best tested object SNR, above the 95% limit, and proposes rejecting four frames.
+
+![Rejection recommendation with object ROI, SNR and Score curves, and a table of tested counts](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_rejection_recommendation.jpg)
+
+Export keeps calibration frames and processing settings. WBPP can choose a new registration or Local Normalization reference if the previous one was rejected. Moving the originals is optional.
+
+![Reviewed WBPP export preview showing 36 retained and 15 rejected lights across the imported groups](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_export.jpg)
 
 </details>
 
