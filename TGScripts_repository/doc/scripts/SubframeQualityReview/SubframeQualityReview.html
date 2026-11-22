@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.1." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.2." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.1. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.2. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -395,7 +395,7 @@
 <p>At least five comparable subframes with usable stellar measurements, valid exposure times, and known airmass are required. Airmass is derived from each frame's observation time, target coordinates, and observing location; recorded target altitude can provide a fallback. The manually chosen target altitude for FWHM grading is not used. If the group's airmass range is below 0.05, ImageAnalysis fits only a constant baseline.</p>
 <p>The file scan checks geographic coordinates in the registered lights and their verified originals. If none record a site, the scan also checks the matched masters. The Observing site section in Review configuration identifies the source and shows how many subframes record a site. A site found in one header supplies the location for the whole WBPP run, including other filters. Each exposure keeps its own timestamp and pointing. Recorded altitude and azimuth apply only to the frame that contains them.</p>
 <p>To set a default for runs whose headers lack a geographic site, click the bottom gear, then Edit sites. Select or enter a named location, check Use as default observing site and click Apply. Click OK in Review configuration to save it. Enter latitude and longitude in decimal degrees, positive north and east. You can select a different profile for an individual run. Coordinates recorded in the WBPP run take priority over either choice.</p>
-<p>Use headers only or Clear fallback disables the fallback for this review. Changing the input folders or importing a different WBPP setup clears the run-specific site choice. The next run uses its recorded coordinates or the current saved default. Refreshing the same input list retains the choice. To delete the last profile, click Remove profile, Apply, then OK in Review configuration. Profiles are kept in PixInsight script settings. A saved process instance retains the site choice for its own input folders.</p>
+<p>Use headers only or Clear fallback disables the fallback for this review. Changing the input folders or importing a different WBPP setup clears the run-specific site choice. The next run uses its recorded coordinates or the current saved default. Refreshing the same input list retains the choice. To delete a profile, select it and click Remove profile. Leave the fields empty, click Apply, then click OK in Review configuration. The run keeps its selected fallback unless you remove that profile. Profiles are kept in PixInsight script settings. A saved process instance retains the site choice for its own input folders.</p>
 <p>If a group needs a location for cloud extinction and neither the headers, a selected site nor a default supplies it, Measure asks you to select or enter a site. Skip for this run continues with the other measurements. You can set the site later and click Measure again. ImageAnalysis computes airmass at each frame's observation time. Frames without a usable native relative extinction still have no cloud-extinction value.</p>
 <p>Observation times can be stored as complete timestamps or as separate date and time fields. Both standard FITS names (DATE-OBS, TIME-OBS, DATE-END, TIME-END) and their unhyphenated aliases are supported. Valid XISF observation times take priority, followed by standard FITS names and then aliases. Times without an explicit offset are interpreted as UTC; explicit offsets are converted to UTC. Incomplete or invalid timestamps are treated as unavailable, so a date alone cannot be mistaken for a midnight exposure.</p>
 <p>Use the magnifier or Measure corners button to obtain the measurement. Hover over its Review cell to see the calculated airmass and altitude, or why the measurement is unavailable. The plot information button explains the calculation and the group's available measurements. An undefined value appears as a dash, not zero.</p>
@@ -1340,7 +1340,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-22 20:24:19 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-22 20:43:05 UTC</p>
 </div>
 <br/>
 <br/>
