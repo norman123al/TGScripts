@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.66.2 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.66.3 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.2';
+const SQR_VERSION='0.66.3';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
@@ -3945,10 +3945,11 @@ class SQRObservingSiteDialog extends Dialog {
       this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(note);
       let selector=new ComboBox(this),profileRow=new HorizontalSizer;profileRow.spacing=8;profileRow.add(selector,100);
       let removed=false;
+      const removalHint=required?'Select or enter a site, or click Skip for this run.':'Click Apply to save the removal.';
       let remove=sqrButton(this,'Remove profile',()=>{
          let [deleted]=this.profiles.splice(selector.currentItem-1,1);
          if(this.site?.name===deleted.name)this.site=null;
-         removed=true;fill(0);hint.text='Click Apply to save the removal.';
+         removed=true;fill(0);hint.text=removalHint;
       });
       profileRow.add(remove);this.sizer.add(profileRow);
       const field=(name,value)=>{let row=new HorizontalSizer;row.spacing=8;let label=new Label(this);
@@ -3973,6 +3974,7 @@ class SQRObservingSiteDialog extends Dialog {
       const decimal=text=>/^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(text.trim())?Number(text.trim().replace(',','.')):NaN;
       buttons.add(sqrButton(this,'Apply',()=>{
          if(removed&&![name,lat,lon].some(edit=>edit.text.trim())){
+            if(required){hint.text=removalHint;return;}
             this.headersOnly=headersOnly;this.ok();return;
          }
          let value={name:name.text.trim(),latitude:decimal(lat.text),longitude:decimal(lon.text)};
