@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="28da08fc13896b88a0771380f20cc3499745e49c" type="script" releaseDate="20261121184429">
+      <package fileName="TGScripts_repository.tar.gz" sha1="6c6f7841c0045be58dc2921b250e8f263afac89d" type="script" releaseDate="20261122220839">
          <title>
-            TGScripts - SubframeQualityReview 0.59.9
+            TGScripts - SubframeQualityReview 0.66.6
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               SubframeQualityReview 0.59.9 resizes the rejection recommendation plot to use the available window width and height while keeping both axes readable. The repository README now covers the full review workflow and includes 14 screenshots from PixInsight.
+               SubframeQualityReview 0.66.6 retries missing Transparency measurements, enlarges sparse corners per group, and uses observing-site profiles to calculate cloud extinction. Draw an object region on the master for rejection recommendations, which can now use matched stars when a brightness measurement is missing. Saved process instances reopen reliably, and equivalent folder paths preserve measurements and pending rejection decisions.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-21T18:47:25.184Z" encoding="Base64">Hx8xV3Q7081r4hqlP9eMuujCo4nmoH/kJaCZH2GCLbxB86GRxU47ZClLMNiID4uqlSUgXdtdsoW5fYrFKnGZAQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-22T22:11:29.351Z" encoding="Base64">iGzvUNvMfwu/T8VZmJLYN+yZgvPME5jlxHs+x3nNjtV6QpwXrV3JUxaUmMRlzvyEMSOi+l8tBK/cbGr3/tE0BQ==</Signature>

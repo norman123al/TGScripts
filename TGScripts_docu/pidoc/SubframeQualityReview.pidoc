@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.59.9.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.6.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -17,9 +17,9 @@ With TGScripts installed through the standard PixInsight script installation, ch
 \list[ordered,spaced]{
    {Complete a WBPP run. Keep its calibrated and registered lights and its linear, per-filter integrations. Use masters with the same image dimensions as the registered lights; do not crop or drizzle the masters for this review.}
    {Select the WBPP output and original-light folders, or use Import WBPP to load a saved setup. Enter the telescope aperture for FWHM grading, a destination for rejected originals if needed, and an optional acquisition-log folder.}
-   {Set Review worst (\%) and the quality weights as needed.}
+   {Use the gear in the bottom toolbar to configure review criteria, measurement regions, or your observing site. Adjust score weights under Quality evaluation.}
    {Click the magnifier to measure the field, or the adjacent grid to include the center and four corners. The first measurement prepares the file list automatically. An imported setup supplies its selected lights. Both buttons reuse available measurements across all groups and their matched masters.}
-   {Check the Filter / group selector and the Original association column. Each original that can be moved must have a unique, verified association.}
+   {If the scan found several groups, choose one under Filter / group. A single group is selected automatically. Check Original association to see which originals have a verified match.}
    {Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.}
    {Optionally click Recommend rejection to compare retained Score and SNR for the selected group. Choose a minimum retained count and, if desired, an object ROI. Analyze does not mark frames; inspect its results before applying the recommendation.}
    {Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.}
@@ -29,7 +29,7 @@ With TGScripts installed through the standard PixInsight script installation, ch
 
 Corner measurements automatically adapt parallel processing to the available CPU and memory. No additional settings are required.
 
-Measurements and pending rejection decisions remain in memory while the dialog is open. Closing the dialog discards them. The New Instance button saves folder and evaluation settings in a process icon; it does not save a measured review session. Loading saved settings starts with no corner measurements.
+To reuse a review setup, drag the New Instance triangle onto the workspace. Run the saved icon globally to restore the folders, review settings and imported WBPP setup. Measurements and pending rejection decisions stay in memory until you close the dialog. Measure again to populate the review table.
 }
 
 \section{Import a WBPP setup}{
@@ -41,7 +41,7 @@ An instance saved after processing can provide exact registered-image and master
 
 Import replaces the current review, measurements and rejection selections after the files have been checked successfully. Canceling the selector, an invalid setup, or an aborted file check leaves the existing review intact. Aperture, seeing, SQM, log folder, rejection destination and scoring settings are retained. Selected guiding and autofocus logs are refreshed against the imported images, including their inferred UTC offsets. Image measurements are still made with the magnifier and Measure corners buttons.
 
-Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing either image folder or choosing it with its folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
+Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing an input path keeps the current review if the path still points to the same folder, including a change in capitalization on a case-insensitive volume. Entering a different folder or using the folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
 
 WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.
 }
@@ -106,10 +106,24 @@ Use the Refresh file list arrow beside Import WBPP to inspect matches before mea
 The green Move checkmark and blue Undo arrow require a Rejected originals folder. Move also requires a marked original. Undo can prepare the file list and open a move journal before any image measurements have been made.
 }
 
+\section{Review configuration}{
+Click the gear beside Reset in the bottom toolbar. OK applies your changes. Cancel discards edits, including site profile changes made in this dialog.
+
+\table[header]{
+   {{Setting} {Default} {Meaning}}
+   {{Review worst (\%)} {10} {Percentage of valid subframes to shortlist per group, rounded up. Subframes with insufficient measurements can also receive a REVIEW flag.}}
+   {{Minimum stars} {10} {Minimum star count for a usable region. Field measurements also require enough PSF fits.}}
+   {{Edge guard (\%)} {2} {Minimum inset from each image edge when finding the common usable field. Changing it clears field and regional measurements.}}
+   {{Corner size (\%)} {Auto per group} {Width and height of each center and corner region, relative to the common usable field. Auto starts at 22\% and shows the accepted size for the selected group. Clear Auto per group to set a fixed size from 10\% to 40\% for all groups.}}
+}
+
+Observing site shows the location used for this run and its source. Choose Edit sites to select a fallback, manage profiles, or set a default for runs without site coordinates.
+}
+
 \section{Quality evaluation controls}{
 Click the Quality evaluation bar to collapse or expand the section. It opens expanded by default. The window keeps its size when either section is toggled. Collapsing it retains all settings, measurements, scores, and rejection choices. Saved process instances remember the expanded or collapsed state.
 
-The first column separates Measurements and review from Score selection. Measurements and review has Review worst and Minimum stars in the left column, with Edge guard and Corner size in the right column. Score selection contains the three checkboxes that determine the active Score, with the bold Current Score message to their right identifying the selected R1, R2, R3, or R4 method. Score weights sets the manual weights in two columns. Guiding contains its scoring mode, weight, and thresholds. The active scoring mode is also reported in the bottom message area.
+Score selection shows which method supplies the active Score. Score weights sets the relative influence of each indicator. Guiding contains its scoring mode, weight, and thresholds.
 
 With the R3 and R4 options off, manual scoring uses R1 for field-only evaluation or R2 when corner measurements are included. The strongly correlated KPI option selects R3; the rank-of-ranks option selects R4. These two options are alternatives. The corner checkbox determines whether available corner measurements participate in the selected method.
 
@@ -117,19 +131,17 @@ With the R3 and R4 options off, manual scoring uses R1 for field-only evaluation
    {{Control} {Default} {Meaning}}
    {{Use R3: strongly correlated KPIs} {Off} {Use the R3 correlation score as the active Score. R3 is also calculated and displayed while this option is off. Selecting it turns off Use R4: rank of ranks.}}
    {{Use R4: rank of ranks} {Off} {Use the equal-weight average of normalized R1, R2, and R3 ranks as Score. Omit unavailable ranks and omit R2 while corner scoring is off. Selecting it turns off Use R3: strongly correlated KPIs.}}
-   {{Review worst (\%)} {10} {Shortlist this percentage of valid field measurements independently in each group, rounded up. Images with insufficient required measurements are also flagged for inspection, so REVIEW may contain more than the percentage quota.}}
    {{Measure corners} {Button beside the magnifier} {Measure the center and four corners across all groups and matched masters. Existing field and regional results are reused. Missing field results are measured first. Regional results appear in the selected-image measurements; the scoring checkbox controls whether to use them.}}
-   {{Include corner measurements (R2)} {Off until measured} {Include or exclude stored corner results in the current score without measuring again. Available once regional results exist. The first corner measurement enables it; subsequent measurement runs retain your choice.}}
-   {{Corner size (\%)} {22} {Width and height of each corner and center patch, as a percentage of the common measurement field.}}
-   {{Edge guard (\%)} {2} {Inset applied inside the common valid field to reduce edge contamination.}}
-   {{Minimum stars} {10} {Minimum star and PSF support required for a valid measurement. Sparse fields or small corner patches may fail this requirement.}}
+   {{Include corner measurements (R2)} {Off until measured} {Include or exclude stored corner results in the current score. The first corner measurement enables it. Your choice for this run is restored after a change of corner size or edge guard requires new measurements.}}
    {{Quality weights} {See the Score section} {Relative influence of each component. A zero weight disables that component. In manual mode, at least one underlying quality indicator must have a positive weight.}}
    {{Sky KPI} {Sky quality, weight 20} {Choose the single sky indicator eligible for scoring: Sky quality, Transparency, or Sky brightness. Sky quality combines transparency and sky background. The other two remain available for inspection.}}
 }
 
 The Sky KPI selector in Score weights applies to R1, R2, Below-mean Quality, and the sky candidate considered by R3. R4 uses the resulting ranks. Only the selected sky indicator can participate; R3 does not substitute another sky indicator if your choice fails its correlation threshold. The shared weight controls manual scoring; R3 uses weight 1 when the selected indicator qualifies. A zero manual weight excludes it from R1, R2 and Below-mean Quality, while R3 still tests the selected indicator as it does other candidates. The selection and manual weight are saved with process settings. Changing the selection recalculates scores from existing measurements without remeasuring images.
 
-Changing the review percentage or quality weights recalculates rankings from existing measurements. Changing Minimum stars immediately reassesses the measured star counts and updates validity and scores; stored field and corner measurements are retained, and no images are remeasured. Measure corners runs the missing regional measurements and updates scores and correlation selection. It does not repeat existing full-image PSF measurements while the images and measurement settings are unchanged. An unsuccessful regional result remains marked as unavailable; clicking the button again does not repeatedly retry it. Changing Corner size or Edge guard clears the measurements and resets the corner status. Click Measure corners to measure the previews with the new settings, or use the magnifier for field measurements.
+With Auto selected, Measure corners tries larger regions if the center or a corner has fewer than Minimum stars. The Corner size field shows the size accepted for the selected filter group. Every subframe and its master use the same five rectangles. The script keeps a larger size when it improves coverage and preserves all previously complete subframes. Blink previews and regional sky brightness use the same rectangles. R2 remains blank for a subframe with insufficient regional measurements.
+
+Clear Auto to use the displayed size as a fixed percentage or enter a different one. Click Measure corners to update groups whose rectangles changed. Full-field measurements and results from groups with matching rectangles are reused. Selecting Auto again starts at 22\%. Changing Edge guard requires new field and regional measurements. Changing the review percentage, quality weights or Minimum stars reassesses existing measurements immediately.
 
 Include corner measurements (R2) switches between field-only and field-plus-corner evaluation. Turning it off excludes corner penalties and individual corner KPIs, uses the whole-image sky background, and recalculates Score, Below-mean Quality, R3, and R4. Turning it on uses the stored regional results again. Neither action remeasures images. R1 and R2 remain available for comparison, and the regional measurements and plots are retained. Missing results are still reported when their scoring contribution is enabled.
 
@@ -151,11 +163,11 @@ Measurements describe the processed, registered images. Their PSF signal weights
 }
 
 \section{Rejection recommendation}{
-After field measurements, select a Filter / group and click Recommend rejection beside the measurement buttons. By default, trial stacks use only subframes without a rejection mark. Select Include rejected subframes to reconsider marked frames alongside the others. The integrated master and frames whose originals have already been moved are always excluded. After refreshing the file list or reopening a WBPP setup, use the same Rejected originals folder. Its move journals identify moved frames and keep them available for Undo. Restoring an original makes its frame eligible again. Each filter and exposure group uses its current Review Score.
+After field measurements, click Recommend rejection for the current group. By default, trial stacks use subframes without a rejection mark. Include rejected subframes appears when the group contains marked frames whose originals are still in place. Select it to reconsider those frames. The integrated master and frames whose originals have already been moved are always excluded. After refreshing the file list or reopening a WBPP setup, use the same Rejected originals folder. Its move journals identify moved frames and keep them available for Undo. Restoring an original makes its frame eligible again. Each filter and exposure group uses its current Review Score.
 
 Preserve SNR (\%) defaults to 95. The recommendation must retain at least this percentage of the highest SNR measured among the tested stacks. Increase it to favour depth, or decrease it to allow more loss of depth in exchange for a higher mean retained Score. Minimum retained defaults to 20 frames; choose a larger value when you want more statistical support. Seven is the lowest permitted value for the trial's pixel rejection, not a guarantee of reliable rejection under every condition. If too few frames remain, the script does not make a recommendation.
 
-Without Use object ROI, the script evaluates the common usable field. SNR is a stellar proxy and may not represent the faint structures of your target. With Use object ROI, enter X, Y, Width and Height in registered-image pixels, or select an existing PixInsight preview on an aligned image of the same dimensions. The ROI must lie within the common usable field and have enough surrounding sky. It must be at least 32 × 32 pixels.
+Without Use object ROI, SNR is a stellar proxy measured over the common usable field. To measure SNR on the target, choose Draw on master, drag a rectangle around the object, then click Use ROI. The master must have the same dimensions as the registered frames. You can also select an existing preview on an aligned image or enter X, Y, Width and Height in registered-image pixels. The ROI must lie inside the common usable field, cover at least 32 × 32 pixels and leave enough surrounding sky.
 
 Include the target structures whose signal you want to preserve. A galaxy's faint outskirts may favour a different selection from its bright core. Avoid unrelated bright stars inside the rectangle: all aperture content contributes to its signal. Leave clean sky outside it for background estimation. A guard band separates the sky samples from the target, and bright stars in the surrounding sky are masked. The same object aperture and sky mask are used throughout the comparison. If surrounding sky is insufficient, make the ROI smaller or reposition it. PSF measurements require enough stars in the common usable field, independently of the object ROI. A saved ROI is reset when the selected group has different image dimensions.
 
@@ -176,6 +188,8 @@ The recommended count gives the highest mean retained Score among tested stacks 
 Object SNR is a background-limited aperture estimate above the surrounding sky, with allowance for nearby correlated pixels and uncertainty in the background estimate. A faint object's measured signal may be zero or negative in individual subframes; these frames remain eligible. Each successful trial stack must have positive background-subtracted object signal. The estimate does not include source shot noise, shared calibration errors or long-range correlations. Nebulosity filling the surrounding sky, gradients not represented by a plane, and foreground stars inside the aperture can bias it. For bright targets or very faint outskirts, inspect the images and treat small differences cautiously. Without an ROI, the native PSF power ratio is converted to an amplitude ratio so the percentage limit has the same interpretation.
 
 Trial stacks use fixed PSF signal weights, global photometric normalization, and Winsorized pixel rejection. The test rejection limits are 4 sigma low and 3 sigma high. RGB comparisons use green. Local normalization and drizzle are not reproduced; different integration settings can change the eventual outcome. Temporary crops are reused across tests and removed afterwards. All tests integrate the common usable field, including when Object ROI is enabled. Analyze can take time for large images; Stop cancels it without marking frames.
+
+If a subframe lacks relative extinction or exposure time, Analyze uses matching unsaturated stars in the common field to place it on the group's brightness scale. If too few stars agree, Analyze tries other reference frames. When every frame lacks a measured scale, one reference must match the whole group. The summary reports how many frames used stellar matching. Retained exposure is shown only when every retained frame has a known duration.
 
 Analyze leaves existing marks in place. Mark recommended rejects adds the proposed rejection marks. If you selected Include rejected subframes and the recommendation keeps a marked frame, the summary shows how many marks would be cleared. Choose Apply keep/reject decisions to clear those marks and add any new rejections in one step. Close the dialog to leave the marks as they are.
 
@@ -203,6 +217,8 @@ The Review table reports Sky brightness with six decimal places. Hover over the 
 \section{Transparency}{
 Transparency uses the RelativeExtinction measurement from ImageAnalysis to compare stellar light within each filter group. Higher percentages indicate more transmitted stellar light. Measurements account for exposure time. For RGB images, ImageAnalysis uses HSI intensity.
 
+ImageAnalysis chooses one stellar brightness range for the group. If some subframes lack a measurement in that range, the script retries the group once at detection sensitivity 0.65 to include fainter stars. It uses the retry for the entire group only if additional subframes gain Transparency and every previously measured subframe retains it. The Transparency tooltip identifies an accepted retry. Field star counts, FWHM and eccentricity keep their original measurements.
+
 The most transparent measured subframe supplies the 100\% reference. Transparency (\%) = 100 × 10^(−0.4 × relative extinction in magnitudes). An extinction of about 0.242 magnitudes corresponds to 80\% transparency. This is a relative comparison, not an absolute atmospheric transmission measurement.
 
 Use the magnifier or Measure corners button to obtain the measurement. The Review table reports the percentage; its tooltip identifies the reference and relative extinction in magnitudes. Transparency is also available in Sort by, on the Quality indicators tab, and on either axis of Correlation plot. The plot information button explains the measurement and identifies the group's reference.
@@ -224,6 +240,14 @@ Cloud extinction uses ImageAnalysis to estimate stellar dimming beyond the norma
 The calculation is Cloud extinction = Relative extinction − (a + k × airmass). ImageAnalysis fits the atmospheric baseline robustly within each filter group, reducing the influence of unusually dim frames. Values near zero indicate little additional dimming. Positive residuals can indicate clouds, haze, or dew. Negative residuals are retained; they can occur through scatter around the fitted baseline. This is a relative estimate, not an absolute measurement of cloud cover.
 
 At least five comparable subframes with usable stellar measurements, valid exposure times, and known airmass are required. Airmass is derived from each frame's observation time, target coordinates, and observing location; recorded target altitude can provide a fallback. The manually chosen target altitude for FWHM grading is not used. If the group's airmass range is below 0.05, ImageAnalysis fits only a constant baseline.
+
+The file scan checks geographic coordinates in the registered lights and their verified originals. If none record a site, the scan also checks the matched masters. The Observing site section in Review configuration identifies the source and shows how many subframes record a site. A site found in one header supplies the location for the whole WBPP run, including other filters. Each exposure keeps its own timestamp and pointing. Recorded altitude and azimuth apply only to the frame that contains them.
+
+To set a default for runs whose headers lack a geographic site, click the bottom gear, then Edit sites. Select or enter a named location, check Use as default observing site and click Apply. Click OK in Review configuration to save it. Enter latitude and longitude in decimal degrees, positive north and east. You can select a different profile for an individual run. Coordinates recorded in the WBPP run take priority over either choice.
+
+Use headers only or Clear fallback disables the fallback for this review. Changing the input folders or importing a different WBPP setup clears the run-specific site choice. The next run uses its recorded coordinates or the current saved default. Refreshing the same input list retains the choice. To delete a profile, select it and click Remove profile. Leave the fields empty, click Apply, then click OK in Review configuration. The run keeps its selected fallback unless you remove that profile. Profiles are kept in PixInsight script settings. A saved process instance retains the site choice for its own input folders.
+
+If a group needs a location for cloud extinction and neither the headers, a selected site nor a default supplies it, Measure asks you to select or enter a site. If you remove a profile at this prompt, select or enter a site and click Apply to continue. Skip for this run continues with the other measurements. Cancel measurement stops the measurement and lets you choose a site next time. You can also set the site later in Review configuration and click Measure again. ImageAnalysis computes airmass at each frame's observation time. Frames without a usable native relative extinction still have no cloud-extinction value.
 
 Observation times can be stored as complete timestamps or as separate date and time fields. Both standard FITS names (DATE-OBS, TIME-OBS, DATE-END, TIME-END) and their unhyphenated aliases are supported. Valid XISF observation times take priority, followed by standard FITS names and then aliases. Times without an explicit offset are interpreted as UTC; explicit offsets are converted to UTC. Incomplete or invalid timestamps are treated as unavailable, so a date alone cannot be mistaken for a midnight exposure.
 
@@ -355,7 +379,7 @@ Hover over the selected-image assessment for the full explanation, or over its m
    {{Below-mean Quality} {Percentage of assessed indicators with worse-than-mean quality; lower is better.}}
    {{Guiding quality} {Combined guiding error: (minimum + 2 times average + maximum) / 4, in arcseconds. Lower is better. A value requires usable guiding coverage.}}
    {{Guide avg, Guide min, Guide max} {Arithmetic average, minimum, and maximum combined RA/Dec displacement during the exposure, in arcseconds. These are not RMS values. Hover for coverage and guiding quality. An asterisk marks partial statistics excluded from Score.}}
-   {{Worst corner} {The corner contributing the largest regional penalty when corner scoring is enabled.}}
+   {{Worst corner} {The measured corner with the largest penalty for star size, corner-to-center size ratio, or eccentricity. Worst corner and Corner quality remain visible when Include corner measurements (R2) is off.}}
    {{Original association} {Whether the corresponding uncalibrated original has been verified for moving.}}
 }
 
