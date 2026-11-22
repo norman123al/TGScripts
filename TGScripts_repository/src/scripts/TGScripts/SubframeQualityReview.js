@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.66.5 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.66.6 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.5';
+const SQR_VERSION='0.66.6';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
@@ -731,18 +731,32 @@ function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.
 // workflow. The trailing slash in sqrUnder prevents matching a sibling prefix.
 function sqrPath(p){return File.fullPath(String(p).trim()).replace(/\\/g,'/').replace(/\/$/,'');}
 function sqrKey(p){let s=String(p).replace(/\\/g,'/').replace(/\/$/,'');return s.toLowerCase();}
+function sqrSameWindowsRunFolder(a,b){
+   // Keep the drive or UNC share as one root. fullPath expands relative and
+   // short paths, but can retain the caller's capitalization for long names.
+   const parts=path=>File.fullPath(path).replace(/\\/g,'/').match(/^[/]{2}[^/]+[/][^/]+|[^/]+/g);
+   const left=parts(a),right=parts(b);
+   if(left.length!==right.length||left[0].toLowerCase()!==right[0].toLowerCase())return false;
+   function entryName(components,i){
+      const find=new FileFind;
+      try{return find.begin(components.slice(0,i+1).join('/'))?find.name:null;}
+      finally{find.end();}
+   }
+   // Compare the names returned by the parent directory, including ancestors:
+   // two case-sensitive sibling folders can each contain a child named Lights.
+   for(let i=1;i<left.length;++i)if(left[i]!==right[i]){
+      const name=entryName(left,i);
+      if(name===null||name!==entryName(right,i))return false;
+   }
+   return true;
+}
 function sqrSameRunFolder(left,right){
    const a=String(left||'').trim(),b=String(right||'').trim();
    if(a===b)return true;
    if(!a||!b)return false;
    try{
       if(!File.directoryExists(a)||!File.directoryExists(b))return false;
-      if(CoreApplication.platform!=='Windows')return File.sameFile(a,b);
-      // On Windows sameFile folds the entire path, even in a case-sensitive
-      // directory. fullPath resolves existing names to their on-disk spelling.
-      const spelling=path=>File.fullPath(path).replace(/\\/g,'/').replace(/\/+$/,'')
-         .replace(/^(?:[A-Za-z]:|\/\/[^/]+\/[^/]+)/,root=>root.toLowerCase());
-      return spelling(a)===spelling(b);
+      return CoreApplication.platform==='Windows'?sqrSameWindowsRunFolder(a,b):File.sameFile(a,b);
    }catch(e){return false;} // An edited path may be incomplete or inaccessible.
 }
 function sqrSameRunFolders(a,b){
