@@ -73,7 +73,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.59.9 | Ranks WBPP lights, blinks frames and corner mosaics, tests SNR-limited rejection, and exports reviewed setups. | 2026&#8209;11&#8209;21 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.66.6 | Ranks WBPP lights, assesses field, corner and sky quality, tests SNR-limited rejection, and exports reviewed setups. | 2026&#8209;11&#8209;22 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -352,19 +352,20 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.59.9 · **Last update:** 2026-11-21
+**Version:** 0.66.6 · **Last update:** 2026-11-22
 
 Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run.
 
 - **Rank subframes** by sharpness, star shape, sky quality and guiding. Compare four rankings (R1–R4) and explore correlations between measurements.
-- **Blink suspect frames** against the filter master or best-scoring subframe. Inspect the usable field or compare all four corners in a 2 × 2 mosaic.
-- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Select an object ROI to measure its SNR. Move or restore rejected originals and export a reviewed copy of an imported WBPP setup.
+- **Inspect field and corners** with adaptive corner measurements and blink comparisons against the filter master or best-scoring subframe, including a 2 × 2 corner mosaic.
+- **Assess sky conditions** with sky brightness, transparency and cloud-extinction indicators. Use recorded site coordinates or saved observing-site profiles.
+- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Draw an object ROI on the master to measure its SNR. Move or restore rejected originals and export a reviewed copy of an imported WBPP setup.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [User guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
 #### Interface examples
 
-The screenshots below show **0.59.9** reviewing NGC 7814. The selected red-filter group contains **33 exposures of 180 seconds**.
+The screenshots below show the earlier **0.59.9** interface reviewing NGC 7814; the current version has revised configuration controls. The selected red-filter group contains **33 exposures of 180 seconds**.
 
 <details>
 <summary>Review and measurements</summary>
