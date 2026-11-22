@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.66.4 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.66.5 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.4';
+const SQR_VERSION='0.66.5';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
@@ -731,12 +731,22 @@ function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.
 // workflow. The trailing slash in sqrUnder prevents matching a sibling prefix.
 function sqrPath(p){return File.fullPath(String(p).trim()).replace(/\\/g,'/').replace(/\/$/,'');}
 function sqrKey(p){let s=String(p).replace(/\\/g,'/').replace(/\/$/,'');return s.toLowerCase();}
+function sqrSameRunFolder(left,right){
+   const a=String(left||'').trim(),b=String(right||'').trim();
+   if(a===b)return true;
+   if(!a||!b)return false;
+   try{
+      if(!File.directoryExists(a)||!File.directoryExists(b))return false;
+      if(CoreApplication.platform!=='Windows')return File.sameFile(a,b);
+      // On Windows sameFile folds the entire path, even in a case-sensitive
+      // directory. fullPath resolves existing names to their on-disk spelling.
+      const spelling=path=>File.fullPath(path).replace(/\\/g,'/').replace(/\/+$/,'')
+         .replace(/^(?:[A-Za-z]:|\/\/[^/]+\/[^/]+)/,root=>root.toLowerCase());
+      return spelling(a)===spelling(b);
+   }catch(e){return false;} // An edited path may be incomplete or inaccessible.
+}
 function sqrSameRunFolders(a,b){
-   const key=value=>{
-      let path=String(value||'').trim().replace(/\\/g,'/').replace(/\/$/,'');
-      return CoreApplication.platform==='Windows'?path.toLowerCase():path;
-   };
-   return key(a.wbpp)===key(b.wbpp)&&key(a.originals)===key(b.originals);
+   return sqrSameRunFolder(a.wbpp,b.wbpp)&&sqrSameRunFolder(a.originals,b.originals);
 }
 function sqrUnder(p,root){return sqrKey(p)===sqrKey(root)||sqrKey(p).startsWith(sqrKey(root)+'/');}
 function sqrDir(p){return File.extractDrive(p)+File.extractDirectory(p);}
@@ -1976,7 +1986,7 @@ function sqrWBPPExportPlan(session){
    let data=session?.options.wbppImport,template=data?.template;
    if(!template?.parameters)throw Error('Import WBPP again to retain the complete setup for creating a reviewed instance.');
    let record=sqrWBPPRecord(template.id,template.filePath,template.parameters),decoded=sqrWBPPDecodeRecord(record);
-   if(sqrKey(decoded.wbpp)!==sqrKey(session.options.wbpp)||sqrKey(decoded.originals)!==sqrKey(session.options.originals))throw Error('The imported WBPP setup does not match the current input folders. Import it again.');
+   if(!sqrSameRunFolders(decoded,session.options))throw Error('The imported WBPP setup does not match the current input folders. Import it again.');
    let originals=new Map(decoded.lights.map(l=>[sqrKey(l.path),l.path])),rejected=new Set,reviewed=new Set,excludedPaths=new Set;
    for(let group of session.groups)for(let row of group.rows){
       if(row.isMaster)continue;
@@ -2048,7 +2058,7 @@ function sqrWBPPQueueIcon(path){
 /** Validate saved import settings again and recheck output existence on every
  * scan. A configuration alone is never evidence of a successful WBPP run. */
 function sqrWBPPScanInputs(o){let data=o.wbppImport;if(!data)return null;
-   if(data.schema!==1||!Array.isArray(data.lights)||!data.lights.length||!Array.isArray(data.masters)||sqrKey(data.wbpp)!==sqrKey(o.wbpp)||sqrKey(data.originals)!==sqrKey(o.originals))
+   if(data.schema!==1||!Array.isArray(data.lights)||!data.lights.length||!Array.isArray(data.masters)||!sqrSameRunFolders(data,o))
       throw new Error('The imported WBPP list does not match the selected folders. Import it again or change the folders to scan normally.');
    let wbpp=sqrPath(o.wbpp),rawRoot=sqrPath(o.originals),originals=[],links=new Map,outputPaths=new Map,complete=true;
    for(let light of data.lights){let path=sqrWBPPAbsolute(light.path);

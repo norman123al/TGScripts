@@ -1,7 +1,7 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.4.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.5.}
 
 \description{
 Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
@@ -41,7 +41,7 @@ An instance saved after processing can provide exact registered-image and master
 
 Import replaces the current review, measurements and rejection selections after the files have been checked successfully. Canceling the selector, an invalid setup, or an aborted file check leaves the existing review intact. Aperture, seeing, SQM, log folder, rejection destination and scoring settings are retained. Selected guiding and autofocus logs are refreshed against the imported images, including their inferred UTC offsets. Image measurements are still made with the magnifier and Measure corners buttons.
 
-Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing either image folder or choosing it with its folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
+Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing an input path keeps the current review if the path still points to the same folder, including a change in capitalization on a case-insensitive volume. Entering a different folder or using the folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
 
 WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.
 }
