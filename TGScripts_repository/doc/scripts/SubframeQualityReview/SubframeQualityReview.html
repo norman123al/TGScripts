@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.0." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.1." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.0. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.1. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -290,7 +290,7 @@
 </td>
 <td><p>Off until measured</p>
 </td>
-<td><p>Include or exclude stored corner results in the current score without measuring again. Available once regional results exist. The first corner measurement enables it; subsequent measurement runs retain your choice.</p>
+<td><p>Include or exclude stored corner results in the current score. The first corner measurement enables it. Your choice for this run is restored after a change of corner size or edge guard requires new measurements.</p>
 </td>
 </tr>
 <tr>
@@ -349,7 +349,7 @@
 <p>The recommended count gives the highest mean retained Score among tested stacks that satisfy the SNR and minimum-count limits. Equal mean scores favour more retained frames. FWHM does not determine the rejection decision. The all-frame baseline is tested too. The search tests several cutoffs and neighbouring counts around the best result; it does not guarantee a global optimum over every possible subset. Failed trials remain visible. If the all-frame baseline fails, no recommendation is issued.</p>
 <p>Object SNR is a background-limited aperture estimate above the surrounding sky, with allowance for nearby correlated pixels and uncertainty in the background estimate. A faint object's measured signal may be zero or negative in individual subframes; these frames remain eligible. Each successful trial stack must have positive background-subtracted object signal. The estimate does not include source shot noise, shared calibration errors or long-range correlations. Nebulosity filling the surrounding sky, gradients not represented by a plane, and foreground stars inside the aperture can bias it. For bright targets or very faint outskirts, inspect the images and treat small differences cautiously. Without an ROI, the native PSF power ratio is converted to an amplitude ratio so the percentage limit has the same interpretation.</p>
 <p>Trial stacks use fixed PSF signal weights, global photometric normalization, and Winsorized pixel rejection. The test rejection limits are 4 sigma low and 3 sigma high. RGB comparisons use green. Local normalization and drizzle are not reproduced; different integration settings can change the eventual outcome. Temporary crops are reused across tests and removed afterwards. All tests integrate the common usable field, including when Object ROI is enabled. Analyze can take time for large images; Stop cancels it without marking frames.</p>
-<p>If a subframe lacks relative extinction or exposure time, Analyze measures matching unsaturated stars in the common field to put it on the same brightness scale as the other frames. The summary reports how many frames used this method. Their measured quality indicators and rejection marks stay as recorded. If too few stars agree, the message identifies the affected frame. Retained exposure is shown only when every retained frame has a known duration.</p>
+<p>If a subframe lacks relative extinction or exposure time, Analyze uses matching unsaturated stars in the common field to place it on the group's brightness scale. If too few stars agree, Analyze tries other reference frames. When every frame lacks a measured scale, one reference must match the whole group. The summary reports how many frames used stellar matching. Retained exposure is shown only when every retained frame has a known duration.</p>
 <p>Analyze leaves existing marks in place. Mark recommended rejects adds the proposed rejection marks. If you selected Include rejected subframes and the recommendation keeps a marked frame, the summary shows how many marks would be cleared. Choose Apply keep/reject decisions to clear those marks and add any new rejections in one step. Close the dialog to leave the marks as they are.</p>
 <p>Applying the recommendation completes REVIEW for the group. Making all proposed changes manually also completes REVIEW. If all frames are already marked as recommended and the proposal keeps every frame, choose Complete review to confirm it. If inputs or settings change after Analyze, run the analysis again before applying. You can inspect the decisions in Review or Blink and move rejected originals separately with the green checkmark.</p>
 <p>Review completion remains valid for the analyzed settings and measurements. Running Analyze again with unchanged inputs creates a new proposal without undoing a completed review. Changing settings, measurements or other keep/reject decisions reopens review; keeping a proposed rejected frame again also reopens it. Moving an already rejected original does not reopen review. The REVIEW-only filter is empty when review is complete.</p>
@@ -395,7 +395,7 @@
 <p>At least five comparable subframes with usable stellar measurements, valid exposure times, and known airmass are required. Airmass is derived from each frame's observation time, target coordinates, and observing location; recorded target altitude can provide a fallback. The manually chosen target altitude for FWHM grading is not used. If the group's airmass range is below 0.05, ImageAnalysis fits only a constant baseline.</p>
 <p>The file scan checks geographic coordinates in the registered lights and their verified originals. If none record a site, the scan also checks the matched masters. The Observing site section in Review configuration identifies the source and shows how many subframes record a site. A site found in one header supplies the location for the whole WBPP run, including other filters. Each exposure keeps its own timestamp and pointing. Recorded altitude and azimuth apply only to the frame that contains them.</p>
 <p>To set a default for runs whose headers lack a geographic site, click the bottom gear, then Edit sites. Select or enter a named location, check Use as default observing site and click Apply. Click OK in Review configuration to save it. Enter latitude and longitude in decimal degrees, positive north and east. You can select a different profile for an individual run. Coordinates recorded in the WBPP run take priority over either choice.</p>
-<p>Use headers only or Clear fallback disables the fallback for this review. The saved default remains available for other runs. To resume automatic selection, choose the profile marked (default) and click Apply. To remove its default designation, clear the checkbox and click Apply. Profiles are kept in PixInsight script settings. A saved process instance retains an explicit site or a headers-only choice; automatic selection follows the current default.</p>
+<p>Use headers only or Clear fallback disables the fallback for this review. Changing the input folders or importing a different WBPP setup clears the run-specific site choice. The next run uses its recorded coordinates or the current saved default. Refreshing the same input list retains the choice. To delete the last profile, click Remove profile, Apply, then OK in Review configuration. Profiles are kept in PixInsight script settings. A saved process instance retains the site choice for its own input folders.</p>
 <p>If a group needs a location for cloud extinction and neither the headers, a selected site nor a default supplies it, Measure asks you to select or enter a site. Skip for this run continues with the other measurements. You can set the site later and click Measure again. ImageAnalysis computes airmass at each frame's observation time. Frames without a usable native relative extinction still have no cloud-extinction value.</p>
 <p>Observation times can be stored as complete timestamps or as separate date and time fields. Both standard FITS names (DATE-OBS, TIME-OBS, DATE-END, TIME-END) and their unhyphenated aliases are supported. Valid XISF observation times take priority, followed by standard FITS names and then aliases. Times without an explicit offset are interpreted as UTC; explicit offsets are converted to UTC. Incomplete or invalid timestamps are treated as unavailable, so a date alone cannot be mistaken for a midnight exposure.</p>
 <p>Use the magnifier or Measure corners button to obtain the measurement. Hover over its Review cell to see the calculated airmass and altitude, or why the measurement is unavailable. The plot information button explains the calculation and the group's available measurements. An undefined value appears as a dash, not zero.</p>
@@ -1340,7 +1340,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-22 14:31:36 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-22 20:24:19 UTC</p>
 </div>
 <br/>
 <br/>

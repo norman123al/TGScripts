@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.66.0 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.66.1 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.0';
+const SQR_VERSION='0.66.1';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
@@ -731,6 +731,13 @@ function sqrBlinkInterval(value){return Number.isFinite(value)?Math.max(.1,Math.
 // workflow. The trailing slash in sqrUnder prevents matching a sibling prefix.
 function sqrPath(p){return File.fullPath(String(p).trim()).replace(/\\/g,'/').replace(/\/$/,'');}
 function sqrKey(p){let s=String(p).replace(/\\/g,'/').replace(/\/$/,'');return s.toLowerCase();}
+function sqrSameRunFolders(a,b){
+   const key=value=>{
+      let path=String(value||'').trim().replace(/\\/g,'/').replace(/\/$/,'');
+      return CoreApplication.platform==='Windows'?path.toLowerCase():path;
+   };
+   return key(a.wbpp)===key(b.wbpp)&&key(a.originals)===key(b.originals);
+}
 function sqrUnder(p,root){return sqrKey(p)===sqrKey(root)||sqrKey(p).startsWith(sqrKey(root)+'/');}
 function sqrDir(p){return File.extractDrive(p)+File.extractDirectory(p);}
 // New instances save one shared log folder. Import an older single-log setting
@@ -3465,38 +3472,57 @@ function sqrRecommendationStarFlux(image,star,r){
 }
 // Only needed for incomplete ImageAnalysis throughput. Anchor flux ratios to
 // a frame on the known scale if possible; otherwise use a common relative unit.
-function sqrRecommendationFluxReference(rows,levels,geometry){
-   let candidates=rows.map((row,i)=>({row,level:levels[i]})).filter(item=>Number.isFinite(item.level)&&item.level>0);
-   if(!candidates.length)candidates=rows.map(row=>({row,level:1}));
-   candidates.sort((a,b)=>b.row.metrics[0].psfCount-a.row.metrics[0].psfCount);
-   let radius=Math.max(6,Math.min(28,Math.ceil(2.5*sqrMedian(rows.map(r=>r.metrics[0].fwhm)))));
-   for(let candidate of candidates.slice(0,3)){
-      sqrPreparationAbort();let image=sqrRecommendationCrop(candidate.row,geometry);
-      try{
-         let detector=new StarDetector;detector.fitPSF=false;detector.upperLimit=.9;detector.allowClusteredSources=false;
-         let cells=new Map,stars=[];
-         for(let star of detector.stars(image)){
-            let cell=Math.floor(6*star.pos.x/image.width)+6*Math.floor(6*star.pos.y/image.height),count=cells.get(cell)||0;
-            if(count>=4)continue;
-            let flux=sqrRecommendationStarFlux(image,star,radius);
-            if(flux!==null){stars.push({pos:star.pos,flux});cells.set(cell,count+1);}
-         }
-         if(stars.length>=5)return {...candidate,radius,stars};
-      }finally{image.free();}
-   }
-   throw Error('Could not normalize the test stacks: fewer than five usable reference stars in the common field of '+candidates.slice(0,3).map(c=>sqrFileName(c.row.registered.path)).join(', ')+'. Check these frames in Blink.');
+function sqrRecommendationReferenceStars(row,geometry,radius){
+   let image=sqrRecommendationCrop(row,geometry);
+   try{
+      let detector=new StarDetector;detector.fitPSF=false;detector.upperLimit=.9;detector.allowClusteredSources=false;
+      let cells=new Map,stars=[];
+      for(let star of detector.stars(image)){
+         let cell=Math.floor(6*star.pos.x/image.width)+6*Math.floor(6*star.pos.y/image.height),count=cells.get(cell)||0;
+         if(count>=4)continue;
+         let flux=sqrRecommendationStarFlux(image,star,radius);
+         if(flux!==null){stars.push({pos:star.pos,flux});cells.set(cell,count+1);}
+      }
+      return stars;
+   }finally{image.free();}
 }
-function sqrRecommendationFluxLevel(row,crop,ref){
-   if(row===ref.row)return ref.level;
+function sqrRecommendationFluxMatch(crop,stars,radius){
    let ratios=[];
-   for(let star of ref.stars){
-      let flux=sqrRecommendationStarFlux(crop,star,ref.radius);
+   for(let star of stars){
+      let flux=sqrRecommendationStarFlux(crop,star,radius);
       if(flux!==null)ratios.push(Math.log(flux/star.flux));
    }
    let center=sqrMedian(ratios),scatter=1.4826*sqrMedian(ratios.map(v=>Math.abs(v-center)));
    let kept=ratios.filter(v=>Math.abs(v-center)<=Math.max(.03,3*scatter));
-   if(kept.length<5||scatter>.20)throw Error('Cannot establish a reliable stellar scale for '+sqrFileName(row.registered.path)+' ('+kept.length+' matched stars). Inspect this frame in Blink before including it in a recommendation.');
-   return ref.level*Math.exp(sqrMedian(kept));
+   return {count:kept.length,ratio:kept.length>=5&&scatter<=.20?Math.exp(sqrMedian(kept)):null};
+}
+function sqrRecommendationFluxLevels(rows,levels,geometry){
+   let known=i=>Number.isFinite(levels[i])&&levels[i]>0;
+   let indices=rows.map((_,i)=>i),anchors=indices.filter(known),missing=indices.filter(i=>!known(i));
+   let candidates=(anchors.length?anchors:indices).sort((i,j)=>rows[j].metrics[0].psfCount-rows[i].metrics[0].psfCount);
+   let radius=Math.max(6,Math.min(28,Math.ceil(2.5*sqrMedian(rows.map(r=>r.metrics[0].fwhm)))));
+   let resolved=levels.slice(),failed=null,matchCounts=new Map;
+   for(let index of candidates){
+      sqrPreparationAbort();
+      let stars=sqrRecommendationReferenceStars(rows[index],geometry,radius);
+      if(stars.length<5)continue;
+      // Known anchors already share physical units. With no known anchor,
+      // accept only a complete set relative to a single reference.
+      let trial=anchors.length?resolved:levels.slice(),anchor=anchors.length?levels[index]:1;
+      trial[index]=anchor;
+      let complete=true;
+      for(let i of missing){
+         if(Number.isFinite(trial[i])&&trial[i]>0)continue;
+         sqrPreparationAbort();let crop=sqrRecommendationCrop(rows[i],geometry),match;
+         try{match=sqrRecommendationFluxMatch(crop,stars,radius);}finally{crop.free();}
+         if(match.ratio!==null){trial[i]=anchor*match.ratio;continue;}
+         matchCounts.set(i,Math.max(matchCounts.get(i)||0,match.count));failed=i;complete=false;
+         if(!anchors.length)break;
+      }
+      if(complete)return trial;
+   }
+   if(failed===null)throw Error('Could not normalize the test stacks: no candidate reference frame has five usable stars in the common field.');
+   throw Error('Cannot establish a reliable stellar scale for '+sqrFileName(rows[failed].registered.path)+' after trying '+candidates.length+' reference frame(s) ('+matchCounts.get(failed)+' matched stars). Inspect this frame in Blink before including it in a recommendation.');
 }
 /** Temporary, photometrically normalized crops
  * are reused for all trials. All candidates use exactly the same coordinates,
@@ -3504,10 +3530,10 @@ function sqrRecommendationFluxLevel(row,crop,ref){
 function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
    let frames=[],levels=ranking.rows.map(r=>r.relativeTransparency*sqrExposure(r));
    let known=levels.filter(v=>Number.isFinite(v)&&v>0),reference=known.length?sqrRecommendationMedian(known):1;
-   let ref=null;
+   let normalizedLevels=levels;
    if(known.length!==levels.length){
       sqrTick(notify,'Measuring reference stars for test-stack normalization');
-      ref=sqrRecommendationFluxReference(ranking.rows,levels,geometry);
+      normalizedLevels=sqrRecommendationFluxLevels(ranking.rows,levels,geometry);
    }
    let low=Infinity,high=-Infinity,maskRadius=geometry.aperture?6*Math.max(...ranking.rows.map(r=>r.metrics[0].fwhm)):0;
    for(let i=0;i<ranking.rows.length;++i){sqrTick(notify,'Preparing recommendation '+(i+1)+' / '+ranking.rows.length);
@@ -3525,7 +3551,7 @@ function sqrRecommendationPrepare(ranking,geometry,scratch,notify){
          // Normalization must also be ROI-independent; a local sky estimate
          // would change the integrated field and all of its quality metrics.
          let matched=!(Number.isFinite(levels[i])&&levels[i]>0);
-         let scale=(matched?sqrRecommendationFluxLevel(row,crop,ref):levels[i])/reference,background=crop.median();
+         let scale=normalizedLevels[i]/reference,background=crop.median();
          let sigma=stats?stats.sigma:sqrRecommendationNoise(crop);
          let minimum=crop.minimum(),maximum=crop.maximum(),range=maximum-minimum;
          if(!(range>0)||!Number.isFinite(minimum)||!Number.isFinite(maximum))throw Error('Invalid image range.');
@@ -3910,7 +3936,7 @@ class SQRRecommendationDialog extends Dialog {
 function sqrTool(parent,resource,tip,action){let b=new ToolButton(parent);b.icon=parent.scaledResource(resource);b.setScaledFixedSize(24,24);b.toolTip=tip;if(action)b.onClick=action;return b;}
 function sqrButton(parent,text,fn){let b=new PushButton(parent);b.text=text;b.onClick=fn;return b;}
 class SQRObservingSiteDialog extends Dialog {
-   constructor(site,required,profiles,headers=null){
+   constructor(site,required,profiles,headers=null,headersOnly=false){
       super();this.windowTitle='Observing site';this.site=site;
       this.profiles=profiles.slice();
       if(sqrValidSite(site)&&!this.profiles.some(p=>p.name===site.name))this.profiles.push(site);
@@ -3918,7 +3944,9 @@ class SQRObservingSiteDialog extends Dialog {
       note.text=required?'Some frames need an observing location to measure cloud extinction. Choose a site for this run, or make it the default for future runs.':'Runs without geographic coordinates use your default site. You can select another site for this review.';
       this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(note);
       let selector=new ComboBox(this),profileRow=new HorizontalSizer;profileRow.spacing=8;profileRow.add(selector,100);
-      let remove=sqrButton(this,'Remove profile',()=>{this.profiles.splice(selector.currentItem-1,1);fill(0);});
+      let removed=false;
+      let remove=sqrButton(this,'Remove profile',()=>{this.profiles.splice(selector.currentItem-1,1);removed=true;fill(0);
+         if(!this.profiles.length)hint.text='Click Apply to save the empty site list.';});
       profileRow.add(remove);this.sizer.add(profileRow);
       const field=(name,value)=>{let row=new HorizontalSizer;row.spacing=8;let label=new Label(this);
          label.text=name;label.setScaledFixedWidth(175);let edit=new Edit(this);edit.text=Number.isFinite(value)?String(value):'';
@@ -3941,6 +3969,9 @@ class SQRObservingSiteDialog extends Dialog {
       }
       const decimal=text=>/^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(text.trim())?Number(text.trim().replace(',','.')):NaN;
       buttons.add(sqrButton(this,'Apply',()=>{
+         if(removed&&!this.profiles.length&&![name,lat,lon].some(edit=>edit.text.trim())){
+            this.site=null;this.headersOnly=headersOnly;this.ok();return;
+         }
          let value={name:name.text.trim(),latitude:decimal(lat.text),longitude:decimal(lon.text)};
          if(!sqrValidSite(value)){hint.text='Enter latitude from −90 to +90 and longitude from −180 to +180.';return;}
          let i=selector.currentItem-1;
@@ -4043,7 +4074,7 @@ class SQRMeasurementSettingsDialog extends Dialog {
       this.siteButton=sqrButton(site,'Edit sites…',()=>{
          try{
             let draft=this.siteDraft,profiles=draft?draft.profiles:sqrSiteProfiles();
-            let editor=new SQRObservingSiteDialog(draft?draft.site:siteOptions.observingSite,false,profiles,headers);
+            let editor=new SQRObservingSiteDialog(draft?draft.site:siteOptions.observingSite,false,profiles,headers,draft?draft.headersOnly:siteOptions.siteHeadersOnly);
             if(editor.execute()){this.siteDraft={site:editor.site,headersOnly:!!editor.headersOnly,profiles:editor.profiles};updateSite();this.adjustToContents();}
          }catch(e){(new MessageBox(String(e),this.windowTitle,StdIcon_Error,StdButton_Ok)).execute();}
       });
@@ -4459,6 +4490,8 @@ class SQRDialog extends Dialog {
       this.layoutTimer=new Timer(.01,false,this);this.layoutTimer.onTimeout=()=>this.layoutBody();
       const responsive=(parent,wide,compact,breakpoint,spacing=8)=>{this.responsiveLayouts.push(sqrResponsiveRows(parent,wide,compact,breakpoint,spacing));return parent;};
       this.useCornerMeasurements=sqrHasCornerMeasurements(session)&&session.options.measureCorners!==false;
+      this.cornerScoreChoice=sqrHasCornerMeasurements(session)?this.useCornerMeasurements:null;
+      this.runFolders={wbpp:o.wbpp,originals:o.originals};
       this.timer=new Timer(sqrBlinkInterval(o.blinkInterval),false,this);this.timer.onTimeout=()=>{if(this.blinking&&!this.running&&this.tabs.currentPageIndex===1)this.advancePlayback();};
       this.inputs=new Control(this);this.inputs.sizer=new VerticalSizer;this.inputs.sizer.margin=10;this.inputs.sizer.spacing=8;
       this.inputsBar=new SectionBar(this,'Input files and observing conditions');this.inputsBar.setSection(this.inputs);
@@ -4895,8 +4928,9 @@ class SQRDialog extends Dialog {
       Object.assign(o,this.measurementOptions);
       o.rankOfRanks=this.rankScoring.checked;o.correlationOnly=this.correlationOnly.checked&&!o.rankOfRanks;for(let k of Object.keys(this.weights))o[k]=o.correlationOnly?this.manualWeights[k]:this.weights[k].value;
       o.skyScoreKPI=SQR_SKY_SCORE_CHOICES[this.skyScoreKPI.currentItem].key;o.recommendation={...this.recommendationOptions};
-      o.observingSite=this.observingSite?{...this.observingSite}:null;
-      o.siteHeadersOnly=this.siteHeadersOnly;
+      let sameRun=sqrSameRunFolders(this.runFolders,o);
+      o.observingSite=sameRun&&this.observingSite?{...this.observingSite}:null;
+      o.siteHeadersOnly=sameRun&&this.siteHeadersOnly;
       o.measureCorners=this.useCornerMeasurements;o.reference=SQR_BLINK_MODES[this.reference.currentItem];o.blinkInterval=this.blinkInterval.value;
       o.regionRotation=['off','image','blink'][this.regionRotation.currentItem];
       o.logFolder=this.logFolder.edit.text.trim();o.logTimeZone=['auto','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
@@ -5015,7 +5049,7 @@ class SQRDialog extends Dialog {
       if(!dialog.execute())return;
       try{
          let refreshSite=dialog.siteDraft&&this.applyObservingSite(dialog.siteDraft);
-         if(dialog.siteDraft)this.sitePromptSession=this.session;
+         if(dialog.siteDraft)this.sitePromptSession=null;
          this.applyMeasurementSettings(dialog.options(),refreshSite);
       }catch(e){this.error(e);}
    }
@@ -5044,7 +5078,8 @@ class SQRDialog extends Dialog {
       this.updateScoreWeightControls();}
    toggleCornerScoring(){
       if(this.running)return;
-      this.useCornerMeasurements=this.cornerScoring.checked&&sqrHasCornerMeasurements(this.session);
+      if(!sqrHasCornerMeasurements(this.session))return;
+      this.cornerScoreChoice=this.useCornerMeasurements=this.cornerScoring.checked;
       this.updateCornerControls();this.rerank();
       this.status.text=this.useCornerMeasurements?'Corner measurements included in Score. Existing results reused.':'Field-only scoring active. Corner measurements retained; no remeasurement.';
    }
@@ -5268,20 +5303,22 @@ class SQRDialog extends Dialog {
       let close=sqrButton(dialog,'Close',()=>dialog.ok()),buttons=new HorizontalSizer;buttons.addStretch();buttons.add(close);
       dialog.sizer=new VerticalSizer;dialog.sizer.margin=10;dialog.sizer.spacing=8;dialog.sizer.add(text,100);dialog.sizer.add(buttons);dialog.adjustToContents();dialog.execute();
    }
-   inputFolderChanged(key,value,chosen=false){if(this.running)return;let previous=this.scannedInputs||this.wbppImport;
+   inputFolderChanged(key,value,chosen=false){if(this.running)return;
       // Explicit folder selection switches methods even when the chosen path
       // equals an imported one; simply focusing/leaving an edit does not.
-      if((chosen&&this.wbppImport)||(previous&&sqrKey(value.trim())!==sqrKey(previous[key]||'')))this.invalidate();else this.updateButtons();}
+      if((chosen&&this.wbppImport)||!sqrSameRunFolders(this.runFolders,{...this.runFolders,[key]:value}))this.invalidate();else this.updateButtons();}
    // Source choice follows the paths the user committed. Imported paths keep
    // their explicit list; manually editing either input returns to folder mode.
    inputMode(){let wbpp=this.folders.wbpp.edit.text.trim(),originals=this.folders.originals.edit.text.trim();
-      if(this.wbppImport&&sqrKey(wbpp)===sqrKey(this.wbppImport.wbpp)&&sqrKey(originals)===sqrKey(this.wbppImport.originals))return 'import';
+      if(this.wbppImport&&sqrSameRunFolders(this.wbppImport,{wbpp,originals}))return 'import';
       return wbpp?'manual':'choose';}
    // Keep the folders used to build the list separate from editable session options.
-   get scanRequired(){return !this.session||['wbpp','originals'].some(key=>
-      sqrKey(this.folders[key].edit.text.trim())!==sqrKey(this.scannedInputs[key]||''));}
+   get scanRequired(){return !this.session||!sqrSameRunFolders(this.scannedInputs,{wbpp:this.folders.wbpp.edit.text,originals:this.folders.originals.edit.text});}
    hasInputFolders(){return !!(this.folders.wbpp.edit.text.trim()&&this.folders.originals.edit.text.trim());}
-   invalidate(){if(this.running)return;this.wbppImport=null;this.session=null;this.scannedInputs=null;this.useCornerMeasurements=false;this.current=null;this.clearFrames();this.updateCornerControls();this.parseAutorun(false);this.populateGroups();this.status.text=this.inputMode()==='manual'?'Folder selection changed. Choose a measurement button, or use Refresh file list to inspect the matches.':'Import a WBPP setup or select the WBPP output and original-light folders.';}
+   invalidate(){if(this.running)return;
+      this.runFolders={wbpp:this.folders.wbpp.edit.text.trim(),originals:this.folders.originals.edit.text.trim()};
+      this.observingSite=null;this.siteHeadersOnly=false;this.sitePromptSession=null;this.cornerScoreChoice=null;
+      this.wbppImport=null;this.session=null;this.scannedInputs=null;this.useCornerMeasurements=false;this.current=null;this.clearFrames();this.updateCornerControls();this.parseAutorun(false);this.populateGroups();this.status.text=this.inputMode()==='manual'?'Folder selection changed. Choose a measurement button, or use Refresh file list to inspect the matches.':'Import a WBPP setup or select the WBPP output and original-light folders.';}
    // Geometry/measurement changes invalidate metrics and derived scores, but
    // keep original associations and the user's manual rejection decisions.
    invalidateMeasurements(){
@@ -5519,8 +5556,13 @@ class SQRDialog extends Dialog {
    chooseWBPPImport(){if(this.running||this.inputMode()==='manual')return;this.stopBlink();try{let dialog=new SQRWBPPImportDialog(this.wbppImport);if(dialog.execute()&&dialog.data)this.importWBPP(dialog.data);}catch(e){this.error(e);}}
    importWBPP(data){if(this.running)return;this.stopBlink();this.busy(true);let abort=console.abortEnabled,imported=false;console.abortEnabled=true;
       try{let options={...this.options(),wbpp:data.wbpp,originals:data.originals,wbppImport:data,measureCorners:false};
+         let sameRun=this.wbppImport&&sqrSameRunFolders(this.runFolders,data)&&this.wbppImport.source===data.source&&
+            JSON.stringify(this.wbppImport.lights)===JSON.stringify(data.lights);
+         if(!sameRun){options.observingSite=null;options.siteHeadersOnly=false;}
+         let cornerChoice=sameRun?this.cornerScoreChoice:null,prompted=sameRun&&this.session&&this.sitePromptSession===this.session;
          // Build first: invalid files or an abort preserve the current review.
          let session=sqrScan(options,s=>this.setStatus(s));this.setSession(session);imported=true;
+         this.cornerScoreChoice=cornerChoice;this.sitePromptSession=prompted?session:null;
       }catch(e){this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
       // setSession cannot load logs while busy. Rebind the selected logs only
       // after a successful replacement, using the new image timestamps/scale.
@@ -5533,6 +5575,10 @@ class SQRDialog extends Dialog {
       let options=this.options();options.measureCorners=false;
       if(this.inputMode()!=='import')options.wbppImport=null;
       let session=sqrScan(options,s=>this.setStatus(s));
+      let sameRun=sqrSameRunFolders(this.runFolders,options);
+      this.sitePromptSession=sameRun&&this.session&&this.sitePromptSession===this.session?session:null;
+      if(!sameRun)this.cornerScoreChoice=null;
+      this.runFolders={wbpp:options.wbpp,originals:options.originals};this.observingSite=options.observingSite;this.siteHeadersOnly=options.siteHeadersOnly;
       this.clearFrames();this.session=session;this.scannedInputs=session.options;this.wbppImport=options.wbppImport;
       this.useCornerMeasurements=false;this.current=null;this.updateCornerControls();
       this.parseAutorun(false);this.populateGroups();this.scanSummary();
@@ -5546,12 +5592,11 @@ class SQRDialog extends Dialog {
    analyze(withCorners=this.useCornerMeasurements){
       if(this.running||!this.hasInputFolders())return;
       this.stopBlink();this.busy(true);let abort=console.abortEnabled;console.abortEnabled=true;console.show();
-      let started=false,measured=false,hadCorners,useCorners,previewSignature,skyResult=null,calibrationError='';
+      let started=false,measured=false,previewSignature,skyResult=null,calibrationError='';
       try{
          if(this.scanRequired)this.readFileList();
          if(!sqrRunSite(this.session).site&&!sqrFallbackSite(this)&&!this.siteHeadersOnly&&this.sitePromptSession!==this.session&&
             this.session.groups.some(g=>g.rows.length>=5&&sqrGroupNeedsSite(g))&&!this.requestObservingSite())return;
-         hadCorners=sqrHasCornerMeasurements(this.session);useCorners=this.useCornerMeasurements;
          previewSignature=this.measurementPreviewSignature(true);
          this.syncOptions();this.session.options.measureCorners=withCorners;started=true;
          sqrAnalyze(this.session,s=>this.setStatus(s));
@@ -5565,7 +5610,7 @@ class SQRDialog extends Dialog {
          if(started){
             // First regional measurement activates corner scoring. Later runs
             // preserve an explicit exclusion, even when filling missing regions.
-            this.useCornerMeasurements=sqrHasCornerMeasurements(this.session)&&(hadCorners?useCorners:withCorners);this.syncOptions();
+            this.useCornerMeasurements=sqrHasCornerMeasurements(this.session)&&(this.cornerScoreChoice??withCorners);this.syncOptions();
             if(!measured||withCorners!==this.useCornerMeasurements)try{sqrRank(this.session);}catch(rankError){for(let g of this.session.groups)g.correlationScoring=null;}
             this.updateCornerControls();this.populateRows(false);
             if(previewSignature!==this.measurementPreviewSignature())this.clearFrames(false);
@@ -5669,6 +5714,7 @@ class SQRDialog extends Dialog {
       node.setToolTip(4,'Click to '+(reject?'keep':'reject')+' this original, or select the row and press Space.');
       this.updateDetails();this.updateButtons();this.updatePlots();this.ensurePreview();}
    setSession(s){this.clearFrames();this.session=s;this.scannedInputs=s.options;this.useCornerMeasurements=sqrHasCornerMeasurements(s)&&s.options.measureCorners!==false;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
+      this.runFolders={wbpp:o.wbpp,originals:o.originals};this.cornerScoreChoice=sqrHasCornerMeasurements(s)?this.useCornerMeasurements:null;
       this.wbppImport=o.wbppImport||null;
       this.fwhmOptions=sqrFWHMOptions(o);this.recommendationOptions=sqrRecommendationOptions(o);
       this.observingSite=sqrValidSite(o.observingSite)?o.observingSite:null;this.siteHeadersOnly=!!o.siteHeadersOnly;
@@ -5692,6 +5738,7 @@ class SQRDialog extends Dialog {
       this.skyScoreKPI.currentItem=0;
       this.fwhmOptions=sqrFWHMOptions(defaults);
       this.observingSite=null;this.siteHeadersOnly=false;this.sitePromptSession=null;
+      this.cornerScoreChoice=null;
       this.aperture.setValue(defaults.fwhmAperture);
       this.seeing.setValue(defaults.fwhmSeeing);
       this.bortle.currentItem=defaults.bortleClass;
