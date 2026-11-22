@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
 #endif
 
-/* Subframe Quality Review 0.66.3 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.66.4 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Source images are opened for reading only. All rejection decisions are manual.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.3';
+const SQR_VERSION='0.66.4';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
@@ -4847,7 +4847,7 @@ class SQRDialog extends Dialog {
       this.messagesBar.toolTip='Collapse or expand status, review counts, scoring information and image scale. The window keeps its size and the messages keep updating.';
       this.messagesBar.toggleSection=()=>this.setMessagesCollapsed(!this.messagesCollapsed);
       this.instance=sqrTool(this,':/process-interface/new-instance.png','Drag to save folder and evaluation settings as a process icon.');
-      this.instance.onMousePress=()=>{Parameters.clear();Parameters.set('configJSON',JSON.stringify(this.savedOptions()));this.newInstance();};
+      this.instance.onMousePress=()=>{sqrSaveInstanceOptions(this.savedOptions());this.newInstance();};
       this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates. Loads the file list on first use.',()=>this.analyze());
       this.measureCornersButton=sqrTool(this,':/icons/grid.png','Measure corners: measure the center and four corners for all groups and matched masters. Loads the file list on first use and reuses existing field and regional measurements.',()=>this.analyze(true));
       this.recommendButton=sqrButton(this,'Recommend rejection…',()=>this.recommendRejection());
@@ -5800,15 +5800,32 @@ class SQRDialog extends Dialog {
    }
 }
 
+// PixInsight passes Script process parameters through its command parser.
+// Encode the UTF-8 payload so quotes and commas in imported WBPP settings survive.
+function sqrSaveInstanceOptions(options){
+   const payload=ByteArray.stringToUTF8(JSON.stringify(options)).toBase64();
+   Parameters.clear();Parameters.set('configBase64',payload);
+}
+function sqrLoadInstanceOptions(){
+   const defaults=sqrDefaults();
+   if(!Parameters.has('configBase64')&&!Parameters.has('configJSON'))return defaults;
+   let saved;
+   try{
+      const json=Parameters.has('configBase64')?ByteArray.fromBase64(Parameters.getString('configBase64')).utf8ToString():Parameters.getString('configJSON');
+      saved=JSON.parse(json);
+   }catch(e){throw Error('Cannot read the saved Subframe Quality Review settings.');}
+   if(!saved||typeof saved!=='object'||Array.isArray(saved))throw Error('Invalid saved Subframe Quality Review settings.');
+   return {...defaults,...saved,logFolder:sqrLogFolderOption(saved),measureCorners:false};
+}
+
 #ifndef SQR_LIBRARY
 // Run globally with optional saved settings. SQR_LIBRARY suppresses this entry
 // point so validation harnesses can exercise the engine without opening the UI.
 function sqrMain(){
    CoreApplication.ensureMinimumVersion(1,9,6);
    if(typeof ImageAnalysis==='undefined')throw new Error('The ImageAnalysis process is required. Check your PixInsight installation.');
-   let o=sqrDefaults();if(Parameters.has('configJSON')){let saved=JSON.parse(Parameters.getString('configJSON'));o={...o,...saved,logFolder:sqrLogFolderOption(saved),measureCorners:false};}
    if(Parameters.isViewTarget)throw new Error('Run this file-based review script globally.');
-   let dialog=new SQRDialog(o);console.hide();dialog.execute();dialog.clearFrames();
+   let dialog=new SQRDialog(sqrLoadInstanceOptions());console.hide();dialog.execute();dialog.clearFrames();
 }
 sqrMain();
 #endif
