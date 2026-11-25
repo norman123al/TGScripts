@@ -6,7 +6,7 @@
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.47.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.47.1 — PixInsight 1.9.6 build 1719+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.47.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.47.1. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.47.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.47.1 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.47.0', EXT = '_astroBucketList';
+   const VERSION = '0.47.1', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -668,19 +668,53 @@ var ABL = (function () {
       let dr=Math.abs((p.ra-q.ra+540)%360-180)*Math.cos(p.dec*Math.PI/180);
       return Math.hypot(dr,p.dec-q.dec)<1/3600;
    }
+   // Narrow identity comparisons to plausible matches. same() still decides
+   // whether a shared catalog name denotes one object or different group members.
+   function objectMatchIndex() {
+      const buckets=new Map;
+      function keys(o) {
+         const ids=identifiers(o),keys=ids.map(id=>'id:'+id);
+         if(!ids.length)keys.push('unnamed'); // same() can match these by position alone.
+         if(meta(o).objectId)keys.push('uuid:'+meta(o).objectId);
+         return keys;
+      }
+      return {
+         add(o,entry) {
+            for(const key of keys(o)){
+               if(!buckets.has(key))buckets.set(key,new Set);
+               buckets.get(key).add(entry);
+            }
+         },
+         candidates(o) {
+            const found=new Set;
+            for(const key of keys(o))for(const entry of buckets.get(key)||[])found.add(entry);
+            return found;
+         }
+      };
+   }
    function linkObjects(doc) {
-      const inventory=config(doc),registry=[],canonical=new Map;
+      const inventory=config(doc),registry=[],canonical=new Map,index=objectMatchIndex();
       // Rebuild shared in-memory objects after parsing or JSON copying. Visit
       // the inventory first so its values take priority over list copies.
       // List-only imports also populate the inventory here. List memberships
       // then reference the canonical objects; JSON serialization duplicates
       // their data because Stellarium requires inline objects in each list.
       for(let o of inventory.objects.concat(Object.values(doc.observingLists).flatMap(l=>l.objects))){
-         let m=meta(o),match=registry.find(x=>same(x,o));
-         if(match){
-            if(JSON.stringify(match)!==JSON.stringify(o))Object.assign(match,mergeObjectData(match,o));
-         }else{if(typeof m.objectId!=='string'||!m.objectId)m.objectId=uuid();match=o;registry.push(o);}
-         canonical.set(o,match);
+         // Multiple aliases can match. Keep the earliest inventory entry,
+         // independently of the order in which the index finds candidates.
+         let first=registry.length;
+         for(const i of index.candidates(o))if(i<first&&same(registry[i],o))first=i;
+         if(first===registry.length){
+            let m=meta(o);if(typeof m.objectId!=='string'||!m.objectId)m.objectId=uuid();
+            registry.push(o);index.add(o,first);
+         }else{
+            const match=registry[first];
+            if(match!==o&&JSON.stringify(match)!==JSON.stringify(o)){
+               Object.assign(match,mergeObjectData(match,o));
+               index.add(match,first); // Later copies can use aliases learned by this merge.
+            }
+         }
+         canonical.set(o,registry[first]);
       }
       inventory.objects=registry;
       for(let list of Object.values(doc.observingLists))list.objects=list.objects.map(o=>canonical.get(o));
@@ -851,13 +885,10 @@ var ABL = (function () {
    // Redirects reconcile alias bridges without leaving two canonical objects.
    function importDocuments(doc,raws) {
       const incoming=raws.map(x=>typeof x==='string'?parseDocument(x):normalizeDocument(x));
-      let next=normalizeDocument(doc),registry=[],index=new Map,listMembers=new Map,addedLists=0,merged=new Set;
+      let next=normalizeDocument(doc),registry=[],index=objectMatchIndex(),listMembers=new Map,addedLists=0,merged=new Set;
       const root=entry=>{while(entry.parent)entry=entry.parent;return entry;};
-      const keys=o=>['uuid:'+meta(o).objectId].concat(identifiers(o).map(id=>'id:'+id));
-      const put=entry=>{for(let key of keys(entry.object)){if(!index.has(key))index.set(key,new Set);index.get(key).add(entry);}};
       function register(object,existing){
-         let candidates=new Set;for(let key of keys(object))for(let entry of index.get(key)||[])candidates.add(root(entry));
-         if(!identifiers(object).length)for(let entry of registry)if(!entry.parent&&!identifiers(entry.object).length)candidates.add(entry);
+         let candidates=new Set(Array.from(index.candidates(object),root));
          let matches=Array.from(candidates).filter(entry=>same(entry.object,object)).sort((a,b)=>a.order-b.order),entry=matches[0];
          if(!entry){entry={object:mergeObjectData(object,{}),existing,previousLists:new Set,ids:new Set,order:registry.length};registry.push(entry);}
          else{
@@ -868,7 +899,7 @@ var ABL = (function () {
             entry.object=mergeObjectData(entry.object,object);
             if(!existing&&entry.existing)merged.add(entry);
          }
-         entry.ids.add(meta(object).objectId);put(entry);return entry;
+         entry.ids.add(meta(object).objectId);index.add(entry.object,entry);return entry;
       }
       for(let object of config(next).objects)register(object,true);
       for(let id of Object.keys(next.observingLists)){
@@ -1826,7 +1857,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.47.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.47.1 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1865,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.47.0"
+#define VERSION "0.47.1"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2410,7 +2441,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.47.0';
+const ABL_VERSION='0.47.1';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
