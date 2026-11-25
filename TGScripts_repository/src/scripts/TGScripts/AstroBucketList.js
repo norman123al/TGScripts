@@ -3618,6 +3618,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    for(const [label] of rankings)this.sort.addItem(label);
    this.sort.adjustToContents();this.sort.setFixedWidth();this.thenBy.setFixedWidth(this.sort.width);
    let primary=rankings[0],secondary=rankings[2],remaining=[];
+   const compareRows=(a,b)=>primary[1](a,b)||secondary[1](a,b)||byName(a,b);
    const updateRanks=()=>{
       const previous=primary;
       primary=rankings[this.sort.currentItem];
@@ -3712,23 +3713,21 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.step=(budget=25)=>{
       if(!this.pendingRedraw||this.disposed)return;
       try{
-         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),index:0,results:[],nextUpdate:0};
+         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),index:0,results:[],selection:new Set};
          let job=this.job,deadline=Date.now()+budget;this.stopButton.visible=true;
          while(job.night.times.length<job.night.count&&Date.now()<deadline)ablPlanningSample(job.night);
          if(job.night.times.length<job.night.count){showPlanStatus('Calculating local Sun and Moon positions…');return;}
-         let hasVisibleRow=false;
+         if(!this.night){
+            this.night=job.night;this.results=job.results;this.initPublication(job);
+         }
+         if(job.published<job.index&&(job.index===this.records.length||Date.now()>=job.nextUpdate)){
+            this.publishRows(job,deadline);
+            return;
+         }
          while(job.index<this.records.length&&Date.now()<deadline){
             const result=ablPlanningTarget(job.night,this.records[job.index++]);
             delete result.curve;job.results.push(result);
-            if(!manager.previewPreferences.planningUsableOnly||ablHasUsableTime(result,manager.previewPreferences.minimumUsableMinutes))hasVisibleRow=true;
-         }
-         const finished=job.index===this.records.length;
-         // Publish the first visible batch immediately, then refresh less often
-         // so that sorting and sizing the growing table leave time for planning.
-         if(finished||(!this.nodes.length&&hasVisibleRow)||Date.now()>=job.nextUpdate){
-            this.night=job.night;this.results=job.results;job.nextUpdate=Date.now()+750;
-            if(finished){this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;}
-            this.rebuild();
+            if(!this.nodes.length&&(!this.displayedUsableOnly||ablHasUsableTime(result,this.night.minimumUsableMinutes)))job.nextUpdate=0;
          }
       }catch(e){this.job=null;this.pendingRedraw=false;this.clearResults();this.stopButton.visible=false;this.retryButton.visible=true;showPlanStatus('Planning unavailable: '+String(e.message||e));}
    };
@@ -3738,17 +3737,85 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
       this.step();this.queueRedraw();
    };
    this.selectCurrent=()=>{
-      let node=this.nodes?.find(n=>n.result.record.id===this.selectedId);
+      const current=this.tree.currentNode;
+      let node=null;
+      if(this.selectedId)node=current?.result?.record.id===this.selectedId?current:this.nodes?.find(n=>n.result.record.id===this.selectedId);
       if(!node&&(!this.pendingRedraw||!this.selectedId))node=this.nodes?.[0];
       // TreeBox current-node assignment can select the focused row. Restore
       // the exact export selection, including an explicitly empty selection.
-      if(node){let selected=new Set(this.nodes.filter(n=>n.selected).map(n=>n.result.record.id));this.building=true;try{this.tree.currentNode=node;for(let n of this.nodes)n.selected=selected.has(n.result.record.id);}finally{this.building=false;}}
+      if(node&&node!==this.tree.currentNode){const selected=this.tree.selectedNodes,wasSelected=node.selected;this.building=true;try{this.tree.currentNode=node;node.selected=wasSelected;for(const n of selected)n.selected=true;}finally{this.building=false;}}
       // An explicitly chosen target may still be waiting for its calculation.
       if(!this.pendingRedraw)this.selectedId=node?.result.record.id||'';
       this.updatePlot(node?.result||null);
    };
+   const altitudeHeading=p=>p.horizonEnabled?'Clear horizon':'Above '+p.minAltitude+'°';
+   const insertRow=(r,index,selected)=>{
+      const p=this.night.preferences,period=this.night.period,n=new TreeBoxNode;
+      const cells=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),
+         r.best?ablPlanningTime(r.best[0],period):'—',r.best?ablPlanningTime(r.best[1],period):'—',
+         r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
+      n.result=r;
+      for(let i=0;i<cells.length;++i)n.setText(i,cells[i]);
+      this.tree.insert(index,n);this.nodes.splice(index,0,n);
+      if(selected)n.selected=true;
+      return cells;
+   };
+   const updateSummary=usableCount=>{
+      const p=this.night.preferences,period=this.night.period,dark=ablPlanningDuration(this.night.darkIntervals);
+      planText=(p.siteName||'Observing site')+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+usableCount+' / '+this.results.length+' targets usable (minimum '+ablMinimumTimeText(this.night.minimumUsableMinutes)+') · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+ablSiteMoonLimitText(p);
+   };
+   const rowPadding=this.logicalPixelsToPhysical(18),nameWidth=this.logicalPixelsToPhysical(240),rowFont=this.tree.font;
+   this.initPublication=job=>{
+      this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
+      this.night.minimumUsableMinutes=manager.previewPreferences.minimumUsableMinutes;
+      this.tree.setHeaderText(2,altitudeHeading(this.night.preferences));
+      job.widths=columns.map((_,i)=>rowFont.width(this.tree.headerText(i))+rowPadding);
+      for(let i=0;i<columns.length;++i)this.tree.setColumnWidth(i,job.widths[i]);
+      job.published=0;job.usable=0;job.nextUpdate=0;
+   };
+   this.publishRows=(job,deadline)=>{
+      // Keep established TreeBox nodes (and their selection). Insert after
+      // equal keys to preserve the same stable ordering as a full sort.
+      const limit=Math.min(job.index,job.published+32),previousWidths=job.widths.slice();
+      this.building=true;
+      try{
+         while(job.published<limit&&Date.now()<deadline){
+            const r=job.results[job.published++],minimum=this.night.minimumUsableMinutes;
+            if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
+            if(ablHasUsableTime(r,minimum))++job.usable;
+            else if(this.displayedUsableOnly)continue;
+            let lo=0,hi=this.nodes.length;
+            while(lo<hi){const mid=Math.floor((lo+hi)/2);if(compareRows(r,this.nodes[mid].result)<0)hi=mid;else lo=mid+1;}
+            const cells=insertRow(r,lo,job.selection.delete(r.record.id));
+            for(let i=0;i<cells.length;++i){
+               let width=rowFont.width(cells[i])+rowPadding;
+               if(i===0)width=Math.min(nameWidth,width);
+               if(width>job.widths[i])job.widths[i]=width;
+            }
+         }
+         // Measure new cells only. Asking TreeBox to fit a column would
+         // traverse every previous row again, even in a small timer slice.
+         for(let i=0;i<columns.length;++i)if(job.widths[i]>previousWidths[i]&&job.widths[i]>this.tree.columnWidth(i))this.tree.setColumnWidth(i,job.widths[i]);
+      }finally{this.building=false;}
+      const caughtUp=job.published===job.index;
+      if(caughtUp&&job.index===this.records.length){
+         this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;
+         updateSummary(job.usable);
+      }else planText=job.index===this.records.length?'Updating table: '+job.published+' / '+job.index+' targets…':'Planning '+job.index+' / '+this.records.length+' objects…';
+      if(caughtUp){this.selectCurrent();this.updateExport();job.nextUpdate=Date.now()+750;}
+      else showMessage();
+   };
    this.rebuild=()=>{
       if(!this.night)return;
+      // A new rank or usable-time filter invalidates the displayed order,
+      // but the astronomical results can be replayed in the same short slices.
+      if(this.job){
+         const job=this.job;
+         for(const n of this.tree.selectedNodes)job.selection.add(n.result.record.id);
+         this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
+         this.initPublication(job);this.publishRows(job,Date.now()+25);
+         return;
+      }
       const minimum=manager.previewPreferences.minimumUsableMinutes;
       // A different nightly total reclassifies the cached rows, including
       // those hidden by the filter, without recalculating their windows.
@@ -3758,22 +3825,14 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
       }
       const usable=this.results.filter(r=>ablHasUsableTime(r,minimum));
       this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
-      let p=this.night.preferences,period=this.night.period,rows=this.displayedUsableOnly?usable:this.results.slice(),selected=new Set((this.nodes||[]).filter(n=>n.selected).map(n=>n.result.record.id));
-      rows.sort((a,b)=>primary[1](a,b)||secondary[1](a,b)||byName(a,b));
+      let rows=this.displayedUsableOnly?usable:this.results.slice(),selected=new Set(this.tree.selectedNodes.map(n=>n.result.record.id));
+      rows.sort(compareRows);
       this.building=true;try{this.tree.clear();this.nodes=[];
-         this.tree.setHeaderText(2,p.horizonEnabled?'Clear horizon':'Above '+p.minAltitude+'°');
-         for(let r of rows){let n=new TreeBoxNode(this.tree);n.result=r;n.selected=selected.has(r.record.id);
-            let text=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),
-               r.best?ablPlanningTime(r.best[0],period):'—',r.best?ablPlanningTime(r.best[1],period):'—',
-               r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
-            for(let i=0;i<text.length;++i)n.setText(i,text[i]);
-            this.nodes.push(n);
-         }
+         this.tree.setHeaderText(2,altitudeHeading(this.night.preferences));
+         for(const r of rows)insertRow(r,this.nodes.length,selected.has(r.record.id));
          for(let i=0;i<columns.length;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
       }finally{this.building=false;}
-      let site=p.siteName||'Observing site',dark=ablPlanningDuration(this.night.darkIntervals);
-      planText=site+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+usable.length+' / '+this.results.length+' targets usable (minimum '+ablMinimumTimeText(minimum)+') · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+ablSiteMoonLimitText(p);
-      if(this.job)planText='Planning '+this.job.index+' / '+this.records.length+' objects…';
+      updateSummary(usable.length);
       this.selectCurrent();this.updateExport();
    };
    this.updatePlot=(row=this.results.find(r=>r.record.id===this.selectedId))=>{
