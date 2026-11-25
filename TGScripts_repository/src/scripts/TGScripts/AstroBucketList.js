@@ -6,7 +6,7 @@
 CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 #endif
 
-/* Astro Bucket List 0.47.0 — PixInsight 1.9.6 build 1718+, PJSR V8.
+/* Astro Bucket List 0.47.2 — PixInsight 1.9.6 build 1719+, PJSR V8.
  * Copyright (c) 2026 Thorsten Glebe. Program code: SPDX-License-Identifier: MIT
  * SIMBAD-derived type data: ODbL-1.0; see AstroBucketList-DataNotices.txt.
  * Collection files are written only by explicit Save / Export actions.
@@ -15,7 +15,7 @@ CoreApplication.ensureMinimumVersion( 1, 9, 6, 0, 1718 );
 // Constellation tables and the portable list model live here so the
 // portable model has no generated or separate runtime copy. Tests read this
 // section directly; native filesystem operations use the shared guard above.
-// Astro Bucket List 0.47.0. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
+// Astro Bucket List 0.47.2. IAU boundaries: Roman (1987), CDS VI/42, via Astropy.
 // https://github.com/astropy/astropy/tree/main/astropy/coordinates/data
 var ABL_CONSTELLATIONS = {
   "And": "Andromeda",
@@ -527,13 +527,13 @@ var ABL_BOUNDARIES = [
    [0,24,-90,"Oct"]
 ];
 
-/* Astro Bucket List 0.47.0 — portable data model and astronomy functions.
+/* Astro Bucket List 0.47.2 — portable data model and astronomy functions.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * This section has no GUI or filesystem dependencies; shared by PJSR V8 and tests.
  */
 var ABL = (function () {
    'use strict';
-   const VERSION = '0.47.0', EXT = '_astroBucketList';
+   const VERSION = '0.47.2', EXT = '_astroBucketList';
    const MONTHS = ['Unassigned','January','February','March','April','May','June',
       'July','August','September','October','November','December'];
    const own = (o,k) => Object.prototype.hasOwnProperty.call(o,k);
@@ -668,19 +668,53 @@ var ABL = (function () {
       let dr=Math.abs((p.ra-q.ra+540)%360-180)*Math.cos(p.dec*Math.PI/180);
       return Math.hypot(dr,p.dec-q.dec)<1/3600;
    }
+   // Narrow identity comparisons to plausible matches. same() still decides
+   // whether a shared catalog name denotes one object or different group members.
+   function objectMatchIndex() {
+      const buckets=new Map;
+      function keys(o) {
+         const ids=identifiers(o),keys=ids.map(id=>'id:'+id);
+         if(!ids.length)keys.push('unnamed'); // same() can match these by position alone.
+         if(meta(o).objectId)keys.push('uuid:'+meta(o).objectId);
+         return keys;
+      }
+      return {
+         add(o,entry) {
+            for(const key of keys(o)){
+               if(!buckets.has(key))buckets.set(key,new Set);
+               buckets.get(key).add(entry);
+            }
+         },
+         candidates(o) {
+            const found=new Set;
+            for(const key of keys(o))for(const entry of buckets.get(key)||[])found.add(entry);
+            return found;
+         }
+      };
+   }
    function linkObjects(doc) {
-      const inventory=config(doc),registry=[],canonical=new Map;
+      const inventory=config(doc),registry=[],canonical=new Map,index=objectMatchIndex();
       // Rebuild shared in-memory objects after parsing or JSON copying. Visit
       // the inventory first so its values take priority over list copies.
       // List-only imports also populate the inventory here. List memberships
       // then reference the canonical objects; JSON serialization duplicates
       // their data because Stellarium requires inline objects in each list.
       for(let o of inventory.objects.concat(Object.values(doc.observingLists).flatMap(l=>l.objects))){
-         let m=meta(o),match=registry.find(x=>same(x,o));
-         if(match){
-            if(JSON.stringify(match)!==JSON.stringify(o))Object.assign(match,mergeObjectData(match,o));
-         }else{if(typeof m.objectId!=='string'||!m.objectId)m.objectId=uuid();match=o;registry.push(o);}
-         canonical.set(o,match);
+         // Multiple aliases can match. Keep the earliest inventory entry,
+         // independently of the order in which the index finds candidates.
+         let first=registry.length;
+         for(const i of index.candidates(o))if(i<first&&same(registry[i],o))first=i;
+         if(first===registry.length){
+            let m=meta(o);if(typeof m.objectId!=='string'||!m.objectId)m.objectId=uuid();
+            registry.push(o);index.add(o,first);
+         }else{
+            const match=registry[first];
+            if(match!==o&&JSON.stringify(match)!==JSON.stringify(o)){
+               Object.assign(match,mergeObjectData(match,o));
+               index.add(match,first); // Later copies can use aliases learned by this merge.
+            }
+         }
+         canonical.set(o,registry[first]);
       }
       inventory.objects=registry;
       for(let list of Object.values(doc.observingLists))list.objects=list.objects.map(o=>canonical.get(o));
@@ -851,13 +885,10 @@ var ABL = (function () {
    // Redirects reconcile alias bridges without leaving two canonical objects.
    function importDocuments(doc,raws) {
       const incoming=raws.map(x=>typeof x==='string'?parseDocument(x):normalizeDocument(x));
-      let next=normalizeDocument(doc),registry=[],index=new Map,listMembers=new Map,addedLists=0,merged=new Set;
+      let next=normalizeDocument(doc),registry=[],index=objectMatchIndex(),listMembers=new Map,addedLists=0,merged=new Set;
       const root=entry=>{while(entry.parent)entry=entry.parent;return entry;};
-      const keys=o=>['uuid:'+meta(o).objectId].concat(identifiers(o).map(id=>'id:'+id));
-      const put=entry=>{for(let key of keys(entry.object)){if(!index.has(key))index.set(key,new Set);index.get(key).add(entry);}};
       function register(object,existing){
-         let candidates=new Set;for(let key of keys(object))for(let entry of index.get(key)||[])candidates.add(root(entry));
-         if(!identifiers(object).length)for(let entry of registry)if(!entry.parent&&!identifiers(entry.object).length)candidates.add(entry);
+         let candidates=new Set(Array.from(index.candidates(object),root));
          let matches=Array.from(candidates).filter(entry=>same(entry.object,object)).sort((a,b)=>a.order-b.order),entry=matches[0];
          if(!entry){entry={object:mergeObjectData(object,{}),existing,previousLists:new Set,ids:new Set,order:registry.length};registry.push(entry);}
          else{
@@ -868,7 +899,7 @@ var ABL = (function () {
             entry.object=mergeObjectData(entry.object,object);
             if(!existing&&entry.existing)merged.add(entry);
          }
-         entry.ids.add(meta(object).objectId);put(entry);return entry;
+         entry.ids.add(meta(object).objectId);index.add(entry.object,entry);return entry;
       }
       for(let object of config(next).objects)register(object,true);
       for(let id of Object.keys(next.observingLists)){
@@ -1826,7 +1857,7 @@ var ABL = (function () {
 // END ABL_PORTABLE
 
 // Sky charts use the standard engines already installed by PixInsight.
-/* Astro Bucket List 0.47.0 — Styled star maps using bundled PJSR engines.
+/* Astro Bucket List 0.47.2 — Styled star maps using bundled PJSR engines.
  * Copyright (c) 2026 Thorsten Glebe. SPDX-License-Identifier: MIT
  * The included engines remain part of the user's PixInsight installation.
  */
@@ -1834,7 +1865,7 @@ var ABL = (function () {
 #define __ABL_CHARTS
 #define SETTINGS_MODULE "AstroBucketListCharts"
 #define ANNOT_SETTINGS_MODULE "AstroBucketListChartsAnnotate"
-#define VERSION "0.47.0"
+#define VERSION "0.47.2"
 #define TITLE "Astro Bucket List"
 #include <pjsr/astrometry/AstrometricMetadata.js>
 #include <pjsr/astrometry/AstronomicalCatalogs.js>
@@ -2410,7 +2441,7 @@ function ablExportChart(chart,path){
 
 // Native dialogs, file operations, and application entry point.
 
-const ABL_VERSION='0.47.0';
+const ABL_VERSION='0.47.2';
 const ABL_FILE=#__FILE__;
 const ABL_TITLE='Astro Bucket List';
 const ABL_SERVERS=['https://simbad.cfa.harvard.edu/simbad/sim-id','https://simbad.cds.unistra.fr/simbad/sim-id'];
@@ -3436,17 +3467,29 @@ function ablPlanningRange(range,period,dated=false){
 // Locate crossings of each sampled constraint, then test the resulting
 // subintervals. Splitting every crossing preserves the Moon-below-horizon OR
 // separation rule and disjoint windows that a single Boolean sample would lose.
-function ablPlanningIntervals(times,series,accept){
-   let result=[];
-   for(let i=0;i<times.length-1;++i){let breaks=[0,1];
-      for(let values of series){let a=values[i],b=values[i+1];if(a*b<0)breaks.push(a/(a-b));}
-      breaks.sort((a,b)=>a-b);
+function ablVisitPlanningIntervals(times,series,visit){
+   const breaks=[],sample=new Array(series.length);
+   for(let i=0;i<times.length-1;++i){
+      breaks.length=0;breaks.push(0,1);
+      for(const values of series){let a=values[i],b=values[i+1];if(a*b<0)breaks.push(a/(a-b));}
+      if(breaks.length>2)breaks.sort((a,b)=>a-b);
       for(let j=0;j<breaks.length-1;++j){let a=breaks[j],b=breaks[j+1];if(b-a<1e-12)continue;
-         let middle=(a+b)/2;if(!accept(series.map(values=>values[i]+middle*(values[i+1]-values[i]))))continue;
-         let lo=times[i]+a*(times[i+1]-times[i]),hi=times[i]+b*(times[i+1]-times[i]);
-         if(result.length&&Math.abs(result[result.length-1][1]-lo)<1)result[result.length-1][1]=hi;else result.push([lo,hi]);
+         const middle=(a+b)/2,span=times[i+1]-times[i];
+         for(let k=0;k<series.length;++k){const values=series[k];sample[k]=values[i]+middle*(values[i+1]-values[i]);}
+         visit(sample,times[i]+a*span,times[i]+b*span);
       }
    }
+}
+function ablAppendPlanningInterval(intervals,start,end){
+   const last=intervals[intervals.length-1];
+   if(last&&Math.abs(last[1]-start)<1)last[1]=end;
+   else intervals.push([start,end]);
+}
+function ablPlanningIntervals(times,series,accept){
+   const result=[];
+   ablVisitPlanningIntervals(times,series,(sample,start,end)=>{
+      if(accept(sample))ablAppendPlanningInterval(result,start,end);
+   });
    return result;
 }
 function ablPlanningAt(values,time,night){let index=Math.max(0,Math.min(values.length-1,(time-night.period.start)/night.step)),i=Math.floor(index),f=index-i;return i+1<values.length?values[i]+f*(values[i+1]-values[i]):values[i];}
@@ -3476,7 +3519,9 @@ function ablPlanningSample(night){
    position.polarMotionEnabled=false;position.observer=night.observer;
    let sun=position.apparent(night.sun).toSpherical2Pi(),moon=position.apparent(night.moon).toSpherical2Pi();
    let sunAltitude=Math.deg(position.equatorialToHorizontal(sun).y),moonAltitude=Math.deg(position.equatorialToHorizontal(moon).y);
-   night.times.push(time);night.positions.push(position);night.sunAltitudes.push(sunAltitude);night.moonAltitudes.push(moonAltitude);night.moonCoordinates.push(moon);
+   night.times.push(time);night.positions.push(position);night.sunAltitudes.push(sunAltitude);night.moonAltitudes.push(moonAltitude);
+   // Every target uses the same topocentric Moon position at this instant.
+   night.moonCoordinates.push({ra:moon[0],sinDec:Math.sin(moon[1]),cosDec:Math.cos(moon[1])});
    night.darkness.push(night.preferences.sunAltitude-sunAltitude);
    if(night.times.length===night.count)night.darkIntervals=ablPlanningIntervals(night.times,[night.darkness],v=>v[0]>=0);
 }
@@ -3502,14 +3547,23 @@ function ablPlanningTarget(night,record){
    if(result.missing){result.status='Missing coordinates';return result;}
    let star=new StarPosition(coordinates.ra,coordinates.dec),altitudes=[],azimuths=[],separations=[],altitudeLimit=[];
    for(let i=0;i<night.positions.length;++i){let position=night.positions[i],s=position.apparent(star).toSpherical2Pi(),m=night.moonCoordinates[i];
-      let horizontal=position.equatorialToHorizontal(s),altitude=Math.deg(horizontal.y),cosine=Math.sin(s[1])*Math.sin(m[1])+Math.cos(s[1])*Math.cos(m[1])*Math.cos(s[0]-m[0]);
+      let horizontal=position.equatorialToHorizontal(s),altitude=Math.deg(horizontal.y),cosine=Math.sin(s[1])*m.sinDec+Math.cos(s[1])*m.cosDec*Math.cos(s[0]-m.ra);
       let separation=Math.deg(Math.acos(Math.max(-1,Math.min(1,cosine))));altitudes.push(altitude);separations.push(separation);altitudeLimit.push(altitude-p.minAltitude);azimuths.push(Math.deg(horizontal.x));
    }
    let above=ablPlanningIntervals(night.times,[altitudeLimit],v=>v[0]>=0),profile=ablPlanningHorizonSeries(night,azimuths,altitudes,separations,moonLimit);
-   let clear=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0);
-   let base=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0);
-   let moonUp=ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0&&v[2]>0);
-   result.windows=moonLimit?ablPlanningIntervals(profile.times,profile.series,v=>v[0]>=0&&v[4]>=0&&v[1]>=0&&(v[2]<=0||v[3]>=0)):base;
+   // The horizon, darkness and Moon rules share the same crossings. Classify
+   // each subinterval once so every duration uses exactly the same boundaries.
+   const clear=[],base=[],moonUp=[];
+   ablVisitPlanningIntervals(profile.times,profile.series,(sample,start,end)=>{
+      const [altitude,darkness,moonAltitude,separation,horizon]=sample;
+      if(altitude<0||horizon<0)return;
+      ablAppendPlanningInterval(clear,start,end);
+      if(darkness<0)return;
+      ablAppendPlanningInterval(base,start,end);
+      if(moonAltitude>0)ablAppendPlanningInterval(moonUp,start,end);
+      if(moonLimit&&(moonAltitude<=0||separation>=0))ablAppendPlanningInterval(result.windows,start,end);
+   });
+   if(!moonLimit)result.windows=base;
    result.above=ablPlanningDuration(above);result.clear=ablPlanningDuration(clear);result.dark=ablPlanningDuration(base);result.usable=ablPlanningDuration(result.windows);
    result.best=result.windows.reduce((best,range)=>!best||range[1]-range[0]>best[1]-best[0]?range:best,null);
    result.peak=ablPlanningExtremum(altitudes,night.darkIntervals,night,true);result.moonUp=moonUp.length>0;
@@ -3564,6 +3618,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    for(const [label] of rankings)this.sort.addItem(label);
    this.sort.adjustToContents();this.sort.setFixedWidth();this.thenBy.setFixedWidth(this.sort.width);
    let primary=rankings[0],secondary=rankings[2],remaining=[];
+   const compareRows=(a,b)=>primary[1](a,b)||secondary[1](a,b)||byName(a,b);
    const updateRanks=()=>{
       const previous=primary;
       primary=rankings[this.sort.currentItem];
@@ -3576,7 +3631,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    updateRanks();
    this.sort.onItemSelected=()=>{updateRanks();this.rebuild();};
    this.thenBy.onItemSelected=()=>{secondary=remaining[this.thenBy.currentItem];this.rebuild();};
-   this.stopButton=ablButton(this.actionsGroup,'Stop',()=>{this.redrawTimer.stop();this.job=null;this.pendingRedraw=false;showPlanStatus('Planning stopped. Recalculate to try again.');this.stopButton.visible=false;this.retryButton.visible=true;});this.stopButton.visible=false;
+   this.stopButton=ablButton(this.actionsGroup,'Stop',()=>{this.redrawTimer.stop();this.job=null;this.pendingRedraw=false;this.clearResults();showPlanStatus('Planning stopped. Recalculate to try again.');this.stopButton.visible=false;this.retryButton.visible=true;});this.stopButton.visible=false;
    this.retryButton=ablButton(this.actionsGroup,'Recalculate',()=>{this.key='';this.refreshInput();});this.retryButton.visible=false;
    this.siteSelect=new ComboBox(this.timeGroup);this.siteSelect.setFixedWidth(this.logicalPixelsToPhysical(220));
    this.refreshSites=()=>{this.siteSelect.clear();for(let p of manager.observingSites.sites)this.siteSelect.addItem(p.siteName);this.siteSelect.currentItem=manager.observingSites.active;};
@@ -3584,7 +3639,11 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.exportScope=new ComboBox(this.rankGroup);for(let text of ['All displayed rows','Usable rows','Selected rows'])this.exportScope.addItem(text);this.exportScope.adjustToContents();this.exportScope.setFixedWidth();
    this.exportScope.onItemSelected=()=>this.updateExport();
    this.exportRows=()=>!this.night||this.completedKey!==this.key?[]:(this.nodes||[]).filter(n=>this.exportScope.currentItem===0||this.exportScope.currentItem===1&&ablHasUsableTime(n.result,this.night.minimumUsableMinutes)||this.exportScope.currentItem===2&&n.selected).map(n=>n.result);
-   this.updateExport=()=>{let enabled=this.exportRows().length>0;if(this.exportButton)this.exportButton.enabled=enabled;if(this.planListButton)this.planListButton.enabled=enabled;};
+   this.updateExport=()=>{
+      const scope=this.exportScope.currentItem,ready=this.night&&this.completedKey===this.key&&this.nodes.length>0;
+      const enabled=!!ready&&(scope===0||scope===1&&this.usableCount>0||scope===2&&this.tree.selectedNodes.length>0);
+      if(this.exportButton)this.exportButton.enabled=enabled;if(this.planListButton)this.planListButton.enabled=enabled;
+   };
    this.chooseExportPath=()=>{let d=new SaveFileDialog;d.caption='Export observing plan';d.filters=[['CSV table','*.csv'],['PDF document','*.pdf']];d.defaultExtension='csv';d.overwritePrompt=true;d.initialPath='Observing-plan-'+this.date+'.csv';return manager.executeDialog(d)?d.filePath:'';};
    this.exportPlan=()=>{
       this.refreshInput();let rows=this.exportRows();if(!rows.length)return false;let night=this.night,key=this.completedKey,minimum=night.minimumUsableMinutes,path=this.chooseExportPath();if(!path)return false;
@@ -3622,7 +3681,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.controlsSection.sizer=new HorizontalSizer;this.controlsSection.sizer.spacing=8;
    for(const group of [this.timeGroup,this.rankGroup,this.actionsGroup])this.controlsSection.sizer.add(group);
    this.controlsSection.sizer.addStretch();
-   this.tree=new TreeBox(this);this.tree.headerVisible=true;this.tree.rootDecoration=false;this.tree.alternateRowColor=true;this.tree.multipleSelection=true;this.tree.onNodeSelectionUpdated=()=>this.updateExport();this.tree.setMinHeight(this.logicalPixelsToPhysical(160));
+   this.tree=new TreeBox(this);this.tree.headerVisible=true;this.tree.rootDecoration=false;this.tree.alternateRowColor=true;this.tree.multipleSelection=true;this.tree.onNodeSelectionUpdated=()=>{if(!this.building)this.updateExport();};this.tree.setMinHeight(this.logicalPixelsToPhysical(160));
    const columns=['Object','Peak in dark','Above minimum','Dark time','Usable','Observation start','Observation end','Moon min','Status'];
    this.tree.numberOfColumns=columns.length;
    columns.forEach((label,i)=>this.tree.setHeaderText(i,label));
@@ -3631,84 +3690,162 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.tree.onCurrentNodeUpdated=node=>{if(!this.building){this.selectedId=node?.result?.record.id||'';this.updatePlot();}};
    this.tree.onNodeActivated=node=>{let id=node?.result?.record.id,n=manager.nodes.find(n=>n.record.id===id);if(n)manager.tree.onNodeActivated(n);};
    this.refreshInput=()=>{this.refreshSites();this.setRecords((manager.nodes||[]).map(n=>n.record),manager.selected?.()?.id||'');this.updateExport();};
+   this.clearResults=()=>{
+      this.night=null;this.results=[];this.plotResult=null;this.completedKey='';
+      this.building=true;try{this.tree.clear();this.nodes=[];this.tree.enabled=true;}finally{this.building=false;}
+      this.graph.update();this.updateExport();
+   };
    this.setRecords=(records,selection)=>{
       this.records=records;
       if(selection!==this.inputSelection){this.inputSelection=selection;this.selectedId=selection;}
       // Changes to the plot range redraw the graph using the existing night.
       const {plotRange,beforeDuskHours,afterDawnHours,...observingLimits}=manager.planningPreferences;
       let key=JSON.stringify([this.date,observingLimits,records.map(r=>[r.id,r.designation,r.name,r.band,ABL.position(r.object)])]);
-      if(key!==this.key){this.key=key;this.redrawTimer.stop();this.job=null;this.night=null;this.results=[];this.plotResult=null;this.completedKey='';
-         this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
-         this.graph.update();this.exportButton.enabled=false;this.planListButton.enabled=false;this.retryButton.visible=false;this.stopButton.visible=false;
+      if(key!==this.key){this.key=key;this.redrawTimer.stop();this.job=null;this.clearResults();
+         this.retryButton.visible=false;this.stopButton.visible=false;
          if(manager.planningPreferences.latitude===null||manager.planningPreferences.longitude===null){this.pendingRedraw=false;showPlanStatus(manager.observingSites.warning||'Set your observing site in Configuration → Observing to plan the objects shown in Table.');return;}
          if(!ABL.validDate(this.date)){this.pendingRedraw=false;showPlanStatus('Enter the evening date as YYYY-MM-DD.');return;}
          if(!records.length){this.pendingRedraw=false;showPlanStatus('No objects shown in Table. Adjust its list or filters to plan targets.');return;}
          this.pendingRedraw=true;showPlanStatus('Ready to plan '+records.length+' objects shown in Table.');this.queueRedraw();
-      }else if(this.completedKey===this.key){
+      }else if(this.night){
          if(this.displayedUsableOnly!==manager.previewPreferences.planningUsableOnly||this.night.minimumUsableMinutes!==manager.previewPreferences.minimumUsableMinutes)this.rebuild();
-         else this.selectCurrent();
+         else if(!this.job?.removingRows)this.selectCurrent();
       }
    };
-   this.queueRedraw=()=>{this.redrawTimer.stop();if(this.pendingRedraw&&!this.disposed&&manager.tabs.currentPageIndex===3&&manager.visible)this.redrawTimer.start();};
+   this.queueRedraw=()=>{this.redrawTimer.stop();if(this.pendingRedraw&&!this.disposed&&manager.tabs.currentPageIndex===3&&manager.visible){this.redrawTimer.interval=.001;this.redrawTimer.start();}};
    this.activate=()=>{this.refreshInput();this.queueRedraw();};
    this.step=(budget=25)=>{
       if(!this.pendingRedraw||this.disposed)return;
       try{
-         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),index:0,results:[]};
+         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),total:this.records.length,index:0,results:[],selection:new Set};
          let job=this.job,deadline=Date.now()+budget;this.stopButton.visible=true;
          while(job.night.times.length<job.night.count&&Date.now()<deadline)ablPlanningSample(job.night);
-         while(job.night.times.length===job.night.count&&job.index<this.records.length&&Date.now()<deadline){let result=ablPlanningTarget(job.night,this.records[job.index++]);delete result.curve;job.results.push(result);}
-         showPlanStatus(job.night.times.length<job.night.count?'Calculating local Sun and Moon positions…':'Planning '+job.index+' / '+this.records.length+' objects…');
-         if(job.index===this.records.length){this.night=job.night;this.results=job.results;this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;this.rebuild();}
-      }catch(e){this.job=null;this.night=null;this.completedKey='';this.results=[];this.nodes=[];this.plotResult=null;this.tree.clear();this.graph.update();this.pendingRedraw=false;this.stopButton.visible=false;this.retryButton.visible=true;showPlanStatus('Planning unavailable: '+String(e.message||e));}
+         if(job.night.times.length<job.night.count){showPlanStatus('Calculating local Sun and Moon positions…');return;}
+         if(!this.night){
+            this.night=job.night;this.results=job.results;this.initPublication(job);
+         }
+         if(job.removingRows||job.published<job.index&&(job.index===job.total||Date.now()>=job.nextUpdate)){
+            this.publishRows(job,deadline);
+            return;
+         }
+         while(job.index<job.total&&Date.now()<deadline){
+            const result=ablPlanningTarget(job.night,this.records[job.index++]);
+            delete result.curve;job.results.push(result);
+            if(!this.nodes.length&&(!this.displayedUsableOnly||ablHasUsableTime(result,this.night.minimumUsableMinutes)))job.nextUpdate=0;
+         }
+      }catch(e){this.job=null;this.pendingRedraw=false;this.clearResults();this.stopButton.visible=false;this.retryButton.visible=true;showPlanStatus('Planning unavailable: '+String(e.message||e));}
    };
-   this.redrawTimer=new Timer(.03,false,this);this.redrawTimer.onTimeout=()=>{
+   this.redrawTimer=new Timer(.001,false,this);this.redrawTimer.onTimeout=()=>{
       if(!this.pendingRedraw||this.disposed||!manager.visible||manager.tabs.currentPageIndex!==3)return;
-      if(manager.chartPauseDepth||!manager.enabled||!manager.isActiveWindow){this.redrawTimer.start();return;}
+      if(manager.chartPauseDepth||!manager.enabled||!manager.isActiveWindow){this.redrawTimer.interval=.1;this.redrawTimer.start();return;}
       this.step();this.queueRedraw();
    };
    this.selectCurrent=()=>{
-      let node=this.nodes?.find(n=>n.result.record.id===this.selectedId)||this.nodes?.[0];
+      const current=this.tree.currentNode;
+      let node=null;
+      if(this.selectedId)node=current?.result?.record.id===this.selectedId?current:this.nodes?.find(n=>n.result.record.id===this.selectedId);
+      if(!node&&(!this.pendingRedraw||!this.selectedId))node=this.nodes?.[0];
       // TreeBox current-node assignment can select the focused row. Restore
       // the exact export selection, including an explicitly empty selection.
-      if(node){let selected=new Set(this.nodes.filter(n=>n.selected).map(n=>n.result.record.id));this.building=true;try{this.tree.currentNode=node;for(let n of this.nodes)n.selected=selected.has(n.result.record.id);this.selectedId=node.result.record.id;}finally{this.building=false;}}
-      if(!node)this.selectedId='';
-      this.updatePlot();
+      if(node&&node!==this.tree.currentNode){const selected=this.tree.selectedNodes,wasSelected=node.selected;this.building=true;try{this.tree.currentNode=node;node.selected=wasSelected;for(const n of selected)n.selected=true;}finally{this.building=false;}}
+      // An explicitly chosen target may still be waiting for its calculation.
+      if(!this.pendingRedraw)this.selectedId=node?.result.record.id||'';
+      this.updatePlot(node?.result||null);
+   };
+   const altitudeHeading=p=>p.horizonEnabled?'Clear horizon':'Above '+p.minAltitude+'°';
+   const insertRow=(r,index,selected)=>{
+      const p=this.night.preferences,period=this.night.period,n=new TreeBoxNode;
+      const cells=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),
+         r.best?ablPlanningTime(r.best[0],period):'—',r.best?ablPlanningTime(r.best[1],period):'—',
+         r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
+      n.result=r;
+      for(let i=0;i<cells.length;++i)n.setText(i,cells[i]);
+      this.tree.insert(index,n);this.nodes.splice(index,0,n);
+      if(selected)n.selected=true;
+      return cells;
+   };
+   const updateSummary=usableCount=>{
+      const p=this.night.preferences,period=this.night.period,dark=ablPlanningDuration(this.night.darkIntervals);
+      planText=(p.siteName||'Observing site')+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+usableCount+' / '+this.results.length+' targets usable (minimum '+ablMinimumTimeText(this.night.minimumUsableMinutes)+') · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+ablSiteMoonLimitText(p);
+   };
+   const rowPadding=this.logicalPixelsToPhysical(18),nameWidth=this.logicalPixelsToPhysical(240),rowFont=this.tree.font;
+   this.initPublication=job=>{
+      this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
+      this.night.minimumUsableMinutes=manager.previewPreferences.minimumUsableMinutes;
+      this.tree.setHeaderText(2,altitudeHeading(this.night.preferences));
+      job.widths=columns.map((_,i)=>rowFont.width(this.tree.headerText(i))+rowPadding);
+      for(let i=0;i<columns.length;++i)this.tree.setColumnWidth(i,job.widths[i]);
+      job.published=0;job.usable=0;job.nextUpdate=0;
+   };
+   this.publishRows=(job,deadline)=>{
+      // Keep established TreeBox nodes (and their selection). Insert after
+      // equal keys to preserve the same stable ordering as a full sort.
+      let remaining=32;
+      const previousWidths=job.widths.slice();
+      this.building=true;
+      try{
+         // Remove rows from the previous ranking within the insertion budget.
+         // Remove the focused row last so TreeBox cannot select a neighbour
+         // before we have recorded that neighbour's own selection state.
+         if(job.removingRows){
+            const focus=this.tree.currentNode;
+            while(this.nodes.length&&remaining>0&&Date.now()<deadline){
+               const last=this.nodes.length-1,index=last>0&&this.nodes[last]===focus?last-1:last;
+               const node=this.nodes[index];
+               if(node.selected)job.selection.add(node.result.record.id);
+               this.tree.remove(index);this.nodes.splice(index,1);--remaining;
+            }
+            job.removingRows=this.nodes.length>0;
+            if(!job.removingRows)this.tree.enabled=true;
+         }
+         const limit=Math.min(job.index,job.published+remaining);
+         while(!job.removingRows&&job.published<limit&&Date.now()<deadline){
+            const r=job.results[job.published++],minimum=this.night.minimumUsableMinutes;
+            if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
+            if(ablHasUsableTime(r,minimum))++job.usable;
+            else if(this.displayedUsableOnly)continue;
+            let lo=0,hi=this.nodes.length;
+            while(lo<hi){const mid=Math.floor((lo+hi)/2);if(compareRows(r,this.nodes[mid].result)<0)hi=mid;else lo=mid+1;}
+            const cells=insertRow(r,lo,job.selection.delete(r.record.id));
+            for(let i=0;i<cells.length;++i){
+               let width=rowFont.width(cells[i])+rowPadding;
+               if(i===0)width=Math.min(nameWidth,width);
+               if(width>job.widths[i])job.widths[i]=width;
+            }
+         }
+         // Measure new cells only. Asking TreeBox to fit a column would
+         // traverse every previous row again, even in a small timer slice.
+         for(let i=0;i<columns.length;++i)if(job.widths[i]>previousWidths[i]&&job.widths[i]>this.tree.columnWidth(i))this.tree.setColumnWidth(i,job.widths[i]);
+      }finally{this.building=false;}
+      const caughtUp=!job.removingRows&&job.published===job.index;
+      if(caughtUp&&job.index===job.total){
+         this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;
+         this.usableCount=job.usable;updateSummary(job.usable);
+      }else if(job.removingRows)planText='Updating table…';
+      else planText=job.index===job.total?'Updating table: '+job.published+' / '+job.index+' targets…':'Planning '+job.index+' / '+job.total+' objects…';
+      if(caughtUp){this.selectCurrent();this.updateExport();job.nextUpdate=Date.now()+750;}
+      else showMessage();
    };
    this.rebuild=()=>{
       if(!this.night)return;
-      const minimum=manager.previewPreferences.minimumUsableMinutes;
-      // A different nightly total reclassifies the cached rows, including
-      // those hidden by the filter, without recalculating their windows.
-      if(this.night.minimumUsableMinutes!==minimum){
-         this.night.minimumUsableMinutes=minimum;
-         for(const r of this.results)if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
+      // A completed plan already has every result. Start its publication at
+      // row zero, with the calculation cursor at the end of the cached night.
+      if(!this.job){
+         const count=this.results.length;
+         this.job={key:this.key,night:this.night,results:this.results,total:count,index:count,selection:new Set};
       }
-      const usable=this.results.filter(r=>ablHasUsableTime(r,minimum));
-      this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
-      let p=this.night.preferences,period=this.night.period,rows=this.displayedUsableOnly?usable:this.results.slice(),selected=new Set((this.nodes||[]).filter(n=>n.selected).map(n=>n.result.record.id));
-      rows.sort((a,b)=>primary[1](a,b)||secondary[1](a,b)||byName(a,b));
-      this.building=true;try{this.tree.clear();this.nodes=[];
-         this.tree.setHeaderText(2,p.horizonEnabled?'Clear horizon':'Above '+p.minAltitude+'°');
-         for(let r of rows){let n=new TreeBoxNode(this.tree);n.result=r;n.selected=selected.has(r.record.id);
-            let text=[ABL.objectHeading(r.record.designation,r.record.name),r.peak?r.peak.value.toFixed(1)+'° · '+ablPlanningTime(r.peak.time,period):'—',r.missing?'—':ablPlanningHours(p.horizonEnabled?r.clear:r.above),r.missing?'—':ablPlanningHours(r.dark),r.missing?'—':ablPlanningHours(r.usable),
-               r.best?ablPlanningTime(r.best[0],period):'—',r.best?ablPlanningTime(r.best[1],period):'—',
-               r.moonMinimum!==null?r.moonMinimum.toFixed(1)+'°':r.dark?'Moon down':'—',r.status];
-            for(let i=0;i<text.length;++i)n.setText(i,text[i]);
-            this.nodes.push(n);
-         }
-         for(let i=0;i<columns.length;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
-      }finally{this.building=false;}
-      let site=p.siteName||'Observing site',dark=ablPlanningDuration(this.night.darkIntervals);
-      planText=site+' · '+p.latitude.toFixed(3)+'°, '+p.longitude.toFixed(3)+'° · '+this.date+' → '+ablPlanningLocalISO(period.end,period).slice(0,10)+' · '+ablPlanningTimeContext(period)+'\n'+usable.length+' / '+this.results.length+' targets usable (minimum '+ablMinimumTimeText(minimum)+') · Darkness '+ablPlanningHours(dark)+' (Sun ≤ '+p.sunAltitude+'°) · Altitude ≥ '+p.minAltitude+'°'+(p.horizonEnabled?' + horizon':'')+' · '+ablSiteMoonLimitText(p);
-      this.selectCurrent();this.updateExport();
+      const job=this.job;
+      this.pendingRedraw=true;this.completedKey='';this.updateExport();
+      job.removingRows=this.nodes.length>0;this.tree.enabled=!job.removingRows;
+      this.initPublication(job);this.publishRows(job,Date.now()+25);
+      this.queueRedraw();
    };
-   this.updatePlot=()=>{
-      let row=this.results.find(r=>r.record.id===this.selectedId);
-      this.plotResult=row&&!row.missing&&this.night?ablPlanningTarget(this.night,row.record):null;
+   this.updatePlot=(row=this.results.find(r=>r.record.id===this.selectedId))=>{
+      if(!row||row.missing||!this.night)this.plotResult=null;
+      else if(this.plotResult?.record!==row.record)this.plotResult=ablPlanningTarget(this.night,row.record);
       targetText=row?row.missing?'Enter coordinates in Edit object to plan this target.':row.windows.length?'Usable (local): '+row.windows.map(w=>ablPlanningRange(w,this.night.period,true)).join(' · '):row.status+'. Try another night or adjust the observing limits.':'Select a planning row to inspect its altitude curve.';
       if(row)targetText=ablTargetMoonLimitText(row)+' · '+targetText;
-      else if(this.night&&manager.previewPreferences.planningUsableOnly&&!this.nodes.length){
+      else if(!this.pendingRedraw&&this.night&&manager.previewPreferences.planningUsableOnly&&!this.nodes.length){
          const minimum=this.night.minimumUsableMinutes;
          targetText=(minimum?'No target has at least '+ablMinimumTimeText(minimum)+' of usable time.':'No target has any usable time.')+' Clear “Usable targets only” in Configuration → Observing to see each target’s status.';
       }

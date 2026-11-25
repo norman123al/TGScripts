@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="6c6f7841c0045be58dc2921b250e8f263afac89d" type="script" releaseDate="20261122220839">
+      <package fileName="TGScripts_repository.tar.gz" sha1="28ea4d285e54f2a9757af56f36a3addd8d8b3bd8" type="script" releaseDate="20261125223708">
          <title>
-            TGScripts - SubframeQualityReview 0.66.6
+            TGScripts - Astro Bucket List 0.47.2
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               SubframeQualityReview 0.66.6 retries missing Transparency measurements, enlarges sparse corners per group, and uses observing-site profiles to calculate cloud extinction. Draw an object region on the master for rejection recommendations, which can now use matched stars when a brightness measurement is missing. Saved process instances reopen reliably, and equivalent folder paths preserve measurements and pending rejection decisions.
+               Astro Bucket List 0.47.2 opens large Stellarium collections faster, including when restoring the last collection at startup. Observing night shows matching targets in rank order as they are calculated and keeps Stop responsive. Changing the ranking or usable-time filter updates the table in small batches, reusing the calculated observing windows and preserving the selection of targets that remain visible.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-22T22:11:29.351Z" encoding="Base64">iGzvUNvMfwu/T8VZmJLYN+yZgvPME5jlxHs+x3nNjtV6QpwXrV3JUxaUmMRlzvyEMSOi+l8tBK/cbGr3/tE0BQ==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-25T22:39:23.617Z" encoding="Base64">Ol5hsOJ5baWMr/Iw0PB6KE+zxMfCNjDfEeNzoTixyQJTtdIgcpQPCWYnOl2qzf23SSO5K/tQWq5SCVhtyMGaBA==</Signature>
