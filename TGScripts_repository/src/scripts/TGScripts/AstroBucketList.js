@@ -3639,7 +3639,11 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.exportScope=new ComboBox(this.rankGroup);for(let text of ['All displayed rows','Usable rows','Selected rows'])this.exportScope.addItem(text);this.exportScope.adjustToContents();this.exportScope.setFixedWidth();
    this.exportScope.onItemSelected=()=>this.updateExport();
    this.exportRows=()=>!this.night||this.completedKey!==this.key?[]:(this.nodes||[]).filter(n=>this.exportScope.currentItem===0||this.exportScope.currentItem===1&&ablHasUsableTime(n.result,this.night.minimumUsableMinutes)||this.exportScope.currentItem===2&&n.selected).map(n=>n.result);
-   this.updateExport=()=>{let enabled=this.exportRows().length>0;if(this.exportButton)this.exportButton.enabled=enabled;if(this.planListButton)this.planListButton.enabled=enabled;};
+   this.updateExport=()=>{
+      const scope=this.exportScope.currentItem,ready=this.night&&this.completedKey===this.key&&this.nodes.length>0;
+      const enabled=!!ready&&(scope===0||scope===1&&this.usableCount>0||scope===2&&this.tree.selectedNodes.length>0);
+      if(this.exportButton)this.exportButton.enabled=enabled;if(this.planListButton)this.planListButton.enabled=enabled;
+   };
    this.chooseExportPath=()=>{let d=new SaveFileDialog;d.caption='Export observing plan';d.filters=[['CSV table','*.csv'],['PDF document','*.pdf']];d.defaultExtension='csv';d.overwritePrompt=true;d.initialPath='Observing-plan-'+this.date+'.csv';return manager.executeDialog(d)?d.filePath:'';};
    this.exportPlan=()=>{
       this.refreshInput();let rows=this.exportRows();if(!rows.length)return false;let night=this.night,key=this.completedKey,minimum=night.minimumUsableMinutes,path=this.chooseExportPath();if(!path)return false;
@@ -3688,7 +3692,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.refreshInput=()=>{this.refreshSites();this.setRecords((manager.nodes||[]).map(n=>n.record),manager.selected?.()?.id||'');this.updateExport();};
    this.clearResults=()=>{
       this.night=null;this.results=[];this.plotResult=null;this.completedKey='';
-      this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
+      this.building=true;try{this.tree.clear();this.nodes=[];this.tree.enabled=true;}finally{this.building=false;}
       this.graph.update();this.updateExport();
    };
    this.setRecords=(records,selection)=>{
@@ -3705,7 +3709,7 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
          this.pendingRedraw=true;showPlanStatus('Ready to plan '+records.length+' objects shown in Table.');this.queueRedraw();
       }else if(this.night){
          if(this.displayedUsableOnly!==manager.previewPreferences.planningUsableOnly||this.night.minimumUsableMinutes!==manager.previewPreferences.minimumUsableMinutes)this.rebuild();
-         else this.selectCurrent();
+         else if(!this.job?.removingRows)this.selectCurrent();
       }
    };
    this.queueRedraw=()=>{this.redrawTimer.stop();if(this.pendingRedraw&&!this.disposed&&manager.tabs.currentPageIndex===3&&manager.visible){this.redrawTimer.interval=.001;this.redrawTimer.start();}};
@@ -3713,18 +3717,18 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.step=(budget=25)=>{
       if(!this.pendingRedraw||this.disposed)return;
       try{
-         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),index:0,results:[],selection:new Set};
+         if(!this.job)this.job={key:this.key,night:ablPlanningNight(this.date,manager.planningPreferences),total:this.records.length,index:0,results:[],selection:new Set};
          let job=this.job,deadline=Date.now()+budget;this.stopButton.visible=true;
          while(job.night.times.length<job.night.count&&Date.now()<deadline)ablPlanningSample(job.night);
          if(job.night.times.length<job.night.count){showPlanStatus('Calculating local Sun and Moon positions…');return;}
          if(!this.night){
             this.night=job.night;this.results=job.results;this.initPublication(job);
          }
-         if(job.published<job.index&&(job.index===this.records.length||Date.now()>=job.nextUpdate)){
+         if(job.removingRows||job.published<job.index&&(job.index===job.total||Date.now()>=job.nextUpdate)){
             this.publishRows(job,deadline);
             return;
          }
-         while(job.index<this.records.length&&Date.now()<deadline){
+         while(job.index<job.total&&Date.now()<deadline){
             const result=ablPlanningTarget(job.night,this.records[job.index++]);
             delete result.curve;job.results.push(result);
             if(!this.nodes.length&&(!this.displayedUsableOnly||ablHasUsableTime(result,this.night.minimumUsableMinutes)))job.nextUpdate=0;
@@ -3776,10 +3780,26 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
    this.publishRows=(job,deadline)=>{
       // Keep established TreeBox nodes (and their selection). Insert after
       // equal keys to preserve the same stable ordering as a full sort.
-      const limit=Math.min(job.index,job.published+32),previousWidths=job.widths.slice();
+      let remaining=32;
+      const previousWidths=job.widths.slice();
       this.building=true;
       try{
-         while(job.published<limit&&Date.now()<deadline){
+         // Remove rows from the previous ranking within the insertion budget.
+         // Remove the focused row last so TreeBox cannot select a neighbour
+         // before we have recorded that neighbour's own selection state.
+         if(job.removingRows){
+            const focus=this.tree.currentNode;
+            while(this.nodes.length&&remaining>0&&Date.now()<deadline){
+               const last=this.nodes.length-1,index=last>0&&this.nodes[last]===focus?last-1:last;
+               const node=this.nodes[index];
+               if(node.selected)job.selection.add(node.result.record.id);
+               this.tree.remove(index);this.nodes.splice(index,1);--remaining;
+            }
+            job.removingRows=this.nodes.length>0;
+            if(!job.removingRows)this.tree.enabled=true;
+         }
+         const limit=Math.min(job.index,job.published+remaining);
+         while(!job.removingRows&&job.published<limit&&Date.now()<deadline){
             const r=job.results[job.published++],minimum=this.night.minimumUsableMinutes;
             if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
             if(ablHasUsableTime(r,minimum))++job.usable;
@@ -3797,43 +3817,28 @@ class ABLPlanningPage extends Control { constructor(parent,manager){
          // traverse every previous row again, even in a small timer slice.
          for(let i=0;i<columns.length;++i)if(job.widths[i]>previousWidths[i]&&job.widths[i]>this.tree.columnWidth(i))this.tree.setColumnWidth(i,job.widths[i]);
       }finally{this.building=false;}
-      const caughtUp=job.published===job.index;
-      if(caughtUp&&job.index===this.records.length){
+      const caughtUp=!job.removingRows&&job.published===job.index;
+      if(caughtUp&&job.index===job.total){
          this.completedKey=job.key;this.job=null;this.pendingRedraw=false;this.stopButton.visible=false;
-         updateSummary(job.usable);
-      }else planText=job.index===this.records.length?'Updating table: '+job.published+' / '+job.index+' targets…':'Planning '+job.index+' / '+this.records.length+' objects…';
+         this.usableCount=job.usable;updateSummary(job.usable);
+      }else if(job.removingRows)planText='Updating table…';
+      else planText=job.index===job.total?'Updating table: '+job.published+' / '+job.index+' targets…':'Planning '+job.index+' / '+job.total+' objects…';
       if(caughtUp){this.selectCurrent();this.updateExport();job.nextUpdate=Date.now()+750;}
       else showMessage();
    };
    this.rebuild=()=>{
       if(!this.night)return;
-      // A new rank or usable-time filter invalidates the displayed order,
-      // but the astronomical results can be replayed in the same short slices.
-      if(this.job){
-         const job=this.job;
-         for(const n of this.tree.selectedNodes)job.selection.add(n.result.record.id);
-         this.building=true;try{this.tree.clear();this.nodes=[];}finally{this.building=false;}
-         this.initPublication(job);this.publishRows(job,Date.now()+25);
-         return;
+      // A completed plan already has every result. Start its publication at
+      // row zero, with the calculation cursor at the end of the cached night.
+      if(!this.job){
+         const count=this.results.length;
+         this.job={key:this.key,night:this.night,results:this.results,total:count,index:count,selection:new Set};
       }
-      const minimum=manager.previewPreferences.minimumUsableMinutes;
-      // A different nightly total reclassifies the cached rows, including
-      // those hidden by the filter, without recalculating their windows.
-      if(this.night.minimumUsableMinutes!==minimum){
-         this.night.minimumUsableMinutes=minimum;
-         for(const r of this.results)if(r.usable>0)r.status=ablPositiveTimeStatus(r,minimum);
-      }
-      const usable=this.results.filter(r=>ablHasUsableTime(r,minimum));
-      this.displayedUsableOnly=manager.previewPreferences.planningUsableOnly;
-      let rows=this.displayedUsableOnly?usable:this.results.slice(),selected=new Set(this.tree.selectedNodes.map(n=>n.result.record.id));
-      rows.sort(compareRows);
-      this.building=true;try{this.tree.clear();this.nodes=[];
-         this.tree.setHeaderText(2,altitudeHeading(this.night.preferences));
-         for(const r of rows)insertRow(r,this.nodes.length,selected.has(r.record.id));
-         for(let i=0;i<columns.length;++i)this.tree.adjustColumnWidthToContents(i);this.tree.setColumnWidth(0,Math.min(this.tree.columnWidth(0),this.logicalPixelsToPhysical(240)));
-      }finally{this.building=false;}
-      updateSummary(usable.length);
-      this.selectCurrent();this.updateExport();
+      const job=this.job;
+      this.pendingRedraw=true;this.completedKey='';this.updateExport();
+      job.removingRows=this.nodes.length>0;this.tree.enabled=!job.removingRows;
+      this.initPublication(job);this.publishRows(job,Date.now()+25);
+      this.queueRedraw();
    };
    this.updatePlot=(row=this.results.find(r=>r.record.id===this.selectedId))=>{
       if(!row||row.missing||!this.night)this.plotResult=null;
