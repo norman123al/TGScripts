@@ -1,4 +1,4 @@
-Astro Bucket List 0.47.1
+Astro Bucket List 0.47.2
 
 OPEN THE MANAGER
 Choose Script > TG Scripts > Astro Bucket List. The script requires
@@ -51,6 +51,8 @@ the nightly minimum before rounding. Zero accepts any positive duration.
 The usable count, Usable targets only filter and Usable rows scope for
 export and Add to list share this setting across sites and collections.
 Clear the filter to see all candidates and their status.
+Rows appear in batches and update in the chosen ranking as targets are calculated.
+Export plan and Add to list become available when the whole plan is ready.
 Date/site changes discard stale results; inactive tabs pause.
 Stop cancels an unfinished calculation; Recalculate retries it.
 The planner uses PixInsight's local fundamental ephemerides and documented
@@ -625,7 +627,7 @@ the CPD interpretation for these live responses requires PTeam clarification.
 On Windows, file protection runs the operating system utility mountvol.exe from the Windows System32 directory, using the read-only /L option to identify volumes and reject alternate drive mappings. It does not change mounts, request administrator privileges, process images, or use a command shell.
 Replacing a text or data file briefly creates verified .tgscripts-write- and .tgscripts-recovery- files with unique names beside that file. The outside directory entry is replaced without writing through a pre-existing hard link. Successful operations remove these temporary files. If restoration fails, the error identifies the retained recovery file; keep it until the previous contents have been recovered.
 Collection and preview writes reject installation locations. On Windows, use direct local drive paths; network shares, substituted drives, symbolic links, junctions and ambiguous device names are refused. Cloud placeholders are supported. Linux/macOS checks resolve links and compare installation directory identities.
-Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.47.1.
+Local catalog lookup and bundled outline queries use PixInsight's installed libraries and configured databases without a network connection. They remain in the installation under their existing licenses. An explicit SIMBAD choice, a missing local match or unavailable local indexes triggers SIMBAD; ambiguous local matches require a choice and do not trigger fallback. SIMBAD lookups use HTTPS connections to simbad.cfa.harvard.edu and simbad.cds.unistra.fr and send object identifiers. DSS previews use archive.stsci.edu and send target coordinates and field dimensions. Requests identify PixInsight through CoreApplication.agentName followed by AstroBucketList/0.47.2.
 Save validation and recovery files use AstroBucketList-save-<unique-id> directories under the operating system temporary directory. Preview GIF and PNG files use AstroBucketList-<unique-id> filenames there. Successful saves remove their temporary copies, and closing the manager removes its preview files. The collection and its .bak backup use the selected destination. Preferences use PixInsight's per-user settings database.
 
 This product is based on software from the PixInsight project, developed

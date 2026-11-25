@@ -61,7 +61,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | --- | --- | --- | --- | --- |
 | Inspect image quality | [TG Field Mosaic](#tg-field-mosaic) | 2.3.0 | Builds a configurable grid of image crops for comparing stars across the field. | 2026&#8209;11&#8209;10 |
 | Compare corners | [TG Corner Mosaic](#tg-corner-mosaic) | 2.3.0 | Combines the four corners and, optionally, the center in one inspection image. | 2026&#8209;11&#8209;10 |
-| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.47.1 | Organizes Stellarium lists and imaging records, displays finder charts and DSS previews, and plans observing windows with site, horizon, and Moon constraints. | 2026&#8209;11&#8209;19 |
+| Plan imaging targets | [Astro Bucket List](#astro-bucket-list) | 0.47.2 | Organizes Stellarium lists and imaging records, displays finder charts and DSS previews, and plans observing windows with site, horizon, and Moon constraints. | 2026&#8209;11&#8209;25 |
 | Reduce stars | [BBStarReduction](#bbstarreduction) | 1.3.0 | Applies Bill Blanshan's three methods using automatic or existing starless data, with comparison previews. | 2026&#8209;10&#8209;30 |
 | Select colors | [TG Hue Range Mask](#tg-hue-range-mask) | 2.3.0 | Creates masks from hue, intensity, and saturation ranges. | 2026&#8209;11&#8209;10 |
 | Isolate emission | [CSTG](#cstg) | 2.2.0 | Subtracts the broadband continuum contribution from a narrowband image. | 2026&#8209;10&#8209;30 |
@@ -116,7 +116,7 @@ Combines the **four image corners and an optional center crop** into one inspect
 
 ### Astro Bucket List
 
-**Version:** 0.47.1 · **Last update:** 2026-11-25
+**Version:** 0.47.2 · **Last update:** 2026-11-25
 
 Organize imaging targets, explore the sky, and plan **when and what to image**.
 
