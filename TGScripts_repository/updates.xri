@@ -6,9 +6,9 @@
      </p>
    </description>
    <platform os="all" arch="noarch" version="1.9.6.1719:1.9.99">
-      <package fileName="TGScripts_repository.tar.gz" sha1="28ea4d285e54f2a9757af56f36a3addd8d8b3bd8" type="script" releaseDate="20261125223708">
+      <package fileName="TGScripts_repository.tar.gz" sha1="23eb23c43ae61f4a0382b406df8f49713462ab00" type="script" releaseDate="20261128175142">
          <title>
-            TGScripts - Astro Bucket List 0.47.2
+            TGScripts - SubframeQualityReview 0.78.3
          </title>
          <remove>
             src/scripts/TGScripts
@@ -36,7 +36,7 @@
          </remove>
          <description>
             <p>
-               Astro Bucket List 0.47.2 opens large Stellarium collections faster, including when restoring the last collection at startup. Observing night shows matching targets in rank order as they are calculated and keeps Stop responsive. Changing the ranking or usable-time filter updates the table in small batches, reusing the calculated observing windows and preserving the selection of targets that remain visible.
+               SubframeQualityReview 0.78.3 marks lights rejected by the WBPP run log, even when paths differ in capitalization. The review toolbar can reject lower-scoring lights and mask detected trails on copies of retained registered frames. Integrate retained lights using the saved WBPP settings and blink each reviewed master against the original. Disabled inputs stay excluded. Adding registered lights outside the saved integration requires explicit selection.
             </p>
             <p>
                Copyright (c) 2026 Dr. Thorsten Glebe. All Rights Reserved.
@@ -45,4 +45,4 @@
       </package>
    </platform>
 </xri>
-<Signature developerId="tglebe" timestamp="2026-11-25T22:39:23.617Z" encoding="Base64">Ol5hsOJ5baWMr/Iw0PB6KE+zxMfCNjDfEeNzoTixyQJTtdIgcpQPCWYnOl2qzf23SSO5K/tQWq5SCVhtyMGaBA==</Signature>
+<Signature developerId="tglebe" timestamp="2026-11-28T17:56:04.705Z" encoding="Base64">Ww68h/ZM0uoXs3PLORnMYpKcJYdCdmLqQwIZzgouJuki/brpY6WxLiilH5Rw3yKTJ24zaH1JdL1SrQhqQ/pTDA==</Signature>
