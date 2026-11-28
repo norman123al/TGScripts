@@ -1,12 +1,12 @@
 \documentclass{PIScriptDoc}
 \script{SubframeQualityReview}
 \keywords{WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights}
-\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.66.6.}
+\brief{Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.78.2.}
 
 \description{
-Subframe Quality Review helps you decide which original light frames to exclude before rerunning WeightedBatchPreprocessing (WBPP). It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
+Subframe Quality Review integrates the retained registered light frames from a completed WeightedBatchPreprocessing (WBPP) run into a reviewed master light. It measures the calibrated and registered images from a completed WBPP run, identifies potentially poor subframes within each comparable group, and lets you inspect them against the best scoring subframe or the linear filter master.
 
-The default shortlist contains the worst 10\% of measured subframes in each group. REVIEW is a suggestion to inspect an image. Only your explicit rejection decisions are included in a move operation. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.
+The default shortlist contains the worst 10\% of measured subframes in each group. REVIEW is a suggestion to inspect an image. The WBPP run log can also mark individual frames for rejection. You can change every pending mark. The corresponding original, uncalibrated files are moved to your chosen folder after you confirm the move plan.
 
 The script supports monochrome images and registered, debayered OSC images from one telescope setup. Optional corner measurements help reveal focus or star-shape problems near the edges. Quality plots can show the acquisition sequence and autofocus start times from the Autorun logs in a selected folder.
 }
@@ -23,8 +23,8 @@ With TGScripts installed through the standard PixInsight script installation, ch
    {Review the measurements and quality plots. Select a subframe and open the Blink frame / reference tab, or double-click its row. The image preview loads when needed. Repeating a measurement reuses unchanged results and an unchanged loaded preview. Inspect the images before deciding which originals to reject.}
    {Optionally click Recommend rejection to compare retained Score and SNR for the selected group. Choose a minimum retained count and, if desired, an object ROI. Analyze does not mark frames; inspect its results before applying the recommendation.}
    {Use the Reject column, the Space key on a selected row, or Reject original in the blink tab to mark unwanted originals. REVIEW flags alone do not mark a file for moving.}
-   {Click the green checkmark to review the move plan. Confirm it to move the marked original lights to the rejection destination.}
-   {Rerun WBPP with the remaining originals. If you imported a WBPP setup, use the document-export symbol to create a reviewed instance with rejected lights excluded. Otherwise refresh WBPP's light-frame input list manually. Keep the rejection destination out of the new input selection.}
+   {Optionally click \e{Move rejected originals} (the Blink file-move icon) to review the move plan. Confirm it to move the marked original lights to the rejection destination.}
+   {Optionally repair trails on retained registered lights, inspect them in Blink, then create the reviewed master light with the \e{Integrate retained lights} button (∑).}
 }
 
 Corner measurements automatically adapt parallel processing to the available CPU and memory. No additional settings are required.
@@ -41,25 +41,45 @@ An instance saved after processing can provide exact registered-image and master
 
 Import replaces the current review, measurements and rejection selections after the files have been checked successfully. Canceling the selector, an invalid setup, or an aborted file check leaves the existing review intact. Aperture, seeing, SQM, log folder, rejection destination and scoring settings are retained. Selected guiding and autofocus logs are refreshed against the imported images, including their inferred UTC offsets. Image measurements are still made with the magnifier and Measure corners buttons.
 
-Refresh file list rechecks the lights in the selected WBPP setup. To switch setups, use Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing an input path keeps the current review if the path still points to the same folder, including a change in capitalization on a case-insensitive volume. Entering a different folder or using the folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
+Refresh file list rechecks the lights in the selected WBPP setup. To switch an imported setup, click WBPP report and choose Import setup. If there is no run log, the button still reads Import WBPP. A saved process icon retains the imported list and folder settings. The first measurement or Undo checks that list when the icon is reopened. Editing an input path keeps the current review if the path still points to the same folder, including a change in capitalization on a case-insensitive volume. Entering a different folder or using the folder button switches to manual folder discovery. To switch from manual folders to Import WBPP, clear WBPP output.
 
 WBPP 2.x through 3.2.x setups are supported. Select the WBPP script icon itself; the ProcessContainer saved in WBPP's logs is a history of processing operations and is not a saved WBPP setup. The imported lights must share a common folder below the drive root and belong to one camera/setup. Existing original-file verification and master compatibility requirements also apply to imports.
 }
 
-\section{Create a reviewed WBPP instance}{
-After importing a WBPP setup and making rejection decisions, click the document-export symbol immediately left of the green move checkmark. It creates a separate WBPP process icon with the rejected originals removed from all imported light groups. Already moved originals are excluded too. REVIEW flags alone do not exclude a light.
+\section{WBPP run log}{
+When you load or refresh the file list, Subframe Quality Review reads the newest timestamped run log in the selected WBPP output folder's \c{logs} directory. It uses the matching SmartReport if only that report is present. The acquisition-log folder is for autofocus and guiding.
 
-Check the retained and rejected counts, then save the setup as a new .xpsm file. Calibration frames, disabled lights, processing settings and output folder are preserved. Imported lights that are not present in the current review remain in the setup; their count is reported. If a registration or local-normalization reference points to a rejected image, that reference selection is cleared so WBPP can choose again. The imported icon and source .xpsm are not changed.
+Import WBPP marks verified originals automatically for frame-specific failures such as an invalid PSF flux scale, failed registration, or a weight below WBPP's minimum. If the run has findings, the import then shows each exposure, its decision and WBPP's reason. Close the report to continue. A clean run is summarized in Messages. To reopen the findings, click \e{WBPP report} in Input files and observing conditions. The same report is available after scanning manually selected folders.
 
-After writing the .xpsm file to the location you choose, the script launches the installed PixInsight executable, identified by CoreApplication.filePath. It passes the documented \c{--yield} option with the current PixInsight instance number and the saved file path. This asks the running instance to load the exported process icon. Close Subframe Quality Review to let PixInsight load the new WBPP icon. Double-click that icon to inspect the setup before running WBPP. The new icon uses WBPP from the current PixInsight installation. The script does not start processing automatically. The saved .xpsm can also be loaded manually with Process Icons > Load. Existing process icons are preserved.
-
-Also move rejected originals is optional and initially off. With a Rejected originals folder selected and pending moves available, enable it to combine creation with the existing move workflow. A separate move confirmation lists the files and destination. The setup is saved before moving; canceling the move leaves it available. Failed moves retain the existing journal and undo protections. Creating the instance alone does not move any image files.
-
-The button requires a successful WBPP import with complete settings and at least one rejected or moved original. If its tooltip asks for another import, select the original loaded WBPP icon or .xpsm again. All rejected originals must have verified associations, at least one enabled light must remain, and retained light files must exist. Manually selected folders do not provide the complete WBPP setup needed for this action.
-
-The new instance is a snapshot of the decisions when it was created. If you later keep a rejected frame again or undo a move, create another instance to reflect that change. Choose an appropriate output folder in WBPP before starting the new run.
+The final WBPP exclusion list takes precedence over earlier messages. Incomplete logs, ambiguous matches and group setup problems are reported for inspection. To keep a registered frame, change its rejection mark in Review. For a verified exposure excluded before registration, select its Original only row in the report and click Keep original. You can reverse that choice with Reject original. Refreshing the same log preserves the decision for an unchanged exposure and finding. The move button shows the plan for confirmation.
 }
 
+\section{Repair a trail and create a reviewed master light}{
+Select a retained registered light with at least one detection in the Trails column to enable the brush. Click the brush, then click \e{Remove trails}. With \e{Auto width} enabled, each band gets its own mask width based on the visible streak and the surrounding sky. Select a trail to inspect or adjust its width in pixels. Clear \e{Auto width} to use a fixed width for new bands. If the streak is too faint to measure, the editor uses the manual width and reports this in the window.
+
+The black bands preview the pixels that will be set to zero in every channel. Toggle \e{Show masked pixels} to compare with the registered image.
+
+With \e{Automatic extent}, thin tracks follow the fitted line to both image edges, even across gaps. Bright, broad tracks use the detected segment, which allows aircraft trails to end inside the frame. Inspect the result. To override the extent, choose \e{Edge to edge} or \e{Visible segment} and click \e{Remove trails} again. The selected width controls how many pixels are excluded across each line.
+
+\e{Undo} reverses the last edit, including a whole automatic removal. To drop one band, select it in the trail list, then choose its \e{Remove Trail} entry in the same list. To trace a missed streak, select \e{Draw manually} and drag between its endpoints. Auto width also estimates the width of a hand-drawn band. Cancel discards the session's edits.
+
+Click \e{Save repaired image} to write a separate linear XISF with the excluded pixels set to zero. The saved path appears in Messages, and Blink opens in \e{Trail mask / original} mode. Each confirmed copy and its repair record live under \c{SQR-trail-masks} in the WBPP output folder. The registered source and its measurements are preserved. Reopen the brush to revise a saved repair. Delete all bands and confirm \e{Remove saved repair} to restore use of the original.
+
+Click the \e{Integrate retained lights} button (∑) at the bottom to create a master for the selected filter and exposure group. Check the retained count and destination, then confirm. The full registered frames are integrated, including retained rows hidden by a table filter. Rejected and moved frames are excluded. At least three retained lights are required. Import the WBPP setup for this run to enable master creation. Trail masking is also available when scanning folders manually.
+
+The final ImageIntegration step recorded in the matching WBPP master or the latest run process container in logs/ supplies the combination, normalization, weights, input order and rejection parameters. Keep the local-normalization data and weights file available if used by WBPP. When the original reference is excluded, the first remaining input in WBPP order becomes the reference. At each masked position, the other retained exposures supply the pixel. A position masked in every exposure has no data. Zero-valued registration borders are excluded. WBPP rejection maps are embedded in the output. The script disables drizzle data generation to preserve the existing WBPP files.
+
+Each result is a new timestamped \c{SQR_masterLight} XISF file in the WBPP \c{master} folder. Integration uses the confirmed repaired copies when \e{Apply saved trail masks} is selected. Clear it to integrate the untouched registered lights.
+
+To compare the effect of a trail repair, create one master with \e{Apply saved trail masks} selected and another with it cleared. To compare rejection decisions, change the marked subframes and create another master.
+}
+\section{Blink masters}{
+Select a filter and exposure group, then open \e{Blink masters}. Choose a reviewed master by its creation time and the counts of retained, excluded and trail-masked lights. The newest version is selected initially. Older masters can be listed when their group is identifiable; only counts recorded in the file are shown.
+
+Click Play to alternate between the reviewed and original masters at the selected interval. Click Stop to hold the current image or Step to switch once. The caption identifies the displayed file. Hover over the reviewed master selector for the full version description and path. Both images share the same zoom and pan position. Display STF applies the original master's stretch to both images so brightness differences remain visible.
+
+The version list is read from the WBPP \c{master} folder and remains available when you reopen the run. The two masters must have matching image dimensions and channels. If the original master is missing, restore it and refresh the file list.
+}
 \section{Input files and observing conditions}{
 Drag a window edge or corner to adjust its height and width. The minimum width keeps the Quality evaluation groups on one row, with compact Guiding controls and unwrapped threshold text. Folder paths are sized to this minimum width and stay fixed when the window is widened. The Autofocus times clock symbol remains aligned with the right edge of the path text fields, with Refresh file list and Import WBPP immediately to its left. The compact Filter / group selector and Quality evaluation groups also keep their widths; the review table and previews use the additional space. Some preview controls can move to additional rows as the window narrows. The window scrolls vertically only; the Review table has its own horizontal scrollbar for additional columns. Hover over Filter / group for the full group name. The log summary and Autofocus times stay on the UTC offset row even at minimum width; longer log summaries wrap within their text area. The REVIEW filter stays inside Sort and filter. The action buttons remain visible at the bottom. Workflow guidance and current messages appear together below the tabs.
 
@@ -86,7 +106,7 @@ Zero means that no SQM reading is supplied. In that case, select Sky brightness 
    {{WBPP output} {The completed output directory containing the registered subfolder and, when available, the master subfolder.}}
    {{Original-light root} {A directory containing the original, uncalibrated light files. Subdirectories are scanned recursively. Flats, darks, bias frames, and master files are excluded from original-light matching. The original root must be outside the WBPP output directory.}}
    {{Log folder} {An optional folder containing Autorun_log and PHD2_GuideLog files for the acquisition sessions. Files marked _CHN are ignored.}}
-   {{Rejected originals} {The destination for files you manually reject. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
+   {{Rejected originals} {The destination for originals marked for rejection. Relative subdirectories from the original-light root are preserved. This folder is excluded from original-light scanning.}}
 }
 
 XISF and FITS light images are supported. Groups follow the WBPP registered-image directories and compatible exposure times, dimensions, and channel counts. Different filters or exposure groups are evaluated independently. Scores and ranks describe relative quality within a group; they are not absolute quality ratings across filters or sessions.
@@ -101,9 +121,9 @@ Original matching uses the source filename and acquisition metadata, including o
 
 Changing the WBPP output or original-light root clears the current review. Either measurement button loads the new selection and continues with the requested measurement.
 
-Use the Refresh file list arrow beside Import WBPP to inspect matches before measuring or to pick up files added to the same folders. A successful refresh starts a new review, clearing the previous measurements and rejection marks. If the scan fails or is cancelled, the existing review is retained. An imported setup keeps its selected light list. Repeating measurements or changing scoring settings reuses the current list.
+Use the Refresh file list arrow beside the WBPP button to inspect matches before measuring or to pick up files added to the same folders. A successful refresh clears measurements. It keeps your decisions for unchanged WBPP log findings and resets other pending marks. If the scan fails or is cancelled, the existing review is retained. An imported setup keeps its selected light list. Repeating measurements or changing scoring settings reuses the current list.
 
-The green Move checkmark and blue Undo arrow require a Rejected originals folder. Move also requires a marked original. Undo can prepare the file list and open a move journal before any image measurements have been made.
+The \e{Move rejected originals} button and the Undo arrow require a Rejected originals folder. Move also requires a marked original. Undo can prepare the file list and open a move journal before any image measurements have been made.
 }
 
 \section{Review configuration}{
@@ -193,7 +213,13 @@ If a subframe lacks relative extinction or exposure time, Analyze uses matching 
 
 Analyze leaves existing marks in place. Mark recommended rejects adds the proposed rejection marks. If you selected Include rejected subframes and the recommendation keeps a marked frame, the summary shows how many marks would be cleared. Choose Apply keep/reject decisions to clear those marks and add any new rejections in one step. Close the dialog to leave the marks as they are.
 
-Applying the recommendation completes REVIEW for the group. Making all proposed changes manually also completes REVIEW. If all frames are already marked as recommended and the proposal keeps every frame, choose Complete review to confirm it. If inputs or settings change after Analyze, run the analysis again before applying. You can inspect the decisions in Review or Blink and move rejected originals separately with the green checkmark.
+Applying the recommendation, or making all proposed changes manually, completes the score review for the group. If all frames are already marked as recommended and the proposal keeps every frame, choose Complete review to confirm it. If inputs or settings change after Analyze, run the analysis again before applying. You can inspect the decisions in Review or Blink and move rejected originals separately with \e{Move rejected originals}.
+
+The Trails column shows how many linear trails ImageAnalysis detected in the common usable field of each registered subframe. Zero means none detected. A dash means the count is unavailable. Satellite, aircraft and meteor trails can all contribute to the count. Short, faint or interrupted trails can escape detection.
+
+If fewer than 40 subframes are retained in a group, a retained frame with a detected trail is flagged for REVIEW. The recommendation shows how many of its proposed kept frames need inspection. Double-click a flagged row, inspect the usable field in Blink, then choose \e{Keep despite trail} or use the rejection toggle. Acknowledging a trail clears that trail flag for the current measurement. Other REVIEW reasons still apply. Trail counts are independent of the object ROI, score and ranks.
+
+The 40-frame threshold is a review aid. Pixel rejection also depends on trail brightness, local exposure coverage, how often trails overlap and the WBPP rejection settings. Inspect the integration and its high-rejection map when residual trails matter.
 
 Review completion remains valid for the analyzed settings and measurements. Running Analyze again with unchanged inputs creates a new proposal without undoing a completed review. Changing settings, measurements or other keep/reject decisions reopens review; keeping a proposed rejected frame again also reopens it. Moving an already rejected original does not reopen review. The REVIEW-only filter is empty when review is complete.
 
@@ -279,7 +305,7 @@ Higher Score means better relative quality. Scores range from 0 to 1 and are dis
    {{Component} {Poor-quality direction} {Default weight}}
    {{PSF signal weight} {Lower} {40}}
    {{Star count} {Lower} {15}}
-   {{Field FWHM} {Higher} {40}}
+   {{Field FWHM} {Higher} {100}}
    {{Field eccentricity} {Higher} {40}}
    {{Corner quality} {Higher penalty; included when enabled} {20}}
    {{Selected Sky KPI} {Lower Sky quality or Transparency; higher Sky brightness} {20}}
@@ -287,7 +313,7 @@ Higher Score means better relative quality. Scores range from 0 to 1 and are dis
    {{Below-mean Quality} {Higher fraction of indicators worse than their mean} {20}}
 }
 
-Field FWHM, Field eccentricity and PSF signal weight all default to 40, giving star size and roundness the same individual weight as PSF signal in the manual score. Weights are relative, not percentages. Saved process instances retain their chosen weights; Reset defaults restores the values in this table.
+The manual score gives Field FWHM 2.5 times the weight of either Field eccentricity or PSF signal weight. Smaller stars are favored. Saved process instances retain their chosen weights. Reset defaults restores the relative weights in this table.
 
 For each image-based field indicator, the reference is the median of the group's supported subframe measurements. Its scale is the larger of 1.4826 times the median absolute deviation, 2\% of the absolute median, and a tiny numerical floor. The master is excluded from these reference statistics.
 
@@ -366,7 +392,7 @@ Hover over the selected-image assessment for the full explanation, or over its m
    {{R2} {Rank using the manual weights for field and corner quality, including the corresponding Below-mean Quality contribution. Requires complete regional measurements. Rank 1 is worst.}}
    {{R3} {Rank using equally weighted, strongly correlated indicators other than PSF signal weight. Available when field measurements exist and at least one KPI qualifies, independently of the selected scoring mode. Rank 1 is worst.}}
    {{R4} {Rank of ranks, based on the equal-weight average of the normalized available R1, R2, and R3 ranks. R2 is omitted while corner scoring is off. Rank 1 is worst.}}
-   {{Reject} {Your manual rejection choice. Clicking this column toggles the choice for an eligible original.}}
+   {{Reject} {The current rejection mark, including any recommendation from the WBPP run log. Clicking this column toggles the choice for an eligible original.}}
    {{Review} {REVIEW identifies a shortlist candidate or an image requiring inspection because of missing data. Hover over REVIEW to see the reasons for that image.}}
    {{Image} {The measured registered image or integrated master.}}
    {{Acquisition time (UTC)} {The complete date and time used for chronological sorting and quality plots. Master and unavailable timestamps are shown as a dash.}}
@@ -402,6 +428,8 @@ Hover over a REVIEW marker to see why the image was selected. For the Review wor
 When corner measurements are enabled, the REVIEW tooltip also explains unavailable preview measurements individually. It reports the detected-star count and required minimum, a missing or invalid FWHM or eccentricity result, or the recorded processing error. A preview with no result is described as not measured. When the measurement process supplies no detailed cause, the tooltip says so. These details also remain visible for missing regional indicators excluded by correlation scoring; their presence alone does not add a REVIEW flag.
 
 Click a row to select it. Clicking the same selected row again deselects it. Keyboard navigation selects rows; Space toggles rejection of the selected eligible original. Double-click a row outside the Reject column to open it for blinking. Selection, REVIEW status, and rejection are separate states.
+
+To use a subframe as a cutoff, select it and click the table-and-down-arrow icon beside \e{Recommend rejection} in the bottom toolbar. Its tooltip reads \e{Reject lower scores}. The button becomes available when a scored subframe is selected and at least one lower-scoring subframe can be marked. It marks every subframe in the current filter and exposure group whose active Score is strictly lower, including rows hidden by the REVIEW filter. Comparison uses the full-precision Score, so two values that round to the same three decimals can differ. Exact ties, unscored frames and the master are skipped. You can reverse an individual mark in the Reject column before moving originals or creating the reviewed master light.
 }
 
 \section{Blink frame and reference}{
@@ -409,7 +437,9 @@ Blink mode defaults to Best scoring subframe. This chooses the highest-scoring e
 
 The region selector offers the field, center, and four corners. The preview can display these regions even when optional numerical corner measurements have not been run. Display stretch and brightness alignment affect the preview only. A common reference-derived stretch helps comparison, and brightness alignment reduces global background and contrast differences.
 
-Choose Corner mosaic / master or Corner mosaic / best subframe to blink all four corners together against the corresponding reference mosaic. Top left and Top right form the upper row; Bottom left and Bottom right form the lower row. Each corner retains its original orientation and pixel scale. The corners use the group's common usable field, Edge guard, and Corner size. Field measurements must be available; numerical corner measurements are not required.
+Choose Corner mosaic / master or Corner mosaic / best subframe to blink all four corners together against the same areas of the reference. Each tile keeps its original orientation. Top left and Top right form the upper row, and Bottom left and Bottom right form the lower row.
+
+Set \e{Mosaic corner (\%)} on the Blink frame tab to choose how much of each corner to show. The default is 10\% of both the width and the height of the common usable field after the edge guard. Choose a smaller value for a closer view of corner stars, or a larger value for more surrounding field. The range is 1 to 50\%. Changing the size refits the mosaic. Both frames use the same crop and zoom. This display setting is saved in process instances and is independent of the corner size used for quality measurements. The mosaic requires field measurements only.
 
 Press Play to alternate the complete mosaics, Stop to pause, or Step to switch once. Previous and Next select another image while preserving playback and zoom. Display STF and Align preview brightness apply consistently across all four corners, preserving differences within each image. The single-region selector and Rotate regions are inactive in mosaic mode. Choose a regular blink mode to use them again. The mosaic choice is saved with process instances.
 
@@ -440,7 +470,7 @@ Display STF and Align preview brightness are above the image, immediately to the
 
 Switching tabs preserves zoom, pan and the playback setting. Active blinking or rotation pauses while you use another tab and resumes automatically when you return to Blink frame / reference. If you pressed Stop or Step, playback stays paused. Switching filter groups or selecting another image in Review or through either plot keeps the current zoom and pan. If a group has no preview, the next available preview uses that zoom. The pan position is limited to the new image or region's bounds. The first preview is fitted automatically. Use Zoom to Fit whenever you want to refit it.
 
-The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. The frame caption does not repeat the Keep/Reject decision; it retains the image name and any master or already-moved notice. The toggle stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action through the bottom-row green checkmark and its confirmation.
+The Keep/Reject toggle shows the selected subframe's current decision: a green check means Keep, and a pressed red cross means Reject. Click to switch between them. The frame caption does not repeat the Keep/Reject decision; it retains the image name and any master or already-moved notice. The toggle stays synchronized with the Review table and its Space-key shortcut, and is disabled for masters and already moved originals. Changing the decision preserves the preview and playback. This toggle only marks the original; moving files remains a separate action with the bottom-row \e{Move rejected originals} button after confirmation.
 
 Reference comparisons require matching image dimensions. A cropped or drizzled master cannot serve as a matching reference for the registered lights; use the corresponding uncropped integration, the best scoring subframe, or Image only region rotation to inspect a subframe without a reference.
 }
@@ -669,20 +699,20 @@ Only valid guide measurements are used. Lost-star and rejected samples do not co
 Hover over a guiding column for its category, sample count, coverage, and thresholds. The selected-row details also show the guiding category or the reason it is unavailable. If an exposure is outside the loaded log coverage, add the missing continuation log and reselect the folder. Refreshing logs or changing their offset updates guiding and rankings without repeating image measurements or changing manual rejection choices.
 }
 
-\section{Move rejected originals and rerun WBPP}{
-The green checkmark opens a move-plan review. It includes only manually rejected subframes with verified original files. Review the listed filenames and destination before confirming.
+\section{Move rejected originals}{
+The \e{Move rejected originals} button opens the move plan for all groups. Only verified original lights marked Reject are moved. Review the listed filenames and destination before confirming.
 
 The script checks the complete plan before moving files. It verifies the original associations and file fingerprints, preserves each original's relative directory structure, and refuses to overwrite destination files. The calibrated images, registered images, masters, and calibration originals are not moved.
 
 A move journal named SQR-moves followed by a timestamp and a .json extension is saved in the rejection destination. Keep it with the moved files so that you can undo the move later.
 
-To restore a moved original, select its row and click the Undo arrow beside the green checkmark. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.
+To restore a moved original, select its row and click the Undo arrow beside \e{Move rejected originals}. The Undo moved originals dialog preselects that file and shows its original path. Select additional files if needed, then click Restore selected. Restored files return to their original folders and their rejection marks are cleared in the current review.
 
 After reopening the script, select the WBPP output, original-light root and Rejected originals folder, or reuse a saved WBPP setup and its rejection folder. Click Undo to load the file list if needed. Choose the original SQR-moves journal from the rejection folder and select the files to restore. Select available checks all eligible files. Clear selection lets you choose individual files. Undo runs independently of image measurements.
 
 Files that have changed, are missing, or have an occupied original path cannot be restored. Existing files are never overwritten. Already restored files are identified in the list. If restoration stops partway through, reopen the same move journal to restore the remaining eligible files. Each restoration also saves an SQR-undo journal in the rejection folder.
 
-After moving, rerun WBPP from the remaining originals. With an imported setup, use Create a reviewed WBPP instance to update its light list. Otherwise refresh the inputs manually and exclude the rejection directory. Use an output directory appropriate for the new run so that you can distinguish the new integration from the reviewed run.
+Create the reviewed master from the retained registered lights with the \e{Integrate retained lights} button (∑). Moving rejected originals is optional.
 }
 
 \section{Common questions}{
@@ -716,9 +746,9 @@ Corner measurements write temporary XISF files in uniquely named .sqr-work direc
 
 When Gaia calibration needs to recover a frame's sky coordinates, PixInsight's ImageSolver uses the operating system temporary directory for its star-coordinate lists. The recovered solution is used in memory.
 
-Reviewed WBPP setups are saved at the .xpsm paths you choose. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.
+The reviewed master light is saved in the WBPP master folder. Confirmed repaired XISF files and their JSON records are saved under SQR-trail-masks in the WBPP output folder. During saving, a private copy of the source is opened from the system temporary directory and removed afterwards. A private folder under the system temporary directory holds the process settings, masked inputs and any adjusted weights file. It is cleaned up after integration. Confirmed moves place rejected original images in the selected rejection folder and write SQR-moves JSON journals there. Undo restores originals to their recorded source paths and writes SQR-undo JSON journals in the rejection folder.
 
-Analysis uses local images, acquisition logs, and configured local Gaia data. The script makes no network connections. The external executable launch used to load an exported WBPP icon is described in Create a reviewed WBPP instance.
+Analysis uses local images, acquisition logs, and configured local Gaia data. The script makes no network connections.
 }
 
 \make

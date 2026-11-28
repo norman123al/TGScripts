@@ -37,12 +37,12 @@
 #undef VERSION
 #ifndef SQR_LIBRARY
 #feature-id SubframeQualityReview : TG Scripts > Subframe Quality Review
-#feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and move manually rejected original light files.
+#feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and review WBPP run-log exclusions and move marked original light files.
 #endif
 
-/* Subframe Quality Review 0.66.6 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.78.2 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
- * Source images are opened for reading only. All rejection decisions are manual.
+ * Run-log rejection marks are editable. Moving originals requires confirmation.
  * Uses native ImageAnalysis measurements, including independent regional fits.
  */
 /*
@@ -64,18 +64,20 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.66.6';
+const SQR_VERSION='0.78.2';
+const SQR_MASTER_GROUP_PROPERTY='SubframeQualityReview:RegisteredGroup';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
 const SQR_FILE=#__FILE__;
 const SQR_REGIONS=['Field','Center','Top left','Top right','Bottom left','Bottom right'];
-const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best'];
+const SQR_BLINK_MODES=['master','best','sequence','mosaic-master','mosaic-best','trail'];
+const SQR_TRAIL_REVIEW_LIMIT=40;
 
 /** Defaults shared by the UI and saved process instances. Weights are relative;
  * corner measurement is opt-in, and no rejection flag is an option. */
-function sqrDefaults(){return {wbpp:'',originals:'',destination:'',wbppImport:null,observingSite:null,siteHeadersOnly:false,percent:10,measureCorners:false,reference:'best',
-   patch:22,autoCornerSize:true,margin:2,minStars:10,signalWeight:40,starsWeight:15,fwhmWeight:40,eccentricityWeight:40,cornerWeight:20,backgroundWeight:20,skyScoreKPI:'skyQuality',belowMeanWeight:20,guideWeight:25,correlationOnly:false,rankOfRanks:false,
-   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'available',qualityCollapsed:false,inputsCollapsed:false,reviewInfoCollapsed:false,messagesCollapsed:false,
+function sqrDefaults(){return {wbpp:'',originals:'',destination:'',wbppImport:null,observingSite:null,siteHeadersOnly:false,percent:10,measureCorners:false,reference:'best',trailWidth:9,
+   patch:22,autoCornerSize:true,margin:2,minStars:10,signalWeight:40,starsWeight:15,fwhmWeight:100,eccentricityWeight:40,cornerWeight:20,backgroundWeight:20,skyScoreKPI:'skyQuality',belowMeanWeight:20,guideWeight:25,correlationOnly:false,rankOfRanks:false,
+   maxFits:2000,displaySTF:true,alignBrightness:true,blinkInterval:.75,mosaicCornerPercent:10,regionRotation:'off',reviewOrder:0,reviewReverse:false,histogramOrder:'value',scatterX:'0:fwhm',scatterY:'0:signal',logFolder:'',logTimeZone:'auto',logUTCOffset:0,guidingMode:'available',qualityCollapsed:false,inputsCollapsed:false,reviewInfoCollapsed:false,messagesCollapsed:false,
    fwhmEnabled:true,fwhmAperture:0,fwhmSeeing:0,fwhmGoodPercent:115,fwhmMediumPercent:135,fwhmSeeingGood:1.5,fwhmSeeingMedium:2.5,fwhmAltitude:45,fwhmOptics:0,fwhmWavelengths:{},
    bortleClass:6,sqmReading:0,sqmTime:'',sqmTimeFromLog:false,recommendation:{snrPercent:95,minFrames:20,includeRejected:false,useROI:false,roi:null,geometry:null,plotKPI:'score'}};}
 
@@ -808,12 +810,12 @@ function sqrFingerprint(path){let f=new FileInfo(path);if(!f.exists||!f.isFile)t
 function sqrTick(notify,text){if(notify)notify(text);CoreApplication.processEvents();if(console.abortRequested)throw new Error('Operation aborted.');}
 /** Recursively collect supported image paths, skipping explicit exclusions
  * and symbolic links so a scan does not escape through a linked directory. */
-function sqrWalk(root,exclude=[]){
+function sqrWalk(root,exclude=[],skipRepairCopies=false){
    let files=[];let visit=dir=>{
       if(exclude.some(p=>p&&sqrUnder(dir,p)))return;
       let f=new FileFind;
       if(f.begin(dir+'/*'))try{do{
-         if(f.name==='.'||f.name==='..'||f.isSymbolicLink)continue;
+         if(f.name==='.'||f.name==='..'||f.isSymbolicLink||(skipRepairCopies&&f.isDirectory&&f.name==='.sqr-trail-copies'))continue;
          let p=dir+'/'+f.name;if(f.isDirectory)visit(p);else if(sqrImageFile(p))files.push(p);
       }while(f.next());}finally{f.end();}
    };visit(sqrPath(root));return files.sort();
@@ -965,7 +967,7 @@ function sqrMetadata(path,allowMultiple=false){
       // Camera identification may be stored only as an XISF property. Masters
       // additionally need three scalar scale properties; never load pixels.
       let ids=['Instrument:Camera:Name','Instrument:FrameExposureTime',...SQR_OBSERVATION_PROPERTIES];
-      if(allowMultiple)ids.push('Instrument:Telescope:FocalLength','Instrument:Sensor:XPixelSize','Instrument:Sensor:YPixelSize');
+      if(allowMultiple)ids.push('Instrument:Telescope:FocalLength','Instrument:Sensor:XPixelSize','Instrument:Sensor:YPixelSize',SQR_MASTER_GROUP_PROPERTY);
       else ids.push('Instrument:ExposureTime');
       let properties={};if(f.format.canStoreImageProperties)for(let p of f.imageProperties){
          // Installed PJSR returns [id,type]; accept named descriptors as well.
@@ -1384,6 +1386,10 @@ const SQR_REVIEW_SORTS=[
    [9,'Below-mean Quality'],[10,'Guide minimum'],[11,'Guide maximum'],[12,'Guide average'],[14,'Sky brightness'],[16,'Transparency'],[17,'Sky quality'],[18,'Cloud extinction']
 ];
 function sqrReviewOrderIndex(mode){return Math.max(0,SQR_REVIEW_SORTS.findIndex(item=>item[0]===mode));}
+function sqrLowerScoreTargets(group,selected){
+   if(!selected||selected.isMaster||!Number.isFinite(selected.score)||!group?.rows.includes(selected))return [];
+   return group.rows.filter(r=>!r.isMaster&&!r.reject&&!r.moved&&Number.isFinite(r.score)&&r.score<selected.score);
+}
 function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
    if(!group)return [];
    const direction=reverse?-1:1;
@@ -1394,7 +1400,7 @@ function sqrReviewRows(group,candidatesOnly,mode,reverse=false){
       if(!Number.isFinite(x)||!Number.isFinite(y))return x<y?-1:x>y?1:0;
       return direction*(x-y);
    };
-   return sqrGroupRows(group).filter(r=>!candidatesOnly||(!r.isMaster&&r.candidate)).sort((a,b)=>{
+   return sqrGroupRows(group).filter(r=>!candidatesOnly||(!r.isMaster&&sqrNeedsReview(r))).sort((a,b)=>{
       // Score and rank sorts keep the unscored comparison master last in both directions.
       if([0,6,7,13,15,18].includes(mode)&&!!a.isMaster!==!!b.isMaster)return a.isMaster?1:-1;
       let x,y;if(mode===1){x=a.metrics[0]?.signal??Infinity;y=b.metrics[0]?.signal??Infinity;}
@@ -1556,7 +1562,7 @@ function sqrMetricPlot(group,kpi,measureCorners,selectedRow=null,order='value',a
    // 10% vertical padding. They do not aggregate values into frequency bins.
    // Score and Below-mean Quality describe subframe comparisons only: remove the master
    // before ordering and spacing, so it leaves neither a bar nor an empty slot.
-   data.items=(includeMaster?sqrGroupRows(group):group.rows.filter(row=>!row.isMaster)).map(row=>({row,value:sqrKPIValue(row,kpi),time:sqrAcquisitionTime(row),master:!!row.isMaster,selected:row===selectedRow,review:!row.isMaster&&!!row.candidate,rejected:!row.isMaster&&!!(row.reject||row.moved)}))
+   data.items=(includeMaster?sqrGroupRows(group):group.rows.filter(row=>!row.isMaster)).map(row=>({row,value:sqrKPIValue(row,kpi),time:sqrAcquisitionTime(row),master:!!row.isMaster,selected:row===selectedRow,review:!row.isMaster&&sqrNeedsReview(row),rejected:!row.isMaster&&!!(row.reject||row.moved)}))
       .sort((a,b)=>chronological?Number(b.master)-Number(a.master)||(a.time===null)-(b.time===null)||(a.time??0)-(b.time??0):
          (a.value===null)-(b.value===null)||(a.value??0)-(b.value??0)||a.row.registered.path.localeCompare(b.row.registered.path));
    if(data.showAutofocus)data.autofocus=sqrAutofocusMarkers(data.items,autofocusRuns);
@@ -1678,7 +1684,7 @@ function sqrScatterPlot(group,xKPI,yKPI,selectedRow=null){
    for(let row of rows){
       let x=sqrKPIValue(row,xKPI),y=sqrKPIValue(row,yKPI),paired=x!==null&&y!==null;
       if(paired)++data.count;else ++data.missing;
-      if(paired)data.items.push({row,x,y,selected:row===selectedRow,review:!!row.candidate,rejected:!!(row.reject||row.moved)});
+      if(paired)data.items.push({row,x,y,selected:row===selectedRow,review:sqrNeedsReview(row),rejected:!!(row.reject||row.moved)});
    }
    data.correlation=sqrPearson(data.items);
    if(!data.items.length){data.message='No images have both selected measurements. Measure the images, click Measure corners for regional indicators, or load guiding logs as needed.';return data;}
@@ -1898,14 +1904,13 @@ class SQRChartView extends WebView {
  * This stage does not load image pixels or move any files. */
 /** Read WBPP data only: never execute the imported script or its process icons.
  * Native Script parameters are [id,value] pairs; XPSM uses the same table.
- * Only selected fields affect review/scoring. Preserve the complete parameter
- * table separately so a reviewed WBPP instance can retain its other settings. */
+ * Only the fields needed to locate the run and its images are retained. */
 function sqrWBPPRecord(id,filePath,pairs){
-   let parameters=Object.create(null),wanted=['VERSION','DATA_VERSION','PRODUCT','outputDirectory','groups','frameGroups'],seen=new Set,complete=[];
+   let parameters=Object.create(null),wanted=['VERSION','DATA_VERSION','PRODUCT','outputDirectory','groups','frameGroups'],seen=new Set;
    for(let pair of pairs){let key=String(pair[0]),value=String(pair[1]);
       if(seen.has(key))throw new Error('Duplicate WBPP parameter: '+key);seen.add(key);
-      complete.push([key,value]);if(wanted.includes(key))parameters[key]=value;}
-   return {id:String(id),filePath:String(filePath),parameters,template:{id:String(id),filePath:String(filePath),parameters:complete}};
+      if(wanted.includes(key))parameters[key]=value;}
+   return {id:String(id),filePath:String(filePath),parameters};
 }
 function sqrWBPPIdentity(record){let p=record.parameters;
    return p.PRODUCT==='WBPP'||(!p.PRODUCT&&/(?:^|[/\\])(?:WBPP|WeightedBatchPreprocessing)\.js$/i.test(record.filePath));}
@@ -1936,7 +1941,7 @@ function sqrWBPPFromXML(text){
 function sqrWBPPFile(path){let info=new FileInfo(path);
    if(!info.exists||!info.isFile)throw new Error('Process-icon file not found: '+path);
    if(info.size>64*1024*1024)throw new Error('Save the WBPP icon separately; this file exceeds 64 MiB.');
-   let records=sqrWBPPFromXML(File.readTextFile(path));for(let record of records)record.template.sourceFile=sqrPath(path);return records;}
+   return sqrWBPPFromXML(File.readTextFile(path));}
 function sqrWBPPDecode(text){return ByteArray.fromBase64(text).utf8ToString();}
 function sqrWBPPAbsolute(path){
    if(typeof path!=='string'||!path.trim()||/[\x00-\x1f]/.test(path)||!(/^[A-Za-z]:[/\\]/.test(path)||/^[/\\]/.test(path)))
@@ -1982,92 +1987,623 @@ function sqrWBPPDecodeRecord(record){
    if(lights.size>100000)throw new Error('Too many imported light frames. Import one acquisition setup at a time.');
    let list=Array.from(lights.values()),originals=sqrWBPPCommonRoot(list.map(l=>l.path));
    if(list.some(l=>sqrUnder(l.path,output)))throw new Error('WBPP light inputs include files inside its output directory. Import a setup containing original lights.');
-   return {schema:1,source:record.id,version:p.VERSION,wbpp:output,originals,lights:list,masters:Array.from(masters),disabled:[...disabled].filter(k=>!lights.has(k)).length,
-      template:record.template?JSON.parse(JSON.stringify(record.template)):null};
+   return {schema:1,source:record.id,version:p.VERSION,wbpp:output,originals,lights:list,masters:Array.from(masters),disabled:[...disabled].filter(k=>!lights.has(k)).length};
 }
-/** Build a new setup without changing the imported icon, source file, or review.
- * Remove rejected originals from every light group (including repeated PRE/POST
- * entries). Calibration groups and unrelated parameters remain byte-for-byte
- * equivalent as values. Never execute the imported script. */
-function sqrWBPPInstalledScript(){
-   // Imported PRODUCT/VERSION metadata identifies settings, never executable
-   // code. Resolve only the standard WBPP shipped with this running core.
-   let path=sqrPath(CoreApplication.srcDirPath+'/scripts/BatchPreprocessing/WBPP.js');
-   if(!File.exists(path))throw Error('The installed WBPP script was not found: '+path+'. Repair the PixInsight installation before exporting.');
-   return path;
-}
-function sqrWBPPExportPlan(session){
-   let data=session?.options.wbppImport,template=data?.template;
-   if(!template?.parameters)throw Error('Import WBPP again to retain the complete setup for creating a reviewed instance.');
-   let record=sqrWBPPRecord(template.id,template.filePath,template.parameters),decoded=sqrWBPPDecodeRecord(record);
-   if(!sqrSameRunFolders(decoded,session.options))throw Error('The imported WBPP setup does not match the current input folders. Import it again.');
-   let originals=new Map(decoded.lights.map(l=>[sqrKey(l.path),l.path])),rejected=new Set,reviewed=new Set,excludedPaths=new Set;
-   for(let group of session.groups)for(let row of group.rows){
-      if(row.isMaster)continue;
-      if(row.original&&['Verified','Manually verified'].includes(row.match))reviewed.add(sqrKey(row.original.path));
-      if(!row.reject&&!row.moved)continue;
-      if(!row.original||!['Verified','Manually verified'].includes(row.match))throw Error('Resolve the original-file association for '+sqrFileName(row.registered.path));
-      let key=sqrKey(row.original.path);if(!originals.has(key))throw Error('Rejected original is not an enabled light in the imported WBPP setup: '+row.original.path);
-      rejected.add(key);excludedPaths.add(key);excludedPaths.add(sqrKey(row.registered.path));
+// Exclude a constant-width band with rounded ends on the registered pixel grid.
+function sqrMaskTrail(image,start,end,width,region,ox,oy){
+   let dx=end.x-start.x,dy=end.y-start.y,horizontal=Math.abs(dx)>=Math.abs(dy);
+   if(!Number.isFinite(dx+dy+width)||Math.max(Math.abs(dx),Math.abs(dy))<1||width<1||width>200)throw Error('Choose two different pixels and a mask width of 1–200 pixels.');
+   let major=p=>horizontal?p.x:p.y,minor=p=>horizontal?p.y:p.x;
+   if(major(start)>major(end))[start,end]=[end,start];
+   let u0=major(start),v0=minor(start),du=major(end)-u0,dv=minor(end)-v0,length2=du*du+dv*dv;
+   let radius=width/2,slope=dv/du,extent=radius*Math.sqrt(1+slope*slope);
+   let [x0,y0,x1,y1]=region;
+   for(let u=Math.max(horizontal?x0:y0,Math.ceil(u0-radius));u<=Math.min((horizontal?x1:y1)-1,Math.floor(u0+du+radius));++u){
+      let center=v0+slope*(u-u0),lo=Math.max(horizontal?y0:x0,Math.ceil(center-extent)),hi=Math.min((horizontal?y1:x1)-1,Math.floor(center+extent));
+      const inside=v=>{let t=Math.max(0,Math.min(1,((u-u0)*du+(v-v0)*dv)/length2));
+         return (u-u0-t*du)**2+(v-v0-t*dv)**2<=radius*radius;};
+      while(lo<=hi&&!inside(lo))++lo;
+      while(hi>=lo&&!inside(hi))--hi;
+      if(lo>hi)continue;
+      let x=(horizontal?u:lo)+ox-x0,y=(horizontal?lo:u)+oy-y0,n=hi-lo+1;
+      let rect=new Rect(x,y,x+(horizontal?1:n),y+(horizontal?n:1)),zeros=new Float32Array(n);
+      for(let c=0;c<image.numberOfNominalChannels;++c)image.setSamples(zeros,rect,c);
    }
-   if(!rejected.size)throw Error('Mark at least one original as rejected before creating a reviewed WBPP instance.');
-   if(rejected.size===originals.size)throw Error('No enabled light frames would remain in WBPP. Keep at least one original.');
-   let p=record.parameters,key=p.groups?'groups':'frameGroups',encoded=!/^\s*\[/.test(p[key]),groups=JSON.parse(encoded?sqrWBPPDecode(p[key]):p[key]);
-   let v=/^(\d+)\.(\d+)\.(\d+)/.exec(p.VERSION),lightType=+v[1]===3&&(+v[2]>0||+v[3]>=1)?4:3;
-   const collect=value=>{if(typeof value==='string'&&/^(?:[A-Za-z]:[/\\]|[/\\])/.test(value))excludedPaths.add(sqrKey(value));
-      else if(value&&typeof value==='object')for(let child of Object.values(value))collect(child);};
-   let changedGroups=0;
-   groups=groups.filter(group=>{
-      if(Number(group.imageType)!==lightType||group.isMaster)return true;
-      let before=group.fileItems.length;
-      group.fileItems=group.fileItems.filter(item=>{
-         if(item.isMaster||!rejected.has(sqrKey(item.filePath)))return true;
-         collect(item.processed);collect(item.current);return false;
+}
+// Find straight ridges on a bounded analysis grid. The saved mask always uses
+// registered-image coordinates and the width chosen by the observer.
+function sqrTrailField(source){
+   const bin=Math.max(1,Math.ceil(Math.max(source.width,source.height)/1024)),small=new Image;
+   let w,h,pixels;
+   try{
+      small.assign(source);if(bin>1)small.integerResample(-bin);
+      w=small.width;h=small.height;pixels=new Float32Array(w*h);small.getSamples(pixels,new Rect(0,0,w,h),0);
+      if(small.numberOfNominalChannels>1){
+         let channel=new Float32Array(w*h);
+         for(let c=1;c<small.numberOfNominalChannels;++c){small.getSamples(channel,new Rect(0,0,w,h),c);for(let i=0;i<pixels.length;++i)pixels[i]+=channel[i];}
+         for(let i=0;i<pixels.length;++i)pixels[i]/=small.numberOfNominalChannels;
+      }
+   }finally{small.free();}
+   let points=[],raw=new Float32Array(pixels),tileColumns=Math.ceil(w/32),tileNoise=new Float32Array(tileColumns*Math.ceil(h/32));
+   // Normalize against the local sky and its MAD to allow for gradients.
+   for(let y0=0;y0<h;y0+=32)for(let x0=0;x0<w;x0+=32){
+      let x1=Math.min(w,x0+32),y1=Math.min(h,y0+32),sky=[],differences=[];
+      for(let y=y0;y<y1;y+=2)for(let x=x0;x<x1;x+=2){let v=pixels[y*w+x];if(v>0&&Number.isFinite(v)){
+         sky.push(v);if(x+1<x1&&pixels[y*w+x+1]>0)differences.push(Math.abs(pixels[y*w+x+1]-v));}}
+      let median=sqrMedian(sky),mad=1.4826*sqrMedian(sky.map(v=>Math.abs(v-median)));
+      let noise=Math.max(1e-7,Math.min(mad,differences.length?sqrMedian(differences)/.954:mad));
+      tileNoise[(y0/32)*tileColumns+x0/32]=noise;
+      for(let y=y0;y<y1;++y)for(let x=x0;x<x1;++x){let i=y*w+x,v=pixels[i];
+         pixels[i]=v>0&&Number.isFinite(median+noise+v)?Math.max(-8,Math.min(24,(v-median)/noise)):NaN;
+         if(pixels[i]>2.5)points.push(i);
+      }
+   }
+   return {bin,w,h,pixels,points,raw,tileNoise,tileColumns};
+}
+function sqrTrailCandidates(field){
+   let {w,h,points}=field,step=Math.max(1,points.length/24000),xs=[],ys=[];
+   for(let i=0;i<points.length;i+=step){let p=points[Math.floor(i)];xs.push(p%w-(w-1)/2);ys.push(Math.floor(p/w)-(h-1)/2);}
+   let radius=Math.ceil(Math.hypot(w,h)/2)+3,votes=new Uint32Array(2*radius+1),peaks=[];
+   for(let a=0;a<360;++a){
+      let angle=a*Math.PI/360,c=Math.cos(angle),s=Math.sin(angle);votes.fill(0);
+      for(let i=0;i<xs.length;++i)++votes[radius+Math.round(xs[i]*c+ys[i]*s)];
+      let local=[];
+      for(let k=1;k<votes.length-1;++k){
+         if(votes[k]<6||votes[k]<votes[k-1]||votes[k]<=votes[k+1])continue;
+         local.push({angle,rho:k-radius,votes:votes[k]+.5*(votes[k-1]+votes[k+1])});
+      }
+      local.sort((a,b)=>b.votes-a.votes);peaks.push(...local.slice(0,6));
+   }
+   let candidates=[];
+   for(let p of peaks.sort((a,b)=>b.votes-a.votes)){
+      if(candidates.some(q=>{let d=Math.abs(p.angle-q.angle);return Math.min(d,Math.PI-d)<Math.PI/90&&Math.abs(p.rho-(d>Math.PI/2?-q.rho:q.rho))<4;}))continue;
+      candidates.push(p);if(candidates.length===64)break;
+   }
+   return candidates;
+}
+// Test continuous support against sky on BOTH sides. A bright star or a step
+// in the background cannot by itself supply a long, narrow, two-sided ridge.
+function sqrTrailRun(field,angle,rho,side,minLength){
+   let {w,h,pixels,raw,tileNoise,tileColumns}=field,nx=Math.cos(angle),ny=Math.sin(angle),horizontal=Math.abs(ny)>=Math.abs(nx);
+   let major=horizontal?w:h,minor=horizontal?h:w,slope=horizontal?-nx/ny:-ny/nx;
+   let intercept=(minor-1)/2-slope*(major-1)/2+rho/(horizontal?ny:nx),offset=Math.ceil(side*Math.hypot(1,slope));
+   let best=null,first=-1,last=-1,mass=0,hits=0;
+   for(let u0=0;u0<major;u0+=8){
+      let count=0,sum=0,start=-1,end=-1,n=Math.min(8,major-u0);
+      for(let u=u0;u<u0+n;++u){let v=Math.round(intercept+slope*u);if(v-offset<0||v+offset>=minor)continue;
+         let i=horizontal?v*w+u:u*w+v,d=horizontal?offset*w:offset;
+         if(!(raw[i-d]>0&&raw[i+d]>0))continue;
+         let tile=(horizontal?(v>>5):(u>>5))*tileColumns+(horizontal?(u>>5):(v>>5));
+         let signal=(raw[i]-Math.max(raw[i-d],raw[i+d]))/tileNoise[tile];
+         if(pixels[i]>1.7&&signal>1.4){if(start<0)start=u;end=u;++count;sum+=Math.min(6,signal);}
+      }
+      if(count>=Math.max(1,Math.ceil(n*.5))){
+         if(first<0||start-last>17){first=start;mass=hits=0;}
+         last=end;mass+=sum;hits+=count;
+         let span=last-first+1;
+         if(span*Math.hypot(1,slope)>=minLength&&hits>=.58*span&&(!best||mass>best.score))
+            best={horizontal,slope,intercept,first,last,score:mass};
+      }
+   }
+   return best;
+}
+// Estimate the center at native resolution. Median residual clipping keeps
+// occasional stars crossing the line out of the fitted slope and intercept.
+function sqrRefineTrail(source,run,field,width,side,extent){
+   let {bin}=field;
+   let {horizontal,slope}=run,major=horizontal?source.width:source.height,minor=horizontal?source.height:source.width;
+   let mid=(bin-1)/2,intercept=run.intercept*bin+mid*(1-slope);
+   let first=Math.max(0,run.first*bin),last=Math.min(major-1,(run.last+1)*bin-1),samples=[],profileWidths=[],contrasts=[];
+   let radius=Math.min(96,Math.max(20,5*bin,Math.ceil(width*.8))),channels=source.numberOfNominalChannels;
+   for(let u=first;u<=last;u+=Math.max(1,Math.floor((last-first)/80))){
+      let center=Math.round(intercept+slope*u);if(center-radius<0||center+radius>=minor)continue;
+      let profile=[];for(let v=center-radius;v<=center+radius;++v){let value=0;
+         for(let c=0;c<channels;++c)value+=horizontal?source.sample(u,v,c):source.sample(v,u,c);profile.push(value/channels);}
+      let sky=Math.max((profile[0]+profile[1])/2,(profile[2*radius]+profile[2*radius-1])/2);
+      let peak=Math.max(...profile)-sky,weight=0,moment=0;if(!(peak>0))continue;
+      // Bright aircraft lights can have a narrow core and wide shoulders.
+      let smooth=profile.map((v,i)=>(profile[Math.max(0,i-1)]+2*v+profile[Math.min(i+1,2*radius)])/4);
+      let top=Math.max(...smooth),k=smooth.indexOf(top),lo=k,hi=k,shoulder=sky+.2*(top-sky);
+      while(lo>0&&smooth[lo-1]>=shoulder)--lo;
+      while(hi+1<profile.length&&smooth[hi+1]>=shoulder)++hi;
+      let flank=profile.slice(0,5).concat(profile.slice(-5)),base=sqrMedian(flank);
+      let noise=Math.max(1e-7,1.4826*sqrMedian(flank.map(v=>Math.abs(v-base))));
+      if(noise>0){
+         profileWidths.push((hi-lo+1)/Math.hypot(1,slope));
+         contrasts.push(peak/noise);
+      }
+      for(let j=1;j<2*radius;++j){let excess=Math.max(0,profile[j]-sky-peak*.35);weight+=excess;moment+=excess*(center+j-radius);}
+      if(weight>0)samples.push({u,v:moment/weight});
+   }
+   for(let pass=0;pass<2&&samples.length>=8;++pass){
+      let residual=samples.map(p=>p.v-intercept-slope*p.u),center=sqrMedian(residual);
+      let limit=Math.max(1.2,2.5*1.4826*sqrMedian(residual.map(v=>Math.abs(v-center))));
+      samples=samples.filter((_,i)=>Math.abs(residual[i]-center)<=limit);
+      if(samples.length<8)break;
+      let u0=samples.reduce((s,p)=>s+p.u,0)/samples.length,v0=samples.reduce((s,p)=>s+p.v,0)/samples.length,uv=0,uu=0;
+      for(let p of samples){uv+=(p.u-u0)*(p.v-v0);uu+=(p.u-u0)**2;}
+      if(uu){slope=uv/uu;intercept=v0-slope*u0;}
+   }
+   // A confirmed diagonal may meet the frame edge where one comparison flank
+   // falls outside the image. Follow its fitted center to the last lit sample.
+   const extend=(u0,direction)=>{
+      let limit=horizontal?field.w:field.h,cross=horizontal?field.h:field.w,edge=u0,misses=0;
+      let offset=Math.ceil(side*Math.hypot(1,slope));
+      for(let u=u0+direction;u>=0&&u<limit&&misses<3;u+=direction){
+         let v=Math.round((intercept+slope*(u*bin+mid)-mid)/bin);if(v<0||v>=cross)break;
+         let i=horizontal?v*field.w+u:u*field.w+v,stride=horizontal?field.w:1;
+         let a=v>=offset?field.raw[i-stride*offset]:0,b=v+offset<cross?field.raw[i+stride*offset]:0;
+         let sky=Math.max(a,b),tile=Math.floor(i/field.w/32)*field.tileColumns+Math.floor(i%field.w/32);
+         if(sky>0&&field.pixels[i]>1.7&&field.raw[i]-sky>1.4*field.tileNoise[tile]){edge=u;misses=0;}else ++misses;
+      }
+      return edge;
+   };
+   first=extend(run.first,-1)*bin;last=Math.min(major-1,(extend(run.last,1)+1)*bin-1);
+   // Thin tracks often fade or pass through stars. Intersect the fitted line
+   // with the rectangle, rather than clamping two extrapolated endpoints.
+   // Bright, resolved broad tracks keep the measured run in automatic mode.
+   const broadBright=sqrMedian(profileWidths)>=7&&sqrMedian(contrasts)>=8;
+   if(extent==='full'||(extent==='auto'&&!broadBright)){
+      let lo=0,hi=major-1;
+      if(Math.abs(slope)>1e-10){let a=-intercept/slope,b=(minor-1-intercept)/slope;
+         lo=Math.max(lo,Math.min(a,b));hi=Math.min(hi,Math.max(a,b));}
+      if(hi>lo){first=Math.round(lo);last=Math.round(hi);}
+   }
+   const point=u=>{let v=Math.max(0,Math.min(minor-1,Math.round(intercept+slope*u)));return horizontal?{x:u,y:v}:{x:v,y:u};};
+   return {start:point(first),end:point(last),width,broadBright};
+}
+// Follow bright aircraft lights at native resolution. Several parallel lights
+// can blend into one ridge on the detection grid. Median cross-sections resolve
+// them and prevent an isolated star from starting or extending a track.
+function sqrTraceAircraft(source,seed,bin,extent){
+   let dx=seed.end.x-seed.start.x,dy=seed.end.y-seed.start.y,horizontal=Math.abs(dx)>=Math.abs(dy);
+   let slope=horizontal?dy/dx:dx/dy,major=horizontal?source.width:source.height,minor=horizontal?source.height:source.width;
+   let intercept=horizontal?seed.start.y-slope*seed.start.x:seed.start.x-slope*seed.start.y;
+   let radius=Math.max(24,Math.min(96,6*bin)),step=Math.max(4,Math.min(24,Math.ceil(major/260))),tracks=[],active=[];
+   const point=(u,v)=>horizontal?{x:u,y:v}:{x:v,y:u};
+   for(let u=0;u<major;u+=step){
+      let center=Math.round(intercept+slope*u);if(center+radius<0||center-radius>=minor)continue;
+      let slices=[];
+      for(let t=-3;t<=3;++t){
+         let a=Math.max(0,Math.min(major-1,u+t)),v0=Math.round(intercept+slope*a)-radius;
+         let v1=Math.max(0,v0),v2=Math.min(minor,v0+2*radius+1);if(v2<=v1)continue;
+         let data=new Float32Array(v2-v1),rect=horizontal?new Rect(a,v1,a+1,v2):new Rect(v1,a,v2,a+1);
+         source.getSamples(data,rect,0);
+         if(source.numberOfNominalChannels>1){let ch=new Float32Array(data.length);
+            for(let c=1;c<source.numberOfNominalChannels;++c){source.getSamples(ch,rect,c);for(let j=0;j<data.length;++j)data[j]+=ch[j];}}
+         slices.push({data,offset:v1-v0});
+      }
+      let profile=[];
+      for(let i=0;i<=2*radius;++i){let samples=[];for(let s of slices){let v=s.data[i-s.offset];if(v>0)samples.push(v);}
+         profile.push(samples.length>=4?sqrMedian(samples):NaN);}
+      let valid=profile.filter(Number.isFinite).sort((a,b)=>a-b);if(valid.length<12)continue;
+      let sky=valid[Math.floor(valid.length*.25)],noise=Math.max(1e-7,sky-valid[Math.floor(valid.length*.08)]);
+      let peaks=[];
+      for(let i=2;i<profile.length-2;++i){let v=profile[i];if(!(v>=profile[i-1]&&v>profile[i+1]&&v>sky+8*noise))continue;
+         let half=sky+(v-sky)/2,lo=i,hi=i;
+         while(lo>0&&profile[lo-1]>=half)--lo;
+         while(hi+1<profile.length&&profile[hi+1]>=half)++hi;
+         if(hi-lo+1>=3)peaks.push({i,lo,hi,v});
+      }
+      peaks.sort((a,b)=>b.v-a.v);
+      let resolved=[];
+      for(let p of peaks){
+         if(p.v-sky<(peaks[0].v-sky)*.22||resolved.some(q=>p.lo<=q.hi+1&&p.hi>=q.lo-1))continue;
+         resolved.push(p);
+      }
+      active=active.filter(t=>u-t.last.u<=2*step);
+      for(let p of resolved){
+         let offset=(p.lo+p.hi)/2-radius,best=null,distance=Math.max(3,step*.22);
+         for(let t of active){let d=Math.abs(t.last.offset-offset);if(t.last.u!==u&&d<distance){best=t;distance=d;}}
+         if(!best){best={samples:[]};active.push(best);tracks.push(best);}
+         best.last={u,offset,v:center+offset,sky,peak:p.v};best.samples.push(best.last);
+      }
+   }
+   let result=[];
+   for(let t of tracks){
+      let s=t.samples,first=s[0],last=s[s.length-1],span=last.u-first.u;
+      if(span<Math.max(36,major*.035)||s.length*step<span*.78)continue;
+      // Sparse knots retain a gently curving aircraft path. Median offsets
+      // smooth local centroid jitter without joining separate flashes.
+      let pts=[];for(let i=0;i<s.length;i+=3){let a=s.slice(i,i+3),p=a[Math.floor(a.length/2)];
+         pts.push(point(p.u,Math.round(intercept+slope*p.u+sqrMedian(a.map(q=>q.offset)))));}
+      // Locate each endpoint between the sampled cross-sections. Immediately
+      // outside a short aircraft trail its nearby brighter neighbor may persist.
+      const endpoint=(q,dir)=>{
+         let lastLit=q.u,misses=0;
+         for(let d=1;d<=2*step&&misses<3;++d){
+            let u=q.u+dir*d,v=Math.round(q.v+dir*d*slope);if(u<0||u>=major||v<0||v>=minor)break;
+            let top=0;for(let j=Math.max(0,v-2);j<=Math.min(minor-1,v+2);++j){
+               let value=0;for(let c=0;c<source.numberOfNominalChannels;++c)value+=horizontal?source.sample(u,j,c):source.sample(j,u,c);
+               top=Math.max(top,value);
+            }
+            if(top>q.sky+.25*(q.peak-q.sky)){lastLit=u;misses=0;}else ++misses;
+         }
+         return lastLit;
+      };
+      let u0=endpoint(first,-1),u1=endpoint(last,1);
+      if(extent==='full'){
+         let lo=0,hi=major-1,b=intercept+sqrMedian(s.map(p=>p.offset));
+         if(Math.abs(slope)>1e-10){let a=-b/slope,z=(minor-1-b)/slope;lo=Math.max(lo,Math.min(a,z));hi=Math.min(hi,Math.max(a,z));}
+         u0=Math.round(lo);u1=Math.round(hi);
+      }
+      const endPoint=(u,q)=>point(u,Math.max(0,Math.min(minor-1,Math.round(q.v+slope*(u-q.u)))));
+      let start=endPoint(u0,first),end=endPoint(u1,last);
+      let via=pts.filter(p=>(horizontal?p.x:p.y)>u0&&(horizontal?p.x:p.y)<u1&&p.x>=0&&p.x<source.width&&p.y>=0&&p.y<source.height);
+      result.push({start,end,width:seed.width,via});
+   }
+   return result;
+}
+function sqrDetectTrailBands(source,width,extent='auto'){
+   if(Math.min(source.width,source.height)<3*Math.ceil(Math.max(source.width,source.height)/1024))return [];
+   const field=sqrTrailField(source),minLength=Math.max(32,Math.min(field.w,field.h)*.22);
+   if(field.points.length<minLength*.5)return [];
+   let runs=[],side=Math.max(5,Math.min(24,Math.ceil(.65*width/field.bin)+2));
+   for(let candidate of sqrTrailCandidates(field)){
+      let best=null;
+      for(let da of [-.25,0,.25])for(let dr of [-1.5,0,1.5]){
+         let run=sqrTrailRun(field,candidate.angle+da*Math.PI/180,candidate.rho+dr,side,minLength);
+         if(run&&(!best||run.score>best.score))best=run;
+      }
+      if(best)runs.push(best);
+   }
+   let bands=[],seeds=[];
+   for(let run of runs.sort((a,b)=>b.score-a.score)){
+      let band=sqrRefineTrail(source,run,field,width,side,extent);
+      if(seeds.some(b=>{
+         let dx=b.end.x-b.start.x,dy=b.end.y-b.start.y,length=Math.hypot(dx,dy);
+         let near=p=>Math.abs((p.x-b.start.x)*dy-(p.y-b.start.y)*dx)/length<=Math.max(3,(b.broadBright?4:2)*field.bin);
+         let along=p=>((p.x-b.start.x)*dx+(p.y-b.start.y)*dy)/length;
+         let a=along(band.start),z=along(band.end);
+         return near(band.start)&&near(band.end)&&Math.max(a,z)>=0&&Math.min(a,z)<=length;
+      }))continue;
+      seeds.push(band);
+      let traced=band.broadBright?sqrTraceAircraft(source,band,field.bin,extent):[];
+      if(traced.length)bands.push(...traced);
+      else bands.push({start:band.start,end:band.end,width});
+      if(bands.length>=16)break;
+   }
+   return bands.slice(0,16);
+}
+function sqrRetainedRegistered(row){return !!row?.registered?.path&&!row.isMaster&&!row.moved&&!row.reject;}
+// Measure one native row or column across the traced center. Projection onto
+// the local normal makes the result independent of the trail's angle.
+function sqrTrailProfileWidth(source,x,y,dx,dy){
+   const horizontal=Math.abs(dx)>=Math.abs(dy),normal=Math.max(Math.abs(dx),Math.abs(dy))/Math.hypot(dx,dy);
+   const u=Math.round(horizontal?x:y),v=horizontal?y:x;
+   const cross=horizontal?source.height:source.width,radius=Math.ceil(120/normal);
+   const lo=Math.max(0,Math.floor(v)-radius),hi=Math.min(cross-1,Math.ceil(v)+radius),center=v-lo;
+   if(u<0||u>=(horizontal?source.width:source.height)||v-lo<12||hi-v<12)return null;
+   let profile=new Float32Array(hi-lo+1),rect=horizontal?new Rect(u,lo,u+1,hi+1):new Rect(lo,u,hi+1,u+1);
+   source.getSamples(profile,rect,0);
+   if(source.numberOfNominalChannels>1){let ch=new Float32Array(profile.length);
+      for(let c=1;c<source.numberOfNominalChannels;++c){source.getSamples(ch,rect,c);for(let j=0;j<ch.length;++j)profile[j]+=ch[j];}}
+   const flank=Math.min(16,Math.floor(Math.min(v-lo,hi-v)/3)),n=profile.length;
+   const positive=a=>Array.from(a).filter(t=>Number.isFinite(t)&&t>0);
+   let left=positive(profile.subarray(0,flank)),right=positive(profile.subarray(n-flank));
+   if(Math.min(left.length,right.length)<Math.ceil(.7*flank))return null;
+   let a=sqrMedian(left),b=sqrMedian(right),gradient=(b-a)/(n-flank);
+   let noise=Math.max(1e-7,1.4826*sqrMedian(left.map(t=>Math.abs(t-a)).concat(right.map(t=>Math.abs(t-b)))));
+   let smooth=new Float64Array(n);
+   for(let i=1;i<n-1;++i)smooth[i]=(profile[i-1]+2*profile[i]+profile[i+1])/4-a-gradient*(i-(flank-1)/2);
+   let k=Math.round(center),reach=Math.ceil(2/normal),peak=k;
+   for(let i=k-reach;i<=k+reach;++i)if(smooth[i]>smooth[peak])peak=i;
+   if(!(smooth[peak]>4*noise&&smooth[k]>Math.max(2*noise,.15*smooth[peak])))return null;
+   // Stop in sky noise, or at the valley before a separate parallel ridge.
+   const limit=Math.max(2.5*noise,.025*smooth[peak]);
+   function edge(direction){
+      let valley=peak;
+      for(let i=peak+direction;i>1&&i<n-2;i+=direction){
+         if(smooth[i]<limit&&smooth[i+direction]<limit){
+            let inner=i-direction;
+            return smooth[inner]>limit?inner+direction*(smooth[inner]-limit)/(smooth[inner]-smooth[i]):i;
+         }
+         if(smooth[i]<smooth[valley])valley=i;
+         if(smooth[valley]<.4*smooth[peak]&&smooth[i]-smooth[valley]>Math.max(4*noise,.22*smooth[peak]))return valley;
+      }
+      return null;
+   }
+   let l=edge(-1),r=edge(1);
+   return l===null||r===null?null:2*Math.max(center-l,r-center)*normal;
+}
+function sqrEstimateTrailWidth(source,band){
+   let path=[band.start,...(band.via||[]),band.end],lengths=[],total=0;
+   for(let i=1;i<path.length;++i){total+=Math.hypot(path[i].x-path[i-1].x,path[i].y-path[i-1].y);lengths.push(total);}
+   let count=Math.min(64,Math.floor(total/3)),widths=[],j=0;
+   for(let i=0;i<count;++i){
+      let distance=total*(i+.5)/count;
+      while(j<lengths.length-1&&distance>=lengths[j])++j;
+      let p=path[j],dx=path[j+1].x-p.x,dy=path[j+1].y-p.y,base=j?lengths[j-1]:0,t=(distance-base)/(lengths[j]-base);
+      let width=sqrTrailProfileWidth(source,p.x+t*dx,p.y+t*dy,dx,dy);
+      if(width!==null)widths.push(width);
+   }
+   if(widths.length<Math.max(6,Math.ceil(count/4)))return null;
+   widths.sort((a,b)=>a-b);
+   // Cover typical wider sections and allow half a pixel per edge for rounding.
+   return Math.min(200,Math.max(1,Math.ceil(widths[Math.floor(.8*(widths.length-1))]+1)));
+}
+function sqrBlinkBands(row){
+   if(row?.trailBands?.length&&sqrFingerprint(row.registered.path)!==row.registered.fingerprint)
+      throw Error('The registered light changed. Refresh the file list before displaying its trail mask.');
+   return row?.trailBands;
+}
+function sqrTrailPlanPath(wbpp,row){
+   let root=sqrPath(wbpp)+'/registered',source=sqrPath(row.registered.path);
+   if(!sqrUnder(source,root))throw Error('The light is outside this run’s registered folder: '+source);
+   return sqrPath(wbpp)+'/SQR-trail-masks/'+source.slice(root.length+1)+'.json';
+}
+function sqrValidateTrailBands(bands,m){
+   const point=p=>p&&Number.isInteger(p.x)&&Number.isInteger(p.y)&&p.x>=0&&p.x<m.width&&p.y>=0&&p.y<m.height;
+   if(!Array.isArray(bands)||bands.length>1024||bands.some(b=>!b||!point(b.start)||!point(b.end)||
+      (b.start.x===b.end.x&&b.start.y===b.end.y)||!Number.isInteger(b.width)||b.width<1||b.width>200||
+      (b.via!==undefined&&(!Array.isArray(b.via)||b.via.length>4096||!b.via.every(point)))))
+      throw Error('Invalid trail mask coordinates for '+m.path);
+   return bands;
+}
+function sqrReadTrailState(wbpp,row){
+   let path=sqrTrailPlanPath(wbpp,row),empty={trailBands:[],trailCopy:'',trailCopyFingerprint:''};
+   if(!File.exists(path))return empty;
+   if(new FileInfo(path).size>1024*1024)throw Error('Unexpected trail mask file size: '+path);
+   let saved=JSON.parse(File.readTextFile(path));
+   if(saved?.version!==1&&saved?.version!==2)throw Error('Unsupported trail mask file: '+path);
+   if(saved.sourceFingerprint!==row.registered.fingerprint)return empty;
+   let trailBands=sqrValidateTrailBands(saved.bands,row.registered);
+   if(saved.version===1||!trailBands.length)return {...empty,trailBands};
+   if(!/^SQR-repair-[A-Za-z0-9_-]+$/.test(saved.folder)||!saved.copyFingerprint)
+      throw Error('Invalid repaired image record: '+path);
+   return {trailBands,trailCopy:sqrDir(path)+'/'+saved.folder+'/'+sqrBase(row.registered.path)+'.xisf',trailCopyFingerprint:saved.copyFingerprint};
+}
+function sqrLoadTrailBands(wbpp,row){return sqrReadTrailState(wbpp,row).trailBands;}
+function sqrSaveTrailBands(wbpp,row,bands){
+   let path=sqrTrailPlanPath(wbpp,row),dir=sqrDir(path),m=row.registered;
+   function checkCurrent(){
+      let previous=sqrReadTrailState(wbpp,row);
+      if(sqrFingerprint(m.path)!==m.fingerprint||previous.trailCopy!==(row.trailCopy||'')||
+         JSON.stringify(previous.trailBands)!==JSON.stringify(row.trailBands||[]))
+         throw Error('The registered light or saved repair changed. Refresh the file list before editing.');
+      return previous;
+   }
+   let previous=checkCurrent();
+   sqrValidateTrailBands(bands,m);TGFileProtection.assertOutsideInstallation(path,'Trail repair');
+   if(!File.directoryExists(dir))File.createDirectory(dir,true);
+   let folder='',copy='',id='',fingerprint='',created=false;
+   // The previous copy remains usable until both the new XISF and its small
+   // manifest have been written. Keep the WBPP basename for local normalization.
+   try{
+      if(bands.length){
+         folder=File.uniqueFileName(dir,20,'SQR-repair-','');TGFileProtection.assertOutsideInstallation(folder,'Trail repair folder');File.createDirectory(folder);created=true;
+         id=sqrFileName(folder);copy=folder+'/'+sqrBase(m.path)+'.xisf';
+         sqrWriteMaskedLight(row,bands,copy);fingerprint=sqrFingerprint(copy);
+      }
+      checkCurrent();
+      TGFileProtection.writeTextFile(path,JSON.stringify({version:2,sourceFingerprint:m.fingerprint,bands,folder:id,copyFingerprint:fingerprint}),'Registered trail repair');
+   }catch(e){
+      if(copy&&File.exists(copy))TGFileProtection.removeFile(copy,'Incomplete repaired image');
+      if(created&&File.directoryExists(folder))TGFileProtection.removeDirectory(folder,'Incomplete repair folder');
+      throw e;
+   }
+   Object.assign(row,{trailBands:bands,trailCopy:copy,trailCopyFingerprint:fingerprint});delete row.trailError;
+   if(previous.trailCopy&&File.exists(previous.trailCopy))try{
+      if(sqrFingerprint(previous.trailCopy)===previous.trailCopyFingerprint){
+         TGFileProtection.removeFile(previous.trailCopy,'Superseded repaired image');
+         TGFileProtection.removeDirectory(sqrDir(previous.trailCopy),'Empty repair folder');
+      }
+   }catch(e){console.warningln('Could not clean up the previous repair: '+e);}
+}
+function sqrApplyTrailBands(image,bands,rect=null){
+   if(!bands?.length)return;
+   let tiles=Array.isArray(rect?.[0])?rect:[rect||[0,0,image.width,image.height]];
+   for(let i=0;i<tiles.length;++i){
+      let t=tiles[i],ox=(i%2)*(t[2]-t[0]),oy=Math.floor(i/2)*(t[3]-t[1]);
+      for(let b of bands){let from=b.start;for(let to of [...(b.via||[]),b.end]){
+         if(from.x!==to.x||from.y!==to.y)sqrMaskTrail(image,from,to,b.width,t,ox,oy);from=to;}}
+   }
+}
+// Only repaired inputs need temporary files. Open a private copy to avoid
+// changing an existing image window. Saving as XISF preserves image metadata.
+function sqrWriteMaskedLight(row,bands,output){
+   let m=row.registered,copy=File.uniqueFileName(File.systemTempDirectory,20,'SQR-trail-source-',File.extractExtension(m.path)),windows=[];
+   try{
+      TGFileProtection.assertOutsideInstallation(copy,'Temporary registered light');File.copyFile(copy,m.path);
+      windows=ImageWindow.open(copy);if(windows.length!==1)throw Error('Expected one registered light: '+m.path);
+      let win=windows[0],v=win.mainView;v.beginProcess();
+      try{sqrApplyTrailBands(v.image,bands);}finally{v.endProcess();}
+      TGFileProtection.assertOutsideInstallation(output,'Repaired registered light');
+      if(!win.saveAs(output,false,false,false,false))throw Error('Cannot write repaired integration input: '+m.path);
+      return output;
+   }finally{for(let win of windows)win.forceClose();if(File.exists(copy))TGFileProtection.removeFile(copy,'Temporary registered light');}
+}
+function sqrPreparedRegisteredLight(row,scratch,index,files){
+   if(row.trailCopy){
+      if(sqrFingerprint(row.trailCopy)!==row.trailCopyFingerprint)throw Error('Saved repaired image changed: '+row.trailCopy);
+      return row.trailCopy;
+   }
+   // Coordinate-only repairs from older runs can still be integrated.
+   let dir=scratch+'/input-'+index,output=dir+'/'+sqrBase(row.registered.path)+'.xisf';
+   TGFileProtection.assertOutsideInstallation(dir,'Temporary masked light folder');File.createDirectory(dir);files.push(dir,output);
+   return sqrWriteMaskedLight(row,row.trailBands,output);
+}
+function sqrImportedRun(o){return o?.wbppImport?.schema===1&&sqrSameRunFolders(o.wbppImport,o);}
+// Inspect XML as data. Only the matching ImageIntegration element enters
+// native deserialization, never the surrounding container or script processes.
+function sqrIntegrationElement(xml,group,container=false){
+   if(!xml||xml.length>64*1024*1024||/<!DOCTYPE|<!ENTITY/i.test(xml))return null;
+   let doc=new XMLDocument;doc.parse(xml);
+   let candidates=[],paths=new Set(group.rows.map(r=>sqrKey(r.registered.path)));
+   function visit(e){
+      if(e.name==='instance'&&e.attributeValue('class')==='ImageIntegration'){
+         let table=e.childElementsByName('table').find(t=>t.attributeValue('id')==='images');if(!table)return;
+         let count=0;
+         for(let tr of table.childElementsByName('tr')){
+            let cells=tr.childElementsByName('td'),cell=k=>cells.find(c=>c.attributeValue('id')===k)?.text||'';
+            if(container&&sqrKey(cell('localNormalizationDataPath')).includes('/ln_reference_frame_data/'))return;
+            if(paths.has(sqrKey(cell('path'))))++count;
+         }
+         if(count)candidates.push({element:e,count});return;
+      }
+      // Other tables (including large frame lists) cannot contain processes.
+      if(e.name==='table'||e.name==='parameter')return;
+      for(let child of e.childElements())visit(child);
+   }
+   visit(doc.rootElement);candidates.sort((a,b)=>b.count-a.count);
+   if(!candidates.length)return null;
+   if(candidates.length>1&&candidates[0].count===candidates[1].count)throw Error('Several WBPP integrations match this group equally. A matching filter master with its processing history is needed.');
+   return candidates[0].element;
+}
+function sqrWBPPIntegrationElement(o,group){
+   if(!sqrImportedRun(o))throw Error('Import the WBPP setup for this run before creating a reviewed master.');
+   if(group.master&&File.exists(group.master)){
+      let reader=new FileFormatInstance(new FileFormat(File.extractExtension(group.master),true,false));
+      try{if(reader.open(group.master,'verbosity 0')&&reader.format.canStoreImageProperties&&reader.imageProperties.some(p=>(p.id||p[0])==='PixInsight:ProcessingHistory')){
+         let e=sqrIntegrationElement(reader.readImageProperty('PixInsight:ProcessingHistory'),group);
+         if(e)return {element:e,source:group.master};
+      }}finally{reader.close();}
+   }
+   let logs=sqrPath(o.wbpp)+'/logs',find=new FileFind,names=[];
+   if(File.directoryExists(logs)&&find.begin(logs+'/*'))try{do{
+      if(find.isFile&&!find.isSymbolicLink&&/^\d{14}_ProcessContainer\.xpsm$/i.test(find.name))names.push(find.name);
+   }while(find.next());}finally{find.end();}
+   // Use the latest run in this folder. An older container could use obsolete settings.
+   if(names.length){let path=logs+'/'+names.sort().pop(),log=sqrWBPPLogReport(sqrPath(o.wbpp));
+      if((!log?.path||sqrFileName(log.path).slice(0,14)===sqrFileName(path).slice(0,14))&&new FileInfo(path).size<=64*1024*1024){
+         let e=sqrIntegrationElement(File.readTextFile(path),group,true);if(e)return {element:e,source:path};
+      }}
+   throw Error('Cannot find the final ImageIntegration settings for this group. Restore the matching WBPP master with its processing history or the run’s ProcessContainer.xpsm in logs/.');
+}
+// Let PixInsight decode its own process parameters and enumerations. A tiny
+// temporary XISF carries the single history entry, avoiding a full master read.
+function sqrRestoreIntegration(element,path){
+   let history=new XMLDocument,root=new XMLElement('ProcessingHistory');root.setAttribute('version','1.0');root.addChildNode(element);history.rootElement=root;
+   let f=new FileFormatInstance(new FileFormat('.xisf',false,true)),im=new Image,windows=[];
+   try{TGFileProtection.assertOutsideInstallation(path,'Temporary integration settings');im.allocate(1,1,1);
+      if(!f.create(path,'verbosity 0'))throw Error('Could not stage WBPP settings.');
+      f.writeImageProperty('PixInsight:ProcessingHistory',history.serialize());if(!f.writeImage(im)||!f.close())throw Error('Could not write WBPP settings.');
+      windows=ImageWindow.open(path);let p=windows[0]?.mainView.initialProcessing[0];
+      if(!p||p.processId()!=='ImageIntegration')throw Error('PixInsight could not restore the saved ImageIntegration settings.');
+      return p;
+   }finally{if(f.isOpen)f.close();im.free();for(let w of windows)w.forceClose();}
+}
+function sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks=true){
+   let retained=new Map(rows.map(r=>[sqrKey(r.registered.path),r])),inputs=[],csv=new Map;
+   let local=p.normalization===ImageIntegration.LocalNormalization||p.rejectionNormalization===ImageIntegration.LocalRejectionNormalization;
+   function add(row,ln){
+      let original=row.registered.path;
+      if(local){ln=ln||File.changeExtension(original,'.xnml');if(!File.exists(ln))throw Error('Missing WBPP local normalization data for '+original+': '+ln);}
+      let path=useMasks&&row.trailBands?.length?sqrPreparedRegisteredLight(row,scratch,inputs.length,files):original;
+      inputs.push([true,path,'',ln||'']);csv.set(sqrKey(original),path);
+   }
+   // ImageIntegration uses its first input as the normalization reference.
+   for(let old of p.images){let k=sqrKey(old[1]),row=retained.get(k);if(row&&old[0]){add(row,old[3]);retained.delete(k);}}
+   for(let row of retained.values())add(row,'');
+   if(p.weightMode===ImageIntegration.CSVWeightsFile){
+      if(!File.exists(p.csvWeightsFilePath))throw Error('Missing WBPP weights file: '+p.csvWeightsFilePath);
+      let weights=[],found=new Set;
+      for(let line of File.readTextFile(p.csvWeightsFilePath).split(/\r?\n/)){
+         // WBPP writes an absolute path followed by one or three numeric weights.
+         let m=/^(.+?),\s*([+\-\d.eE]+(?:\s*,\s*[+\-\d.eE]+){0,2})\s*$/.exec(line);if(!m)continue;
+         let k=sqrKey(m[1].trim().replace(/^"|"$/g,''));if(!csv.has(k))continue;
+         if(found.has(k))throw Error('Duplicate WBPP CSV weight: '+m[1]);found.add(k);weights.push(csv.get(k)+', '+m[2]);
+      }
+      if(found.size!==csv.size)throw Error('The WBPP weights file has no weight for one or more retained inputs.');
+      let path=scratch+'/weights.csv';files.push(path);TGFileProtection.writeTextFile(path,weights.join('\n'),'Temporary integration weights');p.csvWeightsFilePath=path;
+   }
+   p.images=inputs;
+}
+// A run-relative identity keeps versions together even if the WBPP tree moves.
+function sqrMasterGroupKey(wbpp,g){
+   let dir=sqrPath(g.directory||sqrDir(g.rows[0].registered.path)),base=sqrPath(wbpp)+'/';
+   let directory=sqrUnder(dir,wbpp)?dir.slice(base.length):dir;
+   return JSON.stringify([directory,g.exposure,g.width,g.height,g.channels,g.filter||'']);
+}
+function sqrReviewedMasterVersions(wbpp,group,groups){
+   let versions=[],dir=sqrPath(wbpp)+'/master',find=new FileFind,key=sqrMasterGroupKey(wbpp,group),unreadable=0;
+   if(File.directoryExists(dir)&&find.begin(dir+'/SQR_masterLight_*.xisf'))try{do{
+      if(!find.isFile||find.isSymbolicLink)continue;
+      let path=dir+'/'+find.name,stamp=/(\d{4}-\d\d-\d\d)T(\d\d)-(\d\d)-(\d\d)-(\d{3})Z\.xisf$/i.exec(find.name);
+      try{
+         let m=sqrMetadata(path,true),saved=m.properties[SQR_MASTER_GROUP_PROPERTY];
+         if(saved!==undefined){if(saved!==key)continue;}
+         else{
+            // Older files identify their group through the filter and geometry.
+            // Use the saved integration inputs to disambiguate overlapping groups.
+            let possible=groups.filter(g=>g.filter===m.filter&&g.width===m.width&&g.height===m.height&&g.channels===m.channels);
+            if(possible.length>1&&possible.includes(group)){
+               let reader=new FileFormatInstance(new FileFormat('.xisf',true,false));
+               try{reader.open(path,'verbosity 0');let history=reader.readImageProperty('PixInsight:ProcessingHistory');
+                  possible=history?possible.filter(g=>sqrIntegrationElement(history,g)):[];}finally{reader.close();}
+            }
+            if(possible.length!==1||possible[0]!==group)continue;
+         }
+         let when=stamp?stamp[1]+' '+stamp[2]+':'+stamp[3]+':'+stamp[4]+'.'+stamp[5]+' UTC':find.name;
+         let counts=[['NCOMBINE',' kept'],['SQRREJ',' excluded'],['SQRTRAIL',' masked']]
+            .filter(([id])=>m.keywords[id]!==undefined).map(([id,label])=>m.keywords[id]+label);
+         versions.push({path,width:m.width,height:m.height,fingerprint:m.fingerprint,when,label:counts.concat(when).join(' · ')});
+      }catch(e){++unreadable;console.warningln('Cannot list reviewed master '+path+': '+e);}
+   }while(find.next());}finally{find.end();}
+   versions.sort((a,b)=>b.when.localeCompare(a.when));return {versions,unreadable};
+}
+function sqrWriteReviewedMaster(path,windows,ids,groupKey){
+   let f=new FileFormatInstance(new FileFormat('.xisf',false,true));
+   try{if(!f.create(path,'verbosity 0',windows.length))throw Error('Cannot create reviewed master light.');
+      windows.forEach((w,i)=>{let d=new ImageDescription;d.bitsPerSample=w.bitsPerSample;d.ieeefpSampleFormat=w.isFloatSample;d.imageType=i===0?ImageType.MasterLight:w.imageType;
+         if(!f.setOptions(d))throw Error('Unsupported output image options.');
+         f.keywords=w.keywords;w.mainView.exportProperties(f);f.setImageId(ids[i]);
+         if(i===0&&groupKey)f.writeImageProperty(SQR_MASTER_GROUP_PROPERTY,groupKey);
+         let pc=w.mainView.initialProcessing;if(pc.length){let entries='';for(let j=0;j<pc.length;++j)entries+=pc[j].toSource('XPSM 1.0');
+            f.writeImageProperty('PixInsight:ProcessingHistory','<ProcessingHistory version="1.0">'+entries+'</ProcessingHistory>');}
+         if(!f.writeImage(w.mainView.image))throw Error('Cannot write '+ids[i]+' to the reviewed master.');
       });
-      if(group.fileItems.length!==before){++changedGroups;group.masterFiles={};}
-      return group.fileItems.length>0;
-   });
-   let resetReferences=0;
-   for(let group of groups)if(Number(group.imageType)===lightType&&!group.isMaster)
-      for(let name of ['__reference_frame__','__ln_reference_frame__'])if(typeof group[name]==='string'&&excludedPaths.has(sqrKey(group[name]))){group[name]='';++resetReferences;}
-   let groupText=JSON.stringify(groups),parameters=template.parameters.map(pair=>{
-      let value=String(pair[1]);if(pair[0]===key)value=encoded?ByteArray.stringToUTF8(groupText).toBase64():groupText;
-      else if(pair[0]==='referenceImage'&&value&&excludedPaths.has(sqrKey(value))){value='';++resetReferences;}
-      return [String(pair[0]),value];
-   });
-   return {filePath:sqrWBPPInstalledScript(),sourceFile:template.sourceFile||'',parameters,source:data.source,removed:rejected.size,
-      retained:[...originals].filter(([key])=>!rejected.has(key)).map(([,path])=>path),unreviewed:[...originals.keys()].filter(key=>!reviewed.has(key)).length,
-      changedGroups,resetReferences};
+      if(!f.close())throw Error('Cannot finish writing the reviewed master.');
+   }finally{if(f.isOpen)f.close();}
 }
-function sqrWBPPExportId(existing=ProcessInstance.icons()){
-   let base='WBPP_Reviewed_'+sqrStamp().replace(/[^A-Za-z0-9_]/g,'_'),id=base,n=1;
-   while(existing.includes(id))id=base+'_'+n++;return id;
-}
-/** XPSM is data, not executable source. XML escaping preserves paths and all
- * parameter strings, including Unicode and embedded quotes. */
-function sqrWBPPExportXML(plan,id){
-   if(!/^[A-Za-z_][A-Za-z0-9_]*$/.test(id))throw Error('Invalid process-icon identifier.');
-   let info='SubframeQualityReview '+SQR_VERSION+': '+plan.retained.length+' retained lights; '+plan.removed+' rejected originals removed. Source: '+plan.source;
-   return '<?xml version="1.0" encoding="UTF-8"?>\n<xpsm version="1.0" xmlns="http://www.pixinsight.com/xpsm">\n'+
-      '<instance class="Script" version="256" id="'+id+'_instance">\n<parameter id="filePath">'+sqrHTML(sqrWBPPInstalledScript())+'</parameter>\n'+
-      '<table id="parameters" rows="'+plan.parameters.length+'">\n'+plan.parameters.map(([key,value])=>'<tr><td id="id">'+sqrHTML(key)+'</td><td id="value">'+sqrHTML(value)+'</td></tr>').join('\n')+
-      '\n</table>\n<parameter id="information">'+sqrHTML(info)+'</parameter>\n</instance>\n'+
-      '<icon id="'+id+'" instance="'+id+'_instance" xpos="100" ypos="100"/>\n</xpsm>\n';
-}
-function sqrWBPPWriteReviewed(path,plan,id){
-   TGFileProtection.assertOutsideInstallation(path,"Reviewed WBPP setup");
-   if(plan.sourceFile&&sqrKey(path)===sqrKey(plan.sourceFile))throw Error('Choose a new file name to preserve the imported WBPP setup.');
-   let missing=plan.retained.filter(p=>!File.exists(p));
-   if(missing.length)throw Error('Retained WBPP lights are missing: '+missing.slice(0,5).join('\n')+(missing.length>5?'\n…':''));
-   let xml=sqrWBPPExportXML(plan,id),parsed=sqrWBPPFromXML(xml);
-   let checked=sqrWBPPDecodeRecord(parsed[0]);
-   if(parsed.length!==1||checked.lights.length!==plan.retained.length)throw Error('The reviewed WBPP instance failed validation.');
-   TGFileProtection.writeTextFile(path,xml,"Reviewed WBPP setup");
-}
-function sqrWBPPQueueIcon(path){
-   // The core defers opening icon files while a modal script is active. Target
-   // this exact application slot; no WBPP execution or replacement of icons.
-   return ExternalProcess.startDetached(CoreApplication.filePath,['--yield='+CoreApplication.instance,path]);
+function sqrIntegrateReviewedGroup(options,group,notify,useMasks=true){
+   if(!sqrImportedRun(options))throw Error('Import WBPP before creating the reviewed master.');
+   let wbpp=options.wbpp;
+   let rows=group.rows.filter(sqrRetainedRegistered);if(rows.length<3)throw Error('ImageIntegration needs at least three retained registered lights in this group.');
+   let used=new Set,repairs=0;
+   for(let row of rows){
+      let m=row.registered;if(used.has(m.path)||m.width!==group.width||m.height!==group.height||m.channels!==group.channels)throw Error('Duplicate or incompatible registered light: '+m.path);
+      used.add(m.path);
+      if(sqrFingerprint(m.path)!==m.fingerprint)throw Error('Registered light changed. Refresh the file list: '+m.path);
+      if(useMasks){let saved=sqrReadTrailState(wbpp,row);
+         if(saved.trailCopy!==(row.trailCopy||'')||JSON.stringify(saved.trailBands)!==JSON.stringify(row.trailBands||[]))throw Error('Trail mask changed. Refresh the file list: '+m.path);}
+      if(useMasks&&row.trailBands?.length)++repairs;
+   }
+   let dir=sqrPath(wbpp)+'/master',tag=String(group.filter||group.directoryName||'group').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64),
+      name='SQR_masterLight_'+tag+'_'+rows.length+'x_'+sqrStamp(),target=dir+'/'+name+'.xisf';
+   TGFileProtection.assertOutsideInstallation(target,'Reviewed master light');if(!File.directoryExists(dir))File.createDirectory(dir,true);
+   if(File.exists(target))throw Error('Master light already exists: '+target);
+   let recipe=sqrWBPPIntegrationElement(options,group),scratch='',files=[],owned=[],ids=[];
+   try{
+      scratch=File.uniqueFileName(File.systemTempDirectory,20,'SQR-integrate-','');TGFileProtection.assertOutsideInstallation(scratch,'Temporary integration folder');File.createDirectory(scratch);
+      let settings=scratch+'/settings.xisf';files.push(settings);let p=sqrRestoreIntegration(recipe.element,settings);
+      sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks);
+      if(repairs){p.rangeLow=p.rangeClipLow?Math.max(0,p.rangeLow):0;p.rangeClipLow=true;}
+      p.generateDrizzleData=false;p.closePreviousImages=false;p.showImages=false;p.noGUIMessages=true;p.generateIntegratedImage=true;
+      sqrTick(notify,'Integrating '+rows.length+' retained registered lights');
+      if(!p.executeGlobal())throw Error('ImageIntegration failed. See the PixInsight console.');
+      let win=ImageWindow.windowById(p.integrationImageId);if(win.isNull)throw Error('ImageIntegration returned no master light.');
+      owned.push(win);ids.push('integration');
+      for(let [key,id] of [['lowRejectionMapImageId','rejection_low'],['highRejectionMapImageId','rejection_high'],['slopeMapImageId','slope_map'],
+         ['lowBiweightRejectionMapImageId','biweight_rejection_low'],['highBiweightRejectionMapImageId','biweight_rejection_high']]){
+         if(typeof p[key]==='string'&&p[key]){let w=ImageWindow.windowById(p[key]);if(!w.isNull){owned.push(w);ids.push(id);}}
+      }
+      if(p.numberOfImages!==rows.length)throw Error('ImageIntegration used '+p.numberOfImages+' of '+rows.length+' retained lights. See the PixInsight console before saving a reviewed master.');
+      let keys=win.keywords.filter(k=>!['IMAGETYP','NCOMBINE','SQRREJ','SQRTRAIL','FILTER'].includes(k.name));
+      keys.push(new FITSKeyword('IMAGETYP',"'Master Light'",''),new FITSKeyword('NCOMBINE',String(rows.length),'Retained registered exposures'),
+         new FITSKeyword('SQRREJ',String(group.rows.filter(r=>r.reject||r.moved).length),'Excluded registered exposures'),
+         new FITSKeyword('SQRTRAIL',String(repairs),'Inputs with reviewed trail masks'));
+      if(group.filter)keys.push(new FITSKeyword('FILTER',"'"+group.filter.replace(/'/g,"''")+"'",''));win.keywords=keys;
+      let staged=File.uniqueFileName(dir,20,'.sqr-master-','.xisf');files.push(staged);TGFileProtection.assertOutsideInstallation(staged,'Staged master light');
+      sqrWriteReviewedMaster(staged,owned,ids,sqrMasterGroupKey(wbpp,group));
+      if(File.exists(target))throw Error('Master light already exists: '+target);
+      TGFileProtection.assertOutsideInstallation(target,'Reviewed master light');File.moveFile(target,staged);return target;
+   }finally{
+      for(let w of owned)w.forceClose();
+      for(let f of files.reverse())try{if(File.directoryExists(f))TGFileProtection.removeDirectory(f,'Temporary integration folder');
+         else if(File.exists(f))TGFileProtection.removeFile(f,'Temporary integration file');}catch(e){console.warningln(String(e));}
+      if(scratch&&File.directoryExists(scratch))try{TGFileProtection.removeDirectory(scratch,'Temporary integration folder');}catch(e){console.warningln(String(e));}
+   }
 }
 /** Validate saved import settings again and recheck output existence on every
  * scan. A configuration alone is never evidence of a successful WBPP run. */
@@ -2089,7 +2625,134 @@ function sqrWBPPScanInputs(o){let data=o.wbppImport;if(!data)return null;
    if(!complete)registered=registered.concat(sqrWalk(wbpp+'/registered').filter(p=>!outputPaths.has(sqrKey(p))));
    return {originals:[...new Set(originals)],registered:registered.filter(p=>!p.toLowerCase().includes('/ln_reference_frame_data/')),links,complete};
 }
-function sqrScan(o,notify){
+// WBPP runs may share an output directory. Read only the newest timestamp;
+// the paired SmartReport repeats the console report rather than adding a run.
+function sqrWBPPLogReport(wbpp){
+   const dir=wbpp+'/logs',find=new FileFind,names=[];
+   if(File.directoryExists(dir)&&find.begin(dir+'/*'))try{do{
+      if(find.isFile&&!find.isSymbolicLink&&/^\d{14}(?:\.log|_SmartReport\.txt)$/i.test(find.name))names.push(find.name);
+   }while(find.next());}finally{find.end();}
+   if(!names.length)return null;
+   names.sort();const stamp=names[names.length-1].slice(0,14);
+   const name=names.find(n=>n.slice(0,14)===stamp&&/\.log$/i.test(n))||names[names.length-1];
+   const path=dir+'/'+name;
+   try{return {...sqrParseWBPPLog(File.readTextFile(path),/\.txt$/i.test(name)),path};}
+   catch(e){return {path,entries:[],note:'Could not read WBPP run log: '+String(e)};}
+}
+function sqrParseWBPPLog(text,smartReport=false){
+   const summary=[],details=[],scales=new Map,calibrated=new Map,byName=new Map,weights=new Map;
+   const unique=(map,key,value)=>map.set(key,map.has(key)&&map.get(key)!==value?null:value);
+   let remaining=0,declared=null,hasFooter=false,hasHeader=false,interrupted=false;
+   let psfScale=false,target='',scaleError='',output='';
+   for(let raw of text.split(/\r?\n/)){
+      let line=raw.replace(/^\[\d{4}-\d\d-\d\d [\d:.]+\]\s*/,'').trim(),m;
+      if(/^Weighted Batch Preprocessing\s+\d/i.test(line))hasHeader=true;
+      if(/^\* Weighted Batch Preprocessing:\s*\d/.test(line))hasFooter=true;
+      if(/^\*+ Warning: The execution was interrupted/i.test(line))interrupted=true;
+      if((m=/^\*+ (\d+) frame\(s\) excluded from the execution:/i.exec(line))){remaining=declared=Number(m[1]);continue;}
+      if(/^No frames have been excluded from the execution\./i.test(line)){declared=remaining=0;continue;}
+      if(remaining){
+         m=/^(.+\.(?:xisf|fits?|fts))(?: -- (.+))?$/i.exec(line);
+         if(m){summary.push({path:m[1],reason:m[2]||'Excluded by WBPP'});--remaining;continue;}
+         remaining=0;
+      }
+      if((m=/^Calibration frame \d+:\s*(.+?)\s+--->\s+(.+)$/i.exec(line))){
+         const outputPath=m[2].replace(/\\/g,'/'),original=m[1].replace(/\\/g,'/');
+         unique(calibrated,outputPath,original);unique(byName,sqrFileName(outputPath),outputPath);continue;
+      }
+      // Attribute an unnamed scale error only when the same target writes its
+      // own invalid .xnml. Concurrent output or an LN reference subset is insufficient.
+      if((m=/^LN\.scaleEvaluationMethod\s*=\s*(.+);/.exec(line)))psfScale=/PSF/i.test(m[1]);
+      if((m=/^Loading target file:\s*(.+)$/i.exec(line))){target=m[1].replace(/\\/g,'/');scaleError=output='';continue;}
+      if(!line||/^\*{4,}/.test(line)){target=scaleError=output='';continue;}
+      if(target&&/^\*+ Error: Unable to compute a valid scale estimate/i.test(line))
+         scaleError=psfScale?'PSF flux scale evaluation failed':'Flux scale evaluation failed';
+      if((m=/^Writing output file:\s*(.+)$/i.exec(line))){
+         output=m[1].replace(/\\/g,'/');
+         if(target&&output===target.replace(/\.[^./]+$/,'.xnml'))scales.delete(target);
+      }
+      if(target&&/^(\*+ Warning: )?Writing a local normalization data file tagged as invalid/i.test(line)){
+         if(output===target.replace(/\.[^./]+$/,'.xnml'))scales.set(target,scaleError||'Invalid local normalization data');
+         target=scaleError=output='';continue;
+      }
+      const msg=line.replace(/^\*+\s*(?:Warning|Error):\s*/i,'');
+      if((m=/^(Invalid local normalization data generated for file|Local normalization (?:generation )?failed for file|Registration failed for image|PSF flux evaluation failed(?: for(?: file| image)?)?|(?:Unable|Failed) to (?:evaluate|compute) PSF flux(?: for (?:file|image))?):\s*(.+)$/i.exec(msg))&&sqrImageFile(m[2]))
+         details.push({path:m[2],reason:m[1].replace(/ (?:generated )?for(?: file| image)?$/i,''),quality:true});
+      else if((m=/^frame rejected \[.*?\]:\s*(.+)$/i.exec(msg)))details.push({path:m[1],reason:'Weight below the WBPP minimum',quality:true});
+      else if((m=/^\[Frames rejection\] (.+\.(?:xisf|fits?|fts)) - .*?\|\s*(rejected|accepted)$/i.exec(msg)))
+         weights.set(m[1],m[2].toLowerCase()==='rejected');
+   }
+   const complete=smartReport?/\bExecution summary: \d+ operation\(s\) failed, 0 canceled or not executed, \d+ frame\(s\) excluded;[^\n]*\s*$/i.test(text):hasHeader&&hasFooter&&!interrupted;
+   const authoritative=declared!==null;
+   if(!authoritative){
+      for(const [path,rejected] of weights)if(rejected)details.push({path,reason:'Weight below the WBPP minimum',quality:true});
+      for(const path of scales.keys())details.push({path,reason:'Invalid local normalization data',quality:true});
+   }
+   const entries=authoritative?summary:details;
+   for(const e of entries){
+      e.path=e.path.replace(/\\/g,'/');
+      if(!authoritative){const output=e.path.includes('/')?e.path:byName.get(e.path);e.path=calibrated.get(output)||e.path;}
+      if(authoritative){
+         const cause=e.reason.slice(e.reason.indexOf(':')+1).trim();
+         e.quality=/^(?:invalid local normalization data|local normalization failed|registration failed|not aligned with the reference frame|measurement failed|no valid weight available|rejected by frame selection)$/i.test(cause)||
+            /^(?:weight below the minimum|abnormal weight|(?:failed|unable) to (?:evaluate|compute) PSF flux|PSF flux evaluation failed|unable to compute a valid scale estimate)\b/i.test(cause)||
+            /^PSF flux evaluation:\s*(?:failed|no (?:valid )?(?:stars|PSF fits))\b/i.test(e.reason);
+      }
+   }
+   const usable=complete&&(!authoritative||summary.length===declared);
+   return {entries,scales,usable,note:usable?'':'Incomplete WBPP run or exclusion list. Findings are informational.'};
+}
+// Original-only failures stay outside measurement, ranking, Blink and trial stacks.
+// Confirmed moves also handle verified exclusions without a registered counterpart.
+function sqrDecisionRows(session){return (session?.groups||[]).flatMap(g=>g.rows).concat(session?.logOnly||[]);}
+function sqrRejectTip(row){
+   const action=row.isMaster?'The master cannot be rejected.':row.moved?'Original moved to: '+row.movedTo+'\nSelect Undo moved originals to restore it.':
+      'Click to '+(row.reject?'keep':'reject')+' this original, or select the row and press Space.';
+   return action+(row.wbppReason?'\nWBPP run log: '+row.wbppReason:'');
+}
+function sqrAttachWBPPLog(session,raws,moves,previous){
+   const report=session.wbppLog=sqrWBPPLogReport(sqrPath(session.options.wbpp));
+   const rows=session.groups.flatMap(g=>g.rows),byPath=new Map,origins=new Map(raws.map(m=>[m.path,m]));
+   const ambiguous=rows.filter(r=>!r.original),byFinding=new Map,unmatched=new Map;
+   for(const row of rows)for(const p of [row.original?.path,row.registered.path].filter(Boolean)){
+      if(byPath.has(p)&&byPath.get(p)!==row)byPath.set(p,null);else if(!byPath.has(p))byPath.set(p,row);
+   }
+   session.logOnly=[];
+   // Also recover log-only moves after a refresh, for Undo.
+   for(const move of moves.values())if(move&&!byPath.has(move.original.path)&&move.logOnly){
+      const row={original:move.original,match:'Verified',reject:true,moved:true,movedTo:move.target,moveJournal:move.journal};
+      session.logOnly.push(row);byPath.set(row.original.path,row);
+   }
+   if(!report)return;
+   for(const e of report.entries){
+      let row=byPath.get(e.path);
+      if(row===undefined&&origins.has(e.path)){
+         const meta=origins.get(e.path);
+         if(!ambiguous.some(r=>sqrCompatible(r.registered,meta)&&(r.registered.date&&r.registered.date===meta.date||sqrSourceStem(r.registered.path)===sqrBase(meta.path).toLowerCase()))){
+            row={original:meta,match:'Verified',reject:false,moved:false};session.logOnly.push(row);byPath.set(e.path,row);
+         }
+      }
+      if(!row){const key=e.path+'\n'+e.reason;if(!unmatched.has(key))unmatched.set(key,e);continue;}
+      let finding=byFinding.get(row);
+      if(!finding){finding={row,path:row.original?.path||row.registered.path,reasons:new Set,eligible:false};byFinding.set(row,finding);}
+      const reason=report.scales?.get(row.registered?.path);
+      finding.reasons.add(reason&&reason!=='Invalid local normalization data'&&/normalization/i.test(e.reason)?e.reason+' ('+reason+')':e.reason);
+      if(report.usable&&e.quality&&row.original&&row.match==='Verified')finding.eligible=true;
+   }
+   const prior=new Map;
+   if(previous?.wbppLog?.path===report.path&&sqrSameRunFolders(previous.options,session.options))
+      for(const f of previous.wbppLog.findings||[])if(f.row?.original)prior.set(f.path,f);
+   report.findings=[];
+   for(const f of byFinding.values()){
+      const row=f.row;f.reason=[...f.reasons].join(' · ');delete f.reasons;row.wbppReason=f.reason;
+      const old=prior.get(f.path);
+      if(f.eligible&&!row.moved)row.reject=old?.eligible&&old.reason===f.reason&&old.row.original.fingerprint===row.original.fingerprint?old.row.reject:true;
+      report.findings.push(f);
+   }
+   for(const e of unmatched.values())report.findings.push({path:e.path,reason:e.reason,eligible:false,row:null});
+   delete report.scales;delete report.entries;
+}
+function sqrScan(o,notify,previous=null){
    let wbpp=sqrPath(o.wbpp),rawRoot=sqrPath(o.originals);
    if(!File.directoryExists(wbpp+'/registered'))throw new Error('Select a WBPP output folder containing registered/.');
    if(!File.directoryExists(rawRoot))throw new Error('Select the folder containing original lights.');
@@ -2099,8 +2762,9 @@ function sqrScan(o,notify){
    let discoverMasters=()=>File.directoryExists(wbpp+'/master')?sqrWalk(wbpp+'/master').filter(p=>/^masterLight_/i.test(sqrBase(p))):[];
    let savedMasters=imported?o.wbppImport.masters.filter(p=>sqrUnder(p,wbpp+'/master')&&File.exists(p)):[];
    let masterFiles=imported?null:discoverMasters();
-   let rawFiles=imported?imported.originals:sqrWalk(rawRoot,[wbpp,o.destination? sqrPath(o.destination):'']).filter(p=>!/^master/i.test(sqrBase(p)));
+   let rawFiles=imported?imported.originals:sqrWalk(rawRoot,[wbpp,o.destination? sqrPath(o.destination):''],true).filter(p=>!/^master/i.test(sqrBase(p)));
    let raws=[],warnings=[],missingOriginals=[];
+   const hasTrailMasks=File.directoryExists(wbpp+'/SQR-trail-masks');
    const moved=sqrScanMovedOriginals(o,registered,imported,warnings,notify);
    for(let i=0;i<rawFiles.length;++i){
       sqrTick(notify,'Reading original headers '+(i+1)+' / '+rawFiles.length);
@@ -2133,6 +2797,7 @@ function sqrScan(o,notify){
          master:'',rows:[],roi:null,regions:null};groups.push(g);byGroup[key]=g;}
       const row={registered:m,original:found.raw,match:found.state,reject:!!move,moved:!!move,candidate:false,metrics:{}};
       if(move){row.movedTo=move.target;row.moveJournal=move.journal;}
+      try{if(hasTrailMasks)Object.assign(row,sqrReadTrailState(wbpp,row));}catch(e){row.trailError=String(e);warnings.push(row.trailError);}
       g.rows.push(row);
    }
    if(!groups.length)throw new Error('No registered light images found. Supported formats: XISF and FITS.');
@@ -2146,12 +2811,14 @@ function sqrScan(o,notify){
    // A source exposure must not be moved once for several processed products.
    let occurrences={};for(let g of groups)for(let r of g.rows)if(r.original){let k=sqrKey(r.original.path);(occurrences[k]??=[]).push(r);}
    for(let k of Object.keys(occurrences))if(occurrences[k].length>1)for(let r of occurrences[k])if(!r.moved){r.match='Original used more than once';r.original=null;}
-   if(imported){let matched=new Set(groups.flatMap(g=>g.rows).filter(r=>r.original).map(r=>sqrKey(r.original.path)));
+   let session={schema:1,version:SQR_VERSION,created:new Date().toISOString(),options:{...o},groups:groups,warnings:warnings};
+   sqrTick(notify,'Checking WBPP run log');
+   sqrAttachWBPPLog(session,raws,moved,previous);
+   if(imported){let matched=new Set(sqrDecisionRows(session).filter(r=>r.original).map(r=>sqrKey(r.original.path)));
       for(let path of missingOriginals)if(!matched.has(sqrKey(path)))warnings.push('Imported original is missing: '+path);
       let missing=imported.originals.filter(p=>!matched.has(sqrKey(p)));
       if(missing.length)warnings.push(missing.length+' imported light(s) have no verified registered match: '+missing.join('\n'));
       if(skipped)warnings.push(skipped+' registered file(s) outside the imported selection were excluded.');}
-   let session={schema:1,version:SQR_VERSION,created:new Date().toISOString(),options:{...o},groups:groups,warnings:warnings};
    sqrRunSite(session);
    if(imported)session.importSummary='WBPP '+o.wbppImport.version+' · '+imported.originals.length+' imported lights · '+o.wbppImport.disabled+' disabled lights omitted · '+(imported.complete?'saved registered paths used':'registered outputs located in WBPP folder');
    let setup=sqrSessionPixelScale(session);
@@ -2249,7 +2916,7 @@ function sqrBounds(im,margin){
 }
 // Derive the field, center and four corner rectangles in SQR_REGIONS order.
 // Corner/center dimensions are percentages of the common usable field.
-function sqrRegions(roi,patch){let [x0,y0,x1,y1]=roi,w=x1-x0,h=y1-y0,pw=Math.round(w*patch/100),ph=Math.round(h*patch/100),cx=Math.round((x0+x1-pw)/2),cy=Math.round((y0+y1-ph)/2);
+function sqrRegions(roi,patch){let [x0,y0,x1,y1]=roi,w=x1-x0,h=y1-y0,pw=Math.max(1,Math.round(w*patch/100)),ph=Math.max(1,Math.round(h*patch/100)),cx=Math.round((x0+x1-pw)/2),cy=Math.round((y0+y1-ph)/2);
    return [roi,[cx,cy,cx+pw,cy+ph],[x0,y0,x0+pw,y0+ph],[x1-pw,y0,x1,y0+ph],[x0,y1-ph,x0+pw,y1],[x1-pw,y1-ph,x1,y1]];}
 // Field scoring requires valid signal and PSF support. Regional shape checks
 // can remain useful when a small crop has no independent signal/noise estimate.
@@ -2472,9 +3139,9 @@ function sqrMeasureBatch(jobs,o,useCache=false,extinctionSensitivity=null){
       let batch=jobs.slice(first,first+plan.batchSize);
       let p=new ImageAnalysis;p.task=ImageAnalysis.Task_Measure;p.fileCache=useCache&&extinctionSensitivity===null;
       if(extinctionSensitivity!==null)p.sensitivity=extinctionSensitivity;
-      // Extended gradients, banding and trails are not part of the current KPIs.
-      // Keep the same elliptical Moffat-4 model and fit limit as before.
-      p.extendedMeasurements=false;p.maxPSFFits=o.maxFits;p.psfFit=ImageAnalysis.PSF_Moffat4;
+      // Measure trails on the common field. Match the extended setting on cached
+      // field comparisons; corner crops and the separate sensitivity retry skip it.
+      p.extendedMeasurements=batch[0].region===0&&extinctionSensitivity===null;p.maxPSFFits=o.maxFits;p.psfFit=ImageAnalysis.PSF_Moffat4;
       p.useFileThreads=plan.fileThreads;p.fileThreadOverload=plan.overload;
       p.psfFitCircular=false;p.onError=ImageAnalysis.OnError_Continue;
       // Scoring and rejection remain owned by this script, not process expressions.
@@ -2488,6 +3155,8 @@ function sqrMeasureBatch(jobs,o,useCache=false,extinctionSensitivity=null){
       for(let j of batch){let m=results.get(sqrKey(j.path));
          if(j.measureMetrics!==false)j.row.metrics[j.region]=m?sqrMeasurement(m,o.minStars,j.region===0):
             {valid:false,error:ok?'No measurement returned':'Measurement failed'};
+         if(j.region===0&&!j.row.isMaster&&j.measureMetrics!==false&&p.extendedMeasurements)
+            j.row.metrics[0].trails=sqrNativeTrails(m);
          if(j.region===0)j.extinction=sqrNativeExtinction(m);}
    }
 }
@@ -2946,13 +3615,40 @@ function sqrRegionMeasurementReason(row,region,minStars){
    if(!reasons.length&&!m.valid)reasons.push('no usable PSF measurement is available; no detailed cause was recorded');
    return reasons.length?reasons.join('; ')+'.':'';
 }
+function sqrNativeTrails(m){
+   const C=ImageAnalysis,count=m?.[C.measurements_measurementTrails];
+   // ImageAnalysis stores zero for undefined integers. Bit 0x08 validates Trails.
+   return (m?.[C.measurements_measurementFlags]&0x08)&&Number.isInteger(count)&&count>=0?count:null;
+}
+function sqrTrailPending(row){return row.metrics?.[0]?.trails>0&&!row.metrics[0].trailReviewed;}
+function sqrNeedsReview(row){return !!(row.candidate||row.trailReview);}
+function sqrRefreshTrailReview(group){
+   const kept=group.rows.filter(r=>!r.isMaster&&!r.moved&&!r.reject).length;
+   let changed=false;
+   for(const r of group.rows){
+      const review=kept<SQR_TRAIL_REVIEW_LIMIT&&!r.isMaster&&!r.moved&&!r.reject&&sqrTrailPending(r);
+      if(!!r.trailReview!==review)changed=true;
+      r.trailReview=review;
+   }
+   return changed;
+}
+function sqrTrailNotice(retained){
+   if(retained.length>=SQR_TRAIL_REVIEW_LIMIT)return '';
+   const count=retained.filter(sqrTrailPending).length;
+   const missing=retained.filter(r=>!Number.isInteger(r.metrics?.[0]?.trails)).length;
+   return (count?' Inspect '+count+' retained subframe'+(count===1?'':'s')+' with detected trails in Blink.':'')+
+      (missing?' Trail count unavailable for '+missing+' retained subframe'+(missing===1?'':'s')+'.':'');
+}
 /** Explain selection from its actual group rank and measurement checks, never
  * from the current table sort or visible row number. No image reads are needed. */
 function sqrReviewToolTip(row,group,options){
    if(row.isMaster)return SQR_MASTER_SCORE_INFO;
+   let trail=row.trailReview?'ImageAnalysis detected '+row.metrics[0].trails+' trail(s) in the common usable field. Fewer than '+SQR_TRAIL_REVIEW_LIMIT+' subframes are retained in this group. Inspect the frame in Blink, then choose Keep despite trail or mark it for rejection.':'';
+   if(trail&&(group.reviewComplete||!row.candidate))return trail;
    if(group.reviewComplete)return 'Review completed by accepting the rejection recommendation for this group. Measurements and score details remain available.';
    if(!row.candidate)return '';
    let sections=['Marked REVIEW for the following reasons:'];
+   if(trail)sections.push(trail);
    if(Number.isFinite(row.rank)&&row.rank<=group.shortlistCount){
       let text='Review worst ('+Number(options.percent.toFixed(1))+'%): rank '+row.rank+' of '+group.shortlistPopulation+
          ' subframes with valid field measurements; '+group.shortlistCount+' shortlisted (rounded up).';
@@ -2984,11 +3680,13 @@ function sqrReviewDetails(row){
    metrics+='</table>';
    if(!row)return {summary:'No image selected.',summaryTip:'Select an image in the table to see its assessment and regional measurements.',metrics,metricsTip:'No image selected.',source:'<b>File:</b> —',sourceTip:''};
    let state=row.isMaster?'Master · comparison only':row.moved?'Original moved':row.reject?'Reject original':'Keep original';
-   if(!row.isMaster&&row.candidate)state+=' · REVIEW';
+   if(!row.isMaster&&sqrNeedsReview(row))state+=' · REVIEW';
    let guide=row.isMaster?'':row.guiding?(row.guiding.scorable?row.guiding.category:'Unavailable')+(row.guidingIgnored?' (excluded)':''):'';
    let summary=row.isMaster?'<b>'+sqrHTML(state)+'</b><br/>Excluded from Score and R1–R4 ranks.':
       '<b>'+sqrHTML(state)+'</b> · Score: '+sqrFmt(row.score)+'<br/><b>Main issue:</b> '+sqrHTML(row.mainIssue||'Not measured')+(guide?' · <b>Guiding:</b> '+sqrHTML(guide):'');
-   let summaryTip=row.isMaster?SQR_MASTER_SCORE_INFO:[row.mainIssueDetail,...(row.reasons||[]),...(row.dataReviewReasons||[])].filter(Boolean).join('\n');
+   if(row.trailReview)summary+=' · <b>Inspect trail in Blink</b>';
+   if(row.wbppReason)summary+='<br/><b>WBPP:</b> '+sqrHTML(row.wbppReason);
+   let summaryTip=row.isMaster?SQR_MASTER_SCORE_INFO:[row.wbppReason,row.mainIssueDetail,...(row.reasons||[]),...(row.dataReviewReasons||[])].filter(Boolean).join('\n');
    if(row.guiding)summaryTip+='\n'+sqrGuideReport(row);
    let metricsTip='FWHM is in pixels. Eccentricity: 0 = round, toward 1 = elongated. Stars is the detected count. — = unavailable.\n'+headers.map((h,i)=>{
       let m=row.metrics[i];return h+': '+(m?.valid?'FWHM '+sqrFmt(m.fwhm,1)+' px; eccentricity '+sqrFmt(m.eccentricity,2)+'; '+sqrFmt(m.stars,0)+' stars.':m?(m.error||'Insufficient valid star measurements.'):'Not measured.');}).join('\n');
@@ -3093,7 +3791,8 @@ function sqrRank(session){
       let sorted=valid.slice().sort((a,b)=>(a.score??Infinity)-(b.score??Infinity)||a.registered.path.localeCompare(b.registered.path));
       let count=Math.ceil(sorted.length*o.percent/100);for(let i=0;i<sorted.length;++i){sorted[i].rank=i+1;sorted[i].candidate=i<count||sorted[i].needsDataReview;}
       if(sqrRecommendationReviewComplete(g,o,guideAvailable))for(let r of g.rows)r.candidate=false;
-      g.shortlistCount=count;g.shortlistPopulation=sorted.length;g.rows.sort((a,b)=>Number(b.candidate)-Number(a.candidate)||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
+      sqrRefreshTrailReview(g);
+      g.shortlistCount=count;g.shortlistPopulation=sorted.length;g.rows.sort((a,b)=>Number(sqrNeedsReview(b))-Number(sqrNeedsReview(a))||(a.score??-1)-(b.score??-1)||a.registered.path.localeCompare(b.registered.path));
    }
 }
 function sqrWriteJSON(path,value){TGFileProtection.writeTextFile(path,JSON.stringify(value,null,2),"Move/undo journal");}
@@ -3101,11 +3800,12 @@ function sqrWriteJSON(path,value){TGFileProtection.writeTextFile(path,JSON.strin
 // deterministic tie-breaks; the master can never become a "best subframe".
 function sqrBestRow(group){return group.rows.filter(r=>!r.isMaster&&r.metrics[0]?.valid&&Number.isFinite(r.score)&&!r.reject&&!r.moved)
    .sort((a,b)=>b.score-a.score||b.metrics[0].signal-a.metrics[0].signal||a.registered.path.localeCompare(b.registered.path))[0]||null;}
-function sqrReference(group,choice){
-   if(choice==='best'||choice==='mosaic-best'){let best=sqrBestRow(group);return {path:best?.registered.path||'',label:'BEST SUBFRAME'};}
+function sqrReference(group,choice,row=null){
+   if(choice==='trail')return {path:row?.trailBands?.length?row.registered.path:'',label:'UNMASKED'};
+   if(choice==='best'||choice==='mosaic-best'){let best=sqrBestRow(group);return {path:best?.registered.path||'',label:'BEST SUBFRAME',row:best};}
    return {path:group.master||'',label:'MASTER'};
 }
-/** Preflight every manually rejected original before any move begins.
+/** Preflight every marked original before any move begins.
  * Check source containment, light-frame identity, unchanged fingerprints and
  * destination collisions. Preserve relative paths and refuse overwrites.
  * Returned entries retain row references for updating the in-memory review. */
@@ -3117,19 +3817,19 @@ function sqrMovePlan(session){
    if(sqrKey(dest)===sqrKey(root))throw new Error('The destination must differ from the originals folder.');
    if(sqrUnder(dest,sqrPath(o.wbpp)))throw new Error('Choose a destination outside the WBPP output folder.');
    let plan=[],sources={},targets={};
-   for(let g of session.groups)for(let r of g.rows)if(r.reject&&!r.moved){
+   for(let r of sqrDecisionRows(session))if(r.reject&&!r.moved){
       if(r.isMaster)throw new Error('Integrated masters cannot be rejected or moved.');
       if(!r.original||!['Verified','Manually verified'].includes(r.match))throw new Error('Resolve the original-file association for '+sqrFileName(r.registered.path));
       let source=sqrPath(r.original.path);if(!sqrUnder(source,root)||sqrUnder(source,sqrPath(o.wbpp)))throw new Error('Original lies outside the selected original-light root.');
       if(sqrFingerprint(source)!==r.original.fingerprint)throw new Error('Original changed since scanning: '+source);
-      let meta=sqrMetadata(source);if(!sqrIsLight(meta)||!sqrCompatible(r.registered,meta))throw new Error('Original metadata no longer matches: '+source);
+      let meta=sqrMetadata(source);if(!sqrIsLight(meta)||!sqrCompatible(r.registered||r.original,meta))throw new Error('Original metadata no longer matches: '+source);
       let relative=source.slice(root.length+1),target=dest+'/'+relative;
       TGFileProtection.assertOutsideInstallation(source,"Original light to move");
       TGFileProtection.assertOutsideInstallation(target,"Rejected original destination");
       if(!sqrUnder(target,dest)||sources[sqrKey(source)]||targets[sqrKey(target)]||File.exists(target))throw new Error('Duplicate source or occupied destination: '+target);
-      sources[sqrKey(source)]=true;targets[sqrKey(target)]=true;plan.push({source:source,target:target,fingerprint:r.original.fingerprint,registered:r.registered.path,status:'planned',row:r});
+      sources[sqrKey(source)]=true;targets[sqrKey(target)]=true;plan.push({source:source,target:target,fingerprint:r.original.fingerprint,registered:r.registered?.path||'',status:'planned',row:r});
    }
-   if(!plan.length)throw new Error('No manually rejected originals are selected.');return plan;
+   if(!plan.length)throw new Error('No rejected originals are selected.');return plan;
 }
 /** Execute a validated plan with a journal written before the first file move.
  * Per-file rechecks catch changes since preflight. Journal states distinguish
@@ -3238,13 +3938,15 @@ function sqrScanMovedOriginals(o,registered,imported,warnings,notify){
             if(sources&&!sources.has(source))continue;
             const keys=new Set(links.get(source)||[]);
             if(selected.has(reg)&&!imported?.links.has(reg))keys.add(reg);
+            const logOnly=entry.registered==='';
+            if(logOnly)keys.add('original:'+entry.source);
             if(!keys.size)continue;
             let original;
             try{original={...sqrMetadata(entry.target),path:entry.source,fingerprint:entry.fingerprint};}
             catch(e){warnings.push(entry.target+': '+String(e));continue;}
             if(!sqrIsLight(original))continue;
             for(const key of keys){
-               if(!moves.has(key))moves.set(key,{original,target:entry.target,journal:path});
+               if(!moves.has(key))moves.set(key,{original,target:entry.target,journal:path,logOnly});
                else if(sqrKey(moves.get(key)?.original.path||'')!==source)moves.set(key,null);
             }
          }
@@ -3266,10 +3968,10 @@ function sqrRestorePlan(record,indices){
 }
 function sqrRestoreIdentity(plan){return JSON.stringify(plan.map(p=>[p.source,p.target,p.fingerprint,p.destinationFingerprint||'',p.registered||'']));}
 function sqrMarkRestored(session,entry){
-   for(let group of session?.groups||[])for(let row of group.rows){
+   for(let row of sqrDecisionRows(session)){
       if(row.isMaster)continue;
-      let sameOriginal=row.original&&sqrKey(row.original.path)===sqrKey(entry.source),sameRegistered=sqrKey(row.registered.path)===sqrKey(entry.registered||'');
-      if((sameOriginal||sameRegistered)&&sqrCompatible(row.registered,entry.metadata)){
+      let sameOriginal=row.original&&sqrKey(row.original.path)===sqrKey(entry.source),sameRegistered=row.registered&&sqrKey(row.registered.path)===sqrKey(entry.registered||'');
+      if((sameOriginal||sameRegistered)&&sqrCompatible(row.registered||row.original,entry.metadata)){
          row.original={...entry.metadata,path:entry.source,fingerprint:sqrFingerprint(entry.source)};row.match='Verified';
          row.moved=false;row.reject=false;delete row.movedTo;delete row.moveJournal;
       }
@@ -3869,7 +4571,7 @@ class SQRRecommendationDialog extends Dialog {
       this.analyzeButton=sqrButton(this,'Analyze',()=>this.analyze());this.applyButton=sqrButton(this,'Mark recommended rejects',()=>this.applyRecommendation());this.applyButton.enabled=false;
       this.cancelButton=sqrButton(this,'Close',()=>{if(this.running){this.abortRequested=true;this.status.text='Stopping after the current operation…';}else this.cancel();});this.cancelButton.escapeButton=true;
       this.cancelButton.toolTip='During analysis, request cancellation after the current native operation. The PixInsight console can also abort a running process.';
-      this.infoButton=sqrTool(this,':/process-interface/browse-documentation.png','How the recommendation is measured',()=>new SQRPlotInfoDialog({title:'Rejection recommendation',html:"<p>Frames are ordered by the current Review Score, highest first. The selected R1, R2, R3 or R4 mode and its weights apply. Select R3 in Review to use its strongly correlated KPI score. Scores and their order stay fixed during analysis; table sorting has no effect.</p><p>Test integrations verify several retained counts and the adjacent counts around the best one. The highest mean retained Score meeting your SNR limit and minimum count is recommended. Equal means prefer more frames. FWHM and the other plotted image KPIs are comparisons, not separate decision criteria. This is the best tested cutoff, not a guaranteed global optimum.</p><p>With an object ROI, only Object SNR uses the selected aperture and a surrounding-sky margin. Its background-limited estimate includes short-range pixel covariance and background-fit uncertainty. It does not model source shot noise, shared calibration errors or longer-range correlated noise. Avoid unrelated bright stars in the aperture and leave clean surrounding sky. Without an ROI, native PSF SNR is a stellar proxy.</p><p>Every trial stack and all other image KPIs use the same common usable field, independent of the ROI. Tests use fixed PSF signal integration weights, field-based global normalization and Winsorized rejection (low 4, high 3); RGB uses green. They do not reproduce local normalization or drizzle. The default minimum is 20; seven is a statistical floor, not a guarantee.</p><p>Plot KPI changes only the graph and table. Score is the arithmetic mean of retained subframes’ Review scores at analysis time, not a score for the integrated image. Closing this dialog keeps results per group while the main review stays open. Changes to scores, scoring settings, calculation settings, measurements or inputs require new analysis; display changes reuse results.</p><p>Include rejected subframes also tests marked frames whose originals are still in place. Analyze leaves marks untouched. Applying the proposal marks new rejects and clears any rejection marks on frames the inclusive analysis keeps. The summary shows how many marks would be cleared. Applying or manually matching the proposed decisions completes REVIEW. Use Complete review to confirm a keep-all result with no changes. Changing relevant settings, measurements or decisions reopens it. File movement remains a separate action.</p>"}).execute());
+      this.infoButton=sqrTool(this,':/process-interface/browse-documentation.png','How the recommendation is measured',()=>new SQRPlotInfoDialog({title:'Rejection recommendation',html:"<p>Frames are ordered by the current Review Score, highest first. The selected R1, R2, R3 or R4 mode and its weights apply. Select R3 in Review to use its strongly correlated KPI score. Scores and their order stay fixed during analysis; table sorting has no effect.</p><p>Test integrations verify several retained counts and the adjacent counts around the best one. The highest mean retained Score meeting your SNR limit and minimum count is recommended. Equal means prefer more frames. FWHM and the other plotted image KPIs are comparisons, not separate decision criteria. This is the best tested cutoff, not a guaranteed global optimum.</p><p>With an object ROI, only Object SNR uses the selected aperture and a surrounding-sky margin. Its background-limited estimate includes short-range pixel covariance and background-fit uncertainty. It does not model source shot noise, shared calibration errors or longer-range correlated noise. Avoid unrelated bright stars in the aperture and leave clean surrounding sky. Without an ROI, native PSF SNR is a stellar proxy.</p><p>Every trial stack and all other image KPIs use the same common usable field, independent of the ROI. Tests use fixed PSF signal integration weights, field-based global normalization and Winsorized rejection (low 4, high 3); RGB uses green. They do not reproduce local normalization or drizzle. The default minimum is 20; seven is a statistical floor, not a guarantee.</p><p>Plot KPI changes only the graph and table. Score is the arithmetic mean of retained subframes’ Review scores at analysis time, not a score for the integrated image. Closing this dialog keeps results per group while the main review stays open. Changes to scores, scoring settings, calculation settings, measurements or inputs require new analysis; display changes reuse results.</p><p>Include rejected subframes also tests marked frames whose originals are still in place. Analyze leaves marks untouched. Applying the proposal marks new rejects and clears any rejection marks on frames the inclusive analysis keeps. The summary shows how many marks would be cleared. Applying or manually matching the proposed decisions completes score review. In groups retaining fewer than 40 subframes, inspect any remaining trail flags in Blink. Use Complete review to confirm a keep-all result with no changes. Changing relevant settings, measurements or decisions reopens it. File movement remains a separate action.</p>"}).execute());
       let top=new HorizontalSizer;top.spacing=14;top.add(this.snr);top.add(this.minimum);top.add(this.includeRejected);top.addStretch();top.add(this.infoButton);
       let roiRow=new HorizontalSizer;roiRow.spacing=10;roiRow.add(this.useROI);roiRow.add(this.preview,100);roiRow.add(this.drawROI);
       let coordinates=new HorizontalSizer;coordinates.spacing=14;for(let c of this.coords)coordinates.add(c);coordinates.addStretch();
@@ -3935,7 +4637,7 @@ class SQRRecommendationDialog extends Dialog {
       this.status.text='Keep '+r.best.keep+' / '+r.rows.length+'; reject '+r.rejected.length+'. Mean Score '+r.best.score.toFixed(3)+' ('+r.scoreMode+'; all frames '+r.baseline.score.toFixed(3)+'). SNR '+(100*r.best.snr/r.peak).toFixed(1)+'% of best tested. '+(r.options.useROI?'Background-limited object aperture estimate.':'Stellar SNR proxy.')+
          (r.matchedScaleCount?' Matched stars supplied the test-stack scale for '+r.matchedScaleCount+(r.matchedScaleCount===1?' frame.':' frames.'):'')+
          (r.options.includeRejected&&r.reinstate.length?' '+(r.applied?'Cleared':'Applying clears')+' '+r.reinstate.length+' existing rejection '+(r.reinstate.length===1?'mark.':'marks.'):'')+
-         (r.applied?' Recommendation applied; REVIEW complete for this analyzed set.':'')+(r.incomplete?' Some trials failed; inspect their tooltips.':'');
+         sqrTrailNotice(r.rows.slice(0,r.best.keep))+(r.applied?' Score recommendation applied.':'')+(r.incomplete?' Some trials failed; inspect their tooltips.':'');
       this.applyButton.text=r.options.includeRejected&&r.reinstate.length?'Apply keep/reject decisions':r.rejected.length?'Mark recommended rejects':'Complete review';
       this.applyButton.enabled=!this.running&&!r.applied;
    }
@@ -4360,7 +5062,7 @@ function sqrAssignPreview(image,source,rect){
 /** Return two rendered preview bitmaps for identical image coordinates.
  * Brightness alignment and the shared reference-derived stretch modify temporary
  * images only. The dialog owns the returned bitmaps and releases them on reload. */
-function sqrRenderFrames(a,b,o,rect){
+function sqrRenderFrames(a,b,o,rect,bands=null,refBands=null){
    let da=new Image,db=b?new Image:null,frames=[];
    try{
       if(b&&(a.width!==b.width||a.height!==b.height||a.numberOfNominalChannels!==b.numberOfNominalChannels))
@@ -4375,14 +5077,14 @@ function sqrRenderFrames(a,b,o,rect){
          }
       }
       if(o.displaySTF){let stretch=(db||da).computeAutoStretch();da.applyDisplayFunction(stretch);if(db)db.applyDisplayFunction(stretch);}
-      da.truncate();frames.push(da.render());if(db){db.truncate();frames.push(db.render());}for(let frame of frames)frame.sqrChannels=da.numberOfNominalChannels;return frames;
+      da.truncate();sqrApplyTrailBands(da,bands,rect);frames.push(da.render());if(db){db.truncate();sqrApplyTrailBands(db,refBands,rect);frames.push(db.render());}for(let frame of frames)frame.sqrChannels=da.numberOfNominalChannels;return frames;
    }catch(e){for(let frame of frames)frame.clear();throw e;}finally{da.free();if(db)db.free();}
 }
 /** Keep one reference bitmap and its numeric display calibration. No Image is
  * retained. The fingerprint, crop and display options invalidate the entry;
  * returned reference bitmaps are borrowed and released by the dialog cache. */
-function sqrReferenceDisplay(path,o,rect,cache){
-   let key=JSON.stringify([sqrKey(path),sqrFingerprint(path),rect,!!o.alignBrightness,!!o.displaySTF]);
+function sqrReferenceDisplay(path,o,rect,cache,bands){
+   let key=JSON.stringify([sqrKey(path),sqrFingerprint(path),rect,!!o.alignBrightness,!!o.displaySTF,bands]);
    if(cache.data?.key===key)return cache.data;
    if(cache.data){cache.data.bitmap.clear();cache.data=null;}
    let source=null,crop=new Image,bitmap=null;
@@ -4394,23 +5096,23 @@ function sqrReferenceDisplay(path,o,rect,cache){
       if(o.alignBrightness)for(let c=0;c<channels;++c){let median=crop.median(whole,c,c);stats.push({median,mad:crop.MAD(median,whole,c,c)});}
       let stretch=o.displaySTF?crop.computeAutoStretch():null;
       if(o.displaySTF)crop.applyDisplayFunction(stretch);
-      crop.truncate();bitmap=crop.render();bitmap.sqrChannels=channels;
+      crop.truncate();sqrApplyTrailBands(crop,bands,rect);bitmap=crop.render();bitmap.sqrChannels=channels;
       return cache.data={key,width,height,channels,stats,stretch,bitmap};
    }catch(e){if(bitmap)bitmap.clear();throw e;}finally{if(source)source.free();crop.free();}
 }
-function sqrFrames(path,reference,o,rect,isMaster=false,cache=null){
-   if(cache){let display=sqrReferenceDisplay(reference,o,rect,cache);
-      return [sqrRotationFrame(path,o,rect,display,isMaster).bitmap,display.bitmap];}
+function sqrFrames(path,reference,o,rect,isMaster=false,cache=null,bands=null,refBands=null){
+   if(cache){let display=sqrReferenceDisplay(reference,o,rect,cache,refBands);
+      return [sqrRotationFrame(path,o,rect,display,isMaster,bands).bitmap,display.bitmap];}
    let a=null,b=null;
-   try{a=sqrReadImage(path,isMaster);b=sqrReadImage(reference,true);return sqrRenderFrames(a,b,o,rect);}
+   try{a=sqrReadImage(path,isMaster);b=sqrReadImage(reference,true);return sqrRenderFrames(a,b,o,rect,bands,refBands);}
    finally{if(a)a.free();if(b)b.free();}
 }
 // Read each source once for a complete regional cycle. Keep only rendered
 // bitmaps afterwards; temporary images are released on success and failure.
-function sqrRegionFrames(path,reference,o,regions,isMaster=false){
+function sqrRegionFrames(path,reference,o,regions,isMaster=false,bands=null,refBands=null){
    let a=null,b=null,frames=[];
    try{a=sqrReadImage(path,isMaster);if(reference)b=sqrReadImage(reference,true);
-      for(let rect of regions)frames.push(sqrRenderFrames(a,b,o,rect));return frames;
+      for(let rect of regions)frames.push(sqrRenderFrames(a,b,o,rect,bands,refBands));return frames;
    }catch(e){for(let pair of frames)for(let frame of pair)frame.clear();throw e;}
    finally{if(a)a.free();if(b)b.free();}
 }
@@ -4419,7 +5121,7 @@ function sqrRegionFrames(path,reference,o,regions,isMaster=false){
  * The first displayed subframe supplies the common brightness/STF baseline.
  * Subsequent steps read only their own image; no master or full sequence is held.
  * A changed group, region or display option starts a new calibration. */
-function sqrRotationFrame(path,o,rect,display=null,isMaster=false){
+function sqrRotationFrame(path,o,rect,display=null,isMaster=false,bands=null){
    let source=null,image=new Image;
    try{
       source=sqrReadImage(path,isMaster);let channels=source.numberOfNominalChannels;
@@ -4434,7 +5136,7 @@ function sqrRotationFrame(path,o,rect,display=null,isMaster=false){
          image.apply(a.median,ImageOp.Sub,whole,c,c);image.apply(scale,ImageOp.Mul,whole,c,c);image.apply(b.median,ImageOp.Add,whole,c,c);
       }
       if(o.displaySTF)image.applyDisplayFunction(display.stretch);
-      image.truncate();let bitmap=image.render();bitmap.sqrChannels=channels;return {bitmap,display};
+      image.truncate();sqrApplyTrailBands(image,bands,rect);let bitmap=image.render();bitmap.sqrChannels=channels;return {bitmap,display};
    }finally{if(source)source.free();image.free();}
 }
 
@@ -4447,8 +5149,51 @@ function sqrRotationFrame(path,o,rect,display=null,isMaster=false){
  * the timer control pair alternation without rereading files. Subframe rotation
  * loads one image per tick with a common numeric display calibration. Regional
  * playback borrows frames from regionFrames; the cache owns their lifetime. */
-/** Both sources lead to the same small, decoded setup. Selecting an instance
- * shows what will be imported; Import validates files before replacing a review. */
+function sqrWBPPLogSummary(report){
+   if(!report)return 'No WBPP run log found.';
+   const n=report.findings.length,marked=report.findings.filter(f=>f.eligible&&f.row.reject&&!f.row.moved).length;
+   if(!n)return report.note||'WBPP log: no frame findings.';
+   return 'WBPP log: '+n+' frame finding'+(n===1?'':'s')+' · '+marked+' marked for rejection.'+(report.note?' '+report.note:'');
+}
+
+class SQRWBPPLogDialog extends Dialog {
+   constructor(report,allowImport){
+      super();this.windowTitle='WBPP report';this.chooseSetup=false;this.changed=false;
+      let note=new Label(this);note.wordWrapping=true;note.useRichText=false;note.toolTip=report.path;
+      const summarize=()=>{note.text=sqrFileName(report.path)+' · '+sqrWBPPLogSummary(report);};summarize();
+      this.table=new TreeBox(this);this.table.numberOfColumns=4;this.table.headerVisible=true;this.table.alternateRowColor=true;this.table.rootDecoration=false;this.table.setScaledMinSize(800,260);
+      ['Decision','Exposure','Association','WBPP reason'].forEach((title,i)=>this.table.setHeaderText(i,title));
+      const decision=f=>f.row?.moved?'Moved':f.row?.reject?'Rejected':f.eligible?'Kept':'Inspect';
+      for(const f of report.findings){
+         let node=new TreeBoxNode(this.table);node.finding=f;node.checkable=false;
+         node.setText(0,decision(f));node.setText(1,sqrFileName(f.path));node.setToolTip(1,f.path);
+         node.setText(2,!f.row?.original?'No verified match':f.row.registered?'Registered':'Original only');
+         node.setText(3,f.reason);node.setToolTip(3,f.reason);
+      }
+      for(let i=0;i<4;++i)this.table.adjustColumnWidthToContents(i);
+      let buttons=new HorizontalSizer;buttons.spacing=8;
+      if(allowImport){
+         this.importSetup=sqrButton(this,'Import setup…',()=>{this.chooseSetup=true;this.ok();});buttons.add(this.importSetup);
+      }
+      // Registered exposures already have a decision control in Review.
+      // Preserve an override for verified lights that never reached registration.
+      const originalOnly=f=>f?.eligible&&!f.row.registered&&!f.row.moved;
+      if(report.findings.some(originalOnly)){
+         this.override=sqrButton(this,'Keep original',()=>{
+            const node=this.table.currentNode,f=node?.finding;if(!originalOnly(f))return;
+            f.row.reject=!f.row.reject;this.changed=true;node.setText(0,decision(f));summarize();updateOverride();
+         });
+         const updateOverride=()=>{const f=this.table.currentNode?.finding;this.override.enabled=!!originalOnly(f);
+            this.override.text=originalOnly(f)&&!f.row.reject?'Reject original':'Keep original';};
+         this.override.toolTip='Change the mark for the selected original-only exposure.';buttons.add(this.override);
+         this.table.onCurrentNodeUpdated=updateOverride;updateOverride();
+      }
+      let close=sqrButton(this,'Close',()=>this.ok());close.defaultButton=true;close.escapeButton=true;
+      buttons.addStretch();buttons.add(close);
+      this.sizer=new VerticalSizer;this.sizer.margin=10;this.sizer.spacing=8;this.sizer.add(note);this.sizer.add(this.table,100);this.sizer.add(buttons);this.adjustToContents();
+   }
+}
+/** Both sources lead to the same decoded setup. Import validates files before replacing a review. */
 class SQRWBPPImportDialog extends Dialog {
    constructor(savedData=null){super();this.windowTitle='Import WBPP setup';this.data=null;this.records=[];
       let label=new Label(this);label.text='WBPP instance:';
@@ -4489,23 +5234,172 @@ class SQRWBPPImportDialog extends Dialog {
       }catch(e){this.fail(e);}
    }
 }
-class SQRWBPPExportDialog extends Dialog {
-   constructor(plan,destination,canMove){super();this.windowTitle='Create reviewed WBPP instance';
-      this.summary=new Label(this);this.summary.wordWrapping=true;this.summary.useRichText=false;this.summary.setScaledMinWidth(480);
-      this.summary.text='Retain '+plan.retained.length+' enabled lights and remove '+plan.removed+' rejected originals across all imported groups.\n\n'+
-         'Calibration frames and WBPP settings are preserved. The imported setup is unchanged.'+
-         (plan.unreviewed?'\n'+plan.unreviewed+' imported lights are not present in this review and will be retained.':'')+
-         (plan.resetReferences?'\n'+plan.resetReferences+' reference selection(s) point to rejected images and will be cleared for WBPP to choose again.':'');
-      this.moveOriginals=new CheckBox(this);this.moveOriginals.text='Also move rejected originals';this.moveOriginals.checked=false;this.moveOriginals.enabled=canMove;
-      this.moveOriginals.toolTip=canMove?'Use the verified move plan and existing undo journal. A separate confirmation lists the files before moving them.':
-         !destination?'Choose a Rejected originals folder to enable this option.':'No rejected originals are waiting to be moved.';
-      this.destination=new Label(this);this.destination.wordWrapping=true;this.destination.text='Move destination: '+(destination||'not specified');
-      this.destination.setScaledMinWidth(480);
-      this.note=new Label(this);this.note.wordWrapping=true;this.note.text='Save as a new .xpsm file. Its WBPP icon will be loaded after you close Subframe Quality Review. WBPP will not run automatically.';
-      let create=sqrButton(this,'Create WBPP…',()=>this.ok()),cancel=sqrButton(this,'Cancel',()=>this.cancel());create.defaultButton=true;cancel.escapeButton=true;
-      let buttons=new HorizontalSizer;buttons.spacing=8;buttons.addStretch();buttons.add(create);buttons.add(cancel);
-      this.sizer=new VerticalSizer;this.sizer.margin=12;this.sizer.spacing=12;for(let c of [this.summary,this.moveOriginals,this.destination,this.note,buttons])this.sizer.add(c);
-      this.adjustToContents();this.setFixedSize();
+class SQRTrailRepairDialog extends Dialog {
+   constructor(source,row,preferredWidth=9){
+      super();this.windowTitle='Remove trails — '+sqrFileName(row.registered.path);this.bands=null;this.preferredWidth=preferredWidth;
+      let stf=source.computeAutoStretch(),saved=row.trailBands||[],bands=saved.slice(),history=[],selected=bands.length-1,syncing=false,manualWidth=preferredWidth;
+      let view=this.view=new ImageView(this);view.setScaledMinSize(550,320);
+      let status=new Label(this);status.wordWrapping=true;
+      let width=sqrNumber(this,'Mask width (px):',bands.length?bands[bands.length-1].width:preferredWidth,1,200,0);width.setReal(false);
+      width.toolTip='Width in registered pixels. Select a trail to adjust its mask. While drawing, this sets the manual width for the next band.';
+      let autoWidth=new CheckBox(this);autoWidth.text='Auto width';autoWidth.checked=true;
+      autoWidth.toolTip='Estimate a width for each new band from the registered image. Clear to apply the entered width.';
+      const sizeBand=b=>{let estimate=autoWidth.checked?sqrEstimateTrailWidth(source,b):null;
+         if(estimate!==null)b.width=estimate;return estimate!==null;};
+      function render(after){let display=new Image;
+         try{display.assign(source);display.applyDisplayFunction(stf);display.truncate();if(after)sqrApplyTrailBands(display,bands);return display.render();}
+         finally{display.free();}}
+      let original=render(false),after=null;view.setImage(original);
+      let show=new CheckBox(this);show.text='Show masked pixels';show.checked=!!bands.length;
+      let draw=new CheckBox(this);draw.text='Draw manually';draw.checked=false;
+      draw.toolTip='Drag along the streak to draw a mask. Clear to pan and zoom with the mouse.';
+      let start=null,end=null,viewport=view.scrollbox.viewport;
+      const redraw=()=>{if(show.checked&&!after)after=render(true);view.regenerate(show.checked?after:original);};
+      let list=new ComboBox(this);list.setScaledFixedWidth(155);
+      list.toolTip='Choose a trail to edit its width, or remove the selected trail from the preview.';
+      let extent=new ComboBox(this);for(let t of ['Automatic extent','Edge to edge','Visible segment'])extent.addItem(t);
+      extent.toolTip='Automatic extent follows thin trails to the image edges and keeps bright, thick trails within their detected span. Applies when you click Remove trails.';
+      const remember=()=>history.push({bands:bands.slice(),selected,width:width.value,manualWidth});
+      const sync=()=>{
+         syncing=true;list.clear();bands.forEach((_,i)=>list.addItem('Trail '+(i+1)));
+         if(bands.length){list.addItem('Remove Trail '+(selected+1));list.currentItem=selected;}
+         list.enabled=show.enabled=!!bands.length;undo.enabled=!!history.length;
+         save.enabled=JSON.stringify(bands)!==JSON.stringify(saved)||(bands.length>0&&(!row.trailCopy||!File.exists(row.trailCopy)));
+         save.text=!bands.length&&saved.length?'Remove saved repair':'Save repaired image';
+         status.text=draw.checked?'Drag along the streak and release to preview the repair.':
+            bands.length?bands.length+' trail band(s). Inspect the black pixels, then save or undo.':'Click Remove trails to preview automatic removal, or select Draw manually.';
+         syncing=false;
+      };
+      const changed=()=>{if(after)after.clear();after=null;show.checked=!!bands.length;redraw();sync();};
+      const point=(x,y,clamp)=>{let p=view.viewportToImage(x,y);
+         if(!clamp&&(p.x<0||p.x>=source.width||p.y<0||p.y>=source.height))return null;
+         return {x:Math.max(0,Math.min(source.width-1,Math.floor(p.x))),y:Math.max(0,Math.min(source.height-1,Math.floor(p.y)))};};
+      const press=viewport.onMousePress,move=viewport.onMouseMove,release=viewport.onMouseRelease;
+      viewport.onMousePress=function(x,y,b,state,mods){
+         if(draw.checked&&b===MouseButton.Left&&!mods){start=end=point(x,y,false);this.update();}
+         else press.call(this,x,y,b,state,mods);};
+      viewport.onMouseMove=function(x,y,state,mods){
+         if(start){end=point(x,y,true);this.update();}else move.call(this,x,y,state,mods);};
+      viewport.onMouseRelease=function(x,y,b,state,mods){
+         if(start&&b===MouseButton.Left){
+            let a=start,z=point(x,y,true);start=end=null;
+            if(a.x!==z.x||a.y!==z.y){remember();let band={start:a,end:z,width:autoWidth.checked?manualWidth:width.value},estimated=sizeBand(band);
+               bands.push(band);selected=bands.length-1;selectWidth();changed();
+               if(autoWidth.checked&&!estimated)status.text='Width could not be measured here. Using '+band.width+' px.';}
+            this.update();
+         }else release.call(this,x,y,b,state,mods);};
+      view.onCustomPaint=g=>{if(!start||!end)return;
+         g.pen=new Pen(0x907edee2,width.value);g.drawLine(start.x,start.y,end.x,end.y);
+         g.pen=new Pen(0xffffdc64,1);g.drawLine(start.x,start.y,end.x,end.y);};
+      draw.onCheck=()=>{start=end=null;viewport.update();sync();};
+      const selectWidth=()=>{if(selected>=0){syncing=true;width.setValue(bands[selected].width);syncing=false;}};
+      list.onItemSelected=i=>{if(syncing||i<0||!bands.length)return;
+         if(i===bands.length){remember();bands.splice(selected,1);
+            selected=Math.min(selected,bands.length-1);selectWidth();changed();return;}
+         selected=i;draw.checked=false;selectWidth();sync();};
+      width.onValueUpdated=v=>{if(syncing)return;
+         if(!draw.checked&&selected>=0&&bands[selected].width!==v){remember();bands[selected]={...bands[selected],width:v};changed();}
+         manualWidth=v;};
+      let undo=sqrButton(this,'Undo',()=>{if(!history.length)return;start=end=null;
+         let state=history.pop();bands=state.bands;selected=state.selected;manualWidth=state.manualWidth;
+         syncing=true;width.setValue(selected>=0?bands[selected].width:state.width);syncing=false;changed();});
+      undo.toolTip='Undo the last automatic removal, manual stroke, width change, or deletion.';
+      let detect=sqrButton(this,'Remove trails',()=>{
+         start=end=null;let fallback=autoWidth.checked?manualWidth:width.value;
+         let found=sqrDetectTrailBands(source,fallback,['auto','full','segment'][extent.currentItem]||'auto');
+         if(found.length){let measured=0;for(let band of found)if(sizeBand(band))++measured;
+            remember();bands=found;selected=0;draw.checked=false;selectWidth();changed();
+            if(autoWidth.checked&&measured<found.length)status.text+=' Used '+fallback+' px for '+(found.length-measured)+' unmeasured band(s).';}
+         else{draw.checked=true;sync();status.text='No clear trail found. Drag along the streak to add a band.';}
+      });
+      detect.toolTip='Detect trails and preview their masks. Save to keep your changes.';
+      show.onCheck=redraw;
+      let save=sqrButton(this,'Save repaired image',()=>{this.bands=bands;this.preferredWidth=manualWidth;this.ok();});
+      let cancel=sqrButton(this,'Cancel',()=>this.cancel());cancel.escapeButton=true;
+      let trace=new HorizontalSizer;trace.spacing=8;for(let c of [width,autoWidth,extent,detect,draw])trace.add(c);trace.addStretch();
+      let buttons=new HorizontalSizer;buttons.spacing=6;for(let c of [list,undo,show])buttons.add(c);buttons.addStretch();for(let c of [save,cancel])buttons.add(c);
+      this.sizer=new VerticalSizer;this.sizer.margin=8;this.sizer.spacing=8;this.sizer.add(status);this.sizer.add(view,100);this.sizer.add(trace);this.sizer.add(buttons);
+      this.userResizable=true;this.resize(Math.min(this.logicalPixelsToPhysical(950),this.availableScreenRect.width*.85),Math.min(this.logicalPixelsToPhysical(680),this.availableScreenRect.height*.85));
+      this.onShow=()=>view.zoomToFit();show.checked=!!bands.length;if(show.checked)redraw();sync();
+   }
+}
+class SQRMasterBlinkPage extends Control {
+   constructor(parent,owner,o){
+      super(parent);this.ownerDialog=owner;this.selections=new Map;this.referenceCache={};this.versions=[];this.indexShown=0;
+      this.versionList=new ComboBox(this);this.versionList.setScaledFixedWidth(380);
+      this.versionList.toolTip='Choose the reviewed integration to compare with the original WBPP master.';
+      this.versionList.onItemSelected=()=>this.loadPair();
+      let label=new Label(this);label.text='Reviewed master:';
+      this.clock=new Timer(sqrBlinkInterval(o.blinkInterval),true,this);
+      this.clock.onTimeout=()=>{if(this.playing&&this.ownerDialog.tabs.currentPageIndex===4&&!this.ownerDialog.running)this.showImage(1-this.indexShown);};
+      this.interval=sqrNumber(this,'Interval (s):',this.clock.interval,.1,10,2);this.interval.edit.setScaledFixedWidth(48);
+      this.interval.onValueUpdated=v=>{this.clock.interval=sqrBlinkInterval(v);if(this.playing)this.clock.start();};
+      this.play=sqrTool(this,':/icons/play.png','Blink the two masters.',()=>this.setPlaying(!this.playing));
+      this.step=sqrTool(this,':/icons/step-forward.png','Pause and show the other master.',()=>{this.setPlaying(false);if(this.pair)this.showImage(1-this.indexShown);});
+      let row=new HorizontalSizer;row.spacing=6;row.add(label);row.add(this.versionList);row.addStretch();row.add(this.interval);row.add(this.play);row.add(this.step);
+      this.view=new ImageView(this);this.view.setScaledMinSize(580,260);
+      this.view.onShow=()=>{if(this.fitOnShow&&this.view.isValid){this.view.zoomToFit();this.fitOnShow=false;}this.view.scrollbox.viewport.update();};
+      sqrInstallPixelReadout(this.view,()=>this.pair?.[this.indexShown]||null);
+      this.stretch=new CheckBox(this);this.stretch.text='Display STF';this.stretch.checked=o.displaySTF;this.stretch.toolTip='Apply the original master’s display stretch to both images.';
+      this.stretch.onCheck=()=>this.loadPair();this.view.appendTopControl(this.stretch);
+      this.caption=new Label(this);this.caption.wordWrapping=true;this.caption.minHeight=this.font.height;
+      this.sizer=new VerticalSizer;this.sizer.margin=6;this.sizer.spacing=6;this.sizer.add(row);this.sizer.add(this.view,100);this.sizer.add(this.caption);
+      this.empty('Load the WBPP file list to compare masters.');
+      this.onShow=()=>this.refresh(undefined,true);
+      this.onHide=()=>this.setPlaying(false);
+   }
+   setPlaying(on){
+      this.playing=!!on&&!!this.pair;this.clock.stop();if(this.playing)this.clock.start();
+      this.play.icon=this.scaledResource(this.playing?':/icons/media-stop.png':':/icons/play.png');
+      this.play.toolTip=this.playing?'Stop blinking.':'Blink the two masters.';
+   }
+   clearPair(){
+      this.setPlaying(false);if(this.pair)this.pair[0].clear();this.pair=null;this.loadedKey=null;
+      if(this.referenceCache.data)this.referenceCache.data.bitmap.clear();this.referenceCache={};
+   }
+   empty(message){
+      this.clearPair();this.view.reset();this.view.setStatusMessage(message);this.view.clearPixelReadout();
+      this.caption.text=message;this.caption.toolTip='';this.play.enabled=this.step.enabled=this.stretch.enabled=false;
+      this.versionList.enabled=this.versions.length>0;
+   }
+   refresh(preferPath,revealing=false){
+      let session=this.ownerDialog.session,g=this.ownerDialog.group(),wbpp=session?.options.wbpp;
+      if(!g||!wbpp){this.versions=[];this.versionList.clear();this.empty('Load the WBPP file list to compare masters.');return;}
+      this.selectionKey=JSON.stringify([sqrPath(wbpp),sqrMasterGroupKey(wbpp,g)]);
+      if(preferPath)this.selections.set(this.selectionKey,preferPath);
+      if(!revealing&&this.ownerDialog.tabs.currentPageIndex!==4){this.clearPair();this.view.reset();return;}
+      let selected=this.selections.get(this.selectionKey);
+      try{
+         let list=sqrReviewedMasterVersions(wbpp,g,session.groups);this.versions=list.versions;
+         this.versionList.clear();for(let v of this.versions)this.versionList.addItem(v.label);
+         this.versionList.enabled=this.versions.length>0;
+         if(!this.versions.length){this.empty(list.unreadable?'No readable reviewed master was found for this group. See the process console.':'Create a reviewed master for this group to compare it here.');return;}
+         this.versionList.currentItem=Math.max(0,this.versions.findIndex(v=>v.path===selected));this.loadPair();
+      }catch(e){this.empty('Cannot list the reviewed masters. '+e);}
+   }
+   loadPair(){
+      let v=this.versions[this.versionList.currentItem],ref=this.ownerDialog.group()?.master;if(!v)return;
+      this.selections.set(this.selectionKey,v.path);this.versionList.toolTip=v.label+'\n'+v.path;
+      if(!ref||!File.exists(ref)){this.empty('The original WBPP master for this group is unavailable. Restore it and refresh the file list.');return;}
+      let continuePlaying=this.playing;
+      try{
+         let key=JSON.stringify([ref,sqrFingerprint(ref),v.path,v.fingerprint,this.stretch.checked]);
+         if(this.pair&&this.loadedKey===key)return;
+         this.setPlaying(false);if(this.pair)this.pair[0].clear();this.pair=null;
+         // Only the selected integration and the common WBPP reference are rendered.
+         // Timer ticks reuse both bitmaps and leave the viewport transform intact.
+         this.pair=sqrFrames(v.path,ref,{displaySTF:this.stretch.checked,alignBrightness:false},[0,0,v.width,v.height],true,this.referenceCache);
+         this.view.setStatusMessage('');
+         this.loadedKey=key;this.refPath=ref;this.reviewedPath=v.path;
+         let fit=!this.view.isValid||this.imageW!==v.width||this.imageH!==v.height;this.imageW=v.width;this.imageH=v.height;
+         this.showImage(0,fit);this.play.enabled=this.step.enabled=this.stretch.enabled=true;this.setPlaying(continuePlaying);
+      }catch(e){this.empty('Cannot compare these masters. '+e);}
+   }
+   showImage(index,fit=false){
+      this.indexShown=index;let bitmap=this.pair[index],path=index?this.refPath:this.reviewedPath;
+      if(fit){this.view.setImage(bitmap);if(this.view.visible)this.view.zoomToFit();this.fitOnShow=!this.view.visible;}
+      else this.view.regenerate(bitmap);
+      this.view.refreshPixelReadout();this.caption.text=(index?'Original WBPP master':'Reviewed master')+'   '+sqrFileName(path);this.caption.toolTip=path;
    }
 }
 class SQRDialog extends Dialog {
@@ -4687,7 +5581,7 @@ class SQRDialog extends Dialog {
       this.maxFits=o.maxFits;
       this.groupRow=new Control(this);this.groupRow.sizer=new HorizontalSizer;this.groupRow.sizer.spacing=0;
       let groupLabel=new Label(this.groupRow);groupLabel.text='Filter / group:';
-      this.groupSelect=new ComboBox(this.groupRow);this.groupSelect.setScaledFixedWidth(240);this.groupSelect.onItemSelected=()=>{this.clearPreviewKeepingView();this.current=null;this.selectionCleared=false;this.populateRows();};
+      this.groupSelect=new ComboBox(this.groupRow);this.groupSelect.setScaledFixedWidth(240);this.groupSelect.onItemSelected=()=>{this.clearPreviewKeepingView();this.current=null;this.selectionCleared=false;this.populateRows();this.masterBlink.refresh();};
       // Match the input section's left inset, but let this shorter label use
       // its natural width so the selector follows it with the standard gap.
       this.groupRow.sizer.addSpacing(10);
@@ -4696,7 +5590,7 @@ class SQRDialog extends Dialog {
       this.tabs=new TabBox(this);this.reviewPage=new Control(this.tabs);this.blinkPage=new Control(this.tabs);this.histogramPage=new Control(this.tabs);this.scatterPage=new Control(this.tabs);
       this.table=new TreeBox(this.reviewPage);this.table.numberOfColumns=26;this.table.headerVisible=true;this.table.rootDecoration=false;
       this.table.alternateRowColor=true;this.table.multipleSelection=false;this.table.setScaledMinSize(800,320);
-      let headers=['R1','R2','R3','R4','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Field eccentricity','Corner quality','Below-mean Quality','Guiding quality (″)','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association','Sky brightness','Transparency','Sky quality','Cloud extinction (mag)'];
+      let headers=['R1','R2','R3','R4','Reject','Review','Image','Acquisition time (UTC)','Score','PSF weight','FWHM (px)','Stars','Main issue','Field eccentricity','Corner quality','Below-mean Quality','Guiding quality (″)','Guide avg (″)','Guide min (″)','Guide max (″)','Worst corner','Original association','Sky brightness','Transparency','Sky quality','Cloud extinction (mag)','Trails'];
       this.baseReviewColumnCount=headers.length;
       for(let i=0;i<headers.length;++i)this.table.setHeaderText(i,headers[i]);
       this.rejectIcons=[sqrRejectIcon(this,false),sqrRejectIcon(this,true)];
@@ -4724,10 +5618,12 @@ class SQRDialog extends Dialog {
       this.sortDirection.setScaledMinWidth(125);
       let filterLabel=new Label(this.reviewOptions);filterLabel.text='Filter:';filterLabel.setScaledFixedWidth(45);
       this.candidatesOnly=new CheckBox(this.reviewOptions);this.candidatesOnly.text='REVIEW candidates only';this.candidatesOnly.onCheck=()=>this.populateRows();
+      this.candidatesOnly.setFixedWidth(this.order.minWidth);
       this.candidatesOnly.toolTip='Show only subframes flagged REVIEW. The master is hidden. This does not select originals for rejection.';
       this.order.onItemSelected=()=>{this.reviewReverse=false;this.changeReviewSort();};
-      reviewTools.add(sortLabel);reviewTools.add(this.order);reviewTools.add(this.sortDirection);reviewTools.addStretch();
-      let reviewFilter=new HorizontalSizer;reviewFilter.spacing=8;reviewFilter.add(filterLabel);reviewFilter.add(this.candidatesOnly);reviewFilter.addStretch();
+      reviewTools.add(sortLabel);reviewTools.add(this.order);reviewTools.add(this.sortDirection,100);
+      let reviewFilter=new HorizontalSizer;reviewFilter.spacing=reviewTools.spacing;reviewFilter.add(filterLabel);reviewFilter.add(this.candidatesOnly);
+      reviewFilter.addStretch();
       this.reviewOptions.sizer.add(reviewTools);this.reviewOptions.sizer.add(reviewFilter);this.reviewOptions.sizer.addStretch();
       // Stable guidance and the selected image have separate visual groups.
       // Fixed content heights prevent long reasons/paths from moving the table.
@@ -4765,20 +5661,29 @@ class SQRDialog extends Dialog {
       sqrInstallPixelReadout(this.viewer,()=>this.frames?.[this.frame]||null);
       // ImageView normally fits on every reveal. Fit a newly loaded hidden
       // preview once its viewport is visible, then retain zoom on later tab visits.
-      this.viewer.onShow=()=>{if(this.fitPreviewOnShow&&this.viewer.isValid){this.fitPreviewOnShow=false;this.viewer.zoomToFit();}this.viewer.scrollbox.viewport.update();};
+      this.viewer.onShow=()=>{if(this.fitPreviewOnShow&&this.viewer.isValid)this.fitPreview();this.viewer.scrollbox.viewport.update();};
       this.displaySTF=new CheckBox(this.blinkPage);this.displaySTF.text='Display STF';this.displaySTF.checked=o.displaySTF;
       this.alignBrightness=new CheckBox(this.blinkPage);this.alignBrightness.text='Align preview brightness';this.alignBrightness.checked=o.alignBrightness;
       this.alignBrightness.toolTip='Display-only background and contrast alignment. Turn off to compare transparency differences. Source pixels and quality measurements are unchanged.';
       this.viewer.appendTopControl(this.displaySTF);this.viewer.appendTopControl(this.alignBrightness);
-      this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe','Rotate subframes (Review order)','Corner mosaic / master','Corner mosaic / best subframe'])this.reference.addItem(n);this.reference.currentItem=Math.max(0,SQR_BLINK_MODES.indexOf(o.reference));
-      this.reference.toolTip='Compare with the filter master or best scoring kept subframe, or rotate through visible subframes in Review order. Corner mosaic joins Top left / Top right above Bottom left / Bottom right and blinks against the same corners of the master or best subframe. It uses Corner size and Edge guard; numerical corner measurements are not required. Subframe rotation follows the current sort direction and REVIEW-only filter and skips the master.';
-      this.reference.onItemSelected=()=>{if(this.running)return;if(this.reference.currentItem>=2)this.regionRotation.currentItem=0;this.updateButtons();this.reloadBlink(true);this.syncOptions();};
+      this.keepTrail=sqrButton(this.blinkPage,'Keep despite trail',()=>{
+         if(this.running||!this.current?.trailReview)return;
+         this.current.metrics[0].trailReviewed=true;this.populateRows(false);this.ensurePreview();
+      });
+      this.keepTrail.toolTip='Acknowledge the detected trail and keep this subframe. Other REVIEW reasons still apply.';
+      this.viewer.appendTopControl(this.keepTrail);this.keepTrail.hide();
+      this.reference=new ComboBox(this.blinkPage);for(let n of ['Filter master','Best scoring subframe','Rotate subframes (Review order)','Corner mosaic / master','Corner mosaic / best subframe','Trail mask / original'])this.reference.addItem(n);this.reference.currentItem=Math.max(0,SQR_BLINK_MODES.indexOf(o.reference));
+      this.reference.toolTip='Compare with the filter master or best scoring kept subframe, or rotate through visible subframes in Review order. Corner mosaic blinks the same four corners of the usable field for both images. Adjust Mosaic corner (%) to frame them more tightly. Subframe rotation follows the current sort direction and REVIEW-only filter and skips the master.';
+      this.reference.onItemSelected=()=>{if(this.running)return;const enteringMosaic=this.isCornerMosaic()&&!this.mosaicModeShown;if(this.reference.currentItem>=2)this.regionRotation.currentItem=0;this.updateButtons();this.reloadBlink(!enteringMosaic);this.syncOptions();};
       this.region=new ComboBox(this.blinkPage);for(let n of ['Usable field','Center','Top left','Top right','Bottom left','Bottom right'])this.region.addItem(n);
       this.region.onItemSelected=()=>this.reloadBlink(true);
       this.regionRotation=new ComboBox(this.blinkPage);for(let n of ['Off','Image only','Blink with reference'])this.regionRotation.addItem(n);
       this.regionRotation.currentItem=Math.max(0,['off','image','blink'].indexOf(o.regionRotation));this.normalizeRegionRotation();
       this.regionRotation.toolTip='Image only cycles Center, Top left, Top right, Bottom left and Bottom right, skipping Usable field; no reference is needed. Blink with reference includes Usable field and shows image then reference in each region before advancing. Rotation keeps the selected image and zoom. Choosing Rotate subframes switches region rotation off.';
       this.regionRotation.onItemSelected=()=>{if(this.running)return;this.normalizeRegionRotation();this.updateButtons();this.reloadBlink(true);this.syncOptions();};
+      this.mosaicSize=sqrNumber(this.blinkPage,'Mosaic corner (%):',o.mosaicCornerPercent,1,50);this.mosaicSize.setReal(false);this.mosaicSize.edit.setScaledFixedWidth(40);
+      this.mosaicSize.toolTip='Width and height of each tile as a percentage of the common usable field (1–50%). Smaller tiles show corner stars at higher zoom. Applies only to the blink mosaic.';
+      this.mosaicSize.onValueUpdated=()=>{this.syncOptions();if(this.isCornerMosaic())this.reloadBlink(false);};
       this.displaySTF.onCheck=this.alignBrightness.onCheck=()=>{if(this.current)this.inspect();};
       this.blinkInterval=sqrNumber(this.blinkPage,'Interval (s):',this.timer.interval,.1,10,2);this.blinkInterval.edit.setScaledFixedWidth(64);
       this.blinkInterval.toolTip='Time each image is displayed before switching: 0.10–10 seconds. Applies to blinking, subframe rotation and region rotation. Region blinking spends one interval on the image and one on its reference before advancing. Subframe rotation adds the time needed to load each image.';
@@ -4787,7 +5692,7 @@ class SQRDialog extends Dialog {
       this.step=sqrTool(this.blinkPage,':/icons/step-forward.png','Pause and advance the preview.',()=>{this.stopBlink();this.advancePlayback();});
       this.frameLabel=new Label(this.blinkPage);this.frameLabel.text='No frame loaded';this.frameLabel.minHeight=2*this.font.height;this.frameLabel.wordWrapping=true;
       let referenceLabel=new Label(this.blinkPage);referenceLabel.text='Blink mode:';
-      let rotationLabel=new Label(this.blinkPage);rotationLabel.text='Rotate regions:';
+      this.rotationLabel=new Label(this.blinkPage);this.rotationLabel.text='Rotate regions:';
       this.previous=sqrTool(this.blinkPage,':/icons/arrow-left.png','Previous image in the Review list. Preserve zoom, position and playback.',()=>this.navigate(-1));
       this.next=sqrTool(this.blinkPage,':/icons/arrow-right.png','Next image in the Review list. Preserve zoom, position and playback.',()=>this.navigate(1));
       // The native right-arrow artwork sits one pixel lower than the left.
@@ -4798,7 +5703,7 @@ class SQRDialog extends Dialog {
       // Keep playback controls together at every window width. Equal stretches
       // center interval/playback between the region and right-hand navigation.
       this.blinkTools=new Control(this.blinkPage);this.blinkTools.sizer=new HorizontalSizer;this.blinkTools.sizer.spacing=8;
-      for(let control of [referenceLabel,this.reference,rotationLabel,this.regionRotation,this.region,null,this.blinkInterval,this.play,this.step,null,this.previous,this.next,this.decisionToggle]){
+      for(let control of [referenceLabel,this.reference,this.rotationLabel,this.regionRotation,this.region,this.mosaicSize,null,this.blinkInterval,this.play,this.step,null,this.previous,this.next,this.decisionToggle]){
          if(control){control.parent=this.blinkTools;control.show();this.blinkTools.sizer.add(control,0,Alignment.Center);}
          else this.blinkTools.sizer.addStretch();
       }
@@ -4860,8 +5765,9 @@ class SQRDialog extends Dialog {
       this.scatterPage.sizer=new VerticalSizer;this.scatterPage.sizer.margin=6;this.scatterPage.sizer.spacing=10;
       this.scatterPage.sizer.add(scatterTools);this.scatterPage.sizer.add(this.scatter,100);this.scatterPage.sizer.add(this.scatterSummary);
       this.tabs.addPage(this.reviewPage,'Review and measurements');this.tabs.addPage(this.blinkPage,'Blink frame / reference');this.tabs.addPage(this.histogramPage,'Quality indicators');this.tabs.addPage(this.scatterPage,'Correlation plot');
+      this.masterBlink=new SQRMasterBlinkPage(this.tabs,this,o);this.tabs.addPage(this.masterBlink,'Blink masters');
       this.status=new Label(this);this.status.wordWrapping=true;this.status.minHeight=this.font.height;
-      this.status.text='Choose the WBPP output and original-light folders or import a WBPP setup. Click the magnifier to measure, or the grid to include corners. Blink against the master or best subframe. The green checkmark moves only manually rejected originals.';
+      this.status.text='Choose the WBPP output and original-light folders or import a WBPP setup. Click the magnifier to measure, or the grid to include corners. Blink against the master or best subframe. Use Move rejected originals to move the marked lights after confirmation.';
       this.reviewSummary=new Label(this);this.reviewSummary.wordWrapping=true;this.reviewSummary.minHeight=this.font.height;
       this.scoreInclusionStatus=new Label(this);this.scoreInclusionStatus.wordWrapping=true;this.scoreInclusionStatus.minHeight=2*this.font.height;
       this.pixelScaleStatus=new Label(this);this.pixelScaleStatus.wordWrapping=true;this.pixelScaleStatus.minHeight=this.font.height;
@@ -4875,15 +5781,24 @@ class SQRDialog extends Dialog {
       this.calculate=sqrTool(this,':/toolbar/view-zoom.png','Measure registered frames and rank review candidates. Loads the file list on first use.',()=>this.analyze());
       this.measureCornersButton=sqrTool(this,':/icons/grid.png','Measure corners: measure the center and four corners for all groups and matched masters. Loads the file list on first use and reuses existing field and regional measurements.',()=>this.analyze(true));
       this.recommendButton=sqrButton(this,'Recommend rejection…',()=>this.recommendRejection());
+      this.rejectLowerButton=sqrTool(this,':/icons/table-arrow-down.png','Reject lower scores',()=>this.rejectLowerScores());
       this.recommendButton.toolTip='Compare SNR and sharpness for the selected group before marking recommended rejects. Optional object ROI; adjustable SNR preservation and minimum retained count.';
       this.configurationButton=sqrTool(this,':/icons/gear.png','Review configuration: review criteria, measurement regions and observing site.',()=>this.editMeasurementSettings());
       this.reset=sqrTool(this,':/process-interface/reset.png','Reset evaluation and display settings. Folder paths are retained.',()=>this.resetSettings());
-      this.moveButton=sqrTool(this,':/process-interface/execute.png','Review the move plan, then move only manually rejected original lights.',()=>this.moveRejected());
-      this.exportWBPPButton=sqrTool(this,':/icons/document-export.png','Create a new WBPP instance excluding rejected original lights.',()=>this.exportReviewedWBPP());
+      this.moveButton=sqrTool(this,':/icons/file-copy.png','Move rejected originals',()=>this.moveRejected());
+      this.preferredTrailWidth=o.trailWidth;
+      this.trailButton=sqrTool(this,':/icons/brush.png','Remove trails. Select a retained registered subframe with a measured Trails count of at least one.',()=>this.editRegisteredTrail());
+      this.table.onNodeSelectionUpdated=()=>{if(!this.populating)this.updateSelectionActions();};
+      this.masterButton=sqrTool(this,':/icons/documents-add.png','Integrate retained lights',()=>this.createReviewedMaster());
+      const integrationIcon=CoreApplication.rscDirPath+'/icons/module/ImageIntegration/ImageIntegration.svg';
+      if(File.exists(integrationIcon)){
+         let size=Math.round(18*this.resourcePixelRatio);
+         this.masterButton.icon=Bitmap.fromSVGFile(integrationIcon,size,size);
+      }
       this.undoMoveButton=sqrTool(this,':/icons/undo.png','Undo moved originals. Select a moved row to restore that file, or choose a move journal to restore several files, including after reopening the script.',()=>this.restoreRejected());
       this.closeButton=sqrTool(this,':/process-interface/cancel.png','Close the review. Measurements and pending decisions are kept only while this dialog is open.',()=>this.cancel());
       this.helpButton=sqrTool(this,':/process-interface/browse-documentation.png','Open the PIDoc user guide.',sqrShowDocumentation);
-      let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.measureCornersButton);actions.add(this.recommendButton);actions.add(this.configurationButton);actions.add(this.reset);actions.addStretch();actions.add(this.exportWBPPButton);actions.add(this.moveButton);actions.add(this.undoMoveButton);actions.add(this.closeButton);actions.add(this.helpButton);
+      let actions=new HorizontalSizer;actions.spacing=8;actions.add(this.instance);actions.add(this.calculate);actions.add(this.measureCornersButton);actions.add(this.recommendButton);actions.add(this.rejectLowerButton);actions.add(this.configurationButton);actions.add(this.reset);actions.addStretch();actions.add(this.trailButton);actions.add(this.masterButton);actions.add(this.moveButton);actions.add(this.undoMoveButton);actions.add(this.closeButton);actions.add(this.helpButton);
       // The action row stays visible while the body can scroll independently.
       // Its natural minimum no longer fixes the whole window at expanded height.
       this.bodyScroll=new ScrollBox(this);this.bodyScroll.autoScroll=false;this.bodyScroll.tracking=true;
@@ -4898,8 +5813,8 @@ class SQRDialog extends Dialog {
       this.body.onResize=()=>this.layoutBody();
       this.bodyScroll.onHorizontalScrollPosUpdated=()=>this.positionBody();this.bodyScroll.onVerticalScrollPosUpdated=()=>this.positionBody();
       this.onShow=()=>{this.layoutBody();this.layoutTimer.start();};
-      this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();return true;};
-      this.onHide=()=>{this.layoutTimer.stop();this.plotTimer.stop();this.resumeBlinkOnReturn=false;this.stopBlink();};
+      this.onClose=()=>{if(this.running)return false;this.plotTimer.stop();this.stopBlink();this.clearFrames();this.masterBlink.clearPair();return true;};
+      this.onHide=()=>{this.layoutTimer.stop();this.plotTimer.stop();this.resumeBlinkOnReturn=false;this.stopBlink();this.masterBlink.setPlaying(false);};
       this.tabs.onPageSelected=()=>{
          let page=this.tabs.currentPageIndex;
          if(page!==1&&this.blinking){this.resumeBlinkOnReturn=true;this.stopBlink();}
@@ -4961,7 +5876,8 @@ class SQRDialog extends Dialog {
       o.observingSite=sameRun&&this.observingSite?{...this.observingSite}:null;
       o.siteHeadersOnly=sameRun&&this.siteHeadersOnly;
       o.measureCorners=this.useCornerMeasurements;o.reference=SQR_BLINK_MODES[this.reference.currentItem];o.blinkInterval=this.blinkInterval.value;
-      o.regionRotation=['off','image','blink'][this.regionRotation.currentItem];
+      o.regionRotation=['off','image','blink'][this.regionRotation.currentItem];o.mosaicCornerPercent=this.mosaicSize.value;
+      o.trailWidth=this.preferredTrailWidth;
       o.logFolder=this.logFolder.edit.text.trim();o.logTimeZone=['auto','offset'][this.logTimeZone.currentItem];o.logUTCOffset=this.logUTCOffset.value;
       o.guidingMode=['require','available','ignore'][this.guidingMode.currentItem];
       o.qualityCollapsed=this.qualityCollapsed;o.inputsCollapsed=this.inputsCollapsed;o.reviewInfoCollapsed=this.reviewInfoCollapsed;o.messagesCollapsed=this.messagesCollapsed;
@@ -4974,7 +5890,7 @@ class SQRDialog extends Dialog {
       this.stopBlink();this.syncOptions();sqrRank(this.session);let dialog=new SQRRecommendationDialog(this.group(),this.session.options,!!this.session.guiding?.enabled);
       dialog.execute();this.recommendationOptions=dialog.options();this.syncOptions();sqrRank(this.session);
       if(dialog.reviewApplied){this.clearFrames();let reinstated=dialog.recommendation.reinstate.length;
-         this.status.text='REVIEW complete for '+(this.group().filter||'the selected group')+'. New rejection marks: '+dialog.applied+'.'+(reinstated?' Rejection marks cleared: '+reinstated+'.':'')+' No originals moved.';}
+         this.status.text='Recommendation applied for '+(this.group().filter||'the selected group')+'. New rejection marks: '+dialog.applied+'.'+(reinstated?' Rejection marks cleared: '+reinstated+'.':'')+' No originals moved.'+sqrTrailNotice(this.group().rows.filter(r=>!r.reject&&!r.moved&&!r.isMaster));}
       this.populateRows(false);
       this.updateButtons();
    }
@@ -5225,7 +6141,11 @@ class SQRDialog extends Dialog {
    clearRegionFrames(){if(this.regionFrames)for(let pair of this.regionFrames)for(let frame of pair)frame.clear();this.regionFrames=null;this.regionFramesKey='';}
    // A hidden tab can still have a provisional viewport size. Refit only this
    // initial view when it becomes visible; navigation keeps the established view.
-   fitPreview(){this.fitPreviewOnShow=!this.viewer.visible;this.viewer.zoomToFit();}
+   fitPreview(){this.fitPreviewOnShow=!this.viewer.visible;
+      const mosaic=this.isCornerMosaic()&&this.frames?.[0];
+      // Native zoom-to-fit stops at 1:1. Small corner tiles can fill more of the viewport.
+      if(mosaic&&this.viewer.visible&&typeof this.viewer.zoomToRect==='function')this.viewer.zoomToRect(0,0,mosaic.width,mosaic.height);
+      else this.viewer.zoomToFit();}
    // Deselecting clears the displayed bitmap, but a following selection (including
    // the click sequence of a double-click) can still restore its view. Derive zoom
    // from the public coordinate mapping rather than reading ImageView internals.
@@ -5248,13 +6168,13 @@ class SQRDialog extends Dialog {
       this.updateDetails();this.updateButtons();if(changed&&this.histogram)this.updatePlots();if(changed)this.ensurePreview();}
    clearSelection(){this.clearPreviewKeepingView();this.current=null;this.selectionCleared=true;this.populating=true;
       this.table.deselectAllNodes();this.populating=false;this.updateDetails();this.updateButtons();this.updatePlots();}
-   ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))this.inspect(false);}
+   ensurePreview(){if(!this.running&&this.tabs.currentPageIndex===1&&!this.frames&&((this.options().reference==='trail'&&this.current?.trailBands?.length)||(this.group()?.regions&&(this.isRotating()?this.rotationRows().length:this.current?.metrics[0]))))this.inspect(false);}
    // Compare the data behind an existing preview before/after measurement.
    // A new ROI, changed file signature, selected row or best reference makes
    // it stale. Re-ranking identical results must not reload/stretch the images.
    measurementPreviewSignature(useLoaded=false){let g=this.group();if(!g)return '';
       let noReference=this.isRotating()||(this.isRegionRotating()&&this.regionRotation.currentItem===1);
-      let reference=noReference?'':useLoaded&&this.frames?this.loadedReference?.path||'':sqrReference(g,this.options().reference).path;
+      let reference=noReference?'':useLoaded&&this.frames?this.loadedReference?.path||'':sqrReference(g,this.options().reference,this.current).path;
       return JSON.stringify([g.measureSignature,g.masterRow?.measureSignature,this.current?.registered.path,g.regions,reference]);}
    loadAutorun(refresh=true){
       if(this.running)return;
@@ -5365,11 +6285,14 @@ class SQRDialog extends Dialog {
       let mode=this.inputMode(),available=!this.running&&this.hasInputFolders();
       this.refreshFilesButton.enabled=this.calculate.enabled=this.measureCornersButton.enabled=available;
       this.refreshFilesButton.toolTip='Refresh file list: '+(mode==='import'?'recheck the lights in the imported WBPP setup.':'read the selected folders and match registered lights to their originals.')+
-         ' A successful refresh starts a new review and clears its measurements and rejection marks.';
-      this.importWBPPButton.enabled=!this.running&&mode!=='manual';
+         ' Refresh clears measurements and keeps your decision for unchanged WBPP log findings.';
+      const report=this.session?.wbppLog&&!this.scanRequired;
+      this.importWBPPButton.text=report?'WBPP report…':'Import WBPP…';
+      this.importWBPPButton.enabled=!this.running&&(mode!=='manual'||!!report);
       let highlight=mode==='choose'&&this.importWBPPButton.enabled;
       if(this.importHighlighted!==highlight){this.importHighlighted=highlight;this.importWBPPButton.styleSheet=highlight?'QPushButton { background-color: #b9c6d0; }':'';}
-      this.importWBPPButton.toolTip=mode==='manual'?'Manual folder input is selected. Clear WBPP output to enable Import WBPP instead.':
+      this.importWBPPButton.toolTip=report?'Show the current WBPP log findings and rejection decisions.'+(mode==='import'?' Choose Import setup to open another WBPP instance.':''):
+         mode==='manual'?(this.scanRequired?'Load the file list to check for a WBPP run log.':'No WBPP run log found.')+' Clear WBPP output to import a setup instead.':
          'Import from a loaded WBPP icon or saved .xpsm file and populate Review automatically.'+(this.wbppImport?' Choose Saved WBPP setup to recheck the imported list, or select another source.':'');
    }
    updateButtons(){let ready=!!this.session&&!this.running,selected=!!this.current,original=selected&&!this.current.isMaster&&!this.current.moved;
@@ -5380,22 +6303,26 @@ class SQRDialog extends Dialog {
       if(this.calibrateSkyButton)this.calibrateSkyButton.enabled=ready&&sqrSkyComparisonEnabled(this.options())&&!!this.group()&&sqrSkyFilterSupported(this.group())&&
          (!this.sqm.value||sqrSQMTime(this.options(),this.session).time!==null);
       this.cornerScoring.enabled=!this.running&&sqrHasCornerMeasurements(this.session);
-      this.reference.enabled=!this.running&&this.regionRotation.currentItem!==1;this.regionRotation.enabled=this.region.enabled=!this.running&&!this.isCornerMosaic();
+      const mosaic=this.isCornerMosaic();
+      if(mosaic!==this.mosaicModeShown){
+         this.mosaicModeShown=mosaic;this.rotationLabel.visible=this.regionRotation.visible=this.region.visible=!mosaic;this.mosaicSize.visible=mosaic;
+      }
+      this.reference.enabled=!this.running&&this.regionRotation.currentItem!==1;this.regionRotation.enabled=this.region.enabled=!this.running&&!mosaic;this.mosaicSize.enabled=!this.running&&mosaic;
       // A typed or browsed destination enables file actions without rescanning.
       // Whitespace is empty; the move preflight still validates the actual path.
       let destinationSet=!!this.folders.destination.edit.text.trim(),scanned=!!this.session&&!this.scanRequired;
-      let pending=!!this.session?.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
+      this.updateSelectionActions();
+      const decisions=sqrDecisionRows(this.session);
+      let pending=decisions.some(r=>r.reject&&!r.moved);
       this.moveButton.enabled=!this.running&&scanned&&destinationSet&&pending;
       this.undoMoveButton.enabled=!this.running&&this.hasInputFolders()&&destinationSet;
-      let imported=this.inputMode()==='import'&&!!this.wbppImport?.template?.parameters,
-         decided=!!this.session?.groups.some(g=>g.rows.some(r=>!r.isMaster&&(r.reject||r.moved)));
-      this.exportWBPPButton.enabled=!this.running&&scanned&&imported&&decided;
-      this.exportWBPPButton.toolTip=!imported?'Create reviewed WBPP: import a WBPP icon or .xpsm file first. Reimport saved setups that do not include the complete WBPP parameters.':
-         !scanned?'Import WBPP successfully before creating a reviewed instance.':!decided?'Mark at least one original as rejected. REVIEW flags alone do not exclude lights.':
-         'Create a new WBPP instance without rejected or already moved lights, across all imported groups. Optionally move rejected originals too. The original WBPP setup is preserved.';
+      const retained=this.group()?.rows.filter(sqrRetainedRegistered).length||0;
+      const fromWBPP=this.inputMode()==='import'&&sqrImportedRun(this.session?.options);
+      this.masterButton.enabled=!this.running&&scanned&&fromWBPP&&retained>=3;
+      this.masterButton.toolTip='Integrate retained lights. '+(fromWBPP?'Create a master from '+retained+' registered lights in this group using its WBPP settings. At least 3 are required.':'Import the WBPP setup for this run to enable master creation.');
       let unavailable=!destinationSet?'Choose a folder in Rejected originals under Input files and observing conditions.':
          !this.hasInputFolders()?'Select both image folders or import WBPP.':this.running?'Wait for the current operation to finish.':'';
-      this.moveButton.toolTip=unavailable?'Move rejected originals: '+unavailable:!scanned?'Load the file list and mark an original to move.':!pending?'Mark at least one original as rejected, then click here to review the move plan.':'Review the move plan, then move only manually rejected original lights to the Rejected originals folder.';
+      this.moveButton.toolTip='Move rejected originals. '+(unavailable||(!scanned?'Load the file list and mark an original to move.':!pending?'Mark at least one original as rejected.':'Confirm the list to move only original lights marked Reject across all groups.'));
       this.undoMoveButton.toolTip=unavailable?'Undo moved originals: '+unavailable:'Undo moved originals. Loads the file list if needed. Select a moved row to restore that file, or choose a move journal to restore several files, including after reopening the script.';
       let rotation=this.isRotating(),count=rotation?this.rotationRows().length:0,canRotate=ready&&!!this.group()?.regions;
       this.play.enabled=rotation?canRotate&&count>1:!!this.frames&&!this.running;
@@ -5416,7 +6343,7 @@ class SQRDialog extends Dialog {
       this.groupRow.visible=groups.length>1;
       for(let g of groups){let duplicate=groups.some(other=>other!==g&&other.filter===g.filter&&other.exposure===g.exposure);
          this.groupSelect.addItem((g.filter||'Group')+' · '+g.exposure+' s · '+g.rows.length+' frames'+(duplicate?' — '+g.directoryName:''));}
-      if(this.groupSelect.numberOfItems)this.groupSelect.currentItem=0;this.populateRows();}
+      if(this.groupSelect.numberOfItems)this.groupSelect.currentItem=0;this.populateRows();this.masterBlink.refresh();}
    // Sort presentation only: retain selection, decisions, measurements and the
    // existing blink frames. The next/previous controls use the rebuilt row order.
    changeReviewSort(){
@@ -5429,6 +6356,7 @@ class SQRDialog extends Dialog {
    // explicit deselection, or choose a visible fallback if a filter hides it.
    populateRows(loadPreview=true){
       this.populating=true;this.table.clear();this.reviewNodes=new Map;let g=this.group();
+      if(g)sqrRefreshTrailReview(g);
       // Undoing a moved original also changes its rejection decision. Refresh
       // completion here so every decision path restores REVIEW when needed.
       if(g?.recommendationReview){let completed=!!g.reviewComplete;
@@ -5449,7 +6377,7 @@ class SQRDialog extends Dialog {
          ['Lowest first (worst first)','Lowest first (worst first)','Fewest first (worst first)','Largest first (worst first)','Highest first (worst first)','A to Z','Rank 1 first (worst first)','Rank 1 first (worst first)','Earliest first · undated frames next · master last','Highest % first · incomplete last'];
       let guideDirection=(this.reviewReverse?'Smallest error first (best first)':'Largest error first (worst first)')+' · unavailable next · master last';
       this.sortDirection.toolTip=(mode===18?(this.reviewReverse?'Lowest cloud extinction first':'Highest cloud extinction first')+' · unavailable next · master last':[13,15].includes(mode)?(this.reviewReverse?'Highest rank first (best first)':'Rank 1 first (worst first)'):mode===14?(this.reviewReverse?'Lowest background first (best first)':'Highest background first (worst first)')+' · unavailable last':mode>=10?guideDirection:directions[mode])+'. Click to reverse the order. Sorting preserves the selected image and rejection decisions.';
-      this.reviewSummary.text=g?'Showing '+rows.filter(r=>!r.isMaster).length+' of '+g.rows.length+' subframes'+(g.reviewComplete?' · REVIEW complete':' · '+g.rows.filter(r=>r.candidate).length+' REVIEW candidates')+
+      this.reviewSummary.text=g?'Showing '+rows.filter(r=>!r.isMaster).length+' of '+g.rows.length+' subframes'+(g.reviewComplete&&!g.rows.some(r=>r.trailReview)?' · REVIEW complete':' · '+g.rows.filter(sqrNeedsReview).length+' REVIEW candidates')+
          (g.measureSignature&&g.cornerPatch?' · Center and corners: '+g.cornerPatch+'% (started at '+this.measurementOptions.patch+'%)':
           g.measureSignature&&g.cornerRetryMinimum?' · Center and corners: kept '+this.measurementOptions.patch+'% after retry':'')+
          (g.master?(this.candidatesOnly.checked?' · master hidden by filter':' · master included for comparison'):''):'';
@@ -5461,9 +6389,10 @@ class SQRDialog extends Dialog {
       if(g)for(let r of rows){let node=new TreeBoxNode(this.table);node.row=r;this.reviewNodes.set(r,node);if(!r.isMaster&&!r.moved)node.setIcon(4,this.rejectIcons[r.reject?1:0]);
          let scoreInfo=kpi=>r.isMaster?SQR_MASTER_SCORE_INFO:sqrKPIScoreInfo(kpi,this.session.options,!!this.session.guiding?.enabled,g.correlationScoring);
          let guideReport=sqrGuideReport(r)+(r.guiding&&!r.guiding.scorable?'\n* Partial/unusable for Score.'+(r.guidingIgnored?'':' Inspect manually.'):'');
-         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),Number.isFinite(r.rankCorrelated)?String(r.rankCorrelated):'—',Number.isFinite(r.rankOfRanks)?String(r.rankOfRanks):'—',r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':r.candidate?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,3),sqrFmt(m.signal),sqrFmt(m.fwhm,1),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',kpiCell(sqrEccentricityValid(m)?m.eccentricity:null),kpiCell(sqrKPIValue(r,SQR_KPIS.find(k=>k.key==='cornerSeverity'))),sqrMeanQualityLabel(r),(Number.isFinite(r.guideQuality)?sqrGuideNumber(r.guideQuality):'—'),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match,Number.isFinite(r.skyBackground)?sqrFmt(r.skyBackground,6):'—',Number.isFinite(r.relativeTransparency)?sqrPercent(r.relativeTransparency):'—',Number.isFinite(r.skyQuality)?sqrPercent(r.skyQuality):'—'];
+         let m=r.metrics[0]||{},cells=[r.rankWithoutCorners===null||r.rankWithoutCorners===undefined?'—':String(r.rankWithoutCorners),r.rankWithCorners===null||r.rankWithCorners===undefined?'—':String(r.rankWithCorners),Number.isFinite(r.rankCorrelated)?String(r.rankCorrelated):'—',Number.isFinite(r.rankOfRanks)?String(r.rankOfRanks):'—',r.isMaster?'—':r.moved?'Moved':'',r.isMaster?'Master':sqrNeedsReview(r)?'REVIEW':'',sqrFileName(r.registered.path),sqrAcquisitionText(r),sqrFmt(r.score,3),sqrFmt(m.signal),sqrFmt(m.fwhm,1),Number.isFinite(m.stars)?String(m.stars):'—',r.mainIssue||'—',kpiCell(sqrEccentricityValid(m)?m.eccentricity:null),kpiCell(sqrKPIValue(r,SQR_KPIS.find(k=>k.key==='cornerSeverity'))),sqrMeanQualityLabel(r),(Number.isFinite(r.guideQuality)?sqrGuideNumber(r.guideQuality):'—'),sqrGuideCell(r,'guideAvg'),sqrGuideCell(r,'guideMin'),sqrGuideCell(r,'guideMax'),r.worstCorner||'—',r.match,Number.isFinite(r.skyBackground)?sqrFmt(r.skyBackground,6):'—',Number.isFinite(r.relativeTransparency)?sqrPercent(r.relativeTransparency):'—',Number.isFinite(r.skyQuality)?sqrPercent(r.skyQuality):'—'];
          if(r.isMaster)cells[8]='—'; // Score is inapplicable, not an unmeasured subframe value.
          cells.push(r.isMaster?'—':kpiCell(r.cloudExtinction,4));
+         cells.push(Number.isInteger(m.trails)?String(m.trails):'—');
          cells.push(...extraKPIs.map(c=>kpiCell(sqrKPIValue(r,c),c.metric==='fwhm'?1:3)));
          for(let i=0;i<cells.length;++i){node.setText(i,cells[i]);node.setToolTip(i,i===6?r.registered.path+(r.isMaster?'':'\n'+sqrAcquisitionLabel(r)):i===21?(r.original?.path||r.match):cells[i]);}
          for(let i=0;i<extraKPIs.length;++i){let c=extraKPIs[i];node.setToolTip(this.baseReviewColumnCount+i,c.label+(c.metric==='fwhm'?' in pixels':' (0 = round, toward 1 = elongated)')+'. Lower is better.'+(r.isMaster?'\n'+SQR_MASTER_SCORE_INFO:(this.rankScoring.checked?'\nIncluded via R3 in R4':'\nIncluded in Score with equal weight')+'; correlation with PSF signal weight: '+sqrFmt(c.r)+' ('+c.count+' subframes).')+(sqrKPIValue(r,c)===null?'\nMeasurement unavailable for this image; inspect manually.':''));}
@@ -5471,7 +6400,7 @@ class SQRDialog extends Dialog {
          node.setToolTip(1,Number.isFinite(r.rankWithCorners)?'Rank including corner FWHM and eccentricity: 1 = worst Score. Subframes only; computed from available measurements. Score: '+sqrFmt(r.scoreWithCorners):'Requires valid field, center and all four corner measurements including corner eccentricity, and a positive enabled weight.');
          node.setToolTip(2,Number.isFinite(r.rankCorrelated)?'Correlation rank: 1 = worst Score. Higher Score is better. Score: '+sqrFmt(r.scoreCorrelated)+'\n'+correlationReport:g.correlationScoring?.available===false?correlationReport:'R3 unavailable for this image; check the field and selected KPI measurements.\n'+correlationReport);
          node.setToolTip(3,r.rankOfRanksDetail||'Measure this image to calculate R4 from its available ranks.');
-         node.setToolTip(4,r.isMaster?'The master cannot be rejected.':r.moved?'Original moved to: '+r.movedTo+'\nSelect this row, then click Undo moved originals beside the green checkmark to restore it.':'Click to '+(r.reject?'keep':'reject')+' this original, or select the row and press Space.');
+         node.setToolTip(4,sqrRejectTip(r));
          node.setToolTip(5,sqrReviewToolTip(r,g,this.session.options));
          node.setToolTip(7,r.isMaster?'Integrated master: no single acquisition time.':sqrAcquisitionLabel(r)+'\nSame timestamp used for acquisition-time sorting and histograms. Original observation time, with registered metadata as fallback.');
          for(let i=17;i<=19;++i)node.setToolTip(i,['Arithmetic average','Minimum','Maximum'][i-17]+' combined RA/Dec displacement during the exposure, in arcseconds; not RMS.\n'+guideReport);
@@ -5487,6 +6416,8 @@ class SQRDialog extends Dialog {
          node.setToolTip(23,sqrTransparencyDescription(r)+'\n'+scoreInfo(SQR_KPIS.find(k=>k.key==='relativeTransparency')));
          node.setToolTip(24,sqrSkyQualityDescription(r)+'\n'+scoreInfo(SQR_KPIS.find(k=>k.key==='skyQuality')));
          node.setToolTip(25,sqrCloudExtinctionDescription(r)+'\nExcluded from Score (comparison only).');
+         node.setToolTip(26,r.isMaster?'Subframes only.':!Number.isInteger(m.trails)?'Trail count unavailable.':
+            m.trails+' linear trail(s) detected in the common usable field.'+(r.trailBands?.length?' Saved trail mask.':m.trailReviewed?' Inspected and kept.':r.trailReview?' Inspect in Blink before deciding.':''));
          node.setToolTip(8,r.mainIssueDetail||'Measure the image to calculate its weighted quality Score.');
          node.setToolTip(15,r.belowMeanDetail||'Measure the image to calculate the percentage of assessed indicators with worse-than-mean quality. Score is excluded.');
          node.setToolTip(12,r.mainIssueDetail||'Measure the image to identify the largest weighted contribution to Score.');
@@ -5571,18 +6502,38 @@ class SQRDialog extends Dialog {
    selectPlotImage(selection,scatter=false){
       if(this.running||this.tabs.currentPageIndex!==(scatter?3:2)||selection?.generation!==(scatter?this.scatterGeneration:this.plotGeneration)||!Number.isInteger(selection.index))return false;
       let item=(scatter?this.scatterData:this.histogramData)?.items[selection.index],g=this.group();if(!item||!g||!sqrGroupRows(g).includes(item.row))return false;
-      let reveal=this.candidatesOnly.checked&&(item.row.isMaster||!item.row.candidate);
+      let reveal=this.candidatesOnly.checked&&(item.row.isMaster||!sqrNeedsReview(item.row));
       if(reveal)this.candidatesOnly.checked=false;
       this.clearFrames(false);this.current=item.row;this.selectionCleared=false;this.tabs.currentPageIndex=0;this.plotTimer.stop();this.populateRows();this.table.hasFocus=true;
       this.status.text='Selected '+sqrFileName(item.row.registered.path)+' from the plot.'+(reveal?' REVIEW-only filter cleared to show this image.':'');
       return true;
    }
    updateDetails(){let r=this.current,info=sqrReviewDetails(r);
+      this.keepTrail.visible=!!r?.trailReview;
       for(let [control,key] of [[this.details,'summary'],[this.detailMetrics,'metrics'],[this.detailSource,'source']]){control.text=info[key];control.toolTip=info[key+'Tip'];}
       if(!r){this.frameLabel.text='No frame selected';return;}
-      this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+(this.isCornerMosaic()?' · Corner mosaic (TL / TR above BL / BR)':this.isRegionRotating()?' · '+(this.region.currentItem?SQR_REGIONS[this.region.currentItem]:'Usable field'):'')+(r.isMaster?'\nINTEGRATED MASTER · cannot be rejected':r.moved?'\nOriginal already moved':'');
+      this.frameLabel.text=(this.isRotating()?'SUBFRAME '+(this.rotationRows().indexOf(r)+1)+' / '+this.rotationRows().length+': ':this.frame===0?(r.isMaster?'MASTER: ':r.trailBands?.length?'MASKED: ':'REGISTERED: '):(this.loadedReference?.label||'REFERENCE')+': ')+(this.frame===0?sqrFileName(r.registered.path):sqrFileName(this.loadedReference?.path||''))+(this.isCornerMosaic()?' · Corner mosaic (TL / TR above BL / BR)':this.isRegionRotating()?' · '+(this.region.currentItem?SQR_REGIONS[this.region.currentItem]:'Usable field'):'')+(r.isMaster?'\nINTEGRATED MASTER · cannot be rejected':r.moved?'\nOriginal already moved':'');
    }
-   chooseWBPPImport(){if(this.running||this.inputMode()==='manual')return;this.stopBlink();try{let dialog=new SQRWBPPImportDialog(this.wbppImport);if(dialog.execute()&&dialog.data)this.importWBPP(dialog.data);}catch(e){this.error(e);}}
+   chooseWBPPImport(){
+      if(this.running)return;
+      const allowImport=this.inputMode()!=='manual';
+      let report=this.scanRequired?null:this.session.wbppLog;
+      if(!allowImport&&!report)return;
+      this.stopBlink();
+      try{
+         for(;;){
+            if(report){
+               let view=new SQRWBPPLogDialog(report,allowImport);view.execute();
+               if(view.changed){this.updateButtons();this.scanSummary();}
+               if(!view.chooseSetup)return;
+            }
+            let picker=new SQRWBPPImportDialog(this.wbppImport);
+            if(!picker.execute()||!picker.data||!this.importWBPP(picker.data))return;
+            report=this.session.wbppLog;
+            if(!report?.findings.length&&!report?.note)return;
+         }
+      }catch(e){this.error(e);}
+   }
    importWBPP(data){if(this.running)return;this.stopBlink();this.busy(true);let abort=console.abortEnabled,imported=false;console.abortEnabled=true;
       try{let options={...this.options(),wbpp:data.wbpp,originals:data.originals,wbppImport:data,measureCorners:false};
          let sameRun=this.wbppImport&&sqrSameRunFolders(this.runFolders,data)&&this.wbppImport.source===data.source&&
@@ -5590,20 +6541,22 @@ class SQRDialog extends Dialog {
          if(!sameRun){options.observingSite=null;options.siteHeadersOnly=false;}
          let cornerChoice=sameRun?this.cornerScoreChoice:null,prompted=sameRun&&this.session&&this.sitePromptSession===this.session;
          // Build first: invalid files or an abort preserve the current review.
-         let session=sqrScan(options,s=>this.setStatus(s));this.setSession(session);imported=true;
+         let session=sqrScan(options,s=>this.setStatus(s),sameRun?this.session:null);this.setSession(session);imported=true;
          this.cornerScoreChoice=cornerChoice;this.sitePromptSession=prompted?session:null;
       }catch(e){this.error(e);}finally{console.abortEnabled=abort;this.busy(false);}
       // setSession cannot load logs while busy. Rebind the selected logs only
       // after a successful replacement, using the new image timestamps/scale.
-      if(imported)try{this.loadAutorun(false);this.populateRows(false);this.scanSummary();}catch(e){this.error(e);}}
+      if(imported)try{this.loadAutorun(false);this.populateRows(false);this.scanSummary();}catch(e){this.error(e);}
+      return imported;
+   }
    scanSummary(){let rows=this.session.groups.flatMap(g=>g.rows),masters=this.session.groups.filter(g=>g.master).length;
-      this.status.text=(this.session.importSummary?this.session.importSummary+'\n':'')+rows.length+' registered lights · '+rows.filter(r=>r.original).length+' verified originals · '+this.session.groups.length+' groups · '+masters+' masters matched by filter.'+(this.session.warnings.length?'\n'+this.session.warnings.join('\n'):'');}
+      this.status.text=(this.session.importSummary?this.session.importSummary+'\n':'')+rows.length+' registered lights · '+rows.filter(r=>r.original).length+' verified originals · '+this.session.groups.length+' groups · '+masters+' masters matched by filter.'+'\n'+sqrWBPPLogSummary(this.session.wbppLog)+(this.session.warnings.length?'\n'+this.session.warnings.join('\n'):'');}
    // A saved WBPP instance supplies its own light list. Only replace the
    // active review after discovery and header validation have succeeded.
    readFileList(){
       let options=this.options();options.measureCorners=false;
       if(this.inputMode()!=='import')options.wbppImport=null;
-      let session=sqrScan(options,s=>this.setStatus(s));
+      let session=sqrScan(options,s=>this.setStatus(s),this.session);
       let sameRun=sqrSameRunFolders(this.runFolders,options);
       this.sitePromptSession=sameRun&&this.session&&this.sitePromptSession===this.session?session:null;
       if(!sameRun)this.cornerScoreChoice=null;
@@ -5646,7 +6599,7 @@ class SQRDialog extends Dialog {
          }
          console.abortEnabled=abort;this.busy(false);
       }
-      if(measured){let n=this.session.groups.reduce((s,g)=>s+g.rows.filter(r=>r.candidate).length,0);
+      if(measured){let n=this.session.groups.reduce((s,g)=>s+g.rows.filter(sqrNeedsReview).length,0);
          let summary='Measured. '+n+' review candidates; no originals selected automatically.'+sqrSkyCalibrationSummary(skyResult)+(calibrationError?' Sky brightness: '+calibrationError:'');this.status.text=summary;
          // Full-resolution display alignment and STF are expensive. Build them
          // only when Blink is visible; a cached preview remains ready to reuse.
@@ -5661,17 +6614,22 @@ class SQRDialog extends Dialog {
       let r=this.current,g=this.group();if(!r||!g||this.running)return false;
       let keepView=preserveView&&(this.viewer.isValid||!!this.savedPreviewView);
       this.running=true;try{
-         this.clearFrames(!keepView,false,preservePlayback);let reference=sqrReference(g,this.options().reference);
-         if(!reference.path){this.clearPreviewKeepingView();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.reference.currentItem===1||this.reference.currentItem===4?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
-         if(!g.regions){this.clearPreviewKeepingView();this.status.text='Measure this group before using the registered comparison regions.';return false;}
-         let rect=this.isCornerMosaic()?g.regions.slice(2,6):g.regions[this.region.currentItem];
-         this.frames=sqrFrames(r.registered.path,reference.path,this.options(),rect,!!r.isMaster,this.referenceDisplay);this.loadedReference=reference;this.frame=0;
+         this.clearFrames(!keepView,false,preservePlayback);let reference=sqrReference(g,this.options().reference,this.current);
+         if(!reference.path){this.clearPreviewKeepingView();if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.status.text=this.options().reference==='trail'?'Select a light with a saved trail mask to compare it with its original.':this.reference.currentItem===1||this.reference.currentItem===4?'No scored, kept subframe is available. Measure the group or choose Filter master.':'No unique master matches this filter in WBPP/master. Check master filenames or choose Best scoring subframe.';return false;}
+         if(!g.regions&&this.options().reference!=='trail'){this.clearPreviewKeepingView();this.status.text='Measure this group before using the registered comparison regions.';return false;}
+         let rect=this.isCornerMosaic()?sqrRegions(g.regions[0],this.mosaicSize.value).slice(2):g.regions?.[this.region.currentItem]||[0,0,g.width,g.height];
+         let display=this.options(),path=r.registered.path;
+         if(display.reference==='trail'){
+            display.alignBrightness=false;
+            if(r.trailCopy){if(sqrFingerprint(r.trailCopy)!==r.trailCopyFingerprint)throw Error('Saved repaired image changed: '+r.trailCopy);path=r.trailCopy;}
+         }
+         this.frames=sqrFrames(path,reference.path,display,rect,!!r.isMaster,this.referenceDisplay,sqrBlinkBands(r),sqrBlinkBands(reference.row));this.loadedReference=reference;this.frame=0;
          // ImageView.regenerate replaces pixels while retaining its native zoom and
          // scroll positions, clamped to the new bounds when changing regions.
          this.setPreviewImage(this.frames[0],keepView);
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;this.showFrame(0);
          this.viewer.setStatusMessage((this.isCornerMosaic()?'Corner mosaic · ':'')+'Blink against '+reference.label.toLowerCase()+': '+sqrFileName(reference.path));
-         this.status.text=sqrKey(reference.path)===sqrKey(r.registered.path)?'This image is also the selected blink reference.':r.isMaster?'Integrated master compared with the selected reference. The master cannot be rejected.':'Blink uses identical coordinates and zoom. Mark Keep or Reject, then review the next frame.';
+         this.status.text=this.options().reference==='trail'?'Black pixels are excluded from integration. Blink to compare with the unmasked registered light.':sqrKey(reference.path)===sqrKey(r.registered.path)?'This image is also the selected blink reference.':r.isMaster?'Integrated master compared with the selected reference. The master cannot be rejected.':'Blink uses identical coordinates and zoom. Mark Keep or Reject, then review the next frame.';
          return true;
       }catch(e){this.clearPreviewKeepingView();this.error(e);return false;}finally{this.running=false;this.updateButtons();}}
    // Synchronize selection without rebuilding the table or hidden quality plot
@@ -5687,10 +6645,10 @@ class SQRDialog extends Dialog {
       try{
          this.clearFrames(!keepView,false,preservePlayback,true);
          if(!g.regions){this.clearPreviewKeepingView();this.status.text='Measure this group before rotating its preview regions.';return false;}
-         let reference=this.regionRotation.currentItem===2?sqrReference(g,this.options().reference):null;
+         let reference=this.regionRotation.currentItem===2?sqrReference(g,this.options().reference,this.current):null;
          if(reference&&!reference.path){this.clearPreviewKeepingView();this.status.text='No matching reference is available. Choose another reference or Rotate regions: Image only.';return false;}
-         let o=this.options(),key=JSON.stringify([r.registered.path,!!r.isMaster,reference?.path||'',g.regions,o.displaySTF,o.alignBrightness]);
-         if(this.regionFramesKey!==key){this.clearRegionFrames();this.regionFrames=sqrRegionFrames(r.registered.path,reference?.path||'',o,g.regions,!!r.isMaster);this.regionFramesKey=key;}
+         let o=this.options(),key=JSON.stringify([r.registered.path,!!r.isMaster,reference?.path||'',sqrBlinkBands(r),sqrBlinkBands(reference?.row),g.regions,o.displaySTF,o.alignBrightness]);
+         if(this.regionFramesKey!==key){this.clearRegionFrames();this.regionFrames=sqrRegionFrames(r.registered.path,reference?.path||'',o,g.regions,!!r.isMaster,r.trailBands,reference?.row?.trailBands);this.regionFramesKey=key;}
          this.frames=this.regionFrames[this.region.currentItem];this.framesFromRegions=true;this.loadedReference=reference;this.frame=0;
          this.setPreviewImage(this.frames[0],keepView);
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
@@ -5710,7 +6668,7 @@ class SQRDialog extends Dialog {
       // busy state. Do not pump UI events or change enabled states mid-frame.
       this.clearFrames(!keepView,true,preservePlayback);this.running=true;
       try{
-         let rendered=sqrRotationFrame(r.registered.path,o,rect,display);
+         let rendered=sqrRotationFrame(r.registered.path,o,rect,display,false,sqrBlinkBands(r));
          this.rotationDisplay={key,data:rendered.display};this.frames=[rendered.bitmap];this.frame=0;
          this.setPreviewImage(this.frames[0],keepView);
          if(openBlink&&this.tabs.currentPageIndex!==1)this.tabs.currentPageIndex=1;
@@ -5729,18 +6687,38 @@ class SQRDialog extends Dialog {
    // Reference/region changes share this path so active blinking survives them.
    reloadBlink(preserveView=false){if(this.running)return;if(!this.current&&!this.isRotating()){this.updateButtons();return;}let resume=this.blinking;this.rotationDisplay=null;
       if(this.inspect(true,preserveView,resume)&&resume)this.startBlink();}
+   selectedScoreCutoff(){
+      const r=this.current;
+      return this.session&&!this.running&&!this.scanRequired&&Number.isFinite(r?.score)&&!r.isMaster&&this.reviewNodes?.get(r)?.selected?r:null;
+   }
+   updateSelectionActions(){
+      this.trailButton.enabled=this.canEditRegisteredTrail();
+      const cutoff=this.selectedScoreCutoff(),count=cutoff?sqrLowerScoreTargets(this.group(),cutoff).length:0;
+      this.rejectLowerButton.enabled=count>0;
+      this.rejectLowerButton.toolTip='Reject lower scores. '+(count?'Mark '+count+' lower-scoring subframe'+(count===1?'':'s')+' in this group, including rows hidden by the REVIEW filter. The comparison uses the full-precision Score.':
+         cutoff?'No unmarked subframes have a lower Score in this group.':'Select a scored subframe in the Review table.');
+   }
+   rejectLowerScores(){
+      const group=this.group(),targets=sqrLowerScoreTargets(group,this.selectedScoreCutoff());
+      if(!targets.length)return;
+      for(const row of targets)row.reject=true;
+      // Refresh trail flags, recommendation completion and the visible table once for the batch.
+      this.populateRows();
+      this.status.text='Marked '+targets.length+' lower-scoring subframe'+(targets.length===1?'':'s')+' for rejection in '+group.label+'.';
+   }
    decide(reject){if(!this.current||this.current.isMaster||this.current.moved)return;this.current.reject=reject;
       let group=this.group(),wasComplete=!!group?.reviewComplete;
       if(group?.recommendationReview&&sqrRecommendationReviewComplete(group,this.session.options,!!this.session.guiding?.enabled)!==wasComplete){
          sqrRank(this.session);this.populateRows(false);this.ensurePreview();return;
       }
+      if(group&&sqrRefreshTrailReview(group)){this.populateRows(false);this.ensurePreview();return;}
       // Rejection changes neither scores nor the Review filter/sort keys. Keep
       // all nodes, column widths and the selection; update just this decision.
       let node=this.reviewNodes?.get(this.current);
       if(!node){this.populateRows();return;}
       this.populating=true;try{this.table.currentNode=node;}finally{this.populating=false;}
       node.setIcon(4,this.rejectIcons[reject?1:0]);
-      node.setToolTip(4,'Click to '+(reject?'keep':'reject')+' this original, or select the row and press Space.');
+      node.setToolTip(4,sqrRejectTip(this.current));
       this.updateDetails();this.updateButtons();this.updatePlots();this.ensurePreview();}
    setSession(s){this.clearFrames();this.session=s;this.scannedInputs=s.options;this.useCornerMeasurements=sqrHasCornerMeasurements(s)&&s.options.measureCorners!==false;this.current=null;let o={...sqrDefaults(),...s.options,logFolder:sqrLogFolderOption(s.options)};
       this.runFolders={wbpp:o.wbpp,originals:o.originals};this.cornerScoreChoice=sqrHasCornerMeasurements(s)?this.useCornerMeasurements:null;
@@ -5760,6 +6738,8 @@ class SQRDialog extends Dialog {
       this.regionRotation.currentItem=Math.max(0,['off','image','blink'].indexOf(o.regionRotation));this.normalizeRegionRotation();
       this.guidingMode.currentItem=Math.max(0,['require','available','ignore'].indexOf(o.guidingMode));this.weights.guideWeight.enabled=this.guidingMode.currentItem!==2;
       this.setBlinkInterval(o.blinkInterval);
+      this.mosaicSize.setValue(o.mosaicCornerPercent);
+      this.preferredTrailWidth=o.trailWidth;
       this.maxFits=o.maxFits;this.displaySTF.checked=o.displaySTF;this.alignBrightness.checked=o.alignBrightness;this.histogramOrder.currentItem=o.histogramOrder==='time'?1:0;
       this.setScatterOptions(o);
       this.order.currentItem=sqrReviewOrderIndex(o.reviewOrder);this.reviewReverse=!!o.reviewReverse;this.loadAutorun(false);if(this.session){this.syncOptions();if(this.session.groups.some(g=>g.rows.some(r=>r.metrics[0])))sqrRank(this.session);}this.populateGroups();this.setInputsCollapsed(o.inputsCollapsed);this.setQualityCollapsed(o.qualityCollapsed);this.setReviewInfoCollapsed(o.reviewInfoCollapsed);this.setMessagesCollapsed(o.messagesCollapsed);}
@@ -5778,33 +6758,60 @@ class SQRDialog extends Dialog {
       this.useCornerMeasurements=defaults.measureCorners;this.reference.currentItem=defaults.reference==='best'?1:0;this.updateCornerControls();
       this.regionRotation.currentItem=0;
       this.setBlinkInterval(defaults.blinkInterval);
+      this.mosaicSize.setValue(defaults.mosaicCornerPercent);
+      this.preferredTrailWidth=defaults.trailWidth;
       this.displaySTF.checked=defaults.displaySTF;this.alignBrightness.checked=defaults.alignBrightness;this.histogramOrder.currentItem=0;this.order.currentItem=sqrReviewOrderIndex(defaults.reviewOrder);this.reviewReverse=defaults.reviewReverse;this.setInputsCollapsed(defaults.inputsCollapsed);this.setQualityCollapsed(defaults.qualityCollapsed);this.setReviewInfoCollapsed(defaults.reviewInfoCollapsed);this.setMessagesCollapsed(defaults.messagesCollapsed);this.invalidateMeasurements();if(!this.session)this.updateHistogram();this.status.text='Evaluation defaults restored. Folder paths retained.';}
-   exportReviewedWBPP(){
-      if(this.running||!this.session||this.scanRequired||this.inputMode()!=='import')return;this.syncOptions();this.stopBlink();
-      let saved='';
+   canEditRegisteredTrail(){
+      const row=this.current,count=row?.metrics?.[0]?.trails;
+      return !!this.session&&!this.running&&!this.scanRequired&&sqrRetainedRegistered(row)&&
+         Number.isInteger(count)&&count>0&&!!this.reviewNodes?.get(row)?.selected;
+   }
+   editRegisteredTrail(){
+      if(!this.canEditRegisteredTrail())return;
+      let r=this.current,g=this.group();
+      this.stopBlink();let image=null;
       try{
-         let plan=sqrWBPPExportPlan(this.session),destination=this.session.options.destination.trim(),pending=this.session.groups.some(g=>g.rows.some(r=>r.reject&&!r.moved));
-         let dialog=new SQRWBPPExportDialog(plan,destination,!!destination&&pending);if(!dialog.execute())return;
-         let id=sqrWBPPExportId(),file=new SaveFileDialog;file.caption='Save reviewed WBPP instance';file.filters=[['PixInsight process icons','*.xpsm']];
-         file.initialPath=sqrPath(this.session.options.wbpp)+'/'+id+'.xpsm';file.selectedFileExtension='.xpsm';file.overwritePrompt=true;
-         if(!file.execute())return;let path=sqrPath(file.filePath);if(!/\.xpsm$/i.test(path))throw Error('Save the reviewed WBPP instance with the .xpsm extension.');
-         if(dialog.moveOriginals.checked)sqrMovePlan(this.session); // Preflight before saving; the move action checks again.
-         sqrWBPPWriteReviewed(path,plan,id);saved=path;
-         let moveResult=dialog.moveOriginals.checked?this.moveRejected(true):null;
-         let queued=false;try{sqrWBPPQueueIcon(path);queued=true;}catch(e){console.warningln('WBPP instance saved; load the .xpsm manually: '+String(e));}
-         this.status.text='Saved '+id+' with '+plan.retained.length+' lights; '+plan.removed+' rejected originals excluded. '+
-            (moveResult?'Moved '+moveResult.count+' originals. ':dialog.moveOriginals.checked?'Move cancelled; no additional originals moved. ':'')+
-            (queued?'Close Subframe Quality Review to load the WBPP icon. ':'Load the .xpsm with Process Icons > Load. ')+path;
-      }catch(e){this.error(Error((saved?'WBPP instance saved: '+saved+'\n':'')+(e.message||String(e))));}
-      finally{this.updateButtons();}
+         this.busy(true);image=sqrReadImage(r.registered.path);
+         let editor=new SQRTrailRepairDialog(image,r,this.preferredTrailWidth);
+         if(!editor.execute()||editor.bands===null)return;
+         image.free();image=null;
+         sqrSaveTrailBands(this.session.options.wbpp,r,editor.bands);
+         this.preferredTrailWidth=editor.preferredWidth;
+         sqrRefreshTrailReview(g);this.clearFrames(false);this.clearReferenceDisplay();this.populateRows(false);
+      }catch(e){this.error(e);return;}finally{if(image)image.free();this.busy(false);}
+      if(r.trailBands.length){
+         this.selectBlinkRow(r);this.regionRotation.currentItem=0;this.reference.currentItem=SQR_BLINK_MODES.indexOf('trail');this.updateButtons();
+         this.region.currentItem=0;
+         if(this.inspect(true,false))this.status.text='Saved repaired image: '+r.trailCopy;
+         this.syncOptions();
+      }else{if(this.options().reference==='trail')this.reference.currentItem=0;this.ensurePreview();this.status.text='Trail mask removed.';}
+   }
+   createReviewedMaster(){
+      let group=this.group();if(this.running||this.scanRequired||!group||this.inputMode()!=='import'||!sqrImportedRun(this.session?.options))return;
+      let rows=group.rows.filter(sqrRetainedRegistered);if(rows.length<3)return;
+      let folder=sqrPath(this.session.options.wbpp)+'/master',masked=rows.filter(r=>r.trailBands?.length).length;
+      let confirm=new Dialog;confirm.windowTitle='Create reviewed master light';
+      let details=new Label(confirm);details.text='Integrate '+rows.length+' retained registered lights in '+group.label+'?\nDestination: '+folder;
+      details.wordWrapping=true;details.setScaledMinWidth(380);
+      let masks=new CheckBox(confirm);masks.text='Apply saved trail masks ('+masked+' lights)';masks.checked=masked>0;masks.visible=masked>0;
+      masks.toolTip='Clear to create a comparison master using the unmasked lights. Your saved traces remain available.';
+      let buttons=new HorizontalSizer;buttons.spacing=6;buttons.addStretch();buttons.add(sqrButton(confirm,'Create master',()=>confirm.ok()));buttons.add(sqrButton(confirm,'Cancel',()=>confirm.cancel()));
+      confirm.sizer=new VerticalSizer;confirm.sizer.margin=10;confirm.sizer.spacing=8;confirm.sizer.add(details);confirm.sizer.add(masks);confirm.sizer.add(buttons);confirm.adjustToContents();
+      if(!confirm.execute())return;
+      this.stopBlink();try{
+         this.busy(true);let path=sqrIntegrateReviewedGroup(this.session.options,group,t=>this.setStatus(t),!masked||masks.checked);
+         this.status.text='Created master from '+rows.length+' retained lights: '+path;
+         this.masterBlink.refresh(path);
+      }catch(e){this.error(e);}finally{this.busy(false);}
    }
    // Confirmation is the boundary between a read-only review and file changes.
    // The engine independently validates the plan again when executing it.
    moveRejected(rethrow=false){
       if(!this.session||this.running||this.scanRequired||!this.folders.destination.edit.text.trim())return;this.syncOptions();this.stopBlink();
       try{
-         let plan=sqrMovePlan(this.session),text='Move '+plan.length+' manually rejected original light file(s)?\n\nDestination: '+sqrPath(this.session.options.destination)+'\n\n'+
-            plan.map(p=>sqrFileName(p.source)).join('\n')+'\n\nThe relative source-folder structure is preserved. A move journal records each source and destination. Calibrated and registered files remain available. Refresh WBPP’s light list before rerunning.';
+         let plan=sqrMovePlan(this.session),destination=sqrPath(this.session.options.destination);
+         let text='Move '+plan.length+' rejected original light file(s) from this review?\n\nDestination: '+destination+'\n\n'+
+            plan.map(p=>p.target.slice(destination.length+1)).join('\n')+'\n\nThe move preserves the relative folders and records an undo journal.';
          if(new MessageBox(text,'Move rejected originals',StdIcon.Question,StdButton.Yes,StdButton.No).execute()!==StdButton.Yes)return;
          this.busy(true);let result=sqrMove(this.session,s=>this.setStatus(s));
          this.populateRows();this.status.text='Moved '+result.count+' original lights. Journal: '+result.journal;return result;
@@ -5849,7 +6856,7 @@ function sqrMain(){
    CoreApplication.ensureMinimumVersion(1,9,6);
    if(typeof ImageAnalysis==='undefined')throw new Error('The ImageAnalysis process is required. Check your PixInsight installation.');
    if(Parameters.isViewTarget)throw new Error('Run this file-based review script globally.');
-   let dialog=new SQRDialog(sqrLoadInstanceOptions());console.hide();dialog.execute();dialog.clearFrames();
+   let dialog=new SQRDialog(sqrLoadInstanceOptions());console.hide();dialog.execute();dialog.clearFrames();dialog.masterBlink.clearPair();
 }
 sqrMain();
 #endif

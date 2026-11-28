@@ -73,7 +73,7 @@ Recreate saved process icons that reference an old script filename from the corr
 | Match L and RGB sharpness | [LRGB Deconvolution Match](#lrgb-deconvolution-match) | 1.14.3 | Uses BlurXTerminator to match stellar halo profiles with estimated sharpening, independent FWHM checks, and blink previews. | 2026&#8209;11&#8209;05 |
 | Match intensity scales | [ROI Linear Fit](#roi-linear-fit) | 1.1.6 | Measures a fit in a selected region and applies it to the full target image. | 2026&#8209;10&#8209;04 |
 | Protect diffraction spikes | [Star Spike Protection Mask](#star-spike-protection-mask) | 1.7.2 | Builds a soft mask protecting bright stellar cores and their spikes. | 2026&#8209;10&#8209;10 |
-| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.66.6 | Ranks WBPP lights, assesses field, corner and sky quality, tests SNR-limited rejection, and exports reviewed setups. | 2026&#8209;11&#8209;22 |
+| Review WBPP subframes | [Subframe Quality Review](#subframe-quality-review) | 0.78.2 | Ranks WBPP lights, flags run-log exclusions, tests SNR-limited rejection, and integrates retained lights. | 2026&#8209;11&#8209;28 |
 | Develop scripts | [TGScriptSkeleton](#tgscriptskeleton) | 1.6 | Provides a reusable dialog, image preview, and process-instance framework. | 2026&#8209;10&#8209;19 |
 
 Versions follow the declarations in the repository source.
@@ -352,14 +352,14 @@ Creates **soft protection masks for bright stars and diffraction spikes** from s
 
 ### Subframe Quality Review
 
-**Version:** 0.66.6 · **Last update:** 2026-11-22
+**Version:** 0.78.2 · **Last update:** 2026-11-28
 
-Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run.
+Choose which light frames to keep after a WeightedBatchPreprocessing (WBPP) run. WBPP import reports automatically rejected exposures and their reasons, including lights excluded before registration. Reopen the findings with **WBPP report**.
 
 - **Rank subframes** by sharpness, star shape, sky quality and guiding. Compare four rankings (R1–R4) and explore correlations between measurements.
-- **Inspect field and corners** with adaptive corner measurements and blink comparisons against the filter master or best-scoring subframe, including a 2 × 2 corner mosaic.
+- **Inspect field and corners** with adaptive corner measurements and blink comparisons against the filter master or best-scoring subframe, including a 2 × 2 mosaic with adjustable corner size. Groups retaining fewer than 40 subframes flag detected trails for visual review.
 - **Assess sky conditions** with sky brightness, transparency and cloud-extinction indicators. Use recorded site coordinates or saved observing-site profiles.
-- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Draw an object ROI on the master to measure its SNR. Move or restore rejected originals and export a reviewed copy of an imported WBPP setup.
+- **Test how many frames to keep** with trial stacks, an SNR target and a minimum frame count. Draw an object ROI on the master to measure its SNR. Move or restore rejected originals, or, after WBPP import, integrate retained registered lights directly into a new master. Blink each reviewed version against the original WBPP master at the same zoom.
 
 [Source](TGScripts_repository/src/scripts/TGScripts/SubframeQualityReview.js) · [User guide](TGScripts_repository/doc/scripts/SubframeQualityReview/SubframeQualityReview.html)
 
@@ -370,7 +370,7 @@ The screenshots below show the earlier **0.59.9** interface reviewing NGC 7814; 
 <details>
 <summary>Review and measurements</summary>
 
-The Review table shows ranks, rejection marks and main issues. R4 averages the available normalized ranks and includes R2 only when corner scoring is enabled.
+The Review table shows ranks, rejection marks and main issues. Select a subframe and click the **Reject lower scores** icon in the bottom toolbar to mark every lower-scoring light in its group. R4 averages the available normalized ranks and includes R2 only when corner scoring is enabled.
 
 ![Subframe Quality Review table with R1–R4 columns, Score, REVIEW flags, issues and selected-image measurements](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_main_screen.jpg)
 
@@ -442,9 +442,8 @@ The green line marks 29 retained frames. This trial keeps 95.5% of the best test
 
 ![Rejection recommendation with object ROI, SNR and Score curves, and a table of tested counts](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_rejection_recommendation.jpg)
 
-Export keeps calibration frames and processing settings. WBPP can choose a new registration or Local Normalization reference if the previous one was rejected. Moving the originals is optional.
+Select a retained light with at least one detection in the Trails column to enable the brush. Preview automatic trail removal with an estimated width for each band, or draw a band manually, then confirm to save a separate repaired XISF. Blink compares it with the original. The other retained exposures supply those pixels during integration. After WBPP import, **Integrate retained lights** (∑) integrates the selected group with its recorded ImageIntegration settings and writes a new master in the WBPP master folder. To compare rejection decisions or trail repairs, open **Blink masters** and choose a version by its frame counts and creation time.
 
-![Reviewed WBPP export preview showing 36 retained and 15 rejected lights across the imported groups](TGScripts_repository/doc/scripts/SubframeQualityReview/images/SubframeQualityReview_wbpp_export.jpg)
 
 </details>
 
