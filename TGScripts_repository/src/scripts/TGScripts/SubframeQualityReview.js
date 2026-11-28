@@ -40,7 +40,7 @@
 #feature-info Review registered WBPP lights against a filter master or the best subframe, measure field quality with optional corners, and review WBPP run-log exclusions and move marked original light files.
 #endif
 
-/* Subframe Quality Review 0.78.2 -- PixInsight 1.9.6+, V8.
+/* Subframe Quality Review 0.78.3 -- PixInsight 1.9.6+, V8.
  * Original implementation for the TGScripts workflow, 2026.
  * Run-log rejection marks are editable. Moving originals requires confirmation.
  * Uses native ImageAnalysis measurements, including independent regional fits.
@@ -64,7 +64,7 @@
 // Release policy: PATCH for fixes/performance; MINOR for new features or
 // meaningful behavior changes (reset PATCH to zero). Use 1.0.0 for the stable
 // release milestone, then MAJOR for incompatible changes (reset MINOR/PATCH).
-const SQR_VERSION='0.78.2';
+const SQR_VERSION='0.78.3';
 const SQR_MASTER_GROUP_PROPERTY='SubframeQualityReview:RegisteredGroup';
 const SQR_MAX_CORNER_PERCENT=40;
 const SQR_EXTINCTION_RETRY_SENSITIVITY=0.65;
@@ -2483,18 +2483,33 @@ function sqrRestoreIntegration(element,path){
       return p;
    }finally{if(f.isOpen)f.close();im.free();for(let w of windows)w.forceClose();}
 }
-function sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks=true){
-   let retained=new Map(rows.map(r=>[sqrKey(r.registered.path),r])),inputs=[],csv=new Map;
+function sqrIntegrationMembership(images,rows){
+   let retained=new Map,enabled=[],disabled=0;
+   for(let row of rows){
+      let key=sqrKey(row.registered.path);
+      if(retained.has(key))throw Error('Ambiguous registered light path: '+row.registered.path);
+      retained.set(key,row);
+   }
+   // Consume disabled entries too. Only paths absent from the saved table
+   // can be offered as additional inputs, after the saved reference and inputs.
+   let seen=new Set;
+   for(let [on,path,,ln] of images){
+      let key=sqrKey(path),row=retained.get(key);if(!row)continue;
+      if(seen.has(key))throw Error('Duplicate image in the WBPP integration: '+path);
+      seen.add(key);
+      if(on)enabled.push({row,ln});else ++disabled;
+   }
+   return {enabled,disabled,extra:rows.filter(row=>!seen.has(sqrKey(row.registered.path))).map(row=>({row,ln:''}))};
+}
+function sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks=true,entries=sqrIntegrationMembership(p.images,rows).enabled){
+   let inputs=[],csv=new Map;
    let local=p.normalization===ImageIntegration.LocalNormalization||p.rejectionNormalization===ImageIntegration.LocalRejectionNormalization;
-   function add(row,ln){
+   for(let {row,ln} of entries){
       let original=row.registered.path;
       if(local){ln=ln||File.changeExtension(original,'.xnml');if(!File.exists(ln))throw Error('Missing WBPP local normalization data for '+original+': '+ln);}
       let path=useMasks&&row.trailBands?.length?sqrPreparedRegisteredLight(row,scratch,inputs.length,files):original;
       inputs.push([true,path,'',ln||'']);csv.set(sqrKey(original),path);
    }
-   // ImageIntegration uses its first input as the normalization reference.
-   for(let old of p.images){let k=sqrKey(old[1]),row=retained.get(k);if(row&&old[0]){add(row,old[3]);retained.delete(k);}}
-   for(let row of retained.values())add(row,'');
    if(p.weightMode===ImageIntegration.CSVWeightsFile){
       if(!File.exists(p.csvWeightsFilePath))throw Error('Missing WBPP weights file: '+p.csvWeightsFilePath);
       let weights=[],found=new Set;
@@ -2556,31 +2571,40 @@ function sqrWriteReviewedMaster(path,windows,ids,groupKey){
       if(!f.close())throw Error('Cannot finish writing the reviewed master.');
    }finally{if(f.isOpen)f.close();}
 }
-function sqrIntegrateReviewedGroup(options,group,notify,useMasks=true){
+function sqrIntegrateReviewedGroup(options,group,notify,useMasks=true,confirmInputs=null){
    if(!sqrImportedRun(options))throw Error('Import WBPP before creating the reviewed master.');
    let wbpp=options.wbpp;
    let rows=group.rows.filter(sqrRetainedRegistered);if(rows.length<3)throw Error('ImageIntegration needs at least three retained registered lights in this group.');
-   let used=new Set,repairs=0;
-   for(let row of rows){
-      let m=row.registered;if(used.has(m.path)||m.width!==group.width||m.height!==group.height||m.channels!==group.channels)throw Error('Duplicate or incompatible registered light: '+m.path);
-      used.add(m.path);
-      if(sqrFingerprint(m.path)!==m.fingerprint)throw Error('Registered light changed. Refresh the file list: '+m.path);
-      if(useMasks){let saved=sqrReadTrailState(wbpp,row);
-         if(saved.trailCopy!==(row.trailCopy||'')||JSON.stringify(saved.trailBands)!==JSON.stringify(row.trailBands||[]))throw Error('Trail mask changed. Refresh the file list: '+m.path);}
-      if(useMasks&&row.trailBands?.length)++repairs;
-   }
-   let dir=sqrPath(wbpp)+'/master',tag=String(group.filter||group.directoryName||'group').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64),
-      name='SQR_masterLight_'+tag+'_'+rows.length+'x_'+sqrStamp(),target=dir+'/'+name+'.xisf';
-   TGFileProtection.assertOutsideInstallation(target,'Reviewed master light');if(!File.directoryExists(dir))File.createDirectory(dir,true);
-   if(File.exists(target))throw Error('Master light already exists: '+target);
+   let dir=sqrPath(wbpp)+'/master',tag=String(group.filter||group.directoryName||'group').replace(/[^a-zA-Z0-9._-]+/g,'_').slice(0,64);
    let recipe=sqrWBPPIntegrationElement(options,group),scratch='',files=[],owned=[],ids=[];
    try{
       scratch=File.uniqueFileName(File.systemTempDirectory,20,'SQR-integrate-','');TGFileProtection.assertOutsideInstallation(scratch,'Temporary integration folder');File.createDirectory(scratch);
       let settings=scratch+'/settings.xisf';files.push(settings);let p=sqrRestoreIntegration(recipe.element,settings);
-      sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks);
+      const plan=sqrIntegrationMembership(p.images,rows);
+      let entries=plan.enabled;
+      if(confirmInputs){
+         const choice=confirmInputs(plan);
+         if(!choice)return null;
+         if(choice.includeExtra===true)entries=entries.concat(plan.extra);
+         useMasks=choice.useMasks;
+      }
+      const count=entries.length;
+      if(count<3)throw Error('ImageIntegration needs at least three eligible lights. Selected inputs: '+count+'.');
+      let repairs=0;
+      for(let {row} of entries){
+         let m=row.registered;if(m.width!==group.width||m.height!==group.height||m.channels!==group.channels)throw Error('Incompatible registered light: '+m.path);
+         if(sqrFingerprint(m.path)!==m.fingerprint)throw Error('Registered light changed. Refresh the file list: '+m.path);
+         if(useMasks){let saved=sqrReadTrailState(wbpp,row);
+            if(saved.trailCopy!==(row.trailCopy||'')||JSON.stringify(saved.trailBands)!==JSON.stringify(row.trailBands||[]))throw Error('Trail mask changed. Refresh the file list: '+m.path);
+            if(row.trailBands?.length)++repairs;}
+      }
+      let target=dir+'/SQR_masterLight_'+tag+'_'+count+'x_'+sqrStamp()+'.xisf';
+      TGFileProtection.assertOutsideInstallation(target,'Reviewed master light');if(!File.directoryExists(dir))File.createDirectory(dir,true);
+      if(File.exists(target))throw Error('Master light already exists: '+target);
+      sqrReviewedIntegrationInputs(p,rows,scratch,files,useMasks,entries);
       if(repairs){p.rangeLow=p.rangeClipLow?Math.max(0,p.rangeLow):0;p.rangeClipLow=true;}
       p.generateDrizzleData=false;p.closePreviousImages=false;p.showImages=false;p.noGUIMessages=true;p.generateIntegratedImage=true;
-      sqrTick(notify,'Integrating '+rows.length+' retained registered lights');
+      sqrTick(notify,'Integrating '+count+' retained registered lights');
       if(!p.executeGlobal())throw Error('ImageIntegration failed. See the PixInsight console.');
       let win=ImageWindow.windowById(p.integrationImageId);if(win.isNull)throw Error('ImageIntegration returned no master light.');
       owned.push(win);ids.push('integration');
@@ -2588,10 +2612,10 @@ function sqrIntegrateReviewedGroup(options,group,notify,useMasks=true){
          ['lowBiweightRejectionMapImageId','biweight_rejection_low'],['highBiweightRejectionMapImageId','biweight_rejection_high']]){
          if(typeof p[key]==='string'&&p[key]){let w=ImageWindow.windowById(p[key]);if(!w.isNull){owned.push(w);ids.push(id);}}
       }
-      if(p.numberOfImages!==rows.length)throw Error('ImageIntegration used '+p.numberOfImages+' of '+rows.length+' retained lights. See the PixInsight console before saving a reviewed master.');
+      if(p.numberOfImages!==count)throw Error('ImageIntegration used '+p.numberOfImages+' of '+count+' selected lights. See the PixInsight console before saving a reviewed master.');
       let keys=win.keywords.filter(k=>!['IMAGETYP','NCOMBINE','SQRREJ','SQRTRAIL','FILTER'].includes(k.name));
-      keys.push(new FITSKeyword('IMAGETYP',"'Master Light'",''),new FITSKeyword('NCOMBINE',String(rows.length),'Retained registered exposures'),
-         new FITSKeyword('SQRREJ',String(group.rows.filter(r=>r.reject||r.moved).length),'Excluded registered exposures'),
+      keys.push(new FITSKeyword('IMAGETYP',"'Master Light'",''),new FITSKeyword('NCOMBINE',String(count),'Integrated registered exposures'),
+         new FITSKeyword('SQRREJ',String(group.rows.length-count),'Excluded registered exposures'),
          new FITSKeyword('SQRTRAIL',String(repairs),'Inputs with reviewed trail masks'));
       if(group.filter)keys.push(new FITSKeyword('FILTER',"'"+group.filter.replace(/'/g,"''")+"'",''));win.keywords=keys;
       let staged=File.uniqueFileName(dir,20,'.sqr-master-','.xisf');files.push(staged);TGFileProtection.assertOutsideInstallation(staged,'Staged master light');
@@ -2641,7 +2665,9 @@ function sqrWBPPLogReport(wbpp){
 }
 function sqrParseWBPPLog(text,smartReport=false){
    const summary=[],details=[],scales=new Map,calibrated=new Map,byName=new Map,weights=new Map;
-   const unique=(map,key,value)=>map.set(key,map.has(key)&&map.get(key)!==value?null:value);
+   const unique=(map,path,value)=>{let key=sqrKey(path);
+      if(!map.has(key))map.set(key,value);
+      else if(map.get(key)!==null&&sqrKey(map.get(key))!==sqrKey(value))map.set(key,null);};
    let remaining=0,declared=null,hasFooter=false,hasHeader=false,interrupted=false;
    let psfScale=false,target='',scaleError='',output='';
    for(let raw of text.split(/\r?\n/)){
@@ -2669,10 +2695,10 @@ function sqrParseWBPPLog(text,smartReport=false){
          scaleError=psfScale?'PSF flux scale evaluation failed':'Flux scale evaluation failed';
       if((m=/^Writing output file:\s*(.+)$/i.exec(line))){
          output=m[1].replace(/\\/g,'/');
-         if(target&&output===target.replace(/\.[^./]+$/,'.xnml'))scales.delete(target);
+         if(target&&sqrKey(output)===sqrKey(target.replace(/\.[^./]+$/,'.xnml')))scales.delete(sqrKey(target));
       }
       if(target&&/^(\*+ Warning: )?Writing a local normalization data file tagged as invalid/i.test(line)){
-         if(output===target.replace(/\.[^./]+$/,'.xnml'))scales.set(target,scaleError||'Invalid local normalization data');
+         if(sqrKey(output)===sqrKey(target.replace(/\.[^./]+$/,'.xnml')))scales.set(sqrKey(target),{path:target,reason:scaleError||'Invalid local normalization data'});
          target=scaleError=output='';continue;
       }
       const msg=line.replace(/^\*+\s*(?:Warning|Error):\s*/i,'');
@@ -2680,18 +2706,18 @@ function sqrParseWBPPLog(text,smartReport=false){
          details.push({path:m[2],reason:m[1].replace(/ (?:generated )?for(?: file| image)?$/i,''),quality:true});
       else if((m=/^frame rejected \[.*?\]:\s*(.+)$/i.exec(msg)))details.push({path:m[1],reason:'Weight below the WBPP minimum',quality:true});
       else if((m=/^\[Frames rejection\] (.+\.(?:xisf|fits?|fts)) - .*?\|\s*(rejected|accepted)$/i.exec(msg)))
-         weights.set(m[1],m[2].toLowerCase()==='rejected');
+         weights.set(sqrKey(m[1]),{path:m[1],rejected:m[2].toLowerCase()==='rejected'});
    }
    const complete=smartReport?/\bExecution summary: \d+ operation\(s\) failed, 0 canceled or not executed, \d+ frame\(s\) excluded;[^\n]*\s*$/i.test(text):hasHeader&&hasFooter&&!interrupted;
    const authoritative=declared!==null;
    if(!authoritative){
-      for(const [path,rejected] of weights)if(rejected)details.push({path,reason:'Weight below the WBPP minimum',quality:true});
-      for(const path of scales.keys())details.push({path,reason:'Invalid local normalization data',quality:true});
+      for(const {path,rejected} of weights.values())if(rejected)details.push({path,reason:'Weight below the WBPP minimum',quality:true});
+      for(const {path} of scales.values())details.push({path,reason:'Invalid local normalization data',quality:true});
    }
    const entries=authoritative?summary:details;
    for(const e of entries){
       e.path=e.path.replace(/\\/g,'/');
-      if(!authoritative){const output=e.path.includes('/')?e.path:byName.get(e.path);e.path=calibrated.get(output)||e.path;}
+      if(!authoritative){const output=e.path.includes('/')?e.path:byName.get(sqrKey(e.path));if(output)e.path=calibrated.get(sqrKey(output))||e.path;}
       if(authoritative){
          const cause=e.reason.slice(e.reason.indexOf(':')+1).trim();
          e.quality=/^(?:invalid local normalization data|local normalization failed|registration failed|not aligned with the reference frame|measurement failed|no valid weight available|rejected by frame selection)$/i.test(cause)||
@@ -2712,40 +2738,42 @@ function sqrRejectTip(row){
 }
 function sqrAttachWBPPLog(session,raws,moves,previous){
    const report=session.wbppLog=sqrWBPPLogReport(sqrPath(session.options.wbpp));
-   const rows=session.groups.flatMap(g=>g.rows),byPath=new Map,origins=new Map(raws.map(m=>[m.path,m]));
+   const rows=session.groups.flatMap(g=>g.rows),byPath=new Map,origins=new Map;
    const ambiguous=rows.filter(r=>!r.original),byFinding=new Map,unmatched=new Map;
-   for(const row of rows)for(const p of [row.original?.path,row.registered.path].filter(Boolean)){
-      if(byPath.has(p)&&byPath.get(p)!==row)byPath.set(p,null);else if(!byPath.has(p))byPath.set(p,row);
-   }
+   // Retain the real paths on records. A normalized key claimed by two
+   // different records stays ambiguous and must never auto-reject a light.
+   const index=(map,path,record)=>{const key=sqrKey(path);map.set(key,map.has(key)&&map.get(key)!==record?null:record);};
+   for(const m of raws)index(origins,m.path,m);
+   for(const row of rows)for(const p of [row.original?.path,row.registered.path].filter(Boolean))index(byPath,p,row);
    session.logOnly=[];
    // Also recover log-only moves after a refresh, for Undo.
-   for(const move of moves.values())if(move&&!byPath.has(move.original.path)&&move.logOnly){
+   for(const move of moves.values())if(move&&!byPath.has(sqrKey(move.original.path))&&move.logOnly){
       const row={original:move.original,match:'Verified',reject:true,moved:true,movedTo:move.target,moveJournal:move.journal};
-      session.logOnly.push(row);byPath.set(row.original.path,row);
+      session.logOnly.push(row);index(byPath,row.original.path,row);
    }
    if(!report)return;
    for(const e of report.entries){
-      let row=byPath.get(e.path);
-      if(row===undefined&&origins.has(e.path)){
-         const meta=origins.get(e.path);
+      const key=sqrKey(e.path),meta=origins.get(key);
+      let row=origins.has(key)&&!meta?null:byPath.get(key);
+      if(row===undefined&&meta){
          if(!ambiguous.some(r=>sqrCompatible(r.registered,meta)&&(r.registered.date&&r.registered.date===meta.date||sqrSourceStem(r.registered.path)===sqrBase(meta.path).toLowerCase()))){
-            row={original:meta,match:'Verified',reject:false,moved:false};session.logOnly.push(row);byPath.set(e.path,row);
+            row={original:meta,match:'Verified',reject:false,moved:false};session.logOnly.push(row);byPath.set(key,row);
          }
       }
-      if(!row){const key=e.path+'\n'+e.reason;if(!unmatched.has(key))unmatched.set(key,e);continue;}
+      if(!row){const reasonKey=key+'\n'+e.reason;if(!unmatched.has(reasonKey))unmatched.set(reasonKey,e);continue;}
       let finding=byFinding.get(row);
       if(!finding){finding={row,path:row.original?.path||row.registered.path,reasons:new Set,eligible:false};byFinding.set(row,finding);}
-      const reason=report.scales?.get(row.registered?.path);
+      const reason=row.registered&&report.scales?.get(sqrKey(row.registered.path))?.reason;
       finding.reasons.add(reason&&reason!=='Invalid local normalization data'&&/normalization/i.test(e.reason)?e.reason+' ('+reason+')':e.reason);
       if(report.usable&&e.quality&&row.original&&row.match==='Verified')finding.eligible=true;
    }
    const prior=new Map;
-   if(previous?.wbppLog?.path===report.path&&sqrSameRunFolders(previous.options,session.options))
-      for(const f of previous.wbppLog.findings||[])if(f.row?.original)prior.set(f.path,f);
+   if(previous?.wbppLog?.path&&sqrKey(previous.wbppLog.path)===sqrKey(report.path)&&sqrSameRunFolders(previous.options,session.options))
+      for(const f of previous.wbppLog.findings||[])if(f.row?.original)prior.set(sqrKey(f.path),f);
    report.findings=[];
    for(const f of byFinding.values()){
       const row=f.row;f.reason=[...f.reasons].join(' · ');delete f.reasons;row.wbppReason=f.reason;
-      const old=prior.get(f.path);
+      const old=prior.get(sqrKey(f.path));
       if(f.eligible&&!row.moved)row.reject=old?.eligible&&old.reason===f.reason&&old.row.original.fingerprint===row.original.fingerprint?old.row.reject:true;
       report.findings.push(f);
    }
@@ -6786,21 +6814,35 @@ class SQRDialog extends Dialog {
          this.syncOptions();
       }else{if(this.options().reference==='trail')this.reference.currentItem=0;this.ensurePreview();this.status.text='Trail mask removed.';}
    }
+   integrationInputDialog(group,plan){
+      const folder=sqrPath(this.session.options.wbpp)+'/master';
+      let confirm=new Dialog;confirm.windowTitle='Create reviewed master light';
+      let details=new Label(confirm);details.wordWrapping=true;details.setScaledMinWidth(380);
+      let extra=new CheckBox(confirm);extra.text='Include '+plan.extra.length+' retained light(s) absent from the saved WBPP integration';
+      extra.checked=false;extra.visible=plan.extra.length>0;extra.toolTip=plan.extra.map(e=>e.row.registered.path).join('\n');
+      let masks=new CheckBox(confirm);masks.checked=true;
+      masks.toolTip='Clear to create a comparison master using the unmasked lights. Your saved traces remain available.';
+      let create=sqrButton(confirm,'Create master',()=>confirm.ok()),buttons=new HorizontalSizer;buttons.spacing=6;buttons.addStretch();buttons.add(create);buttons.add(sqrButton(confirm,'Cancel',()=>confirm.cancel()));
+      const refresh=()=>{
+         let included=extra.checked?plan.enabled.concat(plan.extra):plan.enabled,count=included.length,masked=included.filter(e=>e.row.trailBands?.length).length;
+         details.text='Integrate '+count+' retained registered lights in '+group.label+'?'+(plan.disabled?'\nDisabled by WBPP: '+plan.disabled+'.':'')+
+            (count<3?'\nAt least three inputs are required.':'')+'\nDestination: '+folder;
+         masks.text='Apply saved trail masks ('+masked+' lights)';masks.visible=masked>0;create.enabled=count>=3;
+      };
+      extra.onCheck=refresh;
+      confirm.sizer=new VerticalSizer;confirm.sizer.margin=10;confirm.sizer.spacing=8;confirm.sizer.add(details);confirm.sizer.add(extra);confirm.sizer.add(masks);confirm.sizer.add(buttons);refresh();confirm.adjustToContents();
+      confirm.inputChoice=()=>({includeExtra:extra.checked,useMasks:masks.checked});
+      return confirm;
+   }
    createReviewedMaster(){
       let group=this.group();if(this.running||this.scanRequired||!group||this.inputMode()!=='import'||!sqrImportedRun(this.session?.options))return;
-      let rows=group.rows.filter(sqrRetainedRegistered);if(rows.length<3)return;
-      let folder=sqrPath(this.session.options.wbpp)+'/master',masked=rows.filter(r=>r.trailBands?.length).length;
-      let confirm=new Dialog;confirm.windowTitle='Create reviewed master light';
-      let details=new Label(confirm);details.text='Integrate '+rows.length+' retained registered lights in '+group.label+'?\nDestination: '+folder;
-      details.wordWrapping=true;details.setScaledMinWidth(380);
-      let masks=new CheckBox(confirm);masks.text='Apply saved trail masks ('+masked+' lights)';masks.checked=masked>0;masks.visible=masked>0;
-      masks.toolTip='Clear to create a comparison master using the unmasked lights. Your saved traces remain available.';
-      let buttons=new HorizontalSizer;buttons.spacing=6;buttons.addStretch();buttons.add(sqrButton(confirm,'Create master',()=>confirm.ok()));buttons.add(sqrButton(confirm,'Cancel',()=>confirm.cancel()));
-      confirm.sizer=new VerticalSizer;confirm.sizer.margin=10;confirm.sizer.spacing=8;confirm.sizer.add(details);confirm.sizer.add(masks);confirm.sizer.add(buttons);confirm.adjustToContents();
-      if(!confirm.execute())return;
       this.stopBlink();try{
-         this.busy(true);let path=sqrIntegrateReviewedGroup(this.session.options,group,t=>this.setStatus(t),!masked||masks.checked);
-         this.status.text='Created master from '+rows.length+' retained lights: '+path;
+         this.busy(true);let path=sqrIntegrateReviewedGroup(this.session.options,group,t=>this.setStatus(t),true,plan=>{
+            const dialog=this.integrationInputDialog(group,plan);
+            return dialog.execute()?dialog.inputChoice():null;
+         });
+         if(!path)return;
+         this.status.text='Created reviewed master: '+path;
          this.masterBlink.refresh(path);
       }catch(e){this.error(e);}finally{this.busy(false);}
    }

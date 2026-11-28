@@ -5,7 +5,7 @@
    <title>PixInsight Reference Documentation | SubframeQualityReview</title>
    <meta name="keywords" content="WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights" />
    <meta name="author" content="" />
-   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.78.2." />
+   <meta name="description" content="Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.78.3." />
    <meta name="robots" content="INDEX,FOLLOW" />
    <meta name="generator" content="PixInsight Documentation Compiler script version 1.8.1" />
    <meta name="pidoc-document-class" content="PIScriptDoc" />
@@ -25,7 +25,7 @@
 <hr class="separator"/>
 
 <div id="brief">
-<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.78.2. <a href="#__contents__">[more]</a></p></div>
+<p>Review WBPP subframes, compare their quality, and move rejected original lights after reviewing the selection. User guide for version 0.78.3. <a href="#__contents__">[more]</a></p></div>
 
 <div id="keywords">
 <p><strong>Keywords:</strong> WBPP, subframe quality, review, blink, FWHM, eccentricity, PSF signal weight, sky background, autofocus, PHD2, guiding, original lights</p>
@@ -134,7 +134,7 @@
 <p>With <em>Automatic extent</em>, thin tracks follow the fitted line to both image edges, even across gaps. Bright, broad tracks use the detected segment, which allows aircraft trails to end inside the frame. Inspect the result. To override the extent, choose <em>Edge to edge</em> or <em>Visible segment</em> and click <em>Remove trails</em> again. The selected width controls how many pixels are excluded across each line.</p>
 <p><em>Undo</em> reverses the last edit, including a whole automatic removal. To drop one band, select it in the trail list, then choose its <em>Remove Trail</em> entry in the same list. To trace a missed streak, select <em>Draw manually</em> and drag between its endpoints. Auto width also estimates the width of a hand-drawn band. Cancel discards the session's edits.</p>
 <p>Click <em>Save repaired image</em> to write a separate linear XISF with the excluded pixels set to zero. The saved path appears in Messages, and Blink opens in <em>Trail mask / original</em> mode. Each confirmed copy and its repair record live under <span class="pidoc_code">SQR-trail-masks</span> in the WBPP output folder. The registered source and its measurements are preserved. Reopen the brush to revise a saved repair. Delete all bands and confirm <em>Remove saved repair</em> to restore use of the original.</p>
-<p>Click the <em>Integrate retained lights</em> button (∑) at the bottom to create a master for the selected filter and exposure group. Check the retained count and destination, then confirm. The full registered frames are integrated, including retained rows hidden by a table filter. Rejected and moved frames are excluded. At least three retained lights are required. Import the WBPP setup for this run to enable master creation. Trail masking is also available when scanning folders manually.</p>
+<p>Click the <em>Integrate retained lights</em> button (∑) at the bottom to create a master for the selected filter and exposure group. Check the input count and destination, then confirm. By default, only retained lights enabled in the saved WBPP integration are included, in their saved order. Disabled WBPP entries stay excluded. To add retained registered lights absent from the saved integration, select the additional-input checkbox. Hover over it to see their paths. The full registered frames are integrated, including retained rows hidden by a table filter. Rejected and moved frames are excluded. At least three retained lights are required. Import the WBPP setup for this run to enable master creation. Trail masking is also available when scanning folders manually.</p>
 <p>The final ImageIntegration step recorded in the matching WBPP master or the latest run process container in logs/ supplies the combination, normalization, weights, input order and rejection parameters. Keep the local-normalization data and weights file available if used by WBPP. When the original reference is excluded, the first remaining input in WBPP order becomes the reference. At each masked position, the other retained exposures supply the pixel. A position masked in every exposure has no data. Zero-valued registration borders are excluded. WBPP rejection maps are embedded in the output. The script disables drizzle data generation to preserve the existing WBPP files.</p>
 <p>Each result is a new timestamped <span class="pidoc_code">SQR_masterLight</span> XISF file in the WBPP <span class="pidoc_code">master</span> folder. Integration uses the confirmed repaired copies when <em>Apply saved trail masks</em> is selected. Clear it to integrate the untouched registered lights.</p>
 <p>To compare the effect of a trail repair, create one master with <em>Apply saved trail masks</em> selected and another with it cleared. To compare rejection decisions, change the marked subframes and create another master.</p>
@@ -1370,7 +1370,7 @@
 <hr class="separator"/>
 
 <div id="footer">
-   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-28 16:57:22 UTC</p>
+   <p>Generated by the PixInsight Documentation Compiler script version 1.8.1 on 2026-11-28 17:40:24 UTC</p>
 </div>
 <br/>
 <br/>
